@@ -82,33 +82,41 @@ git push -u origin main
 
 ## Шаг 3. Создать Web Service на Render
 
-1. На https://dashboard.render.com → **New + → Web Service**
-2. **Connect** репозиторий `smartplan` (если нужно — дайте доступ Render к GitHub)
-3. Заполните:
+> **Два способа** — выбирайте удобный:
+>
+> ### Способ A. Blueprint (рекомендуется, всё автоматически)
+>
+> 1. На https://dashboard.render.com → **New + → Blueprint**
+> 2. **Connect** репозиторий `smartplan`
+> 3. Render найдёт `render.yaml` в корне и **сам** создаст Web Service + PostgreSQL + переменную `DATABASE_URL`
+> 4. Нажмите **Apply** — больше ничего настраивать не нужно
+>
+> ### Способ B. Web Service вручную (если Blueprint не подходит)
+>
+> 1. Сначала создайте PostgreSQL (Шаг 2)
+> 2. **New + → Web Service**
+> 3. **Connect** репозиторий `smartplan`
+> 4. Заполните форму:
 
 | Поле | Значение |
 |---|---|
 | **Name** | `smartplan` |
 | **Region** | **Frankfurt (EU Central)** |
 | **Branch** | `main` |
-| **Runtime** | **Docker** |
+| **Runtime** | **`Docker`** ← обязательно! |
 | **Dockerfile Path** | `server/Dockerfile` |
-| **Docker Context** | оставьте пустым (корень репо) |
+| **Docker Context** | пусто (корень репо) |
 | **Plan** | **Free** |
 
-4. НЕ нажимайте «Create Web Service» — сначала добавьте переменную окружения!
+> ⚠️ **Build Command** и **Start Command** — оставьте **пустыми**! Эти поля активны только при Runtime = Node. При Runtime = Docker они игнорируются — Render использует Dockerfile.
 
-### 3.2. Добавить переменную окружения
-
-Прокрутите вниз → **Environment → Add Environment Variable**:
+5. **Environment → Add Environment Variable**:
 
 | Key | Value |
 |---|---|
-| `DATABASE_URL` | вставьте Internal Database URL из шага 2 |
+| `DATABASE_URL` | вставьте Internal Database URL из Шага 2 |
 
-5. **Create Web Service**
-
-Render начнёт сборку (~3–5 мин).
+6. **Create Web Service**
 
 ---
 

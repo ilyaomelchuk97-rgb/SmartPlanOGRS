@@ -1,5 +1,5 @@
 # Render Blueprint — SmartPlan
-# Деплой: web service + PostgreSQL
+# Деплой: web service (Docker) + PostgreSQL
 # https://render.com/docs/blueprint-specification
 
 services:
@@ -8,6 +8,10 @@ services:
     runtime: docker
     dockerfilePath: ./server/Dockerfile
     dockerContext: .
+    # Явно пустые build/start — Render НЕ должен запускать Node-команды
+    # даже если в корне есть package.json.
+    buildCommand: ""
+    startCommand: ""
     plan: free
     healthCheckPath: /healthz
     autoDeploy: true
