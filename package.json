@@ -1,0 +1,13 @@
+{
+  "name": "smartplan",
+  "version": "22.09.25",
+  "description": "SmartPlan — УП «МИНГАЗ» — газораспределительная система Минска",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server/server.js",
+    "migrate": "cd server && node migrations/run.js"
+  }
+}

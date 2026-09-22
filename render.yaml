@@ -1,0 +1,31 @@
+# Render Blueprint — SmartPlan
+# Деплой: web service + PostgreSQL
+# https://render.com/docs/blueprint-specification
+
+services:
+  - type: web
+    name: smartplan
+    runtime: docker
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: smartplan-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: SESSION_SECRET
+        generateValue: true
+
+databases:
+  - name: smartplan-db
+    plan: free
+    databaseName: smartplan
+    user: smartplan
+    ipAllowList: []   # только внутренний доступ с web-service
