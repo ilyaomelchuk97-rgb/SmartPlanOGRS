@@ -30,6 +30,7 @@ const authRoutes = require('./routes/auth');
 const syncRoutes = require('./routes/sync');
 const auditRoutes = require('./routes/audit');
 const sectionRoutes = require('./routes/section');
+const adminRoutes = require('./routes/admin');
 const { requireAuth } = require('./middleware/auth');
 
 const PORT = process.env.PORT || 3000;
@@ -70,9 +71,41 @@ app.get('/healthz', (req, res) => {
 
 // Инициализация схемы БД (создаёт таблицы, если их нет).
 // При ошибке соединения — НЕ убиваем процесс: ретраим каждые 10 сек.
+// После успешной инициализации схемы — сразу создаём стандартных
+// пользователей (если их ещё нет). Это бесплатная альтернатива Shell.
 function initWithRetry() {
   initSchema(pool)
-    .then(() => console.log('✅ БД готова'))
+    .then(async () => {
+      console.log('✅ БД готова');
+      // Автосидинг пользователей — бесплатно, без Shell
+      try {
+        const bcrypt = require('bcrypt');
+        const DEFAULT_USERS = [
+          { id: 'u_admin',  login: 'admin',  full_name: 'Администратор',             role: 'admin',  prof: 'Администратор',     password: 'admin123' },
+          { id: 'u_seogs',  login: 'seogs',  full_name: 'Начальник СЭОГС',          role: 'seogs',  prof: 'СЭОГС — просмотр', password: 'seogs123' },
+          { id: 'u_master', login: 'master', full_name: 'Иванов Сергей Петрович',  role: 'master', prof: 'Мастер',            password: 'master123' },
+          { id: 'u_slesar', login: 'slesar', full_name: 'Петров Алексей Николаевич',role: 'slesar', prof: 'Слесарь',           password: 'slesar123' }
+        ];
+        const r = await pool.query('SELECT COUNT(*) as cnt FROM users');
+        const haveUsers = parseInt(r.rows[0].cnt, 10) > 0;
+        if (!haveUsers) {
+          for (const u of DEFAULT_USERS) {
+            const hash = await bcrypt.hash(u.password, 10);
+            await pool.query(
+              `INSERT INTO users (id, login, full_name, role, prof, password_hash)
+               VALUES ($1, $2, $3, $4, $5, $6)
+               ON CONFLICT (login) DO NOTHING`,
+              [u.id, u.login, u.full_name, u.role, u.prof, hash]
+            );
+          }
+          console.log('✅ Стандартные пользователи созданы: admin, seogs, master, slesar');
+        } else {
+          console.log(`ℹ️ Пользователей уже ${r.rows[0].cnt} — пропускаем seed`);
+        }
+      } catch (e) {
+        console.error('⚠ Ошибка автоseed пользователей:', e.message);
+      }
+    })
     .catch((e) => {
       console.error('❌ Ошибка инициализации БД (ретрай через 10 сек):', e.message);
       setTimeout(initWithRetry, 10000);
@@ -82,6 +115,7 @@ initWithRetry();
 
 // Роуты
 app.use('/api/auth', authRoutes(pool));
+app.use('/api/admin', adminRoutes(pool, initSchema));  // без авторизации — для первоначальной настройки
 app.use('/api/sync', requireAuth, syncRoutes(pool));
 app.use('/api/audit', requireAuth, auditRoutes(pool));
 // Универсальный роутинг для разделов
