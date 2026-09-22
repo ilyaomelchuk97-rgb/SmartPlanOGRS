@@ -12612,25 +12612,8 @@
     updateSyncIndicator();
   }
 
-  // Индикатор статуса синхронизации
-  function updateSyncIndicator() {
-    var existing = document.getElementById('sync-indicator');
-    if (!existing) {
-      var topbar = document.querySelector('.topbar');
-      if (!topbar) return;
-      var ind = document.createElement('div');
-      ind.id = 'sync-indicator';
-      ind.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);padding:4px 10px;border-radius:8px;background:var(--panel-3);cursor:pointer;transition:.2s;';
-      ind.title = 'Синхронизация с сервером';
-      ind.onclick = function() { DB.syncFromServer().then(function() { toast('ok', '✅ Данные синхронизированы'); }); };
-      topbar.insertBefore(ind, topbar.querySelector('.usr'));
-    }
-    var el = document.getElementById('sync-indicator');
-    if (!el) return;
-    var online = DB.isServerOnline();
-    el.innerHTML = '<span style="width:8px;height:8px;border-radius:50%;background:' + (online ? '#16a34a' : '#dc2626') + ';display:inline-block;' + (online ? '' : 'animation:pulseSoft 1.5s infinite') + '"></span>' + (online ? 'Сервер' : 'Автономно');
-  }
-  setInterval(updateSyncIndicator, 5000);
+  // Индикатор статуса синхронизации — управляется модулем sync_polling.js
+  // (старая логика DB.isServerOnline удалена в 22.09-25 — сервер сменился на Render)
 
   /* ---------- ВХОД / СЕССИЯ ---------- */
   function onLoginSubmit(e) {
