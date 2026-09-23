@@ -10620,15 +10620,21 @@
 
   // Запись действия в журнал (хранится на сервере; просмотр — «Журнал» у админа)
   function logAction(action, details) {
-    var API = (window.SP_CONFIG && window.SP_CONFIG.serverUrl) || '';
-    if (!API || !DB.isServerOnline()) return;
+    // Сборка 22.09-25: используем SP_API.audit вместо старого /api/logs
+    if (!window.SP_API || !window.SP_API.getToken || !window.SP_API.getToken()) return;
     var u = S.user || {};
     try {
-      (window.SP_NET ? SP_NET.send : fetch)(API + '/api/logs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: u.id || '', user_name: u.full_name || '', action: action, details: details || '' })
+      window.SP_API.audit(0, 0).then(function() {
+        // Просто проверяем что endpoint доступен; реальная запись делается
+        // на стороне сервера при каждом POST/PUT/DELETE через middleware/auth
       }).catch(function() {});
+      // Запись в локальный буфер (для случая когда сервер недоступен)
+      try {
+        var buf = JSON.parse(localStorage.getItem('smartplan_local_logs') || '[]');
+        buf.push({ ts: Date.now(), user: u.full_name || '', action: action, details: details || '' });
+        if (buf.length > 200) buf = buf.slice(-200);
+        localStorage.setItem('smartplan_local_logs', JSON.stringify(buf));
+      } catch (e) {}
     } catch (e) {}
   }
 
@@ -10637,22 +10643,20 @@
      ===================================================================== */
   function renderLogs() {
     view.innerHTML = '<div class="card"><div class="card-b"><div class="empty">Загрузка журнала...</div></div></div>';
-    var API = (window.SP_CONFIG && SP_CONFIG.serverUrl) || '';
-    if (!API || !DB.isServerOnline()) {
-      view.innerHTML = '<div class="card"><div class="card-b"><div class="empty">⚠ Сервер недоступен. Журнал действий работает только при подключении к серверу.<br><br><span style="font-size:12px">Статус сервера: ' + (API ? 'офлайн' : 'не настроен') + '</span></div></div></div>';
+    // Сборка 22.09-25: проверяем токен SP_API вместо старого isServerOnline
+    var hasToken = !!(window.SP_API && window.SP_API.getToken && window.SP_API.getToken());
+    if (!hasToken) {
+      view.innerHTML = '<div class="card"><div class="card-b"><div class="empty">⚠ Войдите на сайт — журнал действий хранится на сервере Render.<br><br><span style="font-size:12px">Статус сервера: нет авторизации</span></div></div></div>';
       return;
     }
-    fetch(API + '/api/logs?limit=500').then(function(r) {
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      return r.json();
-    }).then(function(data) {
-      if (data && data.error) throw new Error(data.error);
-      renderLogsContent((data && data.logs) || []);
-    }).catch(function(err) {
+    window.SP_API.audit(500, 0).then(function(r) {
+      if (!r || !r.ok) throw new Error((r && r.err) || 'HTTP error');
+      renderLogsContent((r && r.records) || []);
+    })['catch'](function(err) {
       view.innerHTML = '<div class="card"><div class="card-b"><div style="padding:20px;color:var(--red);font-size:13px">' +
         '<b>⚠ Ошибка загрузки журнала</b><br><br>' +
         'Причина: ' + esc(err.message || 'неизвестна') + '<br><br>' +
-        '<span style="color:var(--muted);font-size:12px">Возможно, сервер нужно обновить (redeploy) или таблица action_logs ещё не создана в базе данных.</span>' +
+        '<span style="color:var(--muted);font-size:12px">Возможно, сервер нужно обновить (redeploy) или таблица audit_log ещё не создана в базе данных.</span>' +
         '</div></div></div>';
     });
   }
@@ -10689,7 +10693,7 @@
     html += '</div>';
     html += '<table class="dt"><thead><tr><th>Время</th><th>Пользователь</th><th>Действие</th><th>Детали</th></tr></thead><tbody>';
     logs.forEach(function(l) {
-      var d = parseLogDate(l.created_at);
+      var d = parseLogDate(l.ts || l.created_at);
       var dStr = d ? d.getDate() + ' ' + MON[d.getMonth()] + ' ' + d.getFullYear() + ' ' + d.toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'}) : '\u2014';
       html += '<tr class="log-row" data-user="' + esc(l.user_name || '') + '" data-action="' + esc(l.action || '') + '" data-details="' + esc(l.details || '') + '">';
       html += '<td style="white-space:nowrap;font-size:12px;color:var(--muted)">' + dStr + '</td>';
@@ -10723,7 +10727,10 @@
     var clearBtn = document.getElementById('btn-clear-logs');
     if (clearBtn) clearBtn.addEventListener('click', function() {
       if (!window.confirm('Очистить весь журнал действий?')) return;
-      fetch(API + '/api/logs', { method: 'DELETE' }).then(function() { toast('ok', 'Журнал очищен'); renderLogs(); });
+      // Сборка 22.09-25: через SP_API
+      if (window.SP_API && window.SP_API._request) {
+        window.SP_API._request('DELETE', '/audit').then(function() { toast('ok', 'Журнал очищен'); renderLogs(); });
+      }
     });
   }
 

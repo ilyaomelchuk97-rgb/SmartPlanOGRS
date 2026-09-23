@@ -31,6 +31,7 @@ const syncRoutes = require('./routes/sync');
 const auditRoutes = require('./routes/audit');
 const sectionRoutes = require('./routes/section');
 const adminRoutes = require('./routes/admin');
+const usersRoutes = require('./routes/users');
 const { requireAuth } = require('./middleware/auth');
 
 const PORT = process.env.PORT || 3000;
@@ -118,8 +119,10 @@ app.use('/api/auth', authRoutes(pool));
 app.use('/api/admin', adminRoutes(pool, initSchema));  // без авторизации — для первоначальной настройки
 app.use('/api/sync', requireAuth, syncRoutes(pool));
 app.use('/api/audit', requireAuth, auditRoutes(pool));
-// Универсальный роутинг для разделов
-const SECTIONS = ['objects', 'tasks', 'users', 'areas', 'workers', 'work_catalog', 'graphs'];
+// Специальный роут для users (специальная таблица с фиксированными колонками)
+app.use('/api/users', requireAuth, usersRoutes(pool));
+// Универсальный роутинг для остальных разделов
+const SECTIONS = ['objects', 'tasks', 'areas', 'workers', 'work_catalog', 'graphs'];
 SECTIONS.forEach((s) => {
   app.use(`/api/${s}`, requireAuth, sectionRoutes(pool, s));
 });

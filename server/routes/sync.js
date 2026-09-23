@@ -30,8 +30,28 @@ module.exports = function (pool) {
       const since = parseInt(req.query.since || '0', 10);
       const now = Date.now();
 
-      // Запросить все разделы параллельно
+      // Запросить все разделы параллельно. Для users — особый запрос (фиксированные колонки + JSONB)
       const queries = SECTIONS.map(async (s) => {
+        if (s.name === 'users') {
+          const r = await pool.query(
+            `SELECT id, login, full_name, role, prof, active, data, updated_at
+               FROM users
+              WHERE deleted = FALSE AND updated_at > to_timestamp($1::double precision / 1000.0)
+              ORDER BY updated_at ASC LIMIT 5000`,
+            [since]
+          );
+          return [s.name, r.rows.map((row) => ({
+            id: row.id,
+            login: row.login,
+            full_name: row.full_name,
+            role: row.role,
+            prof: row.prof,
+            active: row.active,
+            ...row.data,
+            _deleted: false,
+            _updated_at: new Date(row.updated_at).getTime()
+          }))];
+        }
         const r = await pool.query(
           `SELECT id, data, deleted, updated_at FROM ${s.name}
             WHERE updated_at > to_timestamp($1::double precision / 1000.0)

@@ -8,6 +8,7 @@
 module.exports = function (pool) {
   const router = require('express').Router();
 
+  // GET /api/audit?limit=N&since=ts — список записей
   router.get('/', async (req, res) => {
     try {
       const limit = Math.min(parseInt(req.query.limit || '100', 10), 500);
@@ -35,6 +36,19 @@ module.exports = function (pool) {
           details: row.details
         }))
       });
+    } catch (e) {
+      res.status(500).json({ ok: false, err: e.message });
+    }
+  });
+
+  // DELETE /api/audit — очистить весь журнал (только admin)
+  router.delete('/', async (req, res) => {
+    try {
+      if (!req.user || req.user.role !== 'admin') {
+        return res.status(403).json({ ok: false, err: 'только для администратора' });
+      }
+      const r = await pool.query('DELETE FROM audit_log');
+      res.json({ ok: true, deleted: r.rowCount });
     } catch (e) {
       res.status(500).json({ ok: false, err: e.message });
     }
