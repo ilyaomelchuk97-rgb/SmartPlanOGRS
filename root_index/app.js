@@ -10661,6 +10661,86 @@
     });
   }
 
+  /* =====================================================================
+     РЕНДЕР: ЛОГИ ОШИБОК КЛИЕНТА (SP_ERRORS, localStorage)
+     ===================================================================== */
+  function renderErrLogs() {
+    var logs = (window.SP_ERRORS && SP_ERRORS.getAll) ? SP_ERRORS.getAll() : [];
+    var html = '<div class="card"><div class="card-h"><h2>🐞 Логи ошибок</h2>' +
+      '<span class="sub">' + logs.length + ' записей (локально)</span>' +
+      '<div class="spacer"></div>' +
+      '<button class="btn sm" data-action="clear-errlogs" style="color:var(--red)">🗑 Очистить</button>' +
+      '<button class="btn sm" data-action="test-errlog">+ Тестовая ошибка</button>' +
+      '</div><div class="card-b">';
+    if (!logs.length) {
+      html += '<div class="empty">✅ Ошибок нет. Все чисто.</div>';
+    } else {
+      // Фильтры по уровню
+      html += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">';
+      html += '<select id="err-filter-level" style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:var(--card)">';
+      html += '<option value="">Все уровни</option>';
+      html += '<option value="error">Только ошибки</option>';
+      html += '<option value="warn">Предупреждения</option>';
+      html += '<option value="info">Информация</option>';
+      html += '</select>';
+      html += '<input type="text" id="err-search" placeholder="Поиск по сообщению или месту..." style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;flex:1;min-width:180px">';
+      html += '</div>';
+      // Таблица
+      html += '<table class="dt"><thead><tr><th style="width:150px">Время</th><th style="width:80px">Уровень</th><th>Где</th><th>Сообщение</th></tr></thead><tbody>';
+      logs.forEach(function (l) {
+        var lvl = l.level || 'error';
+        var lvlColor = lvl === 'error' ? '#dc2626' : (lvl === 'warn' ? '#f59e0b' : '#16a34a');
+        var ts = (window.SP_ERRORS && SP_ERRORS.fmtTs) ? SP_ERRORS.fmtTs(l.ts) : new Date(l.ts).toISOString();
+        var extra = l.extra ? ('<div style="font-size:10.5px;color:var(--muted);margin-top:3px;font-family:monospace">' +
+          esc(JSON.stringify(l.extra).substring(0, 200)) + '</div>') : '';
+        var stack = l.stack ? ('<details style="margin-top:5px"><summary style="cursor:pointer;color:var(--blue);font-size:11px">stack</summary>' +
+          '<pre style="font-size:10.5px;background:var(--panel-3);padding:6px 8px;border-radius:6px;overflow-x:auto;margin-top:5px;color:var(--muted)">' +
+          esc((l.stack || '').substring(0, 1500)) + '</pre></details>') : '';
+        html += '<tr class="err-row" data-level="' + esc(lvl) + '" data-search="' + esc((l.where + ' ' + l.msg).toLowerCase()) + '">';
+        html += '<td style="white-space:nowrap;font-size:11.5px;color:var(--muted);font-family:monospace">' + esc(ts) + '</td>';
+        html += '<td><span style="display:inline-block;padding:1px 7px;background:' + lvlColor + ';color:#fff;border-radius:3px;font-size:10px;font-weight:700">' + esc(lvl.toUpperCase()) + '</span></td>';
+        html += '<td style="font-size:12px;font-family:monospace;word-break:break-all">' + esc(l.where || '?') + '</td>';
+        html += '<td style="font-size:12.5px"><div>' + esc(l.msg || '') + '</div>' + extra + stack + '</td>';
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+    }
+    html += '</div></div>';
+    view.innerHTML = html;
+    // Привязка фильтров
+    var fLevel = document.getElementById('err-filter-level');
+    var fSearch = document.getElementById('err-search');
+    function applyFilter() {
+      var lv = fLevel && fLevel.value;
+      var sv = fSearch && fSearch.value.toLowerCase();
+      view.querySelectorAll('.err-row').forEach(function (row) {
+        var okLevel = !lv || row.dataset.level === lv;
+        var okSearch = !sv || row.dataset.search.indexOf(sv) !== -1;
+        row.style.display = (okLevel && okSearch) ? '' : 'none';
+      });
+    }
+    if (fLevel) fLevel.addEventListener('change', applyFilter);
+    if (fSearch) fSearch.addEventListener('input', applyFilter);
+    // Кнопка очистки
+    var btnClear = view.querySelector('[data-action="clear-errlogs"]');
+    if (btnClear) btnClear.addEventListener('click', function () {
+      if (!window.confirm('Очистить весь локальный лог ошибок?')) return;
+      if (window.SP_ERRORS && SP_ERRORS.clear) SP_ERRORS.clear();
+      toast('ok', 'Лог ошибок очищен');
+      renderErrLogs();
+    });
+    // Кнопка тестовой ошибки
+    var btnTest = view.querySelector('[data-action="test-errlog"]');
+    if (btnTest) btnTest.addEventListener('click', function () {
+      try {
+        throw new Error('Тестовая ошибка из UI ' + new Date().toLocaleTimeString('ru-RU'));
+      } catch (e) {
+        if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log('error', 'ui.test', e.message, { stack: e.stack });
+        renderErrLogs();
+      }
+    });
+  }
+
   // Надёжный разбор даты журнала: created_at из PostgreSQL BIGINT приходит СТРОКОЙ
   function parseLogDate(v) {
     if (v == null) return null;
@@ -12796,6 +12876,7 @@
     else if (S.screen === 'users') renderUsers();
     else if (S.screen === 'reports') renderReports();
     else if (S.screen === 'logs') renderLogs();
+    else if (S.screen === 'errlogs') renderErrLogs();
     else if (S.screen === 'graphs') renderGraphs();
   }
 
@@ -16605,6 +16686,8 @@
     setInterval(loadWeatherForecast, 3600000);
     // Инициализация попапа погоды
     initWeatherPopup();
+    // Инициализация локального лога ошибок (SP_ERRORS)
+    try { if (window.SP_ERRORS && SP_ERRORS.init) SP_ERRORS.init(); } catch (e) {}
     // Real-time синхронизация с сервером Render (polling каждую секунду)
     // Заменяет старую логику с общей папкой (sync.js) и общим сервером (DB.syncFromServer)
     try {
