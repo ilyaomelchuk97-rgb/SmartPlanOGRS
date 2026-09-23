@@ -85,7 +85,7 @@ window.SP_WORK = (function () {
     AREAS.forEach(function (area) {
       if (!db.areas[area] || !db.areas[area].length) {
         db.areas[area] = DEFAULTS.map(function (d) {
-          return {
+          return Object.assign({
             id: d.id, group: d.group, name: d.name, norm: d.norm, unit: d.unit,
             needs_permit: d.needs_permit || false,
             depends_on_snow: d.depends_on_snow || false,
@@ -94,12 +94,59 @@ window.SP_WORK = (function () {
             equipment: d.equipment || '—',
             min_workers: d.min_workers || 1,
             opt_workers: d.opt_workers || 2
-          };
+          }, _newAttrDefaults());
         });
       }
     });
     save(db);
     return Promise.resolve(db);
+  }
+
+  // Дефолты для новых атрибутов (по «4 Атрибуты видов работ.htm»):
+  // — категории объектов, периодичность, реквизит отсчёта, совместные работы,
+  //   операции, показатели эксплуатации, печатные формы, журналы, сканы.
+  function _newAttrDefaults() {
+    return {
+      object_categories:    [],          // ГРП, ШРП, ПГРП, Наружный газопровод и др.
+      departments:          [],          // Справочник Подразделения
+      periodicity_value:    0,           // Целое число (мес / дней)
+      periodicity_unit:     'мес',       // 'мес' | 'дней'
+      periodicity_depends_on: [],        // id работ из «Виды работ»
+      periodicity_basis:    'prev_date', // 'prev_date' | 'commissioning_date'
+      joint_with:           '',          // id другой работы
+      operations:           [],          // список значений
+      indicators:           [],          // контролируемые показатели
+      print_forms:          [],          // печатные формы
+      op_journal:           false,       // запись в оперативном журнале
+      passport_entry:       false,       // запись в эксплуатационном паспорте
+      scan_attach:          false        // присоединение сканов
+    };
+  }
+  // Безопасно парсит массивы/enum-поля/числа из HTML-формы (строки → массив/число/bool)
+  function _parseNewAttrs(d) {
+    function toArr(v) {
+      if (Array.isArray(v)) return v.slice();
+      if (v == null || v === '') return [];
+      if (typeof v === 'string') return v.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+      return [];
+    }
+    function toBool(v) { return v === true || v === 'true' || v === 'on' || v === '1' || v === 1; }
+    function toNum(v, dflt) { var n = parseFloat(v); return isFinite(n) ? n : (dflt != null ? dflt : 0); }
+    return {
+      object_categories:       toArr(d.object_categories),
+      departments:             toArr(d.departments),
+      periodicity_value:       toNum(d.periodicity_value, 0),
+      periodicity_unit:        (d.periodicity_unit === 'дней' ? 'дней' : 'мес'),
+      periodicity_depends_on:  toArr(d.periodicity_depends_on),
+      periodicity_basis:       (d.periodicity_basis === 'commissioning_date' ? 'commissioning_date' : 'prev_date'),
+      joint_with:              d.joint_with || '',
+      operations:              toArr(d.operations),
+      indicators:              toArr(d.indicators),
+      print_forms:             toArr(d.print_forms),
+      op_journal:              toBool(d.op_journal),
+      passport_entry:          toBool(d.passport_entry),
+      scan_attach:             toBool(d.scan_attach)
+    };
   }
 
   function getAreas() {
@@ -165,7 +212,7 @@ window.SP_WORK = (function () {
   function addWork(area, data) {
     var db = init();
     if (!db.areas[area]) db.areas[area] = [];
-    var w = {
+    var w = Object.assign({
       id: newId(), group: data.group || 'Без группы', name: data.name,
       norm: parseFloat(data.norm) || 0, unit: data.unit || 'объект',
       needs_permit: data.needs_permit === true || data.needs_permit === 'true',
@@ -175,7 +222,7 @@ window.SP_WORK = (function () {
       equipment: data.equipment || '—',
       min_workers: parseInt(data.min_workers) || 1,
       opt_workers: parseInt(data.opt_workers) || 2
-    };
+    }, _newAttrDefaults(), _parseNewAttrs(data));
     db.areas[area].push(w); save(db);
     // Сборка 22.09-25: SP_API
     if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
@@ -199,6 +246,9 @@ window.SP_WORK = (function () {
       if (data.equipment !== undefined) arr[i].equipment = data.equipment;
       if (data.min_workers !== undefined) arr[i].min_workers = parseInt(data.min_workers) || 1;
       if (data.opt_workers !== undefined) arr[i].opt_workers = parseInt(data.opt_workers) || 2;
+      // Новые атрибуты (по «4 Атрибуты видов работ.htm»)
+      var na = _parseNewAttrs(data);
+      Object.keys(na).forEach(function (k) { arr[i][k] = na[k]; });
       save(db);
       if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
         window.SP_API.upsert('work_catalog', arr[i]).catch(function (e) {

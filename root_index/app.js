@@ -673,9 +673,9 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-25 · все точки и области справочника (ГРП, ШРП, ГРС, ПГРП) на одной карте'],
+    objmap: ['Карта объектов', 'Сборка 22.09-29 · все точки и области справочника (ГРП, ШРП, ГРС, ПГРП) на одной карте · виды работ: 13 атрибутов'],
     testmap: ['Тест', 'Полигон: копия «Карта маршрутов» для экспериментов — рабочие страницы не затрагивает'],
-    wxtest: ['Тест погодный', 'Сборка 22.09-27 · карта осадков: только прогноз Open-Meteo (ERA5 архив + ICON-EU) по сетке 16×16 точек · Минск и Минский район'],
+    wxtest: ['Тест погодный', 'Сборка 22.09-29 · карта осадков: только прогноз Open-Meteo (ERA5 архив + ICON-EU) по сетке 16×16 точек · Минск и Минский район · виды работ: 13 атрибутов'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
     perms: ['Разрешения', 'Система разрешений на производство работ'],
     refs: ['Справочники', 'Виды работ, нормы времени, объекты газоснабжения'],
@@ -9235,6 +9235,17 @@
           if (w.depends_on_snow) attr += ' <span class="snow-badge">❄️ Снег</span>';
           if (w.min_temp > -50) attr += ' <span class="weather-badge">🌡️ t≥' + w.min_temp + '°</span>';
           if (w.equipment && w.equipment !== '—') attr += ' <span class="equipment-badge">' + esc(w.equipment) + '</span>';
+          // === Бейджи новых атрибутов (Сборка 22.09-29) ===
+          if (w.object_categories && w.object_categories.length) {
+            attr += ' <span class="equipment-badge" title="Категория объекта: ' + esc(w.object_categories.join(', ')) + '">' + esc(w.object_categories[0]) + (w.object_categories.length > 1 ? ' +' + (w.object_categories.length - 1) : '') + '</span>';
+          }
+          if (w.periodicity_value) {
+            attr += ' <span class="permit-badge" title="Периодичность">🔁 ' + w.periodicity_value + ' ' + esc(w.periodicity_unit || 'мес') + '</span>';
+          }
+          if (w.joint_with) attr += ' <span class="snow-badge" title="Проводится совместно">🤝 совместно</span>';
+          if (w.op_journal) attr += ' <span class="weather-badge" title="Запись в оперативном журнале">📓 журнал</span>';
+          if (w.passport_entry) attr += ' <span class="weather-badge" title="Запись в эксплуатационном паспорте">📋 паспорт</span>';
+          if (w.scan_attach) attr += ' <span class="equipment-badge" title="Присоединение сканов">📎 сканы</span>';
           html += '<li class="w"><span style="color:var(--blue)">▪</span><span>' + esc(w.name) + '</span>' + attr + '<span class="norm">Норма: <b>' + fmtH(w.norm) + ' ч</b> / ' + esc(w.unit) + ' (мин ' + (w.min_workers || 1) + ' чел.)</span>';
           if (admin) html += '<span style="margin-left:10px;white-space:nowrap"><button class="btn sm" data-action="edit-work" data-wid="' + w.id + '">Изменить</button> <button class="btn sm" data-action="del-work" data-wid="' + w.id + '" style="color:var(--red)">Удалить</button></span>';
           html += '</li>';
@@ -10363,6 +10374,100 @@
     h += '<div class="attr-row"><div class="fld"><label>Требуемая техника</label><input id="wm-equip" value="' + (w ? esc(w.equipment || '—') : '—') + '" placeholder="Экскаватор, КДМ, ..."></div>';
     h += '<div class="fld"><label>Кол-во исполнителей (мин / оптим.)</label><div style="display:flex;gap:8px"><input id="wm-minw" type="number" min="1" value="' + (w ? (w.min_workers || 1) : 2) + '" style="flex:1" placeholder="мин"><input id="wm-optw" type="number" min="1" value="' + (w ? (w.opt_workers || 2) : 3) + '" style="flex:1" placeholder="опт"></div></div></div>';
     h += '</div>';
+
+    // === Атрибуты по «4 Атрибуты видов работ.htm» (Сборка 22.09-29) ===
+    h += '<div style="background:#eef6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px;margin-bottom:14px;">';
+    h += '<div style="font-size:12px;font-weight:700;color:#1d4ed8;margin-bottom:10px;">📋 Атрибуты (по справочнику УБиРОГС)</div>';
+
+    // 1. Категория объекта обслуживания (мульти-чекбоксы)
+    var curCats = (w && w.object_categories) || [];
+    var cats = ['ГРП', 'ШРП', 'ПГРП', 'ГРС', 'Наружный газопровод', 'Внутренний газопровод', 'Газопровод высокого давления', 'Газопровод среднего давления', 'Газопровод низкого давления', 'Узел учёта газа', 'Иное'];
+    h += '<div class="fld"><label>Категория объекта обслуживания <span style="color:#94a3b8;font-weight:500">(можно выбрать несколько)</span></label>';
+    h += '<div id="wm-cats" style="display:flex;flex-wrap:wrap;gap:6px;padding:4px 0;">';
+    cats.forEach(function (c) {
+      var on = curCats.indexOf(c) >= 0;
+      h += '<label class="cb" style="background:' + (on ? '#dbeafe' : '#fff') + ';border:1px solid ' + (on ? '#2563eb' : '#e2e8f0') + ';border-radius:6px;padding:4px 9px;cursor:pointer;font-size:12px;font-weight:600;color:#1e3a8a;">';
+      h += '<input type="checkbox" data-cat="' + esc(c) + '"' + (on ? ' checked' : '') + ' style="margin-right:5px;">' + esc(c) + '</label>';
+    });
+    h += '</div></div>';
+
+    // 2. Доступно подразделениям (мульти-чекбоксы — участки)
+    var curDeps = (w && w.departments) || [];
+    var deps = [];
+    try { if (window.SP_AREAS && typeof SP_AREAS.getAreas === 'function') deps = SP_AREAS.getAreas(); } catch (e) {}
+    h += '<div class="fld"><label>Доступно подразделениям <span style="color:#94a3b8;font-weight:500">(Справочник Подразделения)</span></label>';
+    h += '<div id="wm-deps" style="display:flex;flex-wrap:wrap;gap:6px;padding:4px 0;">';
+    (deps && deps.length ? deps : ['УБиРОГС']).forEach(function (d) {
+      var on = curDeps.indexOf(d) >= 0;
+      h += '<label class="cb" style="background:' + (on ? '#dbeafe' : '#fff') + ';border:1px solid ' + (on ? '#2563eb' : '#e2e8f0') + ';border-radius:6px;padding:4px 9px;cursor:pointer;font-size:12px;font-weight:600;color:#1e3a8a;">';
+      h += '<input type="checkbox" data-dep="' + esc(d) + '"' + (on ? ' checked' : '') + ' style="margin-right:5px;">' + esc(d) + '</label>';
+    });
+    h += '</div></div>';
+
+    // 3. Периодичность + 5. Реквизит отсчёта
+    h += '<div class="attr-row">';
+    h += '<div class="fld"><label>Периодичность выполнения</label><div style="display:flex;gap:6px"><input id="wm-period-value" type="number" min="0" step="1" value="' + (w && w.periodicity_value ? w.periodicity_value : '') + '" style="flex:1" placeholder="напр.: 12"><select id="wm-period-unit" style="width:90px"><option value="мес"' + (w && w.periodicity_unit === 'мес' ? ' selected' : '') + '>мес.</option><option value="дней"' + (w && w.periodicity_unit === 'дней' ? ' selected' : '') + '>дней</option></select></div></div>';
+    h += '<div class="fld"><label>Реквизит отсчёта для выполнения работ</label><select id="wm-period-basis"><option value="prev_date"' + (w && w.periodicity_basis === 'prev_date' ? ' selected' : '') + '>Дата предыдущего выполнения</option><option value="commissioning_date"' + (w && w.periodicity_basis === 'commissioning_date' ? ' selected' : '') + '>Дата ввода в эксплуатацию</option></select></div>';
+    h += '</div>';
+
+    // 4. Виды работ, от которых отсчёт периодичности (мульти-чекбоксы)
+    var curDepends = (w && w.periodicity_depends_on) || [];
+    var allWorks = [];
+    try {
+      if (window.WORK && typeof WORK.getWorks === 'function') {
+        WORK.getAreas().forEach(function (a) {
+          (WORK.getWorks(a) || []).forEach(function (ww) {
+            if (ww.id !== wid) allWorks.push(ww);
+          });
+        });
+      }
+    } catch (e) {}
+    h += '<div class="fld"><label>Виды работ, от которых отсчёт периодичности <span style="color:#94a3b8;font-weight:500">(Справочник Виды работ)</span></label>';
+    h += '<div id="wm-period-deps" style="max-height:120px;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:6px;background:#fff;">';
+    if (!allWorks.length) {
+      h += '<div style="color:#94a3b8;font-size:12px;padding:6px">Нет других работ в справочнике</div>';
+    } else {
+      allWorks.forEach(function (ww) {
+        var on = curDepends.indexOf(ww.id) >= 0;
+        h += '<label class="cb" style="display:flex;align-items:center;gap:6px;padding:3px 4px;border-radius:4px;font-size:12px;">';
+        h += '<input type="checkbox" data-perioddep="' + esc(ww.id) + '"' + (on ? ' checked' : '') + '><span style="flex:1"><b style="color:var(--ink)">' + esc(ww.name) + '</b><span style="color:#64748b"> · ' + esc(ww.group || '') + '</span></span></label>';
+      });
+    }
+    h += '</div></div>';
+
+    // 6. Проводится совместно (select с работами)
+    h += '<div class="fld"><label>Проводится совместно <span style="color:#94a3b8;font-weight:500">(Справочник Виды работ)</span></label>';
+    h += '<select id="wm-joint"><option value="">— не привязано —</option>';
+    allWorks.forEach(function (ww) {
+      h += '<option value="' + esc(ww.id) + '"' + (w && w.joint_with === ww.id ? ' selected' : '') + '>' + esc(ww.name) + ' · ' + esc(ww.group || '') + '</option>';
+    });
+    h += '</select></div>';
+
+    // 7. Операции (список значений — через запятую)
+    h += '<div class="fld"><label>Операции <span style="color:#94a3b8;font-weight:500">(список значений, через запятую)</span></label>';
+    h += '<input id="wm-operations" value="' + esc(((w && w.operations) || []).join(', ')) + '" placeholder="напр.: Подготовка, Монтаж, Проверка"></div>';
+
+    // 8. Нормы времени — уже есть «Норма времени, ч» выше; здесь пояснение
+    h += '<div class="fld" style="background:#f8fafc;border:1px dashed var(--line);border-radius:6px;padding:8px 10px;font-size:11.5px;color:#475569;">';
+    h += '<b style="color:#0f2740">📊 Нормы времени</b> — связаны со справочником «Нормы времени». Поле «Норма времени, ч» (выше) — значение по умолчанию.';
+    h += '</div>';
+
+    // 9. Показатели эксплуатации
+    h += '<div class="fld"><label>Показатели эксплуатации (контролируемые) <span style="color:#94a3b8;font-weight:500">(список значений)</span></label>';
+    h += '<input id="wm-indicators" value="' + esc(((w && w.indicators) || []).join(', ')) + '" placeholder="напр.: Давление, Температура, Расход"></div>';
+
+    // 10. Перечень печатных форм
+    h += '<div class="fld"><label>Перечень печатных форм <span style="color:#94a3b8;font-weight:500">(список, через запятую)</span></label>';
+    h += '<input id="wm-printforms" value="' + esc(((w && w.print_forms) || []).join(', ')) + '" placeholder="напр.: Акт осмотра, Протокол измерений"></div>';
+
+    // 11-13. Чекбоксы: журнал, паспорт, сканы
+    h += '<div class="attr-row"><div class="fld"><label class="cb"><input type="checkbox" id="wm-opjournal" ' + (w && w.op_journal ? 'checked' : '') + '> Записи в оперативном журнале</label></div>';
+    h += '<div class="fld"><label class="cb"><input type="checkbox" id="wm-passport" ' + (w && w.passport_entry ? 'checked' : '') + '> Записи в эксплуатационном паспорте</label></div>';
+    h += '</div>';
+    h += '<div class="fld"><label class="cb"><input type="checkbox" id="wm-scanattach" ' + (w && w.scan_attach ? 'checked' : '') + '> Присоединение отсканированных подписанных документов</label></div>';
+
+    h += '</div>';
+
     h += '</div><div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="save-work">Сохранить</button></div>';
     modal.style.maxWidth = ''; // сброс автоширины карточки задачи
     modal.innerHTML = h; overlay.classList.add('show');
@@ -10373,13 +10478,35 @@
     var area = S.workArea, mode = S.workModalMode, wid = S.workModalWid;
     function val(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; }
     function chk(id) { var el = document.getElementById(id); return el ? el.checked : false; }
+    function arrFromAttr(attr) {
+      var out = [];
+      try {
+        var nodes = document.querySelectorAll('[data-' + attr + ']');
+        nodes.forEach(function (n) { if (n.checked) out.push(n.getAttribute('data-' + attr)); });
+      } catch (e) {}
+      return out;
+    }
     var name = val('wm-name');
     if (!name) { toast('err', 'Введите название работы'); return; }
     var data = {
       group: val('wm-group') || 'Без группы', name: name, norm: val('wm-norm'), unit: val('wm-unit'),
       needs_permit: chk('wm-permit'), depends_on_snow: chk('wm-snow'),
       min_temp: parseFloat(val('wm-temp')) || -50, season: val('wm-season'),
-      equipment: val('wm-equip') || '—', min_workers: parseInt(val('wm-minw')) || 1, opt_workers: parseInt(val('wm-optw')) || 2
+      equipment: val('wm-equip') || '—', min_workers: parseInt(val('wm-minw')) || 1, opt_workers: parseInt(val('wm-optw')) || 2,
+      // === Атрибуты по «4 Атрибуты видов работ.htm» ===
+      object_categories:      arrFromAttr('cat'),
+      departments:            arrFromAttr('dep'),
+      periodicity_value:      parseInt(val('wm-period-value')) || 0,
+      periodicity_unit:       val('wm-period-unit') || 'мес',
+      periodicity_depends_on: arrFromAttr('perioddep'),
+      periodicity_basis:      val('wm-period-basis') || 'prev_date',
+      joint_with:             val('wm-joint'),
+      operations:             val('wm-operations').split(',').map(function (s) { return s.trim(); }).filter(Boolean),
+      indicators:             val('wm-indicators').split(',').map(function (s) { return s.trim(); }).filter(Boolean),
+      print_forms:            val('wm-printforms').split(',').map(function (s) { return s.trim(); }).filter(Boolean),
+      op_journal:             chk('wm-opjournal'),
+      passport_entry:         chk('wm-passport'),
+      scan_attach:            chk('wm-scanattach')
     };
     if (mode === 'edit') { WORK.updateWork(area, wid, data); logAction('Изменение вида работы', data.name);
         toast('ok', 'Работа обновлена'); }
