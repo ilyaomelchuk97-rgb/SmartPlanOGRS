@@ -129,6 +129,14 @@ SECTIONS.forEach((s) => {
 
 // SPA fallback: всё, что не /api, отдаём index.html
 const FRONTEND_DIR = process.env.NODE_ENV === 'production' ? '/app' : require('path').join(__dirname, '..');
+// JS-файлы не кэшируем (cache-bust через ETag/304), чтобы после каждого
+// деплоя клиент сразу получал новый код без Ctrl+Shift+R.
+app.use((req, res, next) => {
+  if (/\/root_index\/.*\.js$/.test(req.path) || /\/index\.html$/.test(req.path)) {
+    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+  }
+  next();
+});
 app.use(express.static(FRONTEND_DIR, { maxAge: '1h' }));
 app.get(/^\/(?!api|healthz).*/, (req, res) => {
   res.sendFile(require('path').join(FRONTEND_DIR, 'index.html'));
