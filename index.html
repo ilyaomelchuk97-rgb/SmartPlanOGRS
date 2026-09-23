@@ -4,13 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SmartPlan — Планирование · УП «МИНГАЗ»</title>
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
   <link rel="manifest" href="root_index/manifest.json">
   <meta name="theme-color" content="#0f2740">
-  <link rel="icon" type="image/png" sizes="192x192" href="root_index/icon-192.png?v=4">
-  <link rel="apple-touch-icon" href="root_index/icon-192.png?v=4">
+  <link rel="icon" type="image/png" sizes="192x192" href="root_index/icon-192.png">
+  <link rel="apple-touch-icon" href="root_index/icon-192.png">
 <style>
   :root{
     --navy:#0f2740; --navy2:#16385c; --slate:#1f2d3d; --ink:#1f2937;
@@ -1044,33 +1041,17 @@
         <div class="li-err" id="li-err"></div>
         <button class="btn primary" type="submit" id="li-btn" style="width:100%;justify-content:center">Войти</button>
         <div style="margin-top:16px;padding:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;color:#475569;line-height:1.4;">
-          <div style="font-weight:700;margin-bottom:6px;color:#0f2740;">⚡ Быстрый вход — нажмите на нужную кнопку:</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
-            <button type="button" data-quicklogin="admin" data-quickpass="admin123" style="background:linear-gradient(135deg,#0f2740,#1e3a5f);color:#fff;border:none;padding:11px 12px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:8px;box-shadow:0 2px 6px rgba(15,39,64,.18);transition:transform .15s,box-shadow .15s;" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 14px rgba(15,39,64,.28)';" onmouseout="this.style.transform='';this.style.boxShadow='0 2px 6px rgba(15,39,64,.18)';">
-              <span style="font-size:18px">👑</span>
-              <span style="text-align:left;flex:1"><div style="font-size:13px">admin</div><div style="font-size:10px;opacity:.7;font-weight:500">Администратор</div></span>
-              <span style="font-size:14px;opacity:.6">→</span>
-            </button>
-            <button type="button" data-quicklogin="seogs" data-quickpass="seogs123" style="background:linear-gradient(135deg,#475569,#64748b);color:#fff;border:none;padding:11px 12px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:8px;box-shadow:0 2px 6px rgba(71,85,105,.18);transition:transform .15s,box-shadow .15s;" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 14px rgba(71,85,105,.28)';" onmouseout="this.style.transform='';this.style.boxShadow='0 2px 6px rgba(71,85,105,.18)';">
-              <span style="font-size:18px">👁</span>
-              <span style="text-align:left;flex:1"><div style="font-size:13px">seogs</div><div style="font-size:10px;opacity:.7;font-weight:500">Начальник СЭОГС</div></span>
-              <span style="font-size:14px;opacity:.6">→</span>
-            </button>
-            <button type="button" data-quicklogin="master" data-quickpass="master123" style="background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;border:none;padding:11px 12px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:8px;box-shadow:0 2px 6px rgba(37,99,235,.18);transition:transform .15s,box-shadow .15s;" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 14px rgba(37,99,235,.28)';" onmouseout="this.style.transform='';this.style.boxShadow='0 2px 6px rgba(37,99,235,.18)';">
-              <span style="font-size:18px">👷</span>
-              <span style="text-align:left;flex:1"><div style="font-size:13px">master</div><div style="font-size:10px;opacity:.7;font-weight:500">Мастер</div></span>
-              <span style="font-size:14px;opacity:.6">→</span>
-            </button>
-            <button type="button" data-quicklogin="slesar" data-quickpass="slesar123" style="background:linear-gradient(135deg,#059669,#10b981);color:#fff;border:none;padding:11px 12px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:8px;box-shadow:0 2px 6px rgba(5,150,105,.18);transition:transform .15s,box-shadow .15s;" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 14px rgba(5,150,105,.28)';" onmouseout="this.style.transform='';this.style.boxShadow='0 2px 6px rgba(5,150,105,.18)';">
-              <span style="font-size:18px">🔧</span>
-              <span style="text-align:left;flex:1"><div style="font-size:13px">slesar</div><div style="font-size:10px;opacity:.7;font-weight:500">Слесарь</div></span>
-              <span style="font-size:14px;opacity:.6">→</span>
-            </button>
+          <div style="font-weight:700;margin-bottom:6px;color:#0f2740;">💡 Стандартные аккаунты (автозаполнение):</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">
+            <button type="button" class="btn sm" style="background:#fff;border:1px solid #cbd5e1;padding:4px 8px;font-size:11px;color:#0f2740;" onclick="document.getElementById('li-login').value='admin';document.getElementById('li-pass').value='admin123';">👑 admin / admin123 (Администратор)</button>
+            <button type="button" class="btn sm" style="background:#fff;border:1px solid #cbd5e1;padding:4px 8px;font-size:11px;color:#475569;" onclick="document.getElementById('li-login').value='seogs';document.getElementById('li-pass').value='seogs123';">👁 seogs / seogs123 (Начальник СЭОГС — просмотр)</button>
+            <button type="button" class="btn sm" style="background:#fff;border:1px solid #cbd5e1;padding:4px 8px;font-size:11px;color:#2563eb;" onclick="document.getElementById('li-login').value='master';document.getElementById('li-pass').value='master123';">👷 master / master123 (Мастер — Иванов С.П.)</button>
+            <button type="button" class="btn sm" style="background:#fff;border:1px solid #cbd5e1;padding:4px 8px;font-size:11px;color:#059669;" onclick="document.getElementById('li-login').value='slesar';document.getElementById('li-pass').value='slesar123';">🔧 slesar / slesar123 (Слесарь — Петров А.Н.)</button>
           </div>
-          <div style="margin-top:8px;font-size:10.5px;color:#64748b;text-align:center">Один клик — логин и пароль подставятся, форма отправится автоматически</div>
+          <div style="margin-top:6px;font-size:11px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-      <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-29 · Миграция на Render.com + кэш-бастер v=4 + кнопки быстрого входа в один клик (исправлен белый экран) + защита от fetch ошибок
+      <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-27 · Миграция на Render.com: PostgreSQL + polling /api/sync каждую секунду (каждый видит действия других). Атрибуты ГРП/ШРП/ПГРП: 23 поля в карточке объекта</div>
     </div>
   </div>
   </div>
@@ -1154,35 +1135,6 @@
 
 <script>
 /* ============================================================
-   ГЛОБАЛЬНЫЙ ОБРАБОТЧИК ОШИБОК — если что-то упало,
-   показываем пользователю баннер вместо белого экрана.
-   ============================================================ */
-(function () {
-  function showErr(msg, src) {
-    try {
-      var banner = document.getElementById('sp-err-banner');
-      if (!banner) {
-        banner = document.createElement('div');
-        banner.id = 'sp-err-banner';
-        banner.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:9999999;background:#dc2626;color:#fff;font-size:12px;font-weight:700;padding:10px 14px;line-height:1.5;box-shadow:0 4px 14px rgba(0,0,0,.4);max-height:50vh;overflow:auto;font-family:monospace;white-space:pre-wrap;word-break:break-all;';
-        document.body && document.body.appendChild(banner);
-      }
-      var line = document.createElement('div');
-      line.textContent = '⚠ ' + msg + (src ? ' (' + src + ')' : '');
-      banner.appendChild(line);
-    } catch (e) {}
-  }
-  window.addEventListener('error', function (e) {
-    if (e && e.message) showErr(e.message, e.filename);
-  });
-  window.addEventListener('unhandledrejection', function (e) {
-    var r = e && e.reason;
-    showErr('Promise: ' + (r && r.message ? r.message : String(r)), r && r.stack);
-  });
-})();
-</script>
-<script>
-/* ============================================================
    ХРАНИЛИЩЕ-ФОЛБЭК (работа сайта одинаково во всех браузерах).
    Edge при открытии сайта напрямую с диска (file://) или с
    настройкой «Блокировать все файлы cookie» / корпоративной
@@ -1239,58 +1191,15 @@
   }
 })();
 </script>
-<script>
-/* ============================================================
-   Быстрый вход по кнопкам «Стандартные аккаунты»
-   ------------------------------------------------------------
-   Один клик по кнопке с data-quicklogin → подставляем логин/пароль
-   и СРАЗУ отправляем форму (вход).
-
-   ВАЖНО: form.dispatchEvent('submit') → вызывает onLoginSubmit в app.js →
-   тот делает SP_API.login → enterApp → body.logged-in=true → .app видим.
-   Без submit формы body.logged-in НЕ ставится → белый экран!
-   ============================================================ */
-(function () {
-  function bind() {
-    var form = document.getElementById('login-form');
-    if (!form) return;
-    document.querySelectorAll('[data-quicklogin]').forEach(function (btn) {
-      if (btn.__spQuick) return;
-      btn.__spQuick = true;
-      btn.addEventListener('click', function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-        var login = btn.getAttribute('data-quicklogin');
-        var pass = btn.getAttribute('data-quickpass') || '';
-        var liLogin = document.getElementById('li-login');
-        var liPass = document.getElementById('li-pass');
-        if (liLogin) liLogin.value = login;
-        if (liPass) liPass.value = pass;
-        // Визуальная обратная связь — кнопка «нажата», идёт вход
-        btn.style.transform = 'scale(0.97)';
-        setTimeout(function () { btn.style.transform = ''; }, 150);
-        // Отправляем форму — это вызывает onLoginSubmit в app.js,
-        // который делает всю работу: SP_API.login → enterApp → body.logged-in
-        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-      }, true); // capturing phase
-    });
-  }
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', bind);
-  } else {
-    bind();
-  }
-})();
-</script>
-<script src="root_index/config.js?v=4"></script>
-<script src="root_index/data.js?v=4"></script>
-<script src="root_index/users_db.js?v=4"></script>
-<script src="root_index/areas_db.js?v=4"></script>
-<script src="root_index/work_db.js?v=4"></script>
-<script src="root_index/objects_db.js?v=4"></script>
-<script src="root_index/workers_db.js?v=4"></script>
-<script src="root_index/tasks_db.js?v=4"></script>
-<script src="root_index/db.js?v=4"></script>
+<script src="root_index/config.js"></script>
+<script src="root_index/data.js"></script>
+<script src="root_index/users_db.js"></script>
+<script src="root_index/areas_db.js"></script>
+<script src="root_index/work_db.js"></script>
+<script src="root_index/objects_db.js"></script>
+<script src="root_index/workers_db.js"></script>
+<script src="root_index/tasks_db.js"></script>
+<script src="root_index/db.js"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -1308,11 +1217,11 @@
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=4"></script>
-      <script src="root_index/error_log.js?v=4"></script>
-      <script src="root_index/api_client.js?v=4"></script>
-      <script src="root_index/sync_polling.js?v=4"></script>
-      <script src="root_index/app.js?v=4"></script>
+<script src="root_index/object_attrs.js"></script>
+      <script src="root_index/error_log.js"></script>
+      <script src="root_index/api_client.js"></script>
+      <script src="root_index/sync_polling.js"></script>
+      <script src="root_index/app.js"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {
