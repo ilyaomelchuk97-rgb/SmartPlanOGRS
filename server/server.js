@@ -32,7 +32,6 @@ const auditRoutes = require('./routes/audit');
 const sectionRoutes = require('./routes/section');
 const adminRoutes = require('./routes/admin');
 const usersRoutes = require('./routes/users');
-const _debugRoutes = require('./routes/_debug_users');
 const { requireAuth } = require('./middleware/auth');
 
 const PORT = process.env.PORT || 3000;
@@ -93,35 +92,12 @@ function initWithRetry() {
         if (!haveUsers) {
           for (const u of DEFAULT_USERS) {
             const hash = await bcrypt.hash(u.password, 10);
-            // Шаг 1: UPDATE (если уже есть по login — даже soft-deleted) — сбросить deleted
-            const upd = await pool.query(
-              `UPDATE users
-                  SET id = $1, full_name = $3, role = $4, prof = $5,
-                      password_hash = $6, deleted = FALSE, updated_at = NOW()
-                WHERE login = $2`,
+            await pool.query(
+              `INSERT INTO users (id, login, full_name, role, prof, password_hash)
+               VALUES ($1, $2, $3, $4, $5, $6)
+               ON CONFLICT (login) DO NOTHING`,
               [u.id, u.login, u.full_name, u.role, u.prof, hash]
             );
-            if (upd.rowCount === 0) {
-              // Шаг 2: INSERT (если нет)
-              try {
-                await pool.query(
-                  `INSERT INTO users (id, login, full_name, role, prof, password_hash)
-                   VALUES ($1, $2, $3, $4, $5, $6)`,
-                  [u.id, u.login, u.full_name, u.role, u.prof, hash]
-                );
-              } catch (e) {
-                if (e.code === '23505') {
-                  // Конфликт по PRIMARY KEY (id) — UPDATE по id
-                  await pool.query(
-                    `UPDATE users
-                        SET login = $2, full_name = $3, role = $4, prof = $5,
-                            password_hash = $6, deleted = FALSE, updated_at = NOW()
-                      WHERE id = $1`,
-                    [u.id, u.login, u.full_name, u.role, u.prof, hash]
-                  );
-                } else throw e;
-              }
-            }
           }
           console.log('✅ Стандартные пользователи созданы: admin, seogs, master, slesar');
         } else {

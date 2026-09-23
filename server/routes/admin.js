@@ -49,63 +49,21 @@ module.exports = function (pool, initSchema) {
       await initSchema(pool);
 
       // 2) Создать пользователей
-      // ВАЖНО: ON CONFLICT (login) DO UPDATE не сбрасывает deleted=TRUE.
-      // Поэтому сначала «оживляем» возможно soft-deleted записи
-      // (UPDATE сбрасывает deleted в FALSE), а потом делаем INSERT.
-      // Если конфликта нет — INSERT создаст новую запись.
       const results = [];
       for (const u of DEFAULT_USERS) {
         const hash = await bcrypt.hash(u.password, 10);
-        // Шаг 1: если есть запись с таким login (даже soft-deleted) — обновить
-        //         пароль и сбросить deleted
-        const upd = await pool.query(
-          `UPDATE users
-              SET id = $1,
-                  full_name = $3,
-                  role = $4,
-                  prof = $5,
-                  password_hash = $6,
-                  deleted = FALSE,
-                  updated_at = NOW()
-            WHERE login = $2
-            RETURNING id, login`,
+        const r = await pool.query(
+          `INSERT INTO users (id, login, full_name, role, prof, password_hash)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           ON CONFLICT (login) DO UPDATE SET
+             full_name = EXCLUDED.full_name,
+             role = EXCLUDED.role,
+             prof = EXCLUDED.prof,
+             password_hash = EXCLUDED.password_hash
+           RETURNING id, login`,
           [u.id, u.login, u.full_name, u.role, u.prof, hash]
         );
-        if (upd.rows.length > 0) {
-          results.push({ id: upd.rows[0].id, login: upd.rows[0].login, restored: true });
-          continue;
-        }
-        // Шаг 2: если нет — вставить
-        try {
-          const r = await pool.query(
-            `INSERT INTO users (id, login, full_name, role, prof, password_hash)
-             VALUES ($1, $2, $3, $4, $5, $6)
-             RETURNING id, login`,
-            [u.id, u.login, u.full_name, u.role, u.prof, hash]
-          );
-          results.push({ id: r.rows[0].id, login: r.rows[0].login, created: true });
-        } catch (e) {
-          // Может возникнуть конфликт по PRIMARY KEY (id), если раньше у master
-          // был другой login. В этом случае — UPDATE по id.
-          if (e.code === '23505') {
-            const upd2 = await pool.query(
-              `UPDATE users
-                  SET login = $2,
-                      full_name = $3,
-                      role = $4,
-                      prof = $5,
-                      password_hash = $6,
-                      deleted = FALSE,
-                      updated_at = NOW()
-                WHERE id = $1
-                RETURNING id, login`,
-              [u.id, u.login, u.full_name, u.role, u.prof, hash]
-            );
-            results.push({ id: upd2.rows[0].id, login: upd2.rows[0].login, fixed: true });
-          } else {
-            throw e;
-          }
-        }
+        results.push({ id: r.rows[0].id, login: r.rows[0].login });
       }
 
       // 3) Audit

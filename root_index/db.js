@@ -55,21 +55,15 @@ window.SP_DB = (function () {
         opts.headers.Authorization = 'Bearer ' + tk;
       }
     }
-    if (typeof fetch !== 'function') {
-      // нет fetch (демо / file://) — просто отдаём ошибку, но НЕ ломаем поток
-      return Promise.reject(new Error('fetch unavailable'));
-    }
-    try {
-      return fetch(url, opts).catch(function (err) {
-        try {
-          var q = outboxRead();
-          q.push({ url: url, opts: opts, ts: Date.now() });
-          if (q.length > 500) q = q.slice(-500);
-          outboxWrite(q);
-        } catch (e) {}
-        throw err;
-      });
-    } catch (e) { return Promise.reject(e); }
+    return fetch(url, opts).catch(function (err) {
+      try {
+        var q = outboxRead();
+        q.push({ url: url, opts: opts, ts: Date.now() });
+        if (q.length > 500) q = q.slice(-500);
+        outboxWrite(q);
+      } catch (e) {}
+      throw err;
+    });
   }
   // Повторная отправка очереди (по одному, останавливаемся при первой неудаче)
   function netFlush() {
@@ -111,51 +105,39 @@ window.SP_DB = (function () {
   // НИЗКОУРОВНЕВЫЕ HTTP-ЗАПРОСЫ (всегда пытаются отправить)
   // ============================================================
     function apiGet(path) {
-    if (typeof fetch !== 'function') return Promise.reject(new Error('fetch unavailable'));
-    try {
-      return fetch(API + path, { method: 'GET', mode: 'cors' })
-        .then(function(r) {
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          return r.json();
-        })
-        .catch(function(e) { throw e; });
-    } catch (e) { return Promise.reject(e); }
+    return fetch(API + path, { method: 'GET', mode: 'cors' })
+      .then(function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .catch(function(e) { throw e; });
   }
 
   function apiPost(path, data) {
-    if (typeof fetch !== 'function') return Promise.reject(new Error('fetch unavailable'));
-    try {
-      return fetch(API + path, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      }).then(function(r) {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r.json();
-      });
-    } catch (e) { return Promise.reject(e); }
+    return fetch(API + path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    }).then(function(r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    });
   }
 
   function apiPut(path, data) {
-    if (typeof fetch !== 'function') return Promise.reject(new Error('fetch unavailable'));
-    try {
-      return fetch(API + path, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      }).then(function(r) {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r.json();
-      });
-    } catch (e) { return Promise.reject(e); }
+    return fetch(API + path, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    }).then(function(r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    });
   }
 
   function apiDelete(path) {
-    if (typeof fetch !== 'function') return Promise.reject(new Error('fetch unavailable'));
-    try {
-      return fetch(API + path, { method: 'DELETE' })
-        .then(function(r) { return r.json(); });
-    } catch (e) { return Promise.reject(e); }
+    return fetch(API + path, { method: 'DELETE' })
+      .then(function(r) { return r.json(); });
   }
 
   // ============================================================
