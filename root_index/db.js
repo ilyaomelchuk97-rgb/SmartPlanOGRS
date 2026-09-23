@@ -93,7 +93,7 @@ window.SP_DB = (function () {
   // чтобы бесплатный инстанс Render не засыпал (холодный старт = 30–50 сек ожидания)
   if (CFG.useServerApi && CFG.serverUrl) {
     setInterval(function () {
-      try { fetch(CFG.serverUrl + '/api/health').catch(function () {}); } catch (e) {}
+      try { fetch(CFG.serverUrl + '/healthz').catch(function () {}); } catch (e) {}
     }, 10 * 60 * 1000);
   }
   window.addEventListener('online', function () { console.log('🌐 Сеть восстановлена — отправляем очередь'); netFlush(); });

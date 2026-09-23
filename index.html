@@ -1225,7 +1225,8 @@
   (function () {
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        try { navigator.serviceWorker.register('root_index/sw.js', { scope: '/' }).catch(function () {}); } catch (e) {}
+        // scope не может быть шире пути к SW — поэтому '/root_index/'
+        try { navigator.serviceWorker.register('root_index/sw.js', { scope: '/root_index/' }).catch(function () {}); } catch (e) {}
       });
     }
   })();
