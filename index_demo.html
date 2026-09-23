@@ -3,14 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SmartPlan — Планирование · УП «МИНГАЗ»</title>
+<title>SmartPlan Демо · УП «МИНГАЗ»</title>
+
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-  <link rel="manifest" href="root_index/manifest.json">
-  <meta name="theme-color" content="#0f2740">
-  <link rel="icon" type="image/png" sizes="192x192" href="root_index/icon-192.png?v=4">
-  <link rel="apple-touch-icon" href="root_index/icon-192.png?v=4">
+
+<meta name="theme-color" content="#0f2740">
+<link rel="icon" type="image/png" sizes="192x192" href="root_index/icon-192.png?v=4">
+<link rel="apple-touch-icon" href="root_index/icon-192.png?v=4">
 <style>
   :root{
     --navy:#0f2740; --navy2:#16385c; --slate:#1f2d3d; --ink:#1f2937;
@@ -1025,6 +1026,23 @@
 </style>
 </head>
 <body>
+
+<!-- ============================================================
+     ПЕРЕД загрузкой app.js: переводим в демо-режим
+     ============================================================ -->
+<script>
+(function () {
+  window.SP_DEMO_MODE = true;
+  window.SP_API_STUB = true;
+  // Отключаем регистрацию Service Worker в демо
+  if (window.navigator && navigator.serviceWorker) {
+    navigator.serviceWorker.getRegistrations().then(function (regs) {
+      regs.forEach(function (r) { try { r.unregister(); } catch (e) {} });
+    }).catch(function () {});
+  }
+})();
+</script>
+
 <!-- ЭКРАН ВХОДА -->
 <div class="login-screen" id="login-screen">
   <div class="login-wrap">
@@ -1070,7 +1088,7 @@
           <div style="margin-top:8px;font-size:10.5px;color:#64748b;text-align:center">Один клик — логин и пароль подставятся, форма отправится автоматически</div>
         </div>
       </form>
-      <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-29 · Миграция на Render.com + кэш-бастер v=4 + кнопки быстрого входа в один клик (исправлен белый экран) + защита от fetch ошибок
+      <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-29 · Демо-режим + кэш-бастер v=4 + кнопки быстрого входа в один клик + защита от fetch ошибок
     </div>
   </div>
   </div>
@@ -1154,6 +1172,35 @@
 
 <script>
 /* ============================================================
+   ГЛОБАЛЬНЫЙ ОБРАБОТЧИК ОШИБОК — если что-то упало,
+   показываем пользователю баннер вместо белого экрана.
+   ============================================================ */
+(function () {
+  function showErr(msg, src) {
+    try {
+      var banner = document.getElementById('sp-err-banner');
+      if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'sp-err-banner';
+        banner.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:9999999;background:#dc2626;color:#fff;font-size:12px;font-weight:700;padding:10px 14px;line-height:1.5;box-shadow:0 4px 14px rgba(0,0,0,.4);max-height:50vh;overflow:auto;font-family:monospace;white-space:pre-wrap;word-break:break-all;';
+        document.body && document.body.appendChild(banner);
+      }
+      var line = document.createElement('div');
+      line.textContent = '⚠ ' + msg + (src ? ' (' + src + ')' : '');
+      banner.appendChild(line);
+    } catch (e) {}
+  }
+  window.addEventListener('error', function (e) {
+    if (e && e.message) showErr(e.message, e.filename);
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    var r = e && e.reason;
+    showErr('Promise: ' + (r && r.message ? r.message : String(r)), r && r.stack);
+  });
+})();
+</script>
+<script>
+/* ============================================================
    ХРАНИЛИЩЕ-ФОЛБЭК (работа сайта одинаково во всех браузерах).
    Edge при открытии сайта напрямую с диска (file://) или с
    настройкой «Блокировать все файлы cookie» / корпоративной
@@ -1216,10 +1263,6 @@
    ------------------------------------------------------------
    Один клик по кнопке с data-quicklogin → подставляем логин/пароль
    и СРАЗУ отправляем форму (вход).
-
-   ВАЖНО: form.dispatchEvent('submit') → вызывает onLoginSubmit в app.js →
-   тот делает SP_API.login → enterApp → body.logged-in=true → .app видим.
-   Без submit формы body.logged-in НЕ ставится → белый экран!
    ============================================================ */
 (function () {
   function bind() {
@@ -1237,13 +1280,11 @@
         var liPass = document.getElementById('li-pass');
         if (liLogin) liLogin.value = login;
         if (liPass) liPass.value = pass;
-        // Визуальная обратная связь — кнопка «нажата», идёт вход
         btn.style.transform = 'scale(0.97)';
         setTimeout(function () { btn.style.transform = ''; }, 150);
-        // Отправляем форму — это вызывает onLoginSubmit в app.js,
-        // который делает всю работу: SP_API.login → enterApp → body.logged-in
-        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-      }, true); // capturing phase
+        if (form.requestSubmit) form.requestSubmit();
+        else form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      }, true);
     });
   }
   if (document.readyState === 'loading') {
@@ -1253,7 +1294,7 @@
   }
 })();
 </script>
-<script src="root_index/config.js?v=4"></script>
+<script src="root_index/_demo_config.js?v=4"></script>
 <script src="root_index/data.js?v=4"></script>
 <script src="root_index/users_db.js?v=4"></script>
 <script src="root_index/areas_db.js?v=4"></script>
@@ -1262,6 +1303,15 @@
 <script src="root_index/workers_db.js?v=4"></script>
 <script src="root_index/tasks_db.js?v=4"></script>
 <script src="root_index/db.js?v=4"></script>
+
+<!-- ============================================================
+     ДЕМО: заглушка SP_API (ПЕРЕЗАПИСЫВАЕТ настоящий SP_API
+     из api_client.js / sync_polling.js, которые в демо не нужны).
+     СТОИТ ДО app.js — иначе при загрузке app.js window.SP_API
+     может быть undefined и любая проверка на него упадёт.
+     ============================================================ -->
+<script src="root_index/_demo_api_stub.js?v=4"></script>
+
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -1281,19 +1331,22 @@
 
 <script src="root_index/object_attrs.js?v=4"></script>
       <script src="root_index/error_log.js?v=4"></script>
-      <script src="root_index/api_client.js?v=4"></script>
-      <script src="root_index/sync_polling.js?v=4"></script>
       <script src="root_index/app.js?v=4"></script>
-  <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
-  <script>
-  (function () {
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', function () {
-        // scope не может быть шире пути к SW — поэтому '/root_index/'
-        try { navigator.serviceWorker.register('root_index/sw.js', { scope: '/root_index/' }).catch(function () {}); } catch (e) {}
-      });
-    }
-  })();
-  </script>
+
+<!-- Демо-баннер (внизу страницы) -->
+<script>
+(function () {
+  if (document.getElementById('demo-banner')) return;
+  var b = document.createElement('div');
+  b.id = 'demo-banner';
+  b.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:999998;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;font-size:11.5px;font-weight:700;text-align:center;padding:6px 12px;box-shadow:0 -2px 10px rgba(0,0,0,.18);pointer-events:none;letter-spacing:.3px';
+  b.textContent = 'SmartPlan ДЕМО · локальная версия без сервера';
+  document.body.appendChild(b);
+  // Чуть приподнять тосты, чтобы не перекрывались баннером
+  var t = document.getElementById('toasts');
+  if (t) t.style.bottom = '44px';
+})();
+</script>
 </body>
 </html>
+
