@@ -44,16 +44,25 @@ window.SP_DB = (function () {
   }
   // Отправка с постановкой в очередь при отказе сети.
   // Сигнатура совместима с fetch(url, opts) — вызовы меняются один в один.
+  // Сборка 22.09-25: автоматически добавляет Authorization: Bearer <token>
+  // если есть SP_API токен.
   function netSend(url, opts) {
     opts = opts || {};
+    opts.headers = Object.assign({}, opts.headers || {});
+    if (window.SP_API && window.SP_API.getToken) {
+      var tk = window.SP_API.getToken();
+      if (tk && !opts.headers.Authorization) {
+        opts.headers.Authorization = 'Bearer ' + tk;
+      }
+    }
     return fetch(url, opts).catch(function (err) {
       try {
         var q = outboxRead();
         q.push({ url: url, opts: opts, ts: Date.now() });
-        if (q.length > 500) q = q.slice(-500); // страховка от переполнения
+        if (q.length > 500) q = q.slice(-500);
         outboxWrite(q);
       } catch (e) {}
-      throw err; // вызывающий код работает как раньше (offline — «не отправилось»)
+      throw err;
     });
   }
   // Повторная отправка очереди (по одному, останавливаемся при первой неудаче)
@@ -61,13 +70,21 @@ window.SP_DB = (function () {
     var q = outboxRead();
     if (!q.length || !navigator.onLine) { netBannerUpdate(); return; }
     var item = q[0];
+    // Сборка 22.09-25: добавляем токен в headers при повторной отправке
+    if (window.SP_API && window.SP_API.getToken) {
+      var tk = window.SP_API.getToken();
+      if (tk) {
+        item.opts = Object.assign({}, item.opts || {});
+        item.opts.headers = Object.assign({}, item.opts.headers || {});
+        if (!item.opts.headers.Authorization) item.opts.headers.Authorization = 'Bearer ' + tk;
+      }
+    }
     fetch(item.url, item.opts).then(function () {
       q.shift();
       outboxWrite(q);
       console.log('📤 Очередь: отправлено, осталось ' + q.length);
-      netFlush(); // следующее
+      netFlush();
     }).catch(function () {
-      // сеть снова пропала — очередь остаётся
       netBannerUpdate();
     });
   }
