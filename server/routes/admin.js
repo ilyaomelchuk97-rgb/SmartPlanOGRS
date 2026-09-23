@@ -81,5 +81,30 @@ module.exports = function (pool, initSchema) {
     }
   });
 
+  // POST /api/admin/migrate — применить миграции (добавление недостающих колонок)
+  router.post('/migrate', async (req, res) => {
+    try {
+      const migrations = [];
+      // 1. Добавляем колонку deleted в users если её нет
+      const checkR = await pool.query(`
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'deleted'
+      `);
+      if (checkR.rows.length === 0) {
+        await pool.query(`ALTER TABLE users ADD COLUMN deleted BOOLEAN NOT NULL DEFAULT FALSE`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_users_deleted ON users(deleted, updated_at)`);
+        migrations.push('ALTER TABLE users ADD COLUMN deleted');
+      }
+      // 2. Перезапускаем initSchema — он пересоздаст недостающие индексы
+      await initSchema(pool);
+      migrations.push('initSchema re-run (idempotent)');
+
+      res.json({ ok: true, message: '✅ Миграция применена', migrations });
+    } catch (e) {
+      console.error('migrate error', e);
+      res.status(500).json({ ok: false, err: e.message });
+    }
+  });
+
   return router;
 };

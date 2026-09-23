@@ -32,9 +32,23 @@ async function initSchema(pool) {
         active      BOOLEAN DEFAULT TRUE,
         password_hash TEXT NOT NULL,
         data        JSONB NOT NULL DEFAULT '{}'::jsonb,
+        deleted     BOOLEAN NOT NULL DEFAULT FALSE,
         created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
+    `);
+    // Миграция: если таблица users уже создана без колонки deleted — добавляем
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'users' AND column_name = 'deleted'
+        ) THEN
+          ALTER TABLE users ADD COLUMN deleted BOOLEAN NOT NULL DEFAULT FALSE;
+          CREATE INDEX IF NOT EXISTS idx_users_deleted ON users(deleted, updated_at);
+        END IF;
+      END$$;
     `);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_users_updated ON users(updated_at)`);
 
