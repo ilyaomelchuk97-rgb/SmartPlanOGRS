@@ -17,12 +17,13 @@
 
   // Описание ролей и участков
   var ROLE_INFO = {
-    admin:   { label: 'Администратор',     cls: 'navy' },
-    nach:    { label: 'Начальник участка', cls: 'blue' },
-    smaster: { label: 'Старший мастер',    cls: 'purple' },
-    master:  { label: 'Мастер',            cls: 'teal' },
-    slesar:  { label: 'Слесарь',           cls: 'teal' },
-    viewer:  { label: 'Начальник СЭОГС',   cls: 'slate' }
+    admin:    { label: 'Администратор',     cls: 'navy' },
+    nach:     { label: 'Начальник участка', cls: 'blue' },
+    smaster:  { label: 'Старший мастер',    cls: 'purple' },
+    engineer: { label: 'Инженер',           cls: 'orange' },  // Сборка 22.09-26: права как у старшего мастера
+    master:   { label: 'Мастер',            cls: 'teal' },
+    slesar:   { label: 'Слесарь',           cls: 'teal' },
+    viewer:   { label: 'Начальник СЭОГС',   cls: 'slate' }
   };
   // Профессии штатного списка — варианты РОЛИ при создании пользователя
   // (без повторов с базовыми ролями). key — внутренняя роль = права в системе:
@@ -34,7 +35,7 @@
     { label: 'Начальник отдела', key: 'viewer' },
     { label: 'Руководитель группы', key: 'master' },
     { label: 'Руководитель сектора', key: 'viewer' },
-    { label: 'Инженер', key: 'viewer' },
+    { label: 'Инженер', key: 'engineer' },  // Сборка 22.09-26: права как у старшего мастера на участке
     { label: 'Техник', key: 'viewer' },
     { label: 'Оператор персональных электронно-вычислительных машин', key: 'viewer' },
     { label: 'Электрогазосварщик', key: 'slesar' },
@@ -265,7 +266,7 @@
      master  — видит и редактирует ТОЛЬКО СЕБЯ
   */
   // Создание планов и запуск оптимизатора — админ / нач. участка / ст. мастер
-  function canPlan() { return S.role === 'admin' || S.role === 'nach' || S.role === 'smaster'; }
+  function canPlan() { return S.role === 'admin' || S.role === 'nach' || S.role === 'smaster' || S.role === 'engineer'; }
   function canApprove() { return S.role === 'admin' || S.role === 'nach'; }
   // Может ли пользователь редактировать конкретную задачу
   function canEditTask(t) {
@@ -8472,7 +8473,7 @@
   //  · слесарь — страница недоступна.
   function wkVisibleUsers() {
     var us = DB.getUsers().filter(function (u) {
-      return u && u.active !== false && ['nach', 'smaster', 'master', 'slesar'].indexOf(u.role) !== -1;
+      return u && u.active !== false && ['nach', 'smaster', 'engineer', 'master', 'slesar'].indexOf(u.role) !== -1;
     });
     if (S.role === 'admin' || S.role === 'viewer') {
       return us.filter(function (u) { return !dashAreaActive() || u.area === S.dashArea; });
@@ -8499,7 +8500,7 @@
     if (!u) return false;
     if (S.role === 'admin') return true;
     if (S.role === 'viewer' || S.role === 'slesar') return false;
-    if (S.role === 'nach' || S.role === 'smaster') return !!(S.user && u.area === S.user.area);
+    if (S.role === 'nach' || S.role === 'smaster' || S.role === 'engineer') return !!(S.user && u.area === S.user.area);
     if (S.role === 'master') {
       return !!(S.user && (u.id === S.user.id || (u.role === 'slesar' && wkData(u.id).brigade === S.user.id)));
     }
@@ -8512,7 +8513,7 @@
     if (!slesar || slesar.role !== 'slesar') return false;
     if (S.role === 'admin') return true;
     if (S.role === 'viewer') return false;
-    if (S.role === 'nach' || S.role === 'smaster') return wkCanEdit(slesar); // свой участок
+    if (S.role === 'nach' || S.role === 'smaster' || S.role === 'engineer') return wkCanEdit(slesar); // свой участок
     if (S.role === 'master' && S.user) {
       var cur = wkData(slesar.id).brigade;
       if (targetMasterId === S.user.id) return slesar.area === S.user.area && (!cur || cur === S.user.id);
@@ -13108,6 +13109,16 @@
   }
   function graphsSaveList(list) {
     try { localStorage.setItem(GRAPHS_KEY, JSON.stringify(list || [])); } catch (e) {}
+    // Сборка 22.09-25: синхронизация графиков с сервером Render
+    if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
+      var arr = list || [];
+      arr.forEach(function (g) {
+        if (!g || !g.id) return;
+        window.SP_API.upsert('graphs', g).catch(function (e) {
+          console.warn('graphs sync failed for', g.id, e && e.err || e);
+        });
+      });
+    }
   }
   function graphsCurSave(id) {
     GS.cur = id || null;
@@ -13431,6 +13442,12 @@
     var g = graphsFind(gid);
     var list = graphsLoad().filter(function (x) { return x.id !== gid; });
     graphsSaveList(list);
+    // Сборка 22.09-25: удалить график с сервера
+    if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
+      window.SP_API.del('graphs', gid).catch(function (e) {
+        console.warn('graphs delete sync failed:', e && e.err || e);
+      });
+    }
     GS.del = null;
     overlay.classList.remove('show');
     modal.style.maxWidth = '';
