@@ -990,7 +990,7 @@
       scene += '<div class="wx-bolts" id="wx-bolts"></div>';
     }
     scene += '</div>';
-    return { html: scene };
+    return { html: scene, bg: sceneBg };
   }
 
   /* ---------- МОЛНИИ ПРИ ГРОЗЕ (случайные вспышки с ответвлениями) ---------- */
@@ -11628,35 +11628,64 @@
       precipIcon = '☀️'; precipType = 'Без осадков'; precipAmount = '0 мм';
     }
 
-    var html = '<div class="modal-h" style="background:linear-gradient(135deg,#1e3a5f,#2563eb);color:#fff;"><h3 style="color:#fff">Погода подробно · ' + d.getDate() + ' ' + MON[d.getMonth()] + '</h3><button class="x" data-action="close-modal" style="color:#fff">×</button></div>';
-    html += '<div class="modal-b">';
-    
-    // Информация о Солнце и Луне
-    html += '<div style="display:flex;justify-content:space-around;align-items:center;background:var(--panel-2);padding:16px;border-radius:10px;margin-bottom:16px;text-align:center;font-size:12px;color:var(--txt);gap:10px;">';
+    // === Состояние окна погоды (ползунок времени, автопрокрутка) ===
+    if (!window.HOURLY) window.HOURLY = { dayOff: 0, hour: -1, playTimer: null, ticksBuilt: false };
+    HOURLY.dayOff = off;
+    if (HOURLY.hour < 0) HOURLY.hour = (off === 0) ? new Date().getHours() : 12;
+    if (HOURLY.playTimer) { clearInterval(HOURLY.playTimer); HOURLY.playTimer = null; }
+
+    var nowH = (off === 0) ? new Date().getHours() : -1;
+    var html = '<div class="modal-h" style="background:linear-gradient(135deg,#1e3a5f,#2563eb);color:#fff;"><h3 style="color:#fff">Погода подробно · ' + d.getDate() + ' ' + MON[d.getMonth()] + ' ' + d.getFullYear() + '</h3><button class="x" data-action="close-hourly" style="color:#fff" title="Закрыть">×</button></div>';
+    html += '<div class="modal-b" style="padding:0">';
+
+    // Информация о Солнце и Луне + кнопка "Погода в точке"
+    html += '<div style="display:flex;justify-content:space-around;align-items:center;background:var(--panel-2);padding:14px;border-bottom:1px solid var(--line);text-align:center;font-size:12px;color:var(--txt);gap:10px;">';
     html += '<div>☀️<br><span style="font-size:10px;color:#64748b">Восход</span><br><b>' + sunrise + '</b></div>';
     html += '<div>🌇<br><span style="font-size:10px;color:#64748b">Закат</span><br><b>' + sunset + '</b></div>';
     html += '<div>' + precipIcon + '<br><span style="font-size:10px;color:#64748b">Осадки</span><br><b style="font-size:12px">' + precipType + '</b><br><span style="font-size:10px;color:#64748b">' + precipAmount + '</span></div>';
+    html += '<div style="margin-left:auto"><button type="button" class="btn sm" id="hly-point-btn" style="background:#0f2740;color:#fff;border:none;padding:7px 12px;font-weight:700;display:inline-flex;align-items:center;gap:6px" title="Запросить погоду в конкретной точке (Open-Meteo)">📍 Погода в точке</button></div>';
     html += '</div>';
 
-    // Почасовой прогноз
+    // === Анимированная сцена погоды (как в тесте погодном) ===
+    // Берём данные hourly[hour] для текущего часа
+    var curH = (wf.hourly && wf.hourly[HOURLY.hour]) ? wf.hourly[HOURLY.hour] : { temp: wf.temp, desc: wf.desc, snow: wf.snow, snowfall: wf.snowfall, rain: wf.rain, code: wf.code };
+    var sceneInfo = weatherSceneHTML(curH);
+    html += '<div style="position:relative;height:120px;background:' + (sceneInfo.bg || '#42a5f5') + ';overflow:hidden;">';
+    html += '<div style="position:absolute;inset:0">' + sceneInfo.html + '</div>';
+    // Текущая температура и описание часа (поверх сцены)
+    html += '<div id="hly-scene-info" style="position:absolute;left:14px;top:10px;z-index:5;color:#fff;font-weight:800;text-shadow:0 2px 8px rgba(0,0,0,.55)">';
+    html += '<div style="font-size:24px;line-height:1">' + (curH.temp > 0 ? '+' : '') + curH.temp + '°C</div>';
+    html += '<div style="font-size:11px;font-weight:700;opacity:.95">' + esc(curH.desc || '—') + '</div>';
+    html += '</div>';
+    html += '<div id="hly-hour-label" style="position:absolute;right:14px;top:10px;z-index:5;color:#fff;font-weight:800;font-size:13px;background:rgba(15,39,64,.55);padding:6px 12px;border-radius:8px;text-shadow:0 1px 4px rgba(0,0,0,.45)">⏰ ' + (HOURLY.hour < 10 ? '0' + HOURLY.hour : HOURLY.hour) + ':00</div>';
+    html += '</div>';
+
+    // === Ползунок времени (24 часа) + Play ===
+    html += '<div style="background:var(--card);border-bottom:1px solid var(--line);padding:10px 16px 14px;display:flex;align-items:center;gap:12px">';
+    html += '<button type="button" class="btn sm" id="hly-play" title="Прокрутить сутки: 00:00 → 23:00" style="width:36px;height:36px;padding:0;font-size:16px;background:#2563eb;color:#fff;border:none;border-radius:50%;font-weight:800">▶</button>';
+    html += '<span id="hly-bar-time" style="font-size:15px;font-weight:800;color:#0f2740;min-width:48px;text-align:center">' + (HOURLY.hour < 10 ? '0' + HOURLY.hour : HOURLY.hour) + ':00</span>';
+    html += '<div style="flex:1;position:relative">';
+    html += '<input type="range" id="hly-slider" min="0" max="23" step="1" value="' + HOURLY.hour + '" style="width:100%;accent-color:#2563eb;cursor:pointer" title="Ползунок времени: все 24 часа выбранного дня">';
+    html += '<div id="hly-ticks" style="position:relative;height:14px;font-size:10.5px;color:#64748b;margin-top:2px"></div>';
+    html += '</div></div>';
+
+    // === Почасовой прогноз (клик по строке = прыжок на этот час) ===
     if (wf.hourly && wf.hourly.length) {
-      html += '<div style="display:flex;flex-direction:column;gap:2px;">';
-      wf.hourly.forEach(function(h) {
+      html += '<div id="hly-list" style="max-height:340px;overflow-y:auto;padding:8px 0;">';
+      wf.hourly.forEach(function (h, hi) {
         var icon = getWeatherIcon(h.desc, h.snowfall, h.temp);
         var isDay = h.hour >= 6 && h.hour <= 22;
-        // Колонка осадков: факт (снег/дождь) или вероятность
         var precipStr = '';
         if (h.snowfall && h.snowfall > 0) precipStr = '❄️ ' + (Math.round(h.snowfall * 10) / 10) + 'см';
         else if (h.rain && h.rain > 0) precipStr = '🌧️ ' + (Math.round(h.rain * 10) / 10) + 'мм';
         else if (h.precipProb && h.precipProb > 0) precipStr = '💧 ' + h.precipProb + '%';
-        // Цвет температуры
         var tColor = h.temp < 0 ? '#3b82f6' : h.temp > 22 ? '#dc2626' : 'var(--ink)';
-        html += '<div style="display:flex;align-items:center;gap:10px;padding:7px 12px;border-bottom:1px solid var(--line);font-size:13.5px;' + (isDay ? '' : 'opacity:0.5;') + '">';
+        html += '<div class="hly-row" data-hour="' + hi + '" style="display:flex;align-items:center;gap:10px;padding:8px 18px;border-bottom:1px solid var(--line);font-size:13.5px;cursor:pointer;transition:background .12s;' + (isDay ? '' : 'opacity:0.6;') + '" onmouseover="this.style.background=\'#f1f5f9\'" onmouseout="this.style.background=\'\'">';
         html += '<div style="width:46px;font-weight:700;color:var(--muted)">' + (h.hour < 10 ? '0' + h.hour : h.hour) + ':00</div>';
-        html += '<div style="width:28px;text-align:center;font-size:16px;">' + icon + '</div>';
+        html += '<div style="width:28px;text-align:center;font-size:16px">' + icon + '</div>';
         html += '<div style="flex:1;color:var(--txt)">' + esc(h.desc) + '</div>';
-        html += '<div style="font-weight:700;width:54px;text-align:right;color:' + tColor + ';">' + h.temp + '°</div>';
-        html += '<div style="width:78px;text-align:right;font-size:12px;color:#0ea5e9;font-weight:600;">' + precipStr + '</div>';
+        html += '<div style="font-weight:700;width:54px;text-align:right;color:' + tColor + '">' + h.temp + '°</div>';
+        html += '<div style="width:84px;text-align:right;font-size:12px;color:#0ea5e9;font-weight:600">' + precipStr + '</div>';
         html += '</div>';
       });
       html += '</div>';
@@ -11665,11 +11694,193 @@
     }
 
     html += '</div>';
-    html += '<div class="modal-f"><button class="btn" data-action="close-modal">Закрыть</button></div>';
-    
-    modal.style.maxWidth = ''; // сброс автоширины карточки задачи
+    html += '<div class="modal-f" style="justify-content:space-between"><div style="font-size:11px;color:var(--muted)">' + (nowH >= 0 ? 'Текущий час отмечен на ползунке · ' : '') + 'Источник: Open-Meteo</div><button class="btn" data-action="close-hourly">Закрыть</button></div>';
+
+    modal.style.maxWidth = '780px';
     modal.innerHTML = html;
     overlay.classList.add('show');
+
+    // === Привязка обработчиков ползунка / Play / строк ===
+    function setHour(h, fromPlay) {
+      h = ((Math.round(h) % 24) + 24) % 24;
+      HOURLY.hour = h;
+      var curH2 = (wf.hourly && wf.hourly[h]) ? wf.hourly[h] : { temp: wf.temp, desc: wf.desc, snow: wf.snow, snowfall: wf.snowfall, rain: wf.rain, code: wf.code };
+      // Перерисовываем сцену
+      var sceneHolder = modal.querySelector('#hly-scene-info');
+      if (sceneHolder) {
+        sceneHolder.innerHTML = '<div style="font-size:24px;line-height:1">' + (curH2.temp > 0 ? '+' : '') + curH2.temp + '°C</div><div style="font-size:11px;font-weight:700;opacity:.95">' + esc(curH2.desc || '—') + '</div>';
+      }
+      var hl = modal.querySelector('#hly-hour-label');
+      if (hl) hl.textContent = '⏰ ' + (h < 10 ? '0' + h : h) + ':00';
+      var bt = modal.querySelector('#hly-bar-time');
+      if (bt) bt.textContent = (h < 10 ? '0' + h : h) + ':00';
+      var sl = modal.querySelector('#hly-slider');
+      if (sl && !fromPlay) sl.value = h;
+      // Подсветка активной строки
+      var rows = modal.querySelectorAll('.hly-row');
+      rows.forEach(function (r, i) { r.style.background = (i === h) ? '#dbeafe' : ''; r.style.fontWeight = (i === h) ? '700' : ''; });
+      // Скроллим к активной строке
+      var listEl = modal.querySelector('#hly-list');
+      if (listEl && rows[h]) {
+        try { rows[h].scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) {}
+      }
+    }
+
+    var sl = modal.querySelector('#hly-slider');
+    if (sl) sl.addEventListener('input', function () { setHour(+this.value, false); });
+    var playBtn = modal.querySelector('#hly-play');
+    if (playBtn) playBtn.addEventListener('click', function () {
+      if (HOURLY.playTimer) {
+        clearInterval(HOURLY.playTimer); HOURLY.playTimer = null;
+        playBtn.textContent = '▶';
+        return;
+      }
+      playBtn.textContent = '⏸';
+      HOURLY.playTimer = setInterval(function () {
+        if (!document.getElementById('overlay').classList.contains('show') || !document.querySelector('#hly-slider')) {
+          clearInterval(HOURLY.playTimer); HOURLY.playTimer = null;
+          if (playBtn) playBtn.textContent = '▶';
+          return;
+        }
+        var nh = HOURLY.hour + 1;
+        if (nh > 23) nh = 0;
+        setHour(nh, true);
+      }, 900);
+    });
+
+    // Тики под ползунком
+    var ticks = modal.querySelector('#hly-ticks');
+    if (ticks) {
+      HOURLY.ticksBuilt = false; // каждый раз перестраиваем (дата могла смениться)
+      var t = '';
+      for (var i = 0; i < 24; i++) {
+        t += '<span style="position:absolute;left:' + ((i / 23) * 100).toFixed(2) + '%;transform:translateX(-50%);white-space:nowrap' +
+          (i === nowH ? ';font-weight:800;color:#0f2740' : '') + '" title="' + (i < 10 ? '0' + i : i) + ':00' + (i === nowH ? ' (сейчас)' : '') + '">' + (i % 3 === 0 ? (i < 10 ? '0' + i : i) : '') + '</span>';
+      }
+      ticks.innerHTML = t;
+    }
+
+    // Клик по строке — переход на этот час
+    var rows = modal.querySelectorAll('.hly-row');
+    rows.forEach(function (r) {
+      r.addEventListener('click', function () {
+        var h = +this.getAttribute('data-hour');
+        setHour(h, false);
+      });
+    });
+
+    // === Кнопка "Погода в точке" — окошко с погодой по координатам ===
+    var pointBtn = modal.querySelector('#hly-point-btn');
+    if (pointBtn) pointBtn.addEventListener('click', function () {
+      hlyPopShowPoint();
+    });
+
+    // Инициализация: подсветить текущий час
+    setHour(HOURLY.hour, true);
+  }
+
+  // Окошко "Погода в точке" — ввод координат + запрос Open-Meteo для выбранного часа
+  function hlyPopShowPoint() {
+    // Если уже открыто — закрыть
+    var old = document.getElementById('hly-pop');
+    if (old) old.remove();
+    var coords = (window.SP_CONFIG && SP_CONFIG.weatherLat != null)
+      ? [SP_CONFIG.weatherLat, SP_CONFIG.weatherLng]
+      : [53.9023, 27.5619]; // Минск по умолчанию
+    var hour = (HOURLY && HOURLY.hour >= 0) ? HOURLY.hour : new Date().getHours();
+    var dayKey = key(offToDate((HOURLY && HOURLY.dayOff != null) ? HOURLY.dayOff : 0));
+
+    var d = document.createElement('div');
+    d.id = 'hly-pop';
+    d.style.cssText = 'position:fixed;z-index:9999;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:12px;line-height:1.6;color:var(--ink);box-shadow:0 6px 20px rgba(15,39,64,.18);max-width:280px';
+    d.innerHTML = '<div id="hly-pop-c"><div style="font-weight:800">⏳ Запрос погоды…</div></div>' +
+      '<div style="margin-top:8px;border-top:1px dashed var(--line);padding-top:8px">' +
+      '<div style="font-size:10.5px;color:#64748b;margin-bottom:4px">Координаты точки (lat, lng):</div>' +
+      '<div style="display:flex;gap:4px;align-items:center"><input id="hly-pop-lat" type="number" step="0.0001" value="' + coords[0] + '" style="flex:1;width:50%;padding:5px 7px;border:1px solid var(--line);border-radius:6px;font-family:inherit;font-size:12px"><input id="hly-pop-lng" type="number" step="0.0001" value="' + coords[1] + '" style="flex:1;width:50%;padding:5px 7px;border:1px solid var(--line);border-radius:6px;font-family:inherit;font-size:12px"></div>' +
+      '<button id="hly-pop-btn" type="button" style="margin-top:6px;width:100%;padding:6px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:12px">Запросить погоду здесь</button>' +
+      '<button id="hly-pop-x" type="button" style="position:absolute;right:6px;top:6px;width:20px;height:20px;line-height:18px;text-align:center;border:none;background:transparent;color:#94a3b8;font-size:14px;font-family:inherit;cursor:pointer;border-radius:5px;padding:0">✕</button>' +
+      '</div>';
+    document.body.appendChild(d);
+
+    // Позиционируем по центру экрана
+    var w = d.offsetWidth || 280, h = d.offsetHeight || 200;
+    d.style.left = Math.max(8, Math.min((window.innerWidth - w) / 2, window.innerWidth - w - 8)) + 'px';
+    d.style.top = Math.max(8, Math.min((window.innerHeight - h) / 2, window.innerHeight - h - 8)) + 'px';
+
+    document.getElementById('hly-pop-x').addEventListener('click', function () { d.remove(); });
+
+    function fetchHourly(lat, lng) {
+      var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lng +
+        '&hourly=temperature_2m,wind_speed_10m,wind_direction_10m,precipitation,snowfall,weather_code' +
+        '&past_days=7&forecast_days=8&timezone=Europe%2FMinsk&wind_speed_unit=ms';
+      var c = document.getElementById('hly-pop-c');
+      if (c) c.innerHTML = '<div style="font-weight:800">⏳ Запрос Open-Meteo…</div><div style="color:#94a3b8;font-size:10.5px">' + (+lat).toFixed(4) + ', ' + (+lng).toFixed(4) + '</div>';
+      return fetch(url).then(function (r) { return r.json(); }).then(function (j) {
+        if (!j || !j.hourly || !j.hourly.time) {
+          if (c) c.innerHTML = '<b>Ошибка</b><br>нет данных';
+          return;
+        }
+        // Ищем индекс для нужного дня+часа
+        var dt = offToDate((HOURLY && HOURLY.dayOff != null) ? HOURLY.dayOff : 0);
+        var datePart = dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
+        var hh = (hour < 10 ? '0' + hour : hour) + ':00';
+        var idx = -1;
+        for (var i = 0; i < j.hourly.time.length; i++) {
+          if (j.hourly.time[i].indexOf(datePart + 'T' + hh) === 0) { idx = i; break; }
+        }
+        if (idx < 0) {
+          if (c) c.innerHTML = '<b>Нет данных</b><br>на этот день/час';
+          return;
+        }
+        var t = j.hourly.temperature_2m[idx];
+        var ws = j.hourly.wind_speed_10m[idx];
+        var wd = j.hourly.wind_direction_10m[idx];
+        var pr = j.hourly.precipitation[idx];
+        var sf = j.hourly.snowfall[idx];
+        var wc = j.hourly.weather_code[idx];
+        var dirs = ['северный', 'северо-восточный', 'восточный', 'юго-восточный', 'южный', 'юго-западный', 'западный', 'северо-западный'];
+        var dirName = dirs[Math.round((((+wd || 0) % 360) + 360) % 360 / 45) % 8];
+        var wcStr = wxtWeatherText(+wc || 0);
+        var prec = 'осадков нет';
+        if (+sf > 0) prec = '❄️ снег ' + (+sf).toFixed(2) + ' см/ч';
+        else if (+pr > 0) prec = '🌧 дождь ' + (+pr).toFixed(2) + ' мм/ч';
+        c.innerHTML =
+          '<div style="font-weight:800;margin-bottom:2px">📍 ' + (+lat).toFixed(4) + ', ' + (+lng).toFixed(4) + '</div>' +
+          '<div style="color:#94a3b8;font-size:10.5px;margin-bottom:4px">' + datePart + ' · ' + hh + '</div>' +
+          '<div>🌡 Температура: <b>' + (t > 0 ? '+' : '') + (+t).toFixed(1) + ' °C</b></div>' +
+          '<div>💨 Ветер: <b>' + (+ws).toFixed(1) + ' м/с</b>, ' + dirName + '</div>' +
+          (wcStr ? '<div>' + wcStr + '</div>' : '') +
+          '<div>' + prec + '</div>' +
+          '<div style="color:#94a3b8;font-size:10px;margin-top:3px">Open-Meteo</div>';
+      }).catch(function () {
+        if (c) c.innerHTML = '<b>Нет связи</b><br>с Open-Meteo';
+      });
+    }
+
+    // Первичный запрос по умолчанию
+    fetchHourly(coords[0], coords[1]);
+
+    // Кнопка "Запросить"
+    document.getElementById('hly-pop-btn').addEventListener('click', function () {
+      var lat = parseFloat(document.getElementById('hly-pop-lat').value);
+      var lng = parseFloat(document.getElementById('hly-pop-lng').value);
+      if (isNaN(lat) || isNaN(lng)) {
+        toast('err', 'Введите корректные координаты');
+        return;
+      }
+      fetchHourly(lat, lng);
+    });
+  }
+
+  // Закрытие окна погоды — чистим таймеры
+  function closeHourlyWeather() {
+    if (window.HOURLY && HOURLY.playTimer) {
+      clearInterval(HOURLY.playTimer);
+      HOURLY.playTimer = null;
+    }
+    var pop = document.getElementById('hly-pop');
+    if (pop) pop.remove();
+    overlay.classList.remove('show');
   }
 
   function renderReports() {
@@ -13071,6 +13282,7 @@
     else if (a === 'wx-basemap') { setWxBasemap(el.getAttribute('data-bm')); }
     else if (a === 'open-yandex') { window.open('https://yandex.ru/pogoda/minsk', '_blank'); }
     else if (a === 'open-hourly') { openHourlyWeather(parseInt(el.dataset.off, 10)); }
+    else if (a === 'close-hourly') { closeHourlyWeather(); }
     else if (a === 'kpi-today') { kpiToday(); }
     else if (a === 'kpi-overloads') { kpiOverloads(); }
     else if (a === 'kpi-month') { kpiMonth(); }
