@@ -151,14 +151,30 @@ window.SP_SYNC_POLL = (function () {
     }
 
     if (sec === 'users') {
-      // { schema: 3, users: { uid: {...} } }
+      // { schema: 3, users: [ {id, login, ...}, ... ] } — МАССИВ (не объект)
       var curU = lsRead(lsKey);
-      if (!curU || typeof curU !== 'object') curU = { schema: 3, users: {} };
-      if (!curU.users || typeof curU.users !== 'object') curU.users = {};
+      if (!curU || typeof curU !== 'object') curU = { schema: 3, users: [] };
+      if (!Array.isArray(curU.users)) {
+        // миграция со старой схемы (объект-словарь) в массив
+        var arr = [];
+        if (curU.users && typeof curU.users === 'object') {
+          Object.keys(curU.users).forEach(function (k) {
+            var item = curU.users[k];
+            if (item && typeof item === 'object' && !item.id) item.id = k;
+            if (item) arr.push(item);
+          });
+        }
+        curU.users = arr;
+      }
+      var idxU = -1;
+      for (var u = 0; u < curU.users.length; u++) {
+        if (curU.users[u] && curU.users[u].id === rec.id) { idxU = u; break; }
+      }
       if (rec._deleted) {
-        delete curU.users[rec.id];
+        if (idxU >= 0) curU.users.splice(idxU, 1);
       } else {
-        curU.users[rec.id] = data;
+        if (idxU >= 0) curU.users[idxU] = data;
+        else curU.users.push(data);
       }
       curU.schema = 3;
       curU.updated_at = Date.now();
