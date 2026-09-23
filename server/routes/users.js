@@ -89,18 +89,21 @@ module.exports = function (pool) {
       if (!login) return res.status(400).json({ ok: false, err: 'нет login' });
       if (!full_name) return res.status(400).json({ ok: false, err: 'нет full_name' });
 
-      // Если передан plain_password — хэшируем. Иначе используем существующий.
-      let password_hash = null;
+      // Если передан plain_password — хэшируем bcrypt.
+      // Если ничего не передано — генерируем дефолтный пароль 'changeme'
+      // (чтобы не падать с NOT NULL на password_hash).
+      let password_hash;
       if (data.plain_password) {
         password_hash = await bcrypt.hash(String(data.plain_password), 10);
-      } else if (data.password && !data.password.startsWith('fallback_') && data.password.length > 50) {
-        // Старый хэш не подходит — лучше использовать bcrypt
-        password_hash = await bcrypt.hash(String(data.plain_password || 'changeme'), 10);
-      }
-
-      // Если передан явный password_hash (например, admin123 для seed) — используем
-      if (data.password_hash) {
+      } else if (data.password_hash) {
         password_hash = data.password_hash;
+      } else {
+        // Проверяем — может это UPDATE (запись уже есть)?
+        const cur = await pool.query('SELECT 1 FROM users WHERE id = $1', [id]);
+        if (cur.rows.length === 0) {
+          password_hash = await bcrypt.hash('changeme', 10);
+        }
+        // Иначе оставим password_hash undefined → UPDATE не тронет password_hash
       }
 
       let r;
