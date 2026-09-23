@@ -22,6 +22,10 @@ window.SP_AREAS = (function () {
   function save(db) {
     memoryDB = db;
     try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) {}
+    // Сборка 22.09-26: автосинхронизация при любом save()
+    if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
+      syncWithServer(db);
+    }
   }
   function init() {
     var db = load();
@@ -73,7 +77,7 @@ window.SP_AREAS = (function () {
     // Сборка 22.09-25: SP_API
     if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
       window.SP_API.upsert('areas', a).catch(function (e) {
-        console.warn('addArea sync failed:', e && e.err || e);
+        (window.SP_ERRORS && SP_ERRORS.log ? SP_ERRORS.log("warn", "sync", "addArea sync failed:", { err: e && e.err || e, where: "areas_db.js" }) : console.warn("addArea sync failed:", e && e.err || e));
       });
     }
     return { ok: true, area: a };
@@ -93,7 +97,7 @@ window.SP_AREAS = (function () {
     // Сборка 22.09-25: SP_API
     if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
       window.SP_API.upsert('areas', a).catch(function (e) {
-        console.warn('renameArea sync failed:', e && e.err || e);
+        (window.SP_ERRORS && SP_ERRORS.log ? SP_ERRORS.log("warn", "sync", "renameArea sync failed:", { err: e && e.err || e, where: "areas_db.js" }) : console.warn("renameArea sync failed:", e && e.err || e));
       });
     }
     return { ok: true, area: a, oldName: oldName, name: newName };
@@ -108,7 +112,7 @@ window.SP_AREAS = (function () {
     save(db);
     if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
       window.SP_API.del('areas', id).catch(function (e) {
-        console.warn('deleteArea sync failed:', e && e.err || e);
+        (window.SP_ERRORS && SP_ERRORS.log ? SP_ERRORS.log("warn", "sync", "deleteArea sync failed:", { err: e && e.err || e, where: "areas_db.js" }) : console.warn("deleteArea sync failed:", e && e.err || e));
       });
     }
     return { ok: true, area: a };

@@ -41,7 +41,10 @@ window.SP_WORK = (function () {
   function save(db) {
     memoryDB = db;
     try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) {}
-    if (window.SP_CONFIG && window.SP_CONFIG.useServerApi) syncWithServer(db);
+    // Сборка 22.09-26: автосинхронизация при save()
+    if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
+      syncWithServer(db);
+    }
   }
   function init() {
     var db = load();
@@ -59,7 +62,21 @@ window.SP_WORK = (function () {
     if (cloudData && cloudData.areas) { memoryDB = cloudData; try { localStorage.setItem(KEY, JSON.stringify(cloudData)); } catch(e) {} }
   }
   function syncWithServer(db) {
-    if (window.SP_DB && typeof window.SP_DB.syncToSupabase === 'function') { window.SP_DB.syncToSupabase(KEY, db); return; }
+    // Сборка 22.09-26: SP_API.upsert для всех видов работ
+    if (!window.SP_API || !window.SP_API.getToken || !window.SP_API.getToken()) return;
+    if (!db || !db.areas) return;
+    Object.keys(db.areas).forEach(function (area) {
+      var arr = db.areas[area];
+      if (!Array.isArray(arr)) return;
+      arr.forEach(function (w) {
+        if (!w || !w.id) return;
+        // Добавляем area в запись чтобы знать куда положить на сервере
+        var rec = Object.assign({ area: area }, w);
+        window.SP_API.upsert('work_catalog', rec).catch(function (e) {
+          try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log("warn", "sync", "sync failed", { err: String(e && e.err || e), where: "work_db.js" }); } catch(_){ }
+        });
+      });
+    });
   }
   function newId() { return 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
@@ -163,7 +180,7 @@ window.SP_WORK = (function () {
     // Сборка 22.09-25: SP_API
     if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
       window.SP_API.upsert('work_catalog', w).catch(function (e) {
-        console.warn('addWork sync failed:', e && e.err || e);
+          try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log("warn", "sync", "sync failed", { err: String(e && e.err || e), where: "work_db.js" }); } catch(_){ }
       });
     }
     return w;
@@ -185,7 +202,7 @@ window.SP_WORK = (function () {
       save(db);
       if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
         window.SP_API.upsert('work_catalog', arr[i]).catch(function (e) {
-          console.warn('updateWork sync failed:', e && e.err || e);
+          try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log("warn", "sync", "sync failed", { err: String(e && e.err || e), where: "work_db.js" }); } catch(_){ }
         });
       }
       return arr[i];
@@ -198,7 +215,7 @@ window.SP_WORK = (function () {
     save(db);
     if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
       window.SP_API.del('work_catalog', id).catch(function (e) {
-        console.warn('deleteWork sync failed:', e && e.err || e);
+          try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log("warn", "sync", "sync failed", { err: String(e && e.err || e), where: "work_db.js" }); } catch(_){ }
       });
     }
   }

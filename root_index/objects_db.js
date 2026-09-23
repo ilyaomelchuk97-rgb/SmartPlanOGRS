@@ -84,17 +84,13 @@ window.SP_OBJECTS = (function () {
   }
 
   function syncWithServer(db) {
-    // Сборка 22.09-25: синхронизация через SP_API (Render.com + PostgreSQL).
-    // Если SP_API не загружен или токена нет — ничего не делаем.
+    // Сборка 22.09-26: SP_API.upsert через Render
     if (!window.SP_API || !window.SP_API.getToken || !window.SP_API.getToken()) return;
-    var token = window.SP_API.getToken();
-    if (!token) return;
-    // Отправляем все объекты на сервер (POST /api/objects)
     if (Array.isArray(db.objects)) {
       db.objects.forEach(function (o) {
         if (!o || !o.id) return;
         window.SP_API.upsert('objects', o).catch(function (e) {
-          console.warn('objects sync failed for', o.id, e && e.err || e);
+          if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log('warn', 'objects.sync', e && e.err || e);
         });
       });
     }
@@ -186,7 +182,7 @@ window.SP_OBJECTS = (function () {
     // Сборка 22.09-25: синхронизация через SP_API (Render.com)
     if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
       window.SP_API.upsert('objects', o).catch(function (e) {
-        console.warn('addObject sync failed:', e && e.err || e);
+        (window.SP_ERRORS && SP_ERRORS.log ? SP_ERRORS.log("warn", "sync", "addObject sync failed:", { err: e && e.err || e, where: "objects_db.js" }) : console.warn("addObject sync failed:", e && e.err || e));
       });
     }
     return o;
@@ -236,7 +232,7 @@ window.SP_OBJECTS = (function () {
         // Сборка 22.09-25: синхронизация через SP_API (Render.com)
         if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
           window.SP_API.upsert('objects', o).catch(function (e) {
-            console.warn('updateObject sync failed:', e && e.err || e);
+            (window.SP_ERRORS && SP_ERRORS.log ? SP_ERRORS.log("warn", "sync", "updateObject sync failed:", { err: e && e.err || e, where: "objects_db.js" }) : console.warn("updateObject sync failed:", e && e.err || e));
           });
         }
         return Object.assign({}, o);
@@ -252,7 +248,7 @@ window.SP_OBJECTS = (function () {
     // Сборка 22.09-25: синхронизация через SP_API (Render.com)
     if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
       window.SP_API.del('objects', id).catch(function (e) {
-        console.warn('deleteObject sync failed:', e && e.err || e);
+        (window.SP_ERRORS && SP_ERRORS.log ? SP_ERRORS.log("warn", "sync", "deleteObject sync failed:", { err: e && e.err || e, where: "objects_db.js" }) : console.warn("deleteObject sync failed:", e && e.err || e));
       });
     }
   }

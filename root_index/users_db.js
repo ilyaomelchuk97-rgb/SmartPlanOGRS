@@ -58,7 +58,7 @@ window.SP_USERS_DB = (function () {
         // Не отправляем хэши паролей — сервер хранит свои bcrypt-хэши
         var safeU = Object.assign({}, u, { password: undefined, plain_password: undefined });
         window.SP_API.upsert('users', safeU).catch(function (e) {
-          console.warn('users sync failed for', u.id, e && e.err || e);
+          try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log("warn", "sync", "sync failed", { err: String(e && e.err || e), where: "users_db.js" }); } catch(_){ }
         });
       });
     }
@@ -145,7 +145,7 @@ window.SP_USERS_DB = (function () {
       if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
         var safeU = Object.assign({}, u, { password: undefined, plain_password: undefined });
         window.SP_API.upsert('users', safeU).catch(function (e) {
-          console.warn('addUser sync failed:', e && e.err || e);
+          try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log("warn", "sync", "sync failed", { err: String(e && e.err || e), where: "users_db.js" }); } catch(_){ }
         });
       }
       return u;
@@ -171,7 +171,7 @@ window.SP_USERS_DB = (function () {
       if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
         var safeU = Object.assign({ id: id }, data, { password: undefined, plain_password: undefined });
         window.SP_API.upsert('users', safeU).catch(function (e) {
-          console.warn('updateUser sync failed:', e && e.err || e);
+          try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log("warn", "sync", "sync failed", { err: String(e && e.err || e), where: "users_db.js" }); } catch(_){ }
         });
       }
       return u;
@@ -186,7 +186,7 @@ window.SP_USERS_DB = (function () {
     save(db);
     if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
       window.SP_API.del('users', id).catch(function (e) {
-        console.warn('deleteUser sync failed:', e && e.err || e);
+          try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log("warn", "sync", "sync failed", { err: String(e && e.err || e), where: "users_db.js" }); } catch(_){ }
       });
     }
     return Promise.resolve();

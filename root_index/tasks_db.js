@@ -43,7 +43,7 @@ window.SP_TASKS = (function () {
       db.tasks.forEach(function (t) {
         if (!t || !t.id) return;
         window.SP_API.upsert('tasks', t).catch(function (e) {
-          console.warn('tasks sync failed for', t.id, e && e.err || e);
+          try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log("warn", "sync", "sync failed", { err: String(e && e.err || e), where: "tasks_db.js" }); } catch(_){ }
         });
       });
     }
@@ -65,7 +65,7 @@ window.SP_TASKS = (function () {
     // Сборка 22.09-25: SP_API
     if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
       window.SP_API.upsert('tasks', t).catch(function (e) {
-        console.warn('addTask sync failed:', e && e.err || e);
+          try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log("warn", "sync", "sync failed", { err: String(e && e.err || e), where: "tasks_db.js" }); } catch(_){ }
       });
     }
     return t;
@@ -79,7 +79,7 @@ window.SP_TASKS = (function () {
     save(db);
     if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
       window.SP_API.upsert('tasks', t).catch(function (e) {
-        console.warn('updateTask sync failed:', e && e.err || e);
+          try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log("warn", "sync", "sync failed", { err: String(e && e.err || e), where: "tasks_db.js" }); } catch(_){ }
       });
     }
     return t;
@@ -90,7 +90,7 @@ window.SP_TASKS = (function () {
     save(db);
     if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
       window.SP_API.del('tasks', id).catch(function (e) {
-        console.warn('deleteTask sync failed:', e && e.err || e);
+          try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log("warn", "sync", "sync failed", { err: String(e && e.err || e), where: "tasks_db.js" }); } catch(_){ }
       });
     }
   }
