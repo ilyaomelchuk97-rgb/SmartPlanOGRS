@@ -46,17 +46,18 @@ window.SP_USERS_DB = (function () {
   }
 
   function syncWithServer(db) {
-    if (window.SP_DB && typeof window.SP_DB.syncToSupabase === 'function') {
-      window.SP_DB.syncToSupabase(KEY, db);
-      return;
+    // Сборка 22.09-25: SP_API (Render.com)
+    if (!window.SP_API || !window.SP_API.getToken || !window.SP_API.getToken()) return;
+    if (Array.isArray(db.users)) {
+      db.users.forEach(function (u) {
+        if (!u || !u.id) return;
+        // Не отправляем хэши паролей — сервер хранит свои bcrypt-хэши
+        var safeU = Object.assign({}, u, { password: undefined, plain_password: undefined });
+        window.SP_API.upsert('users', safeU).catch(function (e) {
+          console.warn('users sync failed for', u.id, e && e.err || e);
+        });
+      });
     }
-    try {
-      (window.SP_NET ? SP_NET.send : fetch)(window.SP_CONFIG.serverUrl + window.SP_CONFIG.endpoints.users, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(db.users)
-      }).catch(function() {});
-    } catch(e) {}
   }
 
   function hash(str) {
@@ -136,13 +137,12 @@ window.SP_USERS_DB = (function () {
         color: data.color || nextColor(), active: data.active !== false, created: Date.now()
       };
       db.users.push(u); save(db);
-      // Синхронизация с сервером
-      if (window.SP_DB) {
-        (window.SP_NET ? SP_NET.send : fetch)((window.SP_CONFIG.serverUrl || '') + '/api/users', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(u)
-        }).catch(function() {});
+      // Сборка 22.09-25: SP_API
+      if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
+        var safeU = Object.assign({}, u, { password: undefined, plain_password: undefined });
+        window.SP_API.upsert('users', safeU).catch(function (e) {
+          console.warn('addUser sync failed:', e && e.err || e);
+        });
       }
       return u;
     });
@@ -164,13 +164,11 @@ window.SP_USERS_DB = (function () {
     if (data.password !== undefined) u.plain_password = data.password;
     var op = data.password ? hash(data.password).then(function (h) { u.password = h; }) : Promise.resolve();
     return op.then(function () { save(db);
-      // Синхронизация с сервером
-      if (window.SP_CONFIG) {
-        (window.SP_NET ? SP_NET.send : fetch)((window.SP_CONFIG.serverUrl || '') + '/api/users/' + id, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(Object.assign({ id: id }, data))
-        }).catch(function() {});
+      if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
+        var safeU = Object.assign({ id: id }, data, { password: undefined, plain_password: undefined });
+        window.SP_API.upsert('users', safeU).catch(function (e) {
+          console.warn('updateUser sync failed:', e && e.err || e);
+        });
       }
       return u;
     });
@@ -182,11 +180,10 @@ window.SP_USERS_DB = (function () {
     if (u.role === 'admin' && countAdmins() <= 1) return Promise.reject(new Error('Нельзя удалить последнего администратора'));
     db.users = db.users.filter(function (x) { return x.id !== id; });
     save(db);
-    // Синхронизация с сервером
-    if (window.SP_CONFIG) {
-      (window.SP_NET ? SP_NET.send : fetch)((window.SP_CONFIG.serverUrl || '') + '/api/users/' + id, {
-        method: 'DELETE'
-      }).catch(function() {});
+    if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
+      window.SP_API.del('users', id).catch(function (e) {
+        console.warn('deleteUser sync failed:', e && e.err || e);
+      });
     }
     return Promise.resolve();
   }

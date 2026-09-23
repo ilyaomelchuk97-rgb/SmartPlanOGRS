@@ -84,17 +84,20 @@ window.SP_OBJECTS = (function () {
   }
 
   function syncWithServer(db) {
-    if (window.SP_DB && typeof window.SP_DB.syncToSupabase === 'function') {
-      window.SP_DB.syncToSupabase(KEY, db);
-      return;
+    // Сборка 22.09-25: синхронизация через SP_API (Render.com + PostgreSQL).
+    // Если SP_API не загружен или токена нет — ничего не делаем.
+    if (!window.SP_API || !window.SP_API.getToken || !window.SP_API.getToken()) return;
+    var token = window.SP_API.getToken();
+    if (!token) return;
+    // Отправляем все объекты на сервер (POST /api/objects)
+    if (Array.isArray(db.objects)) {
+      db.objects.forEach(function (o) {
+        if (!o || !o.id) return;
+        window.SP_API.upsert('objects', o).catch(function (e) {
+          console.warn('objects sync failed for', o.id, e && e.err || e);
+        });
+      });
     }
-    try {
-      (window.SP_NET ? SP_NET.send : fetch)(window.SP_CONFIG.serverUrl + window.SP_CONFIG.endpoints.objects, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(db.objects)
-      }).catch(function() {});
-    } catch(e) {}
   }
 
   function ensureSeed() {
@@ -180,13 +183,11 @@ window.SP_OBJECTS = (function () {
     }
     if (!o.addr && o.num) o.addr = '';
     db.objects.push(o); save(db);
-    // Отправка на сервер
-    if (window.SP_CONFIG && window.SP_CONFIG.serverUrl) {
-      (window.SP_NET ? SP_NET.send : fetch)(window.SP_CONFIG.serverUrl + '/api/objects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(o)
-      }).catch(function() {});
+    // Сборка 22.09-25: синхронизация через SP_API (Render.com)
+    if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
+      window.SP_API.upsert('objects', o).catch(function (e) {
+        console.warn('addObject sync failed:', e && e.err || e);
+      });
     }
     return o;
   }
@@ -232,12 +233,11 @@ window.SP_OBJECTS = (function () {
         }
         save(db);
         var o = db.objects[i];
-        if (window.SP_CONFIG && window.SP_CONFIG.serverUrl) {
-          (window.SP_NET ? SP_NET.send : fetch)(window.SP_CONFIG.serverUrl + '/api/objects/' + encodeURIComponent(id), {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(o)
-          }).catch(function() {});
+        // Сборка 22.09-25: синхронизация через SP_API (Render.com)
+        if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
+          window.SP_API.upsert('objects', o).catch(function (e) {
+            console.warn('updateObject sync failed:', e && e.err || e);
+          });
         }
         return Object.assign({}, o);
       }
@@ -249,10 +249,11 @@ window.SP_OBJECTS = (function () {
     var db = init();
     db.objects = db.objects.filter(function (o) { return o.id !== id; });
     save(db);
-    if (window.SP_CONFIG && window.SP_CONFIG.serverUrl) {
-      (window.SP_NET ? SP_NET.send : fetch)(window.SP_CONFIG.serverUrl + '/api/objects/' + encodeURIComponent(id), {
-        method: 'DELETE'
-      }).catch(function() {});
+    // Сборка 22.09-25: синхронизация через SP_API (Render.com)
+    if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
+      window.SP_API.del('objects', id).catch(function (e) {
+        console.warn('deleteObject sync failed:', e && e.err || e);
+      });
     }
   }
 

@@ -160,13 +160,11 @@ window.SP_WORK = (function () {
       opt_workers: parseInt(data.opt_workers) || 2
     };
     db.areas[area].push(w); save(db);
-    // Отправка на сервер
-    if (window.SP_CONFIG && window.SP_CONFIG.serverUrl) {
-      (window.SP_NET ? SP_NET.send : fetch)(window.SP_CONFIG.serverUrl + '/api/works/' + encodeURIComponent(area), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(w)
-      }).catch(function() {});
+    // Сборка 22.09-25: SP_API
+    if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
+      window.SP_API.upsert('work_catalog', w).catch(function (e) {
+        console.warn('addWork sync failed:', e && e.err || e);
+      });
     }
     return w;
   }
@@ -185,13 +183,10 @@ window.SP_WORK = (function () {
       if (data.min_workers !== undefined) arr[i].min_workers = parseInt(data.min_workers) || 1;
       if (data.opt_workers !== undefined) arr[i].opt_workers = parseInt(data.opt_workers) || 2;
       save(db);
-      // Отправка на сервер
-      if (window.SP_CONFIG && window.SP_CONFIG.serverUrl) {
-        (window.SP_NET ? SP_NET.send : fetch)(window.SP_CONFIG.serverUrl + '/api/works/' + encodeURIComponent(area) + '/' + id, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(arr[i])
-        }).catch(function() {});
+      if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
+        window.SP_API.upsert('work_catalog', arr[i]).catch(function (e) {
+          console.warn('updateWork sync failed:', e && e.err || e);
+        });
       }
       return arr[i];
     }
@@ -201,11 +196,10 @@ window.SP_WORK = (function () {
     var db = init(); var arr = db.areas[area] || [];
     db.areas[area] = arr.filter(function (w) { return w.id !== id; });
     save(db);
-    // Отправка на сервер
-    if (window.SP_CONFIG && window.SP_CONFIG.serverUrl) {
-      (window.SP_NET ? SP_NET.send : fetch)(window.SP_CONFIG.serverUrl + '/api/works/' + encodeURIComponent(area) + '/' + id, {
-        method: 'DELETE'
-      }).catch(function() {});
+    if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
+      window.SP_API.del('work_catalog', id).catch(function (e) {
+        console.warn('deleteWork sync failed:', e && e.err || e);
+      });
     }
   }
 

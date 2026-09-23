@@ -37,7 +37,16 @@ window.SP_TASKS = (function () {
     if (cloudData && cloudData.tasks) { memoryDB = cloudData; try { localStorage.setItem(KEY, JSON.stringify(cloudData)); } catch(e) {} }
   }
   function syncWithServer(db) {
-    if (window.SP_DB && typeof window.SP_DB.syncToSupabase === 'function') { window.SP_DB.syncToSupabase(KEY, db); return; }
+    // Сборка 22.09-25: синхронизация через SP_API (Render.com + PostgreSQL)
+    if (!window.SP_API || !window.SP_API.getToken || !window.SP_API.getToken()) return;
+    if (Array.isArray(db.tasks)) {
+      db.tasks.forEach(function (t) {
+        if (!t || !t.id) return;
+        window.SP_API.upsert('tasks', t).catch(function (e) {
+          console.warn('tasks sync failed for', t.id, e && e.err || e);
+        });
+      });
+    }
   }
 
   function ensureSeed() {
@@ -50,17 +59,14 @@ window.SP_TASKS = (function () {
   function getTask(id) { var arr = init().tasks; for (var i = 0; i < arr.length; i++) if (arr[i].id === id) return arr[i]; return null; }
   function addTask(data) {
     var db = init();
-    // updated_at — версия задачи (защита от конфликтов: чья правка новее, та и выигрывает)
     var t = Object.assign({ id: 't_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6), updated_at: Date.now() }, data);
     if (!t.updated_at) t.updated_at = Date.now();
     db.tasks.push(t); save(db);
-    // Отправка на сервер
-    if (window.SP_CONFIG && window.SP_CONFIG.serverUrl) {
-      (window.SP_NET ? SP_NET.send : fetch)(window.SP_CONFIG.serverUrl + '/api/tasks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(t)
-      }).catch(function() {});
+    // Сборка 22.09-25: SP_API
+    if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
+      window.SP_API.upsert('tasks', t).catch(function (e) {
+        console.warn('addTask sync failed:', e && e.err || e);
+      });
     }
     return t;
   }
@@ -69,15 +75,12 @@ window.SP_TASKS = (function () {
     for (var i = 0; i < db.tasks.length; i++) if (db.tasks[i].id === id) { t = db.tasks[i]; break; }
     if (!t) return null;
     Object.assign(t, data);
-    t.updated_at = Date.now(); // каждая локальная правка — новая версия задачи
+    t.updated_at = Date.now();
     save(db);
-    // Отправка на сервер
-    if (window.SP_CONFIG && window.SP_CONFIG.serverUrl) {
-      (window.SP_NET ? SP_NET.send : fetch)(window.SP_CONFIG.serverUrl + '/api/tasks/' + id, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(t)
-      }).catch(function() {});
+    if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
+      window.SP_API.upsert('tasks', t).catch(function (e) {
+        console.warn('updateTask sync failed:', e && e.err || e);
+      });
     }
     return t;
   }
@@ -85,11 +88,10 @@ window.SP_TASKS = (function () {
     var db = init();
     db.tasks = db.tasks.filter(function (t) { return t.id !== id; });
     save(db);
-    // Отправка на сервер
-    if (window.SP_CONFIG && window.SP_CONFIG.serverUrl) {
-      (window.SP_NET ? SP_NET.send : fetch)(window.SP_CONFIG.serverUrl + '/api/tasks/' + id, {
-        method: 'DELETE'
-      }).catch(function() {});
+    if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
+      window.SP_API.del('tasks', id).catch(function (e) {
+        console.warn('deleteTask sync failed:', e && e.err || e);
+      });
     }
   }
 

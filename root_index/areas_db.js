@@ -70,12 +70,12 @@ window.SP_AREAS = (function () {
     var db = init();
     var a = { id: newId(), name: name, created: Date.now() };
     db.areas.push(a); save(db);
-    // Сервер (upsert по названию)
-    try {
-      (window.SP_NET ? SP_NET.send : fetch)(apiUrl('/api/areas'), {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(a)
-      }).catch(function () {});
-    } catch (e) {}
+    // Сборка 22.09-25: SP_API
+    if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
+      window.SP_API.upsert('areas', a).catch(function (e) {
+        console.warn('addArea sync failed:', e && e.err || e);
+      });
+    }
     return { ok: true, area: a };
   }
 
@@ -90,13 +90,12 @@ window.SP_AREAS = (function () {
     for (var j = 0; j < db.areas.length; j++) if (db.areas[j].name === newName) return { ok: false, error: 'Участок «' + newName + '» уже существует' };
     var oldName = a.name;
     a.name = newName; save(db);
-    // Виды работ и пользователи переносит вызывающий код (WORK.renameArea, DB.updateUser),
-    // сервер обновляет works.area и users.area внутри PUT /api/areas/:id
-    try {
-      (window.SP_NET ? SP_NET.send : fetch)(apiUrl('/api/areas/' + encodeURIComponent(id)), {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newName, oldName: oldName })
-      }).catch(function () {});
-    } catch (e) {}
+    // Сборка 22.09-25: SP_API
+    if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
+      window.SP_API.upsert('areas', a).catch(function (e) {
+        console.warn('renameArea sync failed:', e && e.err || e);
+      });
+    }
     return { ok: true, area: a, oldName: oldName, name: newName };
   }
 
@@ -107,9 +106,11 @@ window.SP_AREAS = (function () {
     if (!a) return { ok: false, error: 'Участок не найден' };
     db.areas = db.areas.filter(function (x) { return x.id !== id; });
     save(db);
-    try {
-      (window.SP_NET ? SP_NET.send : fetch)(apiUrl('/api/areas/' + encodeURIComponent(id)), { method: 'DELETE' }).catch(function () {});
-    } catch (e) {}
+    if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
+      window.SP_API.del('areas', id).catch(function (e) {
+        console.warn('deleteArea sync failed:', e && e.err || e);
+      });
+    }
     return { ok: true, area: a };
   }
 

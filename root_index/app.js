@@ -12608,8 +12608,7 @@
     if (wkNav) wkNav.style.display = (S.role === 'slesar') ? 'none' : '';
     var ob = document.querySelector('button[data-action="optimize"]');
     if (ob) ob.style.display = (canPlan() ? 'inline-flex' : 'none');
-    // Обновление индикатора синхронизации
-    updateSyncIndicator();
+    // Индикатор синхронизации управляется модулем sync_polling.js (22.09-25)
   }
 
   // Индикатор статуса синхронизации — управляется модулем sync_polling.js

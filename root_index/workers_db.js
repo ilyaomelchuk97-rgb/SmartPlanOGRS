@@ -69,13 +69,16 @@ window.SP_WORKERS = (function () {
     }
   }
   function syncWithServer(db) {
-    try {
-      (window.SP_NET ? SP_NET.send : fetch)((window.SP_CONFIG && SP_CONFIG.serverUrl ? SP_CONFIG.serverUrl : '') + '/api/workers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(db)
-      }).catch(function () {});
-    } catch (e) {}
+    // Сборка 22.09-25: SP_API
+    if (!window.SP_API || !window.SP_API.getToken || !window.SP_API.getToken()) return;
+    if (db && db.workers) {
+      Object.keys(db.workers).forEach(function (uid) {
+        var w = Object.assign({ id: uid }, db.workers[uid]);
+        window.SP_API.upsert('workers', w).catch(function (e) {
+          console.warn('workers sync failed for', uid, e && e.err || e);
+        });
+      });
+    }
   }
 
   return {
