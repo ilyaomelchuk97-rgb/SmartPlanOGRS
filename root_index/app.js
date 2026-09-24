@@ -390,19 +390,54 @@
 
   // Запрос к Open-Meteo (бесплатный API, поддерживает CORS, данные эквивалентны Яндекс.Погоде)
   var WX_CACHE_KEY = 'smartplan_weather_cache';
+  var WX_CACHE_KEY_V2 = 'smartplan_weather_cache_v2';
+  // Описания погоды, которые ГАРАНТИРОВАННО приходят из Open-Meteo (decodeWeatherCode).
+  // Если в кэше лежит что-то другое ("Прохладно/Тепло/Холодно" — это dummy из старой версии),
+  // такой кэш считаем мусором.
+  var WX_REAL_DESCS = ['Ясно','Облачно','Морось','Дождь','Снег','Ливень','Снег с ливнем','Гроза','Без осадков'];
+  function _wxIsValid(d) {
+    if (!d) return false;
+    if (d._dummy) return false;
+    if (typeof d.code !== 'number') return false;
+    if (!d.date) return false;  // старый кэш без date (до коммита 6222a15) считаем мусором
+    if (WX_REAL_DESCS.indexOf(d.desc) === -1) return false;  // dummy-описание
+    return true;
+  }
   function wxCacheGet() {
     try {
-      var c = JSON.parse(localStorage.getItem(WX_CACHE_KEY) || 'null');
+      // Сначала пробуем новый ключ v2
+      var c = JSON.parse(localStorage.getItem(WX_CACHE_KEY_V2) || 'null');
+      if (!c) {
+        // Миграция со старого ключа: читаем, валидируем, перекладываем в v2
+        c = JSON.parse(localStorage.getItem(WX_CACHE_KEY) || 'null');
+        if (c && c.days) {
+          var valid = c.days.filter(_wxIsValid);
+          if (valid.length >= 5) {
+            // Переложим в v2 — этого достаточно, чтобы не потерять данные
+            try { localStorage.setItem(WX_CACHE_KEY_V2, JSON.stringify({ ts: c.ts || Date.now(), days: valid })); } catch (e) {}
+          }
+          // Старый ключ больше не нужен
+          try { localStorage.removeItem(WX_CACHE_KEY); } catch (e) {}
+          if (valid.length === 0) return null;
+          return valid;
+        }
+        return null;
+      }
       if (c && c.days && (Date.now() - c.ts) < 60 * 60 * 1000) {
-        // Фильтруем dummy-записи (могли остаться в localStorage от старой версии).
-        // Признаки dummy: явный _dummy:true или отсутствие weather_code (только у реального ответа Open-Meteo).
-        return c.days.filter(function (d) { return d && !d._dummy && (typeof d.code === 'number'); });
+        var validDays = c.days.filter(_wxIsValid);
+        return validDays.length ? validDays : null;
       }
     } catch (e) {}
     return null;
   }
   function wxCacheSet(days) {
-    try { localStorage.setItem(WX_CACHE_KEY, JSON.stringify({ ts: Date.now(), days: days })); } catch (e) {}
+    try {
+      // Сохраняем только валидные записи (на случай если кто-то передаст мусор)
+      var valid = days.filter(_wxIsValid);
+      localStorage.setItem(WX_CACHE_KEY_V2, JSON.stringify({ ts: Date.now(), days: valid }));
+      // Подчищаем старый ключ, если остался
+      try { localStorage.removeItem(WX_CACHE_KEY); } catch (e) {}
+    } catch (e) {}
   }
   function loadWeatherFromOpenMeteo() {
     var lat = (window.SP_CONFIG && SP_CONFIG.weatherLat) || 53.9023;
@@ -503,19 +538,20 @@
   }
 
   // Загрузка прогноза погоды (главная функция)
+  // ВАЖНО: сначала ВСЕГДА пробуем свежий запрос к Open-Meteo. Кэш используем
+  // только как fallback при ошибке сети. Это гарантирует, что пользователь
+  // увидит актуальный прогноз, а не устаревший кэш (в т.ч. если в нём лежат
+  // dummy-записи «Прохладно» от предыдущих версий).
   function loadWeatherForecast() {
     if (weatherLoading) return Promise.resolve();
-    // Кэш localStorage (TTL 1 час) — перезагрузка страницы не тянет прогноз заново
+
+    // Предварительно подгружаем валидный кэш — он пригодится, если API недоступен
     var cachedDays = wxCacheGet();
-    if (cachedDays) {
+    if (cachedDays && cachedDays.length) {
       cachedDays.forEach(function (d) { weatherCache[d.date] = d; });
-      weatherLoaded = true;
-      console.log('Погода из кэша (localStorage):', Object.keys(weatherCache).length, 'дней');
-      if (typeof window.reRenderCurrentScreen === 'function') {
-        setTimeout(window.reRenderCurrentScreen, 50);
-      }
-      return Promise.resolve();
+      console.log('Кэш погоды (localStorage):', cachedDays.length, 'дней');
     }
+
     weatherLoading = true;
     var provider = (window.SP_CONFIG && SP_CONFIG.weatherProvider) || 'open-meteo';
     var yandexKey = (window.SP_CONFIG && SP_CONFIG.weatherApiKey) || '';
@@ -544,6 +580,11 @@
     }).catch(function(err) {
       weatherLoading = false;
       console.error('Ошибка загрузки погоды:', err);
+      // Если API упал — оставляем в weatherCache то, что было в кэше (если есть)
+      // Если кэша нет — getWeatherForecast создаст dummy при первом запросе
+      if (Object.keys(weatherCache).length && typeof window.reRenderCurrentScreen === 'function') {
+        setTimeout(window.reRenderCurrentScreen, 100);
+      }
     });
   }
 
@@ -582,7 +623,10 @@
     else if (month >= 5 && month <= 7) temp = 18 + Math.floor(Math.random() * 10);
     else temp = 8 + Math.floor(Math.random() * 7);
 
-    var desc = temp < 0 ? 'Холодно' : temp > 15 ? 'Тепло' : 'Прохладно';
+    // dummy-описание (используется ТОЛЬКО если API не ответил и кэша нет).
+    // Реальный прогноз Open-Meteo приходит сюда сам через loadWeatherForecast()
+    // — после этого dummy-запись больше не возвращается.
+    var desc = 'Без осадков';
 
     // Почасовые данные (реалистичная кривая температуры: минимум ~5:00, максимум ~15:00)
     var dummyHourly = [];
@@ -689,8 +733,9 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-31 · все точки и области справочника (ГРП, ШРП, ГРС, ПГРП) на одной карте · виды работ: 13 атрибутов · прогноз погоды 14 дн. — реальный из Open-Meteo'],
+    objmap: ['Карта объектов', 'Сборка 22.09-35 · все точки и области (ГРП, ШРП, ГРС, ПГРП) · виды работ 13 атрибутов · восстановлена страница «Тест» · добавлена страница «Тест зависимости»'],
     testmap: ['Тест', 'Полигон: копия «Карта маршрутов» для экспериментов — рабочие страницы не затрагивает'],
+    testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
     perms: ['Разрешения', 'Система разрешений на производство работ'],
     refs: ['Справочники', 'Виды работ, нормы времени, объекты газоснабжения'],
@@ -11691,7 +11736,8 @@
     // Ползунок и Play
     var sl = document.getElementById('wx-slider');
     sl.addEventListener('input', function () { wxtShowHour(+sl.value); });
-    document.getElementById('wx-tl-play').addEventListener('click', wxtTogglePlay);
+    // Обработчик Play/Pause вешается в initWxTestMap() через wire('wx-tl-play', ...).
+    // Здесь НЕ дублируем — иначе toggle вызывается дважды (start → stop за один клик).
 
     // Инициализация карты осадков в canvas модалки (то же, что в #wxt-map на странице)
     WXT.canvasHolder = document.getElementById('wx-map-canvas');
@@ -11886,7 +11932,7 @@
       var bt = modal.querySelector('#hly-bar-time');
       if (bt) bt.textContent = (h < 10 ? '0' + h : h) + ':00';
       var sl = modal.querySelector('#hly-slider');
-      if (sl && !fromPlay) sl.value = h;
+      if (sl) sl.value = h;  // при Play тоже двигаем слайдер, чтобы пользователь видел прогресс
       // Подсветка активной строки
       var rows = modal.querySelectorAll('.hly-row');
       rows.forEach(function (r, i) { r.style.background = (i === h) ? '#dbeafe' : ''; r.style.fontWeight = (i === h) ? '700' : ''; });
@@ -13305,6 +13351,7 @@
     // «Тест» — полигон только для администратора
     if (name === 'testmap' && S.role !== 'admin') { toast('err', 'Страница «Тест» — только для администратора'); return; }
     if (name === 'wxtest' && S.role !== 'admin') { toast('err', 'Страница «Тест погодный» — только для администратора'); return; }
+    if (name === 'testdep' && S.role !== 'admin') { toast('err', 'Страница «Тест зависимости» — только для администратора'); return; }
     // Защита: страницы администрирования — только админу
     if ((name === 'users' || name === 'logs') && S.role !== 'admin') {
       toast('err', 'Доступ только для администратора');
@@ -13398,6 +13445,8 @@
     if (S.screen === 'dashboard') renderDashboard();
     else if (S.screen === 'calendar') renderCalendar();
     else if (S.screen === 'map') renderMap();
+    else if (S.screen === 'testmap') renderTestMap();
+    else if (S.screen === 'testdep') renderTestDep();
     else if (S.screen === 'objmap') renderObjMap();
     else if (S.screen === 'livemap') renderLiveMap();
     else if (S.screen === 'perms') renderPerms();
@@ -13468,10 +13517,9 @@
     else if (a === 'open-weather') { toggleWeatherDropdown(); }
     else if (a === 'open-wx-map') { openWeatherMap(); }
     else if (a === 'close-wx-map') { closeWeatherMap(); }
-    else if (a === 'wx-tl-prev') { if (WXM) setWxHour(WXM.hour - 1); }
-    else if (a === 'wx-tl-next') { if (WXM) setWxHour(WXM.hour + 1); }
-    else if (a === 'wx-tl-play') { toggleWxPlay(); }
-    else if (a === 'wx-basemap') { setWxBasemap(el.getAttribute('data-bm')); }
+    // wx-tl-prev/wx-tl-next/wx-tl-play/wx-basemap — обработчики вешаются НАПРЯМУЮ
+    // через addEventListener в openWeatherMap() и initWxTestMap(). Не дублируем
+    // здесь, иначе ReferenceError на несуществующих символах ломает клик.
     else if (a === 'open-yandex') { window.open('https://yandex.ru/pogoda/minsk', '_blank'); }
     else if (a === 'open-hourly') { openHourlyWeather(parseInt(el.dataset.off, 10)); }
     else if (a === 'close-hourly') { closeHourlyWeather(); }
@@ -15813,6 +15861,107 @@
           console.warn('Стиль не загружен для переработки, fallback на language:', e);
           factory({ apiKey: key, style: 'streets', language: 'ru', tileSize: 512, zoomOffset: -1, crossOrigin: true }).addTo(map);
         });
+    });
+  }
+
+
+  // === ТЕСТ ЗАВИСИМОСТИ: одна задача + вид работы + трудоёмкость ===
+  // Полигон для отладки формул расчёта по параметрам объекта.
+  // Поля вводятся вручную (наименования, атрибуты), здесь только хранение и отображение.
+  function renderTestDep() {
+    var KEY = 'smartplan_test_dep';
+    function load() {
+      try { return JSON.parse(localStorage.getItem(KEY) || 'null') || {}; } catch (e) { return {}; }
+    }
+    function save(data) {
+      try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {}
+    }
+    var data = load();
+    var works = (window.SP_WORK && SP_WORK.getWorkTree) ? SP_WORK.getWorkTree() : [];
+
+    var html = '<div style="max-width:920px;margin:0 auto;padding:18px">';
+    html += '<div class="card" style="padding:18px;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 2px 10px rgba(15,39,64,.04)">';
+    html += '<div style="font-size:14px;font-weight:800;color:var(--ink);margin-bottom:4px">Тест зависимости трудоёмкости</div>';
+    html += '<div style="font-size:12px;color:var(--muted);margin-bottom:14px">Полигон для отладки формулы расчёта по параметрам объекта. Заполните поля и нажмите «Сохранить» — значения сохранятся в localStorage, формулу можно отлаживать без боевых данных.</div>';
+
+    html += '<div style="margin-bottom:14px">';
+    html += '<label style="display:block;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:4px">1. Задача (наименование, как в планировании)</label>';
+    html += '<input type="text" id="td-task" placeholder="Например: ТО ГРП №5 на ул. Якуба Коласа" value="' + esc(data.task || '') + '" style="width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:var(--bg);color:var(--ink)">';
+    html += '</div>';
+
+    html += '<div style="margin-bottom:14px">';
+    html += '<label style="display:block;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:4px">2. Вид работы (из справочника)</label>';
+    html += '<select id="td-work" style="width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:var(--bg);color:var(--ink)">';
+    html += '<option value="">— выберите вид работы —</option>';
+    works.forEach(function (w) {
+      var sel = (data.workId === w.id) ? ' selected' : '';
+      html += '<option value="' + esc(w.id) + '"' + sel + '>' + esc(w.name) + (w.norm != null ? ' (' + w.norm + ' ч)' : '') + '</option>';
+    });
+    html += '</select>';
+    if (!works.length) {
+      html += '<div style="font-size:11px;color:#dc2626;margin-top:4px">Справочник работ пуст. Откройте «Справочники → Виды работ» и добавьте хотя бы одну запись.</div>';
+    }
+    html += '</div>';
+
+    html += '<div style="margin-bottom:14px">';
+    html += '<label style="display:block;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:4px">3. Трудоёмкость (норма, чел·ч)</label>';
+    html += '<input type="number" id="td-hours" step="0.1" min="0" placeholder="Например: 2.5" value="' + (data.hours != null ? data.hours : '') + '" style="width:200px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:var(--bg);color:var(--ink)">';
+    html += '<span style="margin-left:8px;font-size:12px;color:var(--muted)">чел·ч</span>';
+    html += '</div>';
+
+    html += '<div style="display:flex;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid var(--line)">';
+    html += '<button type="button" id="td-save" class="btn" style="background:#0f2740;color:#fff;border:none;padding:9px 18px;font-weight:700">Сохранить</button>';
+    html += '<button type="button" id="td-clear" class="btn" style="background:var(--bg);color:var(--ink);padding:9px 18px">Очистить</button>';
+    html += '<button type="button" id="td-from-work" class="btn" style="background:#2563eb;color:#fff;border:none;padding:9px 18px;font-weight:700" title="Подставить трудоёмкость из выбранного вида работы">⟲ Из справочника</button>';
+    html += '</div>';
+
+    html += '</div>';
+
+    html += '<div class="card" style="margin-top:14px;padding:14px 18px;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;font-size:12.5px;color:var(--txt);line-height:1.5">';
+    html += '<div style="font-weight:800;color:var(--ink);margin-bottom:6px">Что дальше</div>';
+    html += 'Сейчас это просто форма для ввода. Когда будете готовы — пришлите логику расчёта: от какого вида работы считать, какие атрибуты объекта (ГРП/ШРП/ПГРП) на что влияют, формулу (текстом, таблицей или сканом норматива). После этого встрою расчёт прямо сюда — в реальном времени по мере ввода параметров объекта.';
+    html += '</div>';
+
+    html += '</div>';
+
+    var viewEl = document.getElementById('view');
+    if (viewEl) viewEl.innerHTML = html;
+    else {
+      var main = document.getElementById('main') || document.getElementById('screen');
+      if (main) main.innerHTML = html;
+      else document.body.innerHTML += html;
+    }
+
+    function readForm() {
+      return {
+        task: (document.getElementById('td-task').value || '').trim(),
+        workId: document.getElementById('td-work').value,
+        hours: parseFloat(document.getElementById('td-hours').value) || 0
+      };
+    }
+    var saveBtn = document.getElementById('td-save');
+    if (saveBtn) saveBtn.addEventListener('click', function () {
+      var d = readForm();
+      if (!d.task) { toast('warn', 'Введите наименование задачи'); return; }
+      if (!d.workId) { toast('warn', 'Выберите вид работы из справочника'); return; }
+      if (!d.hours || d.hours <= 0) { toast('warn', 'Укажите трудоёмкость > 0'); return; }
+      save(d);
+      toast('ok', 'Сохранено в localStorage (smartplan_test_dep)');
+    });
+    var clrBtn = document.getElementById('td-clear');
+    if (clrBtn) clrBtn.addEventListener('click', function () {
+      try { localStorage.removeItem(KEY); } catch (e) {}
+      renderTestDep();
+      toast('ok', 'Очищено');
+    });
+    var fromWorkBtn = document.getElementById('td-from-work');
+    if (fromWorkBtn) fromWorkBtn.addEventListener('click', function () {
+      var wid = document.getElementById('td-work').value;
+      var w = works.find(function (x) { return x.id === wid; });
+      if (!w) { toast('warn', 'Сначала выберите вид работы'); return; }
+      var h = document.getElementById('td-hours');
+      h.value = (w.norm != null ? w.norm : 0);
+      toast('ok', 'Подставлена норма: ' + h.value + ' ч');
     });
   }
 
