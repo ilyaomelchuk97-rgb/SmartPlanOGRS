@@ -675,7 +675,6 @@
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
     objmap: ['Карта объектов', 'Сборка 22.09-29 · все точки и области справочника (ГРП, ШРП, ГРС, ПГРП) на одной карте · виды работ: 13 атрибутов'],
     testmap: ['Тест', 'Полигон: копия «Карта маршрутов» для экспериментов — рабочие страницы не затрагивает'],
-    wxtest: ['Тест погодный', 'Сборка 22.09-29 · карта осадков: только прогноз Open-Meteo (ERA5 архив + ICON-EU) по сетке 16×16 точек · Минск и Минский район · виды работ: 13 атрибутов'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
     perms: ['Разрешения', 'Система разрешений на производство работ'],
     refs: ['Справочники', 'Виды работ, нормы времени, объекты газоснабжения'],
@@ -918,9 +917,11 @@
     else if (tod === 'morning') c = '#f6b89c';
     else if (tod === 'evening') c = '#f0a868';
     else c = '#42a5f5';
-    var sceneBg = 'linear-gradient(to right,transparent 28%,' + c + ' 58%,' + c + ' 100%)';
+    // Без белого фейда слева — вся сцена целиком залита цветом времени суток,
+    // плавный переход между состояниями через CSS transition
+    var sceneBg = 'linear-gradient(to right,' + c + ' 0%,' + c + ' 60%,' + c + ' 100%)';
     var windy = (wf.wind || 0) >= 5; // средний/сильный ветер → дождь под углом + линии ветра
-    var scene = '<div class="wx-scene' + (windy ? ' wx-windy' : '') + '" style="background:' + sceneBg + '">';
+    var scene = '<div class="wx-scene' + (windy ? ' wx-windy' : '') + '" style="background:' + sceneBg + ';transition:background 1.2s ease">';
     var maskCss = 'position:absolute;inset:0;-webkit-mask-image:linear-gradient(to right,transparent 25%,black 55%);mask-image:linear-gradient(to right,transparent 25%,black 55%);pointer-events:none';
     // Небесное тело (чистый CSS — без эмодзи)
     if (tod === 'night') {
@@ -11596,6 +11597,78 @@
 
   function initWeatherPopup() {}
 
+  // === ОТКРЫТЬ КАРТУ ПОГОДЫ (полноэкранная модалка) ===
+  // Использует WXT — карта осадков Open-Meteo по сетке 16×16 точек
+  // (Минск + Минский район), границы регионов, ползунок времени,
+  // окошко погоды в точке по клику. Заменяет страницу «Тест погодный».
+  function openWeatherMap() {
+    if (document.getElementById('wx-map-overlay')) {
+      document.getElementById('wx-map-overlay').classList.add('show');
+      return;
+    }
+    var ov = document.createElement('div');
+    ov.id = 'wx-map-overlay';
+    ov.className = 'show';
+    ov.innerHTML =
+      '<div id="wx-map-window">' +
+        '<div id="wx-map-header">' +
+          '<div class="wx-title">🗺 Карта погоды — Минск и Минский район · осадки Open-Meteo</div>' +
+          '<button id="wx-map-close" type="button" title="Закрыть" style="background:none;border:none;color:#fff;font-size:26px;cursor:pointer;line-height:1">×</button>' +
+        '</div>' +
+        '<div id="wx-map-body">' +
+          '<div id="wx-map-canvas"></div>' +
+          // Легенда
+          '<div style="position:absolute;left:42px;top:12px;z-index:1000;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:11px;color:#334155;pointer-events:none;line-height:1.55">' +
+            '<div style="font-weight:800;font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Легенда</div>' +
+            '<div><span style="display:inline-block;width:18px;height:0;border-top:3px solid #e11d48;vertical-align:middle;margin-right:6px"></span>г. Минск</div>' +
+            '<div><span style="display:inline-block;width:18px;height:0;border-top:3px dashed #2563eb;vertical-align:middle;margin-right:6px"></span>Минский район</div>' +
+            '<div style="margin-top:6px;display:flex;align-items:center;gap:6px"><span style="min-width:34px">Дождь</span><span style="flex:1;height:9px;border-radius:4px;background:linear-gradient(90deg,#88ddee,#00a3e0,#005588,#ffee00,#ff8100,#c10000)"></span></div>' +
+            '<div style="display:flex;align-items:center;gap:6px"><span style="min-width:34px">Снег</span><span style="flex:1;height:9px;border-radius:4px;background:linear-gradient(90deg,#b8f8ff,#7fbfff,#4888ff,#0028ff)"></span></div>' +
+            '<div style="margin-top:4px;color:#94a3b8;font-size:10px">данные Open-Meteo · все 24 часа</div>' +
+          '</div>' +
+          // Ползунок часа
+          '<div id="wx-bar" style="position:absolute;left:12px;right:12px;bottom:12px;z-index:1000;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:9px 14px 21px;display:flex;align-items:center;gap:12px">' +
+            '<button type="button" class="btn sm" id="wx-tl-play" title="Прокрутить сутки: 00:00 → 23:00">▶</button>' +
+            '<span id="wx-bar-time" style="font-size:15px;font-weight:800;color:#0f2740;min-width:48px;text-align:center">—</span>' +
+            '<div style="flex:1;position:relative">' +
+              '<input type="range" id="wx-slider" min="0" max="23" step="1" value="0" style="width:100%;accent-color:#2563eb;cursor:pointer" title="Ползунок времени: сегодня, все 24 часа">' +
+              '<div id="wx-ticks" style="position:relative;height:13px;font-size:10.5px;color:#7da7d6;margin-top:2px"></div>' +
+            '</div>' +
+            // Заголовок часа (справа от ползунка)
+            '<div id="wx-hour-info" style="min-width:130px;text-align:right;font-size:12px;color:#0f2740">' +
+              '<div style="font-weight:800;font-size:13px">—</div>' +
+              '<div style="color:#64748b;font-size:11px">—</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(ov);
+
+    // Закрытие
+    function close() { closeWeatherMap(); }
+    document.getElementById('wx-map-close').addEventListener('click', close);
+    ov.addEventListener('click', function (e) { if (e.target === ov) close(); });
+
+    // Ползунок и Play
+    var sl = document.getElementById('wx-slider');
+    sl.addEventListener('input', function () { wxtShowHour(+sl.value); });
+    document.getElementById('wx-tl-play').addEventListener('click', wxtTogglePlay);
+
+    // Инициализация карты осадков в canvas модалки (то же, что в #wxt-map на странице)
+    WXT.canvasHolder = document.getElementById('wx-map-canvas');
+    WXT.ticksBuilt = false;
+    initWxTestMap();
+  }
+
+  function closeWeatherMap() {
+    if (WXT && WXT.playTimer) { clearInterval(WXT.playTimer); WXT.playTimer = null; }
+    var p = document.getElementById('wxt-pop');
+    if (p) p.remove();
+    var ov = document.getElementById('wx-map-overlay');
+    if (ov) ov.classList.remove('show');
+  }
+
+
   function openHourlyWeather(off) {
     var d = offToDate(off);
     var wf = getWeatherForecast(off);
@@ -11650,14 +11723,16 @@
     // Берём данные hourly[hour] для текущего часа
     var curH = (wf.hourly && wf.hourly[HOURLY.hour]) ? wf.hourly[HOURLY.hour] : { temp: wf.temp, desc: wf.desc, snow: wf.snow, snowfall: wf.snowfall, rain: wf.rain, code: wf.code };
     var sceneInfo = weatherSceneHTML(curH);
-    html += '<div style="position:relative;height:120px;background:' + (sceneInfo.bg || '#42a5f5') + ';overflow:hidden;">';
-    html += '<div style="position:absolute;inset:0">' + sceneInfo.html + '</div>';
+    // Сцена = обёртка + содержимое (для плавных CSS-переходов между часами
+    // меняем только style.background и innerHTML контейнера эффектов)
+    html += '<div id="hly-scene-wrap" data-hour="' + HOURLY.hour + '" style="position:relative;height:140px;background:' + (sceneInfo.bg || '#42a5f5') + ';overflow:hidden;transition:background 1.2s ease;">';
+    html += '<div id="hly-scene-fx" style="position:absolute;inset:0;transition:opacity .6s ease">' + sceneInfo.html + '</div>';
     // Текущая температура и описание часа (поверх сцены)
-    html += '<div id="hly-scene-info" style="position:absolute;left:14px;top:10px;z-index:5;color:#fff;font-weight:800;text-shadow:0 2px 8px rgba(0,0,0,.55)">';
+    html += '<div id="hly-scene-info" style="position:absolute;left:18px;top:14px;z-index:5;color:#fff;font-weight:800;text-shadow:0 2px 8px rgba(0,0,0,.55);transition:opacity .35s ease">';
     html += '<div style="font-size:24px;line-height:1">' + (curH.temp > 0 ? '+' : '') + curH.temp + '°C</div>';
     html += '<div style="font-size:11px;font-weight:700;opacity:.95">' + esc(curH.desc || '—') + '</div>';
     html += '</div>';
-    html += '<div id="hly-hour-label" style="position:absolute;right:14px;top:10px;z-index:5;color:#fff;font-weight:800;font-size:13px;background:rgba(15,39,64,.55);padding:6px 12px;border-radius:8px;text-shadow:0 1px 4px rgba(0,0,0,.45)">⏰ ' + (HOURLY.hour < 10 ? '0' + HOURLY.hour : HOURLY.hour) + ':00</div>';
+    html += '<div id="hly-hour-label" style="position:absolute;right:18px;top:14px;z-index:5;color:#fff;font-weight:800;font-size:13px;background:rgba(15,39,64,.55);padding:6px 12px;border-radius:8px;text-shadow:0 1px 4px rgba(0,0,0,.45)">⏰ ' + (HOURLY.hour < 10 ? '0' + HOURLY.hour : HOURLY.hour) + ':00</div>';
     html += '</div>';
 
     // === Ползунок времени (24 часа) + Play ===
@@ -11703,13 +11778,62 @@
     // === Привязка обработчиков ползунка / Play / строк ===
     function setHour(h, fromPlay) {
       h = ((Math.round(h) % 24) + 24) % 24;
+      var prevH = HOURLY.hour;
       HOURLY.hour = h;
       var curH2 = (wf.hourly && wf.hourly[h]) ? wf.hourly[h] : { temp: wf.temp, desc: wf.desc, snow: wf.snow, snowfall: wf.snowfall, rain: wf.rain, code: wf.code };
-      // Перерисовываем сцену
+
+      // === ПЛАВНАЯ СМЕНА СЦЕНЫ: за 1.2с до плавного перехода состояния погоды
+      // (sun↔moon, ясно↔дождь↔снег) — рисуем новый слой и кладём поверх старого,
+      // плавно меняя opacity. CSS transition на #hly-scene-wrap (background)
+      // и на .wx-scene / .wx-cloud / .wx-drop / .wx-flake / .wx-sun делает
+      // переход визуально непрерывным.
+      var sceneWrap = modal.querySelector('#hly-scene-wrap');
+      var sceneFx = modal.querySelector('#hly-scene-fx');
+      if (sceneWrap && sceneFx) {
+        var nextInfo = weatherSceneHTML(curH2);
+        if (prevH !== h && prevH >= 0) {
+          // Двухслойный кросс-фейд: новый слой fade-in поверх старого fade-out
+          var newLayer = document.createElement('div');
+          newLayer.id = 'hly-scene-fx-new';
+          newLayer.style.cssText = 'position:absolute;inset:0;opacity:0;transition:opacity 1.0s ease;pointer-events:none';
+          newLayer.innerHTML = nextInfo.html;
+          sceneWrap.appendChild(newLayer);
+          // фон контейнера — к новому цвету (плавно через CSS transition)
+          sceneWrap.style.background = nextInfo.bg || '#42a5f5';
+          // Запускаем fade
+          requestAnimationFrame(function () {
+            newLayer.style.opacity = '1';
+            sceneFx.style.opacity = '0';
+          });
+          // Через 1.1с убираем старый и заменяем новый → постоянный слой
+          setTimeout(function () {
+            if (sceneWrap) {
+              // Удаляем временный новый слой, делаем старый «новым постоянным»
+              sceneFx.innerHTML = nextInfo.html;
+              sceneFx.style.opacity = '1';
+              var tmp = sceneWrap.querySelector('#hly-scene-fx-new');
+              if (tmp) tmp.remove();
+            }
+          }, 1100);
+        } else {
+          // Первый рендер (или тот же час) — обычная отрисовка
+          sceneWrap.style.background = nextInfo.bg || '#42a5f5';
+          sceneFx.innerHTML = nextInfo.html;
+        }
+      }
+
+      // Температура/описание поверх сцены (плавный fade)
       var sceneHolder = modal.querySelector('#hly-scene-info');
       if (sceneHolder) {
-        sceneHolder.innerHTML = '<div style="font-size:24px;line-height:1">' + (curH2.temp > 0 ? '+' : '') + curH2.temp + '°C</div><div style="font-size:11px;font-weight:700;opacity:.95">' + esc(curH2.desc || '—') + '</div>';
+        sceneHolder.style.opacity = '0';
+        setTimeout(function () {
+          if (sceneHolder) {
+            sceneHolder.innerHTML = '<div style="font-size:24px;line-height:1">' + (curH2.temp > 0 ? '+' : '') + curH2.temp + '°C</div><div style="font-size:11px;font-weight:700;opacity:.95">' + esc(curH2.desc || '—') + '</div>';
+            sceneHolder.style.opacity = '1';
+          }
+        }, 180);
       }
+
       var hl = modal.querySelector('#hly-hour-label');
       if (hl) hl.textContent = '⏰ ' + (h < 10 ? '0' + h : h) + ':00';
       var bt = modal.querySelector('#hly-bar-time');
@@ -13127,7 +13251,9 @@
       toast('err', 'Слесарю доступны только карты: маршрутов, местоположения и объектов');
       name = 'map';
     }
-    wxtPopHide(); // окошко погоды закрывается при уходе со страницы «Тест погодный»
+    // Окошко погоды в карте (модалка) и на странице теста — закрывается при уходе
+    try { wxtPopHide(); } catch (e) {}
+    try { closeHourlyWeather(); } catch (e) {}
     S.screen = name;
     document.querySelectorAll('#nav a').forEach(function (a) { a.classList.toggle('active', a.dataset.screen === name); });
     // Подменю «Графики»: держать раскрытым, пока активна его страница
@@ -13203,10 +13329,7 @@
     if (S.screen === 'dashboard') renderDashboard();
     else if (S.screen === 'calendar') renderCalendar();
     else if (S.screen === 'map') renderMap();
-    else if (S.screen === 'testmap') renderTestMap();
-    else if (S.screen === 'wxtest') renderWxTestPage();
     else if (S.screen === 'objmap') renderObjMap();
-    else if (S.screen === 'testmap') renderTestMap();
     else if (S.screen === 'livemap') renderLiveMap();
     else if (S.screen === 'perms') renderPerms();
     else if (S.screen === 'workers') renderWorkers();
@@ -16199,40 +16322,6 @@
   var WXT_MINSK_LINES = [[[53.87204,27.37402],[53.86622,27.38274],[53.86039,27.39667],[53.86053,27.39982],[53.86444,27.39974],[53.86433,27.39665],[53.8677,27.39662],[53.86792,27.41058],[53.86964,27.41057],[53.86961,27.42223],[53.85632,27.42895],[53.85055,27.43491],[53.84485,27.44775],[53.84258,27.46672],[53.84094,27.46661],[53.83853,27.46411],[53.83702,27.46831],[53.83637,27.46767],[53.83564,27.46882],[53.83766,27.47277],[53.83579,27.47338],[53.83556,27.47498],[53.83685,27.47558],[53.83628,27.47801],[53.84053,27.48032],[53.8408,27.4819],[53.8356,27.52961],[53.83302,27.53311],[53.83456,27.53904],[53.83266,27.55624],[53.83243,27.575],[53.82433,27.57991],[53.82411,27.57024],[53.81806,27.57457],[53.81685,27.57079],[53.817,27.57451],[53.80045,27.58627],[53.80292,27.58732],[53.8037,27.59083],[53.80002,27.5931],[53.79882,27.588],[53.79385,27.58986],[53.79516,27.59622],[53.79785,27.59473],[53.79875,27.59885],[53.79967,27.59879],[53.79874,27.59432],[53.79991,27.59354],[53.80127,27.59957],[53.80487,27.59728],[53.80576,27.59906],[53.80682,27.5961],[53.81143,27.59317],[53.81358,27.5949],[53.81661,27.5916],[53.8239,27.5927],[53.82596,27.58865],[53.82426,27.58054],[53.83233,27.57602],[53.83304,27.60048],[53.83085,27.60075],[53.83019,27.60207],[53.83022,27.60949],[53.83103,27.61121],[53.83038,27.60298],[53.83129,27.60113],[53.83274,27.601],[53.8339,27.64599],[53.83749,27.6584],[53.84444,27.66784],[53.83825,27.67406],[53.83757,27.67638],[53.83313,27.67897],[53.83071,27.6757],[53.82602,27.66129],[53.82531,27.66222],[53.82304,27.65943],[53.81566,27.65513],[53.81544,27.65663],[53.82359,27.6617],[53.82639,27.66726],[53.82523,27.66918],[53.82316,27.66567],[53.81842,27.67325],[53.82023,27.67617],[53.81893,27.68033],[53.80885,27.67025],[53.80585,27.6819],[53.80481,27.68859],[53.80646,27.69494],[53.81577,27.70754],[53.81782,27.71298],[53.82211,27.70695],[53.8251,27.70614],[53.83105,27.69772],[53.82788,27.714],[53.82963,27.71277],[53.83092,27.71499],[53.83502,27.71396],[53.83612,27.71733],[53.83854,27.7173],[53.83801,27.72107],[53.83941,27.72311],[53.82349,27.75566],[53.82547,27.76976],[53.82415,27.77327],[53.82457,27.78202],[53.83564,27.78253],[53.83731,27.78135],[53.83899,27.78249],[53.83904,27.79706],[53.84042,27.7955],[53.84315,27.80551],[53.84336,27.80829],[53.84188,27.80962],[53.84467,27.81592],[53.85484,27.81844],[53.8549,27.81147],[53.85635,27.81007],[53.85963,27.79623],[53.86,27.79536],[53.86377,27.79579],[53.86568,27.79388],[53.86778,27.7853],[53.86568,27.78302],[53.86572,27.77127],[53.86296,27.75148],[53.86712,27.75427],[53.8694,27.7543],[53.87558,27.77446],[53.87226,27.82888],[53.87576,27.84901],[53.89928,27.84908],[53.89928,27.84113],[53.90252,27.84077],[53.90161,27.83422],[53.90344,27.82956],[53.89933,27.82262],[53.90049,27.81783],[53.90056,27.79281],[53.8999,27.78619],[53.89881,27.78593],[53.89885,27.77552],[53.90152,27.77554],[53.91367,27.74514],[53.91929,27.75222],[53.92139,27.74279],[53.9299,27.74914],[53.92508,27.72662],[53.9267,27.7189],[53.92823,27.71913],[53.93085,27.71579],[53.93114,27.72524],[53.93332,27.73288],[53.93533,27.73177],[53.93546,27.73528],[53.94052,27.73279],[53.94104,27.74517],[53.94785,27.74288],[53.9475,27.74145],[53.95196,27.73975],[53.95176,27.74385],[53.95391,27.74635],[53.95545,27.74632],[53.96109,27.74435],[53.9637,27.73865],[53.95827,27.72452],[53.96012,27.71903],[53.96122,27.69264],[53.95844,27.69216],[53.95911,27.68624],[53.95804,27.68517],[53.95651,27.68649],[53.95746,27.68977],[53.95533,27.69052],[53.95249,27.68038],[53.95319,27.67974],[53.95223,27.67956],[53.95015,27.67252],[53.9516,27.67248],[53.95253,27.67023],[53.95083,27.66418],[53.95002,27.66478],[53.94817,27.66221],[53.94668,27.66429],[53.95784,27.63301],[53.95921,27.63501],[53.96003,27.63334],[53.95858,27.6312],[53.95897,27.63022],[53.96166,27.63213],[53.96379,27.64121],[53.96683,27.64131],[53.96766,27.6323],[53.9663,27.63312],[53.96551,27.63115],[53.96352,27.63327],[53.96401,27.63573],[53.96267,27.63129],[53.96186,27.63209],[53.96096,27.62428],[53.96998,27.59842],[53.9709,27.59871],[53.97055,27.59542],[53.97155,27.59518],[53.97067,27.59489],[53.97179,27.58304],[53.96935,27.50763],[53.96597,27.46931],[53.96174,27.45963],[53.95158,27.44609],[53.95134,27.44057],[53.94889,27.44215],[53.94619,27.43884],[53.94573,27.43215],[53.9434,27.43519],[53.92892,27.41921],[53.91315,27.40998],[53.91159,27.40244],[53.90931,27.40834],[53.90565,27.40678],[53.90203,27.40689],[53.90188,27.4057],[53.90172,27.40683],[53.89149,27.41135],[53.89032,27.40203],[53.8949,27.40265],[53.89816,27.40025],[53.90231,27.40212],[53.90331,27.3988],[53.90182,27.39724],[53.90109,27.39952],[53.89593,27.39976],[53.89459,27.40151],[53.89079,27.40124],[53.88899,27.39909],[53.88581,27.4031],[53.88582,27.41092],[53.88673,27.41247],[53.89097,27.41028],[53.89127,27.41157],[53.87968,27.41715],[53.87892,27.41271],[53.88205,27.41145],[53.88205,27.40853],[53.88049,27.40854],[53.88162,27.39968],[53.87625,27.39981],[53.87625,27.39873],[53.87472,27.39874],[53.87471,27.39479],[53.87624,27.39478],[53.87623,27.38611],[53.87411,27.38612],[53.87308,27.38316],[53.87166,27.37801],[53.87204,27.37402]],[[53.87469,27.87975],[53.8733,27.88032],[53.86993,27.88683],[53.86953,27.89589],[53.86972,27.89703],[53.87147,27.89671],[53.8704,27.90574],[53.87303,27.90628],[53.87282,27.90838],[53.8717,27.90813],[53.87468,27.9181],[53.87697,27.9165],[53.87808,27.91016],[53.87997,27.91017],[53.88004,27.9091],[53.88561,27.90935],[53.88627,27.90401],[53.88778,27.90323],[53.88681,27.89443],[53.88192,27.88873],[53.87712,27.88956],[53.87469,27.87975]],[[53.90107,27.99985],[53.89883,28.00113],[53.88581,28.02039],[53.88406,28.01712],[53.88144,28.02197],[53.88233,28.02544],[53.86236,28.05719],[53.86436,28.06076],[53.86912,28.05735],[53.87042,28.05901],[53.8709,28.05818],[53.87023,28.0619],[53.87372,28.07072],[53.8727,28.07587],[53.87419,28.07995],[53.87687,28.07612],[53.87811,28.079],[53.8794,28.07732],[53.91048,28.03253],[53.92423,28.01032],[53.92199,28.00617],[53.91272,28.02035],[53.90107,27.99985]]];
   var WXT_MINRAY_LINES = [[[53.88508,27.01874],[53.88374,27.02992],[53.89014,27.04993],[53.88832,27.0587],[53.89071,27.06678],[53.88719,27.07767],[53.8844,27.07842],[53.8802,27.07314],[53.8733,27.0778],[53.87246,27.08674],[53.86258,27.08756],[53.85975,27.10019],[53.86358,27.10709],[53.87013,27.10716],[53.86915,27.12124],[53.86529,27.12152],[53.86557,27.12496],[53.86899,27.12558],[53.87109,27.1438],[53.86525,27.16024],[53.85458,27.17716],[53.86346,27.19936],[53.86811,27.1913],[53.87345,27.19855],[53.8599,27.22742],[53.862,27.23095],[53.85759,27.23502],[53.85907,27.23736],[53.85359,27.24594],[53.85483,27.24944],[53.84731,27.26856],[53.84513,27.26506],[53.84262,27.26708],[53.83975,27.25684],[53.83227,27.25974],[53.82978,27.26486],[53.82796,27.2633],[53.82264,27.27626],[53.8185,27.27315],[53.81394,27.27875],[53.81103,27.28667],[53.8129,27.28824],[53.81035,27.28819],[53.7955,27.3291],[53.8033,27.36832],[53.79815,27.37172],[53.7897,27.36499],[53.79107,27.35471],[53.78459,27.34967],[53.77854,27.37844],[53.76967,27.38202],[53.77206,27.39859],[53.76364,27.41269],[53.75754,27.40612],[53.74001,27.41684],[53.72532,27.39601],[53.71475,27.41763],[53.71403,27.44526],[53.71056,27.44914],[53.70863,27.44734],[53.70238,27.45009],[53.69441,27.46684],[53.68376,27.46328],[53.66511,27.47176],[53.66283,27.48336],[53.66521,27.48617],[53.66041,27.48955],[53.66001,27.50383],[53.65559,27.50678],[53.65905,27.51307],[53.65926,27.52916],[53.65643,27.5324],[53.64886,27.53237],[53.65047,27.51931],[53.63514,27.52688],[53.63362,27.53756],[53.62812,27.53254],[53.62709,27.53581],[53.63505,27.57322],[53.638,27.57133],[53.64164,27.60205],[53.64034,27.61931],[53.63502,27.62378],[53.63971,27.6363],[53.64952,27.62974],[53.65289,27.63089],[53.66737,27.65243],[53.67126,27.65345],[53.68088,27.68761],[53.68393,27.71103],[53.7002,27.72058],[53.71778,27.7083],[53.72322,27.72271],[53.72122,27.73031],[53.72348,27.72928],[53.73398,27.75792],[53.73691,27.75524],[53.74007,27.75945],[53.74149,27.7409],[53.75568,27.75708],[53.76515,27.78556],[53.75533,27.84407],[53.75383,27.87305],[53.76256,27.87813],[53.76175,27.91433],[53.76434,27.91587],[53.76794,27.94266],[53.80729,27.96194],[53.8098,27.93847],[53.82207,27.93194],[53.82176,27.90316],[53.81636,27.90398],[53.81469,27.89201],[53.81952,27.88518],[53.81996,27.8781],[53.82392,27.88639],[53.83908,27.87428],[53.84247,27.87494],[53.84312,27.88417],[53.85496,27.8865],[53.85541,27.8833],[53.86554,27.88356],[53.87399,27.86528],[53.87576,27.87704],[53.87877,27.88286],[53.88664,27.88421],[53.88886,27.89644],[53.89468,27.89336],[53.89339,27.88732],[53.90018,27.88902],[53.9038,27.88461],[53.90279,27.90851],[53.90702,27.91559],[53.91086,27.91822],[53.92035,27.91368],[53.92713,27.9178],[53.93448,27.91139],[53.93718,27.9041],[53.94284,27.90944],[53.9473,27.90828],[53.94876,27.90143],[53.95879,27.89459],[53.9614,27.88785],[53.96536,27.89023],[53.96981,27.87876],[53.97413,27.88516],[53.99268,27.88281],[53.98922,27.85793],[53.99336,27.85478],[54.0046,27.84747],[54.01673,27.84829],[54.0173,27.83908],[54.02982,27.84909],[54.02973,27.83868],[54.03619,27.83757],[54.03656,27.82124],[54.04633,27.79456],[54.06246,27.80242],[54.06289,27.79891],[54.07612,27.80354],[54.07868,27.80172],[54.0818,27.78932],[54.09003,27.78213],[54.08636,27.77434],[54.09115,27.77016],[54.08657,27.75881],[54.0916,27.75438],[54.09409,27.73789],[54.0911,27.71871],[54.10482,27.70961],[54.10771,27.71506],[54.11433,27.70761],[54.10893,27.68647],[54.11459,27.67364],[54.11001,27.66464],[54.10678,27.66321],[54.10501,27.66616],[54.10413,27.65649],[54.10815,27.65233],[54.10642,27.6325],[54.10926,27.6273],[54.10292,27.60555],[54.10256,27.61064],[54.0937,27.615],[54.09495,27.63807],[54.09194,27.64321],[54.08238,27.64104],[54.08281,27.64737],[54.07957,27.64596],[54.07972,27.64877],[54.07177,27.65424],[54.064,27.65325],[54.06312,27.63566],[54.07104,27.63187],[54.07531,27.61297],[54.07232,27.59226],[54.07515,27.59614],[54.08425,27.59209],[54.08262,27.58525],[54.08878,27.57415],[54.09587,27.56355],[54.10195,27.56173],[54.10338,27.56463],[54.11313,27.56459],[54.11815,27.56797],[54.12064,27.56471],[54.12179,27.56979],[54.13124,27.56592],[54.13234,27.55966],[54.13799,27.56205],[54.14238,27.55675],[54.14649,27.55447],[54.14703,27.55755],[54.15169,27.55417],[54.15465,27.56998],[54.15818,27.57088],[54.16211,27.56398],[54.17146,27.56868],[54.17391,27.58381],[54.18573,27.56894],[54.19616,27.56801],[54.19523,27.53337],[54.19114,27.52695],[54.18887,27.50372],[54.19056,27.49947],[54.20188,27.49438],[54.20644,27.46032],[54.21279,27.44771],[54.23426,27.44746],[54.23704,27.44313],[54.23358,27.43599],[54.23793,27.4311],[54.24543,27.4403],[54.24737,27.43734],[54.25527,27.43643],[54.25593,27.42509],[54.25039,27.41159],[54.25512,27.40909],[54.25049,27.40325],[54.25179,27.36727],[54.24715,27.35792],[54.236,27.35556],[54.23857,27.35237],[54.23699,27.34758],[54.24394,27.34782],[54.24646,27.33546],[54.24099,27.33441],[54.24133,27.33181],[54.23309,27.33802],[54.23108,27.33174],[54.22654,27.32931],[54.22668,27.32155],[54.22219,27.31354],[54.21409,27.31162],[54.20813,27.30142],[54.20605,27.3006],[54.20391,27.30653],[54.1873,27.30618],[54.18488,27.29948],[54.17121,27.28568],[54.16967,27.28782],[54.16487,27.28387],[54.16477,27.27393],[54.16124,27.27394],[54.15912,27.28265],[54.15705,27.2807],[54.14867,27.29361],[54.14261,27.29217],[54.13551,27.28067],[54.14165,27.26051],[54.14739,27.2536],[54.13527,27.22336],[54.13858,27.21706],[54.13169,27.20945],[54.12868,27.21202],[54.12337,27.21069],[54.12461,27.21914],[54.12052,27.22065],[54.11683,27.21511],[54.10754,27.21646],[54.10677,27.21302],[54.09218,27.21589],[54.08901,27.20508],[54.09153,27.19816],[54.08841,27.19983],[54.08587,27.19404],[54.08461,27.16459],[54.07408,27.16758],[54.07481,27.18857],[54.06708,27.1898],[54.06688,27.17173],[54.04727,27.17065],[54.04528,27.16636],[54.04064,27.17446],[54.04125,27.19226],[54.01961,27.1991],[54.01803,27.18484],[54.00356,27.18388],[54.00595,27.14348],[54.00978,27.13202],[53.98356,27.10168],[53.96958,27.09076],[53.96829,27.08368],[53.96232,27.08525],[53.95602,27.0793],[53.94767,27.07699],[53.94977,27.06928],[53.95257,27.07485],[53.95333,27.07136],[53.94257,27.03251],[53.92772,27.02967],[53.91463,27.03345],[53.91601,27.02697],[53.90775,27.02657],[53.90766,27.02114],[53.90509,27.02051],[53.90366,27.02528],[53.90088,27.01911],[53.88508,27.01874]]];
 
-  function renderWxTestPage() {
-    var v = document.getElementById('view');
-    var html = '<div style="height:calc(100vh - 62px);display:flex;flex-direction:column;background:#e8eef3;position:relative;z-index:0">';
-    html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--card);border-bottom:1px solid var(--line);flex-wrap:wrap;flex:0 0 auto">';
-    html += '<div><div style="font-size:14px;font-weight:800;color:var(--ink)">🌧 Тест погодный — карта осадков</div>';
-    html += '<div class="sub" style="font-size:11.5px">Осадки за все 24 часа сегодняшнего дня: ТОЛЬКО модель Open-Meteo (ERA5 архив для прошлых часов + DWD ICON-EU для будущих) · дождь и СНЕГ (снег — бело-голубые тона) · клик по карте — погода в точке на выбранный час · сборка 21.09-22</div></div>';
-    html += '<div style="margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
-    html += '<span id="wxt-label" style="font-size:12px;font-weight:700;color:var(--blue)">загрузка…</span>';
-    html += '</div></div>';
-    html += '<div id="wxt-map" style="flex:1;min-height:0;position:relative">';
-    html += '<div id="wxt-mapbox" style="position:absolute;inset:0"></div>';
-    // легенда: линии границ + цвета дождя/снега (не перехватывает клики)
-    html += '<div id="wxt-legend" style="position:absolute;left:42px;top:12px;z-index:1000;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:11px;color:#334155;pointer-events:none;line-height:1.55">';
-    html += '<div style="font-weight:800;font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Легенда</div>';
-    html += '<div><span style="display:inline-block;width:18px;height:0;border-top:3px solid #e11d48;vertical-align:middle;margin-right:6px"></span>г. Минск</div>';
-    html += '<div><span style="display:inline-block;width:18px;height:0;border-top:3px dashed #2563eb;vertical-align:middle;margin-right:6px"></span>Минский район</div>';
-    html += '<div style="margin-top:6px;display:flex;align-items:center;gap:6px"><span style="min-width:34px">Дождь</span><span style="flex:1;height:9px;border-radius:4px;background:linear-gradient(90deg,#88ddee,#00a3e0,#005588,#ffee00,#ff8100,#c10000)"></span></div>';
-    html += '<div style="display:flex;align-items:center;gap:6px"><span style="min-width:34px">Снег</span><span style="flex:1;height:9px;border-radius:4px;background:linear-gradient(90deg,#b8f8ff,#7fbfff,#4888ff,#0028ff)"></span></div>';
-    html += '<div style="margin-top:4px;color:#94a3b8;font-size:10px">данные Open-Meteo · все 24 часа</div>';
-    html += '</div>';
-    // нижняя панель: play + время + ползунок на 24 часа сегодняшнего дня
-    html += '<div id="wxt-bar" style="position:absolute;left:12px;right:12px;bottom:12px;z-index:1000;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:9px 14px 21px;display:flex;align-items:center;gap:12px">';
-    html += '<button type="button" class="btn sm" id="wxt-play" title="Прокрутить сутки: 00:00 → 23:00">▶</button>';
-    html += '<span id="wxt-bar-time" style="font-size:15px;font-weight:800;color:#0f2740;min-width:48px;text-align:center">—</span>';
-    html += '<div style="flex:1;position:relative">';
-    html += '<input type="range" id="wxt-slider" min="0" max="23" step="1" value="0" style="width:100%;accent-color:#2563eb;cursor:pointer" title="Ползунок времени: сегодня, все 24 часа">';
-    html += '<div id="wxt-ticks" style="position:relative;height:13px;font-size:10.5px;color:#64748b"></div>';
-    html += '</div></div>';
-    html += '</div>';
-    html += '</div>';
-    v.innerHTML = html;
-    initWxTestMap();
-  }
-
   /* ===== ТЕСТ ПОГОДНЫЙ: карта осадков на все 24 часа сегодняшнего дня =====
      Только Open-Meteo: ERA5 архив для прошедших часов + DWD ICON-EU для будущих.
      Сетка 16×16 точек по Минску и Минскому району, круги-пятна с градиентом
@@ -16244,20 +16333,24 @@
   function wxtTodayStr() { var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
   function wxtHourTime(h) { return new Date(wxtTodayStr() + 'T' + String(h).padStart(2, '0') + ':00:00').getTime(); }
   function initWxTestMap() {
-    var holder = document.getElementById('wxt-map');
+    var holder = (WXT.canvasHolder) || document.getElementById('wxt-map');
     if (!holder) return;
     function wire(id, fn) {
+      // Универсальный wire: если есть #id — привязываем
       var b = document.getElementById(id);
       if (b && !b.__wxt) { b.__wxt = 1; b.addEventListener('click', fn); }
     }
+    // Play: работает с любым из ID
+    wire('wx-tl-play', function () { wxtTogglePlay(); });
     wire('wxt-play', function () { wxtTogglePlay(); });
-    var sl = document.getElementById('wxt-slider');
+    var sl = document.getElementById('wx-slider') || document.getElementById('wxt-slider');
     if (sl && !sl.__wxt) {
       sl.__wxt = 1;
       sl.addEventListener('input', function () { wxtShowHour(+sl.value); });
     }
     ensureYandex(function () {
-      if (!document.getElementById('wxt-map')) return; // страницу сменили
+      // Универсальная проверка: карта ещё нужна?
+      if (!(WXT.canvasHolder || document.getElementById('wxt-map'))) return;
       try {
         if (WXT.map) {
           try {
@@ -16270,7 +16363,16 @@
           } catch (e) { WXT.map = null; }
         }
         if (!WXT.map) {
+          // Универсальный mbox: либо переданный (canvasHolder для модалки),
+          // либо #wxt-mapbox на странице «Тест погодный»
           var mbox = document.getElementById('wxt-mapbox');
+          if (WXT.canvasHolder) {
+            mbox = document.createElement('div');
+            mbox.id = 'wx-map-canvas-inner';
+            mbox.style.cssText = 'position:absolute;inset:0';
+            WXT.canvasHolder.innerHTML = '';
+            WXT.canvasHolder.appendChild(mbox);
+          }
           var mapDiv = document.createElement('div');
           mapDiv.style.cssText = 'position:absolute;inset:0';
           mbox.innerHTML = '';
@@ -16310,12 +16412,12 @@
         wxtLoad();
       } catch (e) { /* погодная карта не может ломать страницу */ }
     }, function () {
-      var h2 = document.getElementById('wxt-map');
+      var h2 = (WXT.canvasHolder) || document.getElementById('wxt-map');
       if (h2) h2.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--red);font-weight:700">Карта недоступна — проверьте интернет</div>';
     });
     clearInterval(WXT.timer);
     WXT.timer = setInterval(function () {
-      if (!document.getElementById('wxt-map')) { clearInterval(WXT.timer); return; }
+      if (!(WXT.canvasHolder || document.getElementById('wxt-map'))) { clearInterval(WXT.timer); return; }
       wxtLoad();
     }, 30 * 60 * 1000); // обновление Open-Meteo каждые 30 минут
   }
@@ -16466,7 +16568,7 @@
       else WXT.svg.set([]);
     }
 
-    // Подпись
+    // Подпись (страница «Тест погодный»)
     var lbl = document.getElementById('wxt-label');
     if (lbl) {
       var hh = String(h).padStart(2, '0') + ':00';
@@ -16478,12 +16580,31 @@
       else parts.push('Open-Meteo (' + omSrc + ')');
       lbl.textContent = parts.join(' · ');
     }
+    // Модалка карты погоды: блок справа от ползунка (температура + осадки)
+    var hi = document.getElementById('wx-hour-info');
+    if (hi) {
+      var avg = { p: 0, c: 0 };
+      if (WXT.om && WXT.om.pr && WXT.om.pr[h]) {
+        WXT.om.pr[h].forEach(function (v) { if (v > 0) { avg.p += v; avg.c++; } });
+        avg.p = avg.c ? avg.p / avg.c : 0;
+      }
+      var snw = { p: 0, c: 0 };
+      if (WXT.om && WXT.om.sf && WXT.om.sf[h]) {
+        WXT.om.sf[h].forEach(function (v) { if (v > 0) { snw.p += v; snw.c++; } });
+        snw.p = snw.c ? snw.p / snw.c : 0;
+      }
+      hi.innerHTML = '<div style="font-weight:800;font-size:13px">' + (String(h).padStart(2, '0')) + ':00</div>' +
+        '<div style="color:#64748b;font-size:11px">' +
+        (snw.p > 0.05 ? '❄️ ' + (snw.p).toFixed(2) + ' см/ч' :
+         avg.p > 0.05 ? '🌧 ' + (avg.p).toFixed(2) + ' мм/ч' : '☀️ без осадков') + '</div>';
+    }
     wxtSyncBar();
   }
   function wxtSyncBar() {
-    var sl = document.getElementById('wxt-slider');
-    var ticks = document.getElementById('wxt-ticks');
-    var bt = document.getElementById('wxt-bar-time');
+    // Универсальный поиск элементов: сначала новые ID модалки, потом старые
+    var sl = document.getElementById('wx-slider') || document.getElementById('wxt-slider');
+    var ticks = document.getElementById('wx-ticks') || document.getElementById('wxt-ticks');
+    var bt = document.getElementById('wx-bar-time') || document.getElementById('wxt-bar-time');
     if (!sl || !ticks) return;
     if (!WXT.ticksBuilt) {
       WXT.ticksBuilt = true;
@@ -16500,7 +16621,8 @@
     sl.value = WXT.selH;
   }
   function wxtTogglePlay() {
-    var btn = document.getElementById('wxt-play');
+    // Универсальный поиск Play-кнопки (модалка и страница)
+    var btn = document.getElementById('wx-tl-play') || document.getElementById('wxt-play');
     if (WXT.playTimer) {
       clearInterval(WXT.playTimer); WXT.playTimer = null;
       if (btn) btn.textContent = '▶';
@@ -16508,7 +16630,12 @@
     }
     if (btn) btn.textContent = '⏸';
     WXT.playTimer = setInterval(function () {
-      if (!document.getElementById('wxt-map')) { clearInterval(WXT.playTimer); WXT.playTimer = null; return; }
+      // Модалка ещё открыта ИЛИ страница теста активна
+      if (!document.getElementById('wx-map-overlay') && !document.getElementById('wxt-map')) {
+        clearInterval(WXT.playTimer); WXT.playTimer = null;
+        if (btn) btn.textContent = '▶';
+        return;
+      }
       wxtShowHour(WXT.selH + 1);
     }, 900);
   }
