@@ -454,6 +454,7 @@
           rain: Math.max(0, precip - snowfall * 10), // мм дождя (снег в см → ~10мм/см)
           precip: precip,
           code: code,
+          date: dateStr,
           desc: info.desc,
           wind: data.daily.windspeed_10m_max ? (data.daily.windspeed_10m_max[i] || 0) : 0,
           sunrise: data.daily.sunrise[i],
@@ -589,7 +590,8 @@
       wind: 3,
       hourly: dummyHourly,
       sunrise: key(d) + 'T06:00',
-      sunset: key(d) + 'T20:00'
+      sunset: key(d) + 'T20:00',
+      date: key(d)
     };
 
     weatherCache[k] = dummyWf; // Сохраняем в кэш, чтобы данные не пропадали при клике
@@ -673,7 +675,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-29 · все точки и области справочника (ГРП, ШРП, ГРС, ПГРП) на одной карте · виды работ: 13 атрибутов'],
+    objmap: ['Карта объектов', 'Сборка 22.09-30 · все точки и области справочника (ГРП, ШРП, ГРС, ПГРП) на одной карте · виды работ: 13 атрибутов'],
     testmap: ['Тест', 'Полигон: копия «Карта маршрутов» для экспериментов — рабочие страницы не затрагивает'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
     perms: ['Разрешения', 'Система разрешений на производство работ'],
@@ -890,9 +892,20 @@
     return { count: Math.round(count * mult), dur: dur };
   }
 
-  function weatherSceneHTML(wf) {
+  function weatherSceneHTML(wf, opt) {
     wf = wf || {};
+    opt = opt || {};
+    // === Определяем «сейчас» по выбранному часу (ползунок) или по реальному времени.
+    // Берём дату из wf.date (если есть) — иначе сегодня. Иначе при открытии
+    // погоды на другой день sunrise/sunset окажутся в прошлом относительно now.
     var now = new Date();
+    if (wf.date) {
+      var _d = new Date(wf.date);
+      if (!isNaN(_d.getTime())) now = new Date(_d);
+    }
+    if (typeof opt.hour === 'number' && opt.hour >= 0 && opt.hour <= 23) {
+      now.setHours(opt.hour, 0, 0, 0);
+    }
     var sr = wf.sunrise ? new Date(wf.sunrise) : null;
     var ss = wf.sunset ? new Date(wf.sunset) : null;
     if (!sr || !ss || isNaN(sr.getTime()) || isNaN(ss.getTime())) {
@@ -906,12 +919,23 @@
     else if (now < morningEnd) tod = 'morning';
     else if (now >= eveningStart) tod = 'evening';
     else tod = 'day';
-    var code = wf.code || 0, desc = wf.desc || '';
-    var cloudy = (code >= 2 && code <= 3) || desc.indexOf('Облачно') !== -1;
-    var hasRain = (code >= 51 && code <= 67) || (code >= 80 && code <= 82) || (code >= 95);
-    var hasSnow = (code >= 71 && code <= 77) || code === 85 || code === 86;
-    var hasStorm = code >= 95; // гроза → молнии
-    var stormClouds = hasStorm || code === 65 || code === 82 || ((wf.rain || 0) >= 5); // сильный дождь/ливень/гроза → грозовые облака
+    // === Определяем погоду: по коду WMO, по описанию, по факту осадков ===
+    // (hourly-данные не содержат code, поэтому опираемся на desc + snowfall/rain)
+    var code = (typeof wf.code === 'number') ? wf.code : -1;
+    var desc = wf.desc || '';
+    var snowfall = (typeof wf.snowfall === 'number') ? wf.snowfall : (wf.snow ? 0.5 : 0);
+    var rain     = (typeof wf.rain === 'number')     ? wf.rain     : 0;
+    var cloudy = (code >= 2 && code <= 3) ||
+                 desc.indexOf('Облачно') !== -1 || desc.indexOf('Пасмурно') !== -1 ||
+                 desc.indexOf('Туман') !== -1 || desc.indexOf('Мгла') !== -1;
+    var hasRain = (code >= 51 && code <= 67) || (code >= 80 && code <= 82) || (code >= 95) ||
+                  desc.indexOf('Дождь') !== -1 || desc.indexOf('Морось') !== -1 ||
+                  desc.indexOf('Ливень') !== -1 || (rain > 0.1);
+    var hasSnow = (code >= 71 && code <= 77) || code === 85 || code === 86 ||
+                  desc.indexOf('Снег') !== -1 || desc.indexOf('Метель') !== -1 ||
+                  (snowfall > 0.1);
+    var hasStorm = code >= 95 || desc.indexOf('Гроза') !== -1; // гроза → молнии
+    var stormClouds = hasStorm || code === 65 || code === 82 || (rain >= 5); // сильный дождь/ливень/гроза → грозовые облака
     var c;
     if (tod === 'night') c = '#15233d';
     else if (tod === 'morning') c = '#f6b89c';
@@ -922,7 +946,8 @@
     var sceneBg = 'linear-gradient(to right,' + c + ' 0%,' + c + ' 60%,' + c + ' 100%)';
     var windy = (wf.wind || 0) >= 5; // средний/сильный ветер → дождь под углом + линии ветра
     var scene = '<div class="wx-scene' + (windy ? ' wx-windy' : '') + '" style="background:' + sceneBg + ';transition:background 1.2s ease">';
-    var maskCss = 'position:absolute;inset:0;-webkit-mask-image:linear-gradient(to right,transparent 25%,black 55%);mask-image:linear-gradient(to right,transparent 25%,black 55%);pointer-events:none';
+    // Без маски — облака/осадки/ветер летают по всему блоку (был фейд transparent 25%..black 55%)
+    var maskCss = 'position:absolute;inset:0;pointer-events:none';
     // Небесное тело (чистый CSS — без эмодзи)
     if (tod === 'night') {
       scene += '<div style="' + maskCss + '">';
@@ -967,18 +992,18 @@
       }
       scene += '</div>';
     }
-    // Капли дождя — в горизонтальной полосе облаков (left 28–100%), падают до самого низа блока
+    // Капли дождя — по всей ширине блока (раньше было left:28%..100%, теперь 0..100%)
     if (hasRain || hasStorm) {
       var ri = rainIntensity(wf);
-      scene += '<div style="position:absolute;left:28%;top:0;right:0;bottom:0;overflow:hidden;pointer-events:none;-webkit-mask:linear-gradient(to right,transparent,#000 14%);mask:linear-gradient(to right,transparent,#000 14%)">';
+      scene += '<div style="position:absolute;left:0;top:0;right:0;bottom:0;overflow:hidden;pointer-events:none">';
       for (var r = 0; r < ri.count; r++) scene += '<span class="wx-drop" style="left:' + (Math.random()*100).toFixed(1) + '%;top:0;animation-delay:-' + (Math.random()*ri.dur).toFixed(2) + 's;animation-duration:' + (ri.dur+Math.random()*0.3).toFixed(2) + 's"></span>';
       scene += '</div>';
     }
-    // Снежинки (чистый CSS). При ветре — анимация wxFlakeFallWind: снос вправо, амплитуда вправо ≈2× больше влево.
+    // Снежинки (чистый CSS) — по всей ширине блока. При ветре — анимация wxFlakeFallWind.
     if (hasSnow) {
       var _flakeAnim = windy ? 'wxFlakeFallWind' : 'wxFlakeFall';
       scene += '<div style="' + maskCss + ';z-index:3">';
-      for (var sf = 0; sf < 14; sf++) scene += '<span class="wx-flake" style="left:' + (28+Math.random()*70).toFixed(1) + '%;top:0;animation-name:' + _flakeAnim + ';animation-delay:' + (Math.random()*3.5).toFixed(2) + 's;animation-duration:' + (2.5+Math.random()*2).toFixed(2) + 's"></span>';
+      for (var sf = 0; sf < 14; sf++) scene += '<span class="wx-flake" style="left:' + (Math.random()*100).toFixed(1) + '%;top:0;animation-name:' + _flakeAnim + ';animation-delay:' + (Math.random()*3.5).toFixed(2) + 's;animation-duration:' + (2.5+Math.random()*2).toFixed(2) + 's"></span>';
       scene += '</div>';
     }
     // Грозовые облака: контейнер для маленьких молний, бьющих из облаков
@@ -2704,7 +2729,7 @@
       }
     }
     var wIcon = todayWeather.snow ? '❄️' : todayWeather.desc.indexOf('Дождь') !== -1 || todayWeather.desc.indexOf('Морось') !== -1 ? '🌧️' : todayWeather.desc === 'Ясно' ? '☀️' : '⛅';
-    var _wx = weatherSceneHTML(todayWeather);
+    var _wx = weatherSceneHTML(todayWeather, { hour: new Date().getHours() });
     html += '<div data-action="open-weather" style="margin-bottom:0;padding:14px 18px;min-height:68px;background:linear-gradient(to right,#1e3a5f 0%,#2563eb 30%,rgba(37,99,235,0) 62%);color:#fff;border-radius:10px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:transform .2s,box-shadow .2s;position:relative;overflow:hidden;" onmouseover="this.style.transform=\'translateY(-2px)\';this.style.boxShadow=\'0 8px 24px rgba(0,0,0,.3)\';" onmouseout="this.style.transform=\'\';this.style.boxShadow=\'\';" title="Нажмите для просмотра прогноза на 15 дней">';
     html += _wx.html;
     html += '<span style="font-size:28px;position:relative;z-index:1;text-shadow:0 1px 5px rgba(0,0,0,.35);">' + wIcon + '</span>';
@@ -11722,7 +11747,10 @@
     // === Анимированная сцена погоды (как в тесте погодном) ===
     // Берём данные hourly[hour] для текущего часа
     var curH = (wf.hourly && wf.hourly[HOURLY.hour]) ? wf.hourly[HOURLY.hour] : { temp: wf.temp, desc: wf.desc, snow: wf.snow, snowfall: wf.snowfall, rain: wf.rain, code: wf.code };
-    var sceneInfo = weatherSceneHTML(curH);
+    if (curH && wf.date && !curH.date) curH.date = wf.date;
+    if (curH && wf.sunrise && !curH.sunrise) curH.sunrise = wf.sunrise;
+    if (curH && wf.sunset && !curH.sunset) curH.sunset = wf.sunset;
+    var sceneInfo = weatherSceneHTML(curH, { hour: HOURLY.hour });
     // Сцена = обёртка + содержимое (для плавных CSS-переходов между часами
     // меняем только style.background и innerHTML контейнера эффектов)
     html += '<div id="hly-scene-wrap" data-hour="' + HOURLY.hour + '" style="position:relative;height:140px;background:' + (sceneInfo.bg || '#42a5f5') + ';overflow:hidden;transition:background 1.2s ease;">';
@@ -11781,6 +11809,11 @@
       var prevH = HOURLY.hour;
       HOURLY.hour = h;
       var curH2 = (wf.hourly && wf.hourly[h]) ? wf.hourly[h] : { temp: wf.temp, desc: wf.desc, snow: wf.snow, snowfall: wf.snowfall, rain: wf.rain, code: wf.code };
+      // Прокидываем дату и восход/закат в hourly-запись, чтобы weatherSceneHTML
+      // мог рисовать сцену для нужного дня (а не для реального сегодня)
+      if (curH2 && wf.date && !curH2.date) curH2.date = wf.date;
+      if (curH2 && wf.sunrise && !curH2.sunrise) curH2.sunrise = wf.sunrise;
+      if (curH2 && wf.sunset && !curH2.sunset) curH2.sunset = wf.sunset;
 
       // === ПЛАВНАЯ СМЕНА СЦЕНЫ: за 1.2с до плавного перехода состояния погоды
       // (sun↔moon, ясно↔дождь↔снег) — рисуем новый слой и кладём поверх старого,
@@ -11790,7 +11823,7 @@
       var sceneWrap = modal.querySelector('#hly-scene-wrap');
       var sceneFx = modal.querySelector('#hly-scene-fx');
       if (sceneWrap && sceneFx) {
-        var nextInfo = weatherSceneHTML(curH2);
+        var nextInfo = weatherSceneHTML(curH2, { hour: h });
         if (prevH !== h && prevH >= 0) {
           // Двухслойный кросс-фейд: новый слой fade-in поверх старого fade-out
           var newLayer = document.createElement('div');
@@ -11901,6 +11934,28 @@
 
     // Инициализация: подсветить текущий час
     setHour(HOURLY.hour, true);
+
+    // === «Живая» автопрокрутка при открытии окна погоды ===
+    // Только для сегодняшнего дня: плавно прокручиваем ползунок на 3 часа
+    // (HOURLY.hour - 1 → HOURLY.hour + 2 → HOURLY.hour), анимация сцены сама
+    // отрабатывает cross-fade. Ползунок сам ползёт — пользователь видит, что
+    // погода анимируется. Через ~2.5с возвращаемся на текущий час.
+    if (off === 0 && HOURLY.hour >= 0) {
+      var startH = HOURLY.hour;
+      var seq = [startH, startH + 1, startH + 2, startH + 1, startH];
+      var idx = 0;
+      var playOnce = setInterval(function () {
+        idx++;
+        if (idx >= seq.length) {
+          clearInterval(playOnce);
+          var slEnd = modal.querySelector('#hly-slider');
+          if (slEnd) slEnd.value = startH;
+          return;
+        }
+        var nh = ((seq[idx] % 24) + 24) % 24;
+        setHour(nh, true);
+      }, 650);
+    }
   }
 
   // Окошко "Погода в точке" — ввод координат + запрос Open-Meteo для выбранного часа

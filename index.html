@@ -821,8 +821,8 @@
   @keyframes wxSunSpin{to{transform:rotate(360deg)}}
   @keyframes wxMoonFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
   @keyframes wxTwinkle{0%,100%{opacity:.2}50%{opacity:1}}
-  @keyframes wxCloudRight{0%{left:28%;opacity:0}6%,90%{opacity:.78}100%{left:103%;opacity:0}}
-  @keyframes wxCloudLeft{0%{left:103%;opacity:0}6%,90%{opacity:.78}100%{left:28%;opacity:0}}
+  @keyframes wxCloudRight{0%{left:-12%;opacity:0}6%,90%{opacity:.78}100%{left:108%;opacity:0}}
+  @keyframes wxCloudLeft{0%{left:108%;opacity:0}6%,90%{opacity:.78}100%{left:-12%;opacity:0}}
   @keyframes wxDropFall{0%{transform:translateY(-14px);opacity:0}6%{opacity:.85}88%{opacity:.85}100%{transform:translateY(150px);opacity:0}}
   @keyframes wxDropFallWind{0%{transform:translate(-3px,-14px);opacity:0}6%{opacity:.85}88%{opacity:.85}100%{transform:translate(18px,150px);opacity:0}}
   .wx-scene.wx-windy .wx-drop{animation-name:wxDropFallWind}
@@ -1051,7 +1051,7 @@
           <div style="margin-top:6px;font-size:11px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-      <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-29 · «Карта погоды» = полноэкранная карта осадков Open-Meteo (сетка 16×16, границы Минска/района) с ползунком часа, анимированной сценой погоды и кликом-погодой в точке. Анимация сцены в окне погоды плавно переходит между состояниями.</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-30 · «Карта погоды» = полноэкранная карта осадков Open-Meteo. В окне «Погода по часам» сцена теперь рисуется по выбранному часу (00:00→ночь+луна, 09:00→утро, 14:00→день+солнце, дождь/снег — по реальному прогнозу), облака летают по всей ширине блока, при открытии ползунок сам проигрывает 3 часа вперёд-назад, анимация плавно переходит между состояниями.</div>
     </div>
   </div>
   </div>
