@@ -733,7 +733,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-37 · все точки и области (ГРП, ШРП, ГРС, ПГРП) · виды работ 13 атрибутов · тестовая карта: Google Maps + оценка пробок'],
+    objmap: ['Карта объектов', 'Сборка 22.09-38 · все точки и области (ГРП, ШРП, ГРС, ПГРП) · виды работ 13 атрибутов · тест зависимости: полная форма задачи'],
     testmap: ['Тест', 'Полигон: копия «Карта маршрутов» для экспериментов — рабочие страницы не затрагивает'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -15909,18 +15909,62 @@
     var data = load();
     var works = (window.SP_WORK && SP_WORK.getWorkTree) ? SP_WORK.getWorkTree() : [];
 
-    var html = '<div style="max-width:920px;margin:0 auto;padding:18px">';
+    var html = '<div style="max-width:1080px;margin:0 auto;padding:18px">';
     html += '<div class="card" style="padding:18px;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 2px 10px rgba(15,39,64,.04)">';
     html += '<div style="font-size:14px;font-weight:800;color:var(--ink);margin-bottom:4px">Тест зависимости трудоёмкости</div>';
-    html += '<div style="font-size:12px;color:var(--muted);margin-bottom:14px">Полигон для отладки формулы расчёта по параметрам объекта. Заполните поля и нажмите «Сохранить» — значения сохранятся в localStorage, формулу можно отлаживать без боевых данных.</div>';
+    html += '<div style="font-size:12px;color:var(--muted);margin-bottom:14px">Полигон для отладки формулы расчёта по параметрам объекта. Откройте форму задачи — как в планировании — заполните, добавьте. Задача появится в планировании, а ниже покажутся её поля для формулы.</div>';
 
-    html += '<div style="margin-bottom:14px">';
-    html += '<label style="display:block;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:4px">1. Задача (наименование, как в планировании)</label>';
-    html += '<input type="text" id="td-task" placeholder="Например: ТО ГРП №5 на ул. Якуба Коласа" value="' + esc(data.task || '') + '" style="width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:var(--bg);color:var(--ink)">';
+    // Блок 1: открытие формы задачи
+    html += '<div style="margin-bottom:14px;padding:14px;background:var(--panel-2);border:1px solid var(--line);border-radius:10px">';
+    html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><div style="font-size:13px;font-weight:800;color:var(--ink)">📋 Задача</div><span style="font-size:11px;color:var(--muted)">— полная форма как в планировании</span></div>';
+    html += '<button type="button" id="td-open-form" class="btn primary" style="background:#2563eb;color:#fff;border:none;padding:9px 18px;font-weight:700;display:inline-flex;align-items:center;gap:6px">＋ Открыть форму задачи</button>';
     html += '</div>';
 
+    // Блок 2: выбранная задача (если есть)
+    if (data.taskId) {
+      var t = null;
+      try { t = (window.SP_TASKS && SP_TASKS.getTasks) ? SP_TASKS.getTasks().find(function (x) { return x.id === data.taskId; }) : (S.tasks || []).find(function (x) { return x.id === data.taskId; }); } catch (e) {}
+      if (t) {
+        html += '<div style="margin-bottom:14px;padding:14px;background:linear-gradient(135deg,#f0f9ff,#e0f2fe);border:1px solid #7dd3fc;border-radius:10px">';
+        html += '<div style="font-size:12px;font-weight:800;color:#0c4a6e;margin-bottom:6px">✅ Текущая тестовая задача</div>';
+        var wIds = t.works && t.works.length ? t.works : (t.w ? [t.w] : []);
+        var ws = wIds.map(function (wid) {
+          for (var i = 0; i < works.length; i++) if (works[i].id === wid) return works[i];
+          return { id: wid, name: wid, norm: 0 };
+        });
+        html += '<div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:4px">📍 ' + esc(t.addr || '—') + '</div>';
+        html += '<div style="font-size:12px;color:var(--txt);margin-bottom:4px">🔧 ' + ws.map(function (x) { return esc(x.name) + ' (' + (x.norm || 0) + ' ч)'; }).join(', ') + '</div>';
+        var mObj = masterById(t.m);
+        html += '<div style="font-size:12px;color:var(--muted)">👤 ' + (mObj ? esc(mObj.name) + ' · ' + esc(mObj.area) : '—') + ' · 📅 ' + (t.d != null ? offToDate(t.d).toLocaleDateString('ru-RU') : '—') + ' · 📦 объём ' + (t.volume || 1) + '</div>';
+        // Кнопка очистки
+        html += '<button type="button" id="td-clear-task" class="btn sm" style="margin-top:8px;background:#fff;color:var(--red);border:1px solid var(--red);padding:6px 12px">✕ Отвязать задачу</button>';
+        html += '</div>';
+      }
+    }
+
+    // Блок 3: список последних 10 задач (быстрый выбор)
+    var recentTasks = (S.tasks || []).slice().sort(function (a, b) {
+      return (b.id || '').localeCompare(a.id || '');
+    }).slice(0, 10);
+    if (recentTasks.length) {
+      html += '<div style="margin-bottom:14px">';
+      html += '<div style="font-size:12px;font-weight:700;color:var(--ink);margin-bottom:6px">или выберите существующую задачу:</div>';
+      html += '<select id="td-task" style="width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:13.5px;background:var(--bg);color:var(--ink)">';
+      html += '<option value="">— из списка —</option>';
+      recentTasks.forEach(function (t) {
+        var sel = (data.taskId === t.id) ? ' selected' : '';
+        var m = masterById(t.m);
+        var dt = t.d != null ? offToDate(t.d).toLocaleDateString('ru-RU') : '—';
+        var label = '📍 ' + esc(t.addr || '—') + ' · 👤 ' + (m ? esc(m.name) : '—') + ' · 📅 ' + dt;
+        html += '<option value="' + esc(t.id) + '"' + sel + '>' + label + '</option>';
+      });
+      html += '</select>';
+      html += '</div>';
+    }
+
+    // Блок 4: вид работы + трудоёмкость
     html += '<div style="margin-bottom:14px">';
-    html += '<label style="display:block;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:4px">2. Вид работы (из справочника)</label>';
+    html += '<label style="display:block;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:4px">Вид работы (из справочника)</label>';
     html += '<select id="td-work" style="width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:var(--bg);color:var(--ink)">';
     html += '<option value="">— выберите вид работы —</option>';
     works.forEach(function (w) {
@@ -15929,27 +15973,29 @@
     });
     html += '</select>';
     if (!works.length) {
-      html += '<div style="font-size:11px;color:#dc2626;margin-top:4px">Справочник работ пуст. Откройте «Справочники → Виды работ» и добавьте хотя бы одну запись.</div>';
+      html += '<div style="font-size:11px;color:#dc2626;margin-top:4px">Справочник работ пуст.</div>';
     }
     html += '</div>';
 
     html += '<div style="margin-bottom:14px">';
-    html += '<label style="display:block;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:4px">3. Трудоёмкость (норма, чел·ч)</label>';
+    html += '<label style="display:block;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:4px">Трудоёмкость (норма, чел·ч)</label>';
     html += '<input type="number" id="td-hours" step="0.1" min="0" placeholder="Например: 2.5" value="' + (data.hours != null ? data.hours : '') + '" style="width:200px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:var(--bg);color:var(--ink)">';
     html += '<span style="margin-left:8px;font-size:12px;color:var(--muted)">чел·ч</span>';
     html += '</div>';
 
+    // Кнопки
     html += '<div style="display:flex;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid var(--line)">';
-    html += '<button type="button" id="td-save" class="btn" style="background:#0f2740;color:#fff;border:none;padding:9px 18px;font-weight:700">Сохранить</button>';
+    html += '<button type="button" id="td-save" class="btn" style="background:#0f2740;color:#fff;border:none;padding:9px 18px;font-weight:700">💾 Сохранить</button>';
     html += '<button type="button" id="td-clear" class="btn" style="background:var(--bg);color:var(--ink);padding:9px 18px">Очистить</button>';
     html += '<button type="button" id="td-from-work" class="btn" style="background:#2563eb;color:#fff;border:none;padding:9px 18px;font-weight:700" title="Подставить трудоёмкость из выбранного вида работы">⟲ Из справочника</button>';
     html += '</div>';
 
     html += '</div>';
 
+    // Подсказка
     html += '<div class="card" style="margin-top:14px;padding:14px 18px;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;font-size:12.5px;color:var(--txt);line-height:1.5">';
     html += '<div style="font-weight:800;color:var(--ink);margin-bottom:6px">Что дальше</div>';
-    html += 'Сейчас это просто форма для ввода. Когда будете готовы — пришлите логику расчёта: от какого вида работы считать, какие атрибуты объекта (ГРП/ШРП/ПГРП) на что влияют, формулу (текстом, таблицей или сканом норматива). После этого встрою расчёт прямо сюда — в реальном времени по мере ввода параметров объекта.';
+    html += 'Когда задача создана — пришлите логику расчёта (вид работы + параметры объекта). Я встрою формулу прямо в этот экран — в реальном времени по мере изменения параметров.';
     html += '</div>';
 
     html += '</div>';
@@ -15962,9 +16008,66 @@
       else document.body.innerHTML += html;
     }
 
+    // Открытие полной формы задачи (как в планировании)
+    var openFormBtn = document.getElementById('td-open-form');
+    if (openFormBtn) openFormBtn.addEventListener('click', function () {
+      try {
+        if (typeof openTaskModal === 'function') {
+          // Запоминаем, что мы на testdep — после закрытия модалки вернёмся сюда
+          openTaskModal('new');
+          // Когда модалка закроется — подхватим самую свежую задачу
+          var overlayEl = document.getElementById('overlay');
+          if (overlayEl) {
+            var checkClose = setInterval(function () {
+              if (!overlayEl.classList.contains('show')) {
+                clearInterval(checkClose);
+                // Подхватить последнюю задачу и перерисовать
+                var tasks = (S.tasks || []).slice().sort(function (a, b) {
+                  return (b.id || '').localeCompare(a.id || '');
+                });
+                var latest = tasks[0];
+                if (latest) {
+                  var d = load();
+                  d.taskId = latest.id;
+                  save(d);
+                  // Обновим экран testdep
+                  renderTestDep();
+                  toast('ok', '✓ Задача создана и подключена к тесту');
+                }
+              }
+            }, 300);
+          }
+        } else {
+          toast('err', 'openTaskModal не найдена');
+        }
+      } catch (e) {
+        console.error(e);
+        toast('err', 'Ошибка открытия формы: ' + (e.message || ''));
+      }
+    });
+
+    // Выбор существующей задачи из select
+    var taskEl = document.getElementById('td-task');
+    if (taskEl) taskEl.addEventListener('change', function () {
+      var d = load();
+      d.taskId = this.value || null;
+      save(d);
+      renderTestDep();
+    });
+
+    // Отвязать задачу
+    var clearTaskBtn = document.getElementById('td-clear-task');
+    if (clearTaskBtn) clearTaskBtn.addEventListener('click', function () {
+      var d = load();
+      d.taskId = null;
+      save(d);
+      renderTestDep();
+      toast('ok', 'Задача отвязана');
+    });
+
     function readForm() {
       return {
-        task: (document.getElementById('td-task').value || '').trim(),
+        taskId: data.taskId || null,
         workId: document.getElementById('td-work').value,
         hours: parseFloat(document.getElementById('td-hours').value) || 0
       };
@@ -15972,11 +16075,10 @@
     var saveBtn = document.getElementById('td-save');
     if (saveBtn) saveBtn.addEventListener('click', function () {
       var d = readForm();
-      if (!d.task) { toast('warn', 'Введите наименование задачи'); return; }
-      if (!d.workId) { toast('warn', 'Выберите вид работы из справочника'); return; }
+      if (!d.workId) { toast('warn', 'Выберите вид работы'); return; }
       if (!d.hours || d.hours <= 0) { toast('warn', 'Укажите трудоёмкость > 0'); return; }
       save(d);
-      toast('ok', 'Сохранено в localStorage (smartplan_test_dep)');
+      toast('ok', '✓ Сохранено в localStorage');
     });
     var clrBtn = document.getElementById('td-clear');
     if (clrBtn) clrBtn.addEventListener('click', function () {
@@ -15994,11 +16096,6 @@
       toast('ok', 'Подставлена норма: ' + h.value + ' ч');
     });
   }
-
-  // === Стрелки направления движения по маршруту ===
-  // Проходит по геометрии маршрута и ставит маленькие стрелочки (►) каждые ~12% длины,
-  // повёрнутые по азимуту движения. Наглядно показывает, куда едет автомобиль.
-
   function renderTestLeafletMap(canvas, points, base, provider, inactive) {
     ensureLeaflet(function() {
       if (!window.L) { canvas.innerHTML = '<div class="empty">Не удалось загрузить Leaflet</div>'; return; }
