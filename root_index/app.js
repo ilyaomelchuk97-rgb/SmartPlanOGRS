@@ -393,7 +393,11 @@
   function wxCacheGet() {
     try {
       var c = JSON.parse(localStorage.getItem(WX_CACHE_KEY) || 'null');
-      if (c && c.days && (Date.now() - c.ts) < 60 * 60 * 1000) return c.days; // час актуальности
+      if (c && c.days && (Date.now() - c.ts) < 60 * 60 * 1000) {
+        // Фильтруем dummy-записи (могли остаться в localStorage от старой версии).
+        // Признаки dummy: явный _dummy:true или отсутствие weather_code (только у реального ответа Open-Meteo).
+        return c.days.filter(function (d) { return d && !d._dummy && (typeof d.code === 'number'); });
+      }
     } catch (e) {}
     return null;
   }
@@ -561,9 +565,16 @@
   function getWeatherForecast(dayOff) {
     var d = offToDate(dayOff);
     var k = key(d);
-    if (weatherCache[k]) return weatherCache[k];
+    var cached = weatherCache[k];
+    // Если в кэше лежат реальные данные (не dummy) — отдаём их
+    if (cached && !cached._dummy) return cached;
 
-    // Генерация запасных данных (если API недоступен)
+    // Генерация запасных данных (если API недоступен или день не пришёл).
+    // ВАЖНО: НЕ сохраняем dummy в weatherCache — иначе при асинхронной загрузке
+    // (когда пользователь открыл дашборд/дропдаун раньше, чем пришёл ответ Open-Meteo)
+    // dummy «затирает» реальные данные, и пользователь видит «Прохладно» вместо
+    // нормального прогноза. Помечаем _dummy:true — loadWeatherForecast может
+    // потом перезаписать или оставить.
     var month = d.getMonth();
     var temp;
     if (month === 11 || month === 0 || month === 1) temp = -5 - Math.floor(Math.random() * 10);
@@ -591,10 +602,13 @@
       hourly: dummyHourly,
       sunrise: key(d) + 'T06:00',
       sunset: key(d) + 'T20:00',
-      date: key(d)
+      date: key(d),
+      _dummy: true
     };
 
-    weatherCache[k] = dummyWf; // Сохраняем в кэш, чтобы данные не пропадали при клике
+    // Не сохраняем в weatherCache — пусть реальный API перезапишет.
+    // Если API никогда не ответит — каждый вызов getWeatherForecast будет
+    // генерировать свежий dummy (это нормально для fallback'а).
     return dummyWf;
   }
 
@@ -675,7 +689,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-30 · все точки и области справочника (ГРП, ШРП, ГРС, ПГРП) на одной карте · виды работ: 13 атрибутов'],
+    objmap: ['Карта объектов', 'Сборка 22.09-31 · все точки и области справочника (ГРП, ШРП, ГРС, ПГРП) на одной карте · виды работ: 13 атрибутов · прогноз погоды 14 дн. — реальный из Open-Meteo'],
     testmap: ['Тест', 'Полигон: копия «Карта маршрутов» для экспериментов — рабочие страницы не затрагивает'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
     perms: ['Разрешения', 'Система разрешений на производство работ'],
@@ -11653,7 +11667,7 @@
           '</div>' +
           // Ползунок часа
           '<div id="wx-bar" style="position:absolute;left:12px;right:12px;bottom:12px;z-index:1000;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:9px 14px 21px;display:flex;align-items:center;gap:12px">' +
-            '<button type="button" class="btn sm" id="wx-tl-play" title="Прокрутить сутки: 00:00 → 23:00">▶</button>' +
+            '<button type="button" class="btn sm" id="wx-tl-play" title="Прокрутить сутки: 00:00 → 23:00" style="display:inline-flex;align-items:center;justify-content:center;line-height:1;padding:6px 10px;font-size:14px">▶</button>' +
             '<span id="wx-bar-time" style="font-size:15px;font-weight:800;color:#0f2740;min-width:48px;text-align:center">—</span>' +
             '<div style="flex:1;position:relative">' +
               '<input type="range" id="wx-slider" min="0" max="23" step="1" value="0" style="width:100%;accent-color:#2563eb;cursor:pointer" title="Ползунок времени: сегодня, все 24 часа">' +
@@ -11765,7 +11779,7 @@
 
     // === Ползунок времени (24 часа) + Play ===
     html += '<div style="background:var(--card);border-bottom:1px solid var(--line);padding:10px 16px 14px;display:flex;align-items:center;gap:12px">';
-    html += '<button type="button" class="btn sm" id="hly-play" title="Прокрутить сутки: 00:00 → 23:00" style="width:36px;height:36px;padding:0;font-size:16px;background:#2563eb;color:#fff;border:none;border-radius:50%;font-weight:800">▶</button>';
+    html += '<button type="button" class="btn sm" id="hly-play" title="Прокрутить сутки: 00:00 → 23:00" style="width:36px;height:36px;padding:0;font-size:16px;line-height:1;background:#2563eb;color:#fff;border:none;border-radius:50%;font-weight:800;display:inline-flex;align-items:center;justify-content:center">▶</button>';
     html += '<span id="hly-bar-time" style="font-size:15px;font-weight:800;color:#0f2740;min-width:48px;text-align:center">' + (HOURLY.hour < 10 ? '0' + HOURLY.hour : HOURLY.hour) + ':00</span>';
     html += '<div style="flex:1;position:relative">';
     html += '<input type="range" id="hly-slider" min="0" max="23" step="1" value="' + HOURLY.hour + '" style="width:100%;accent-color:#2563eb;cursor:pointer" title="Ползунок времени: все 24 часа выбранного дня">';
