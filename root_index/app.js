@@ -733,7 +733,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-38 · все точки и области (ГРП, ШРП, ГРС, ПГРП) · виды работ 13 атрибутов · тест зависимости: полная форма задачи'],
+    objmap: ['Карта объектов', 'Сборка 22.09-39 · все точки и области (ГРП, ШРП, ГРС, ПГРП) · виды работ 13 атрибутов · тест зависимости: правая панель «Итого»'],
     testmap: ['Тест', 'Полигон: копия «Карта маршрутов» для экспериментов — рабочие страницы не затрагивает'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -15910,6 +15910,8 @@
     var works = (window.SP_WORK && SP_WORK.getWorkTree) ? SP_WORK.getWorkTree() : [];
 
     var html = '<div style="max-width:1080px;margin:0 auto;padding:18px">';
+    html += '<div style="display:grid;grid-template-columns:1fr 380px;gap:14px;align-items:start">';
+    // Левая колонка — форма
     html += '<div class="card" style="padding:18px;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 2px 10px rgba(15,39,64,.04)">';
     html += '<div style="font-size:14px;font-weight:800;color:var(--ink);margin-bottom:4px">Тест зависимости трудоёмкости</div>';
     html += '<div style="font-size:12px;color:var(--muted);margin-bottom:14px">Полигон для отладки формулы расчёта по параметрам объекта. Откройте форму задачи — как в планировании — заполните, добавьте. Задача появится в планировании, а ниже покажутся её поля для формулы.</div>';
@@ -15990,7 +15992,85 @@
     html += '<button type="button" id="td-from-work" class="btn" style="background:#2563eb;color:#fff;border:none;padding:9px 18px;font-weight:700" title="Подставить трудоёмкость из выбранного вида работы">⟲ Из справочника</button>';
     html += '</div>';
 
+    html += '</div>'; // /left card
+
+    // === Правая колонка: боковая панель «Итого» ===
+    var selectedTask = null;
+    if (data.taskId) {
+      try {
+        var _tasks = (window.SP_TASKS && SP_TASKS.getTasks) ? SP_TASKS.getTasks() : (S.tasks || []);
+        selectedTask = _tasks.find(function (x) { return x.id === data.taskId; }) || null;
+      } catch (e) {}
+    }
+    var selectedWork = null;
+    if (data.workId) {
+      selectedWork = works.find(function (w) { return w.id === data.workId; }) || null;
+    }
+    // Координаты объекта (из выбранной задачи или из справочника)
+    var objCoords = null;
+    if (selectedTask) {
+      if (selectedTask.o && window.SP_OBJECTS) {
+        try {
+          var obj = (typeof SP_OBJECTS.getObjectById === 'function') ? SP_OBJECTS.getObjectById(selectedTask.o) : (OBJ_MAP[selectedTask.o] || null);
+          if (obj && obj.lat != null && obj.lng != null) objCoords = { lat: obj.lat, lng: obj.lng };
+        } catch (e) {}
+      }
+      if (!objCoords && selectedTask.lat != null && selectedTask.lng != null) {
+        objCoords = { lat: selectedTask.lat, lng: selectedTask.lng };
+      }
+    }
+    var base = null;
+    try { base = (typeof currentBase === 'function') ? currentBase() : null; } catch (e) {}
+    // Расстояние × 1.4 (извилистость), время без пробок / с пробками
+    var roadKm = 0, freeMin = 0, jamMin = 0;
+    if (objCoords && base) {
+      roadKm = distKm(base, objCoords) * 1.4;
+      freeMin = calculateYandexMinskTime(roadKm, false);
+      jamMin = calculateYandexMinskTime(roadKm, true);
+    }
+    var workHours = (selectedWork && selectedWork.norm) ? selectedWork.norm : 0;
+    var totalHours = workHours + (jamMin / 60);
+    html += '<div style="display:flex;flex-direction:column;gap:12px;position:sticky;top:12px">';
+
+    // Карточка «Трудоёмкость работы»
+    html += '<div class="card" style="padding:14px 16px;background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #86efac;border-radius:12px">';
+    html += '<div style="font-size:11px;font-weight:800;color:#166534;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🔧 Трудоёмкость работы</div>';
+    if (selectedWork) {
+      html += '<div style="font-size:13px;font-weight:800;color:var(--ink);margin-bottom:4px">' + esc(selectedWork.name) + '</div>';
+      if (selectedWork.group) html += '<div style="font-size:11px;color:var(--muted);margin-bottom:6px">📂 ' + esc(selectedWork.group) + '</div>';
+      html += '<div style="font-size:24px;font-weight:900;color:#15803d;line-height:1">' + (workHours ? fmtH(workHours).replace(' ч','') : '—') + ' <span style="font-size:14px;font-weight:700;color:#166534">чел·ч</span></div>';
+      html += '<div style="font-size:10.5px;color:var(--muted);margin-top:4px">норма из справочника работ</div>';
+    } else {
+      html += '<div style="font-size:12px;color:var(--muted);padding:14px 0;text-align:center">Выберите вид работы ниже</div>';
+    }
     html += '</div>';
+
+    // Карточка «Дорога от базы»
+    html += '<div class="card" style="padding:14px 16px;background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1px solid #93c5fd;border-radius:12px">';
+    html += '<div style="font-size:11px;font-weight:800;color:#1e40af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🚗 От базы до объекта</div>';
+    if (objCoords && base) {
+      html += '<div style="font-size:10.5px;color:var(--muted);margin-bottom:8px">🏠 База: <b style="color:var(--ink)">' + esc(base.name) + '</b></div>';
+      html += '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px"><span style="font-size:11px;color:var(--muted)">Расстояние</span><b style="font-size:14px;color:var(--ink)">' + (roadKm > 0 ? roadKm.toFixed(1).replace('.', ',') + ' км' : '—') + '</b></div>';
+      html += '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px"><span style="font-size:11px;color:var(--muted)">Без пробок</span><b style="font-size:13px;color:#16a34a">' + (freeMin ? fmtDuration(freeMin) : '—') + '</b></div>';
+      html += '<div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:11px;color:var(--muted)">С пробками</span><b style="font-size:13px;color:#dc2626">' + (jamMin ? fmtDuration(jamMin) : '—') + '</b></div>';
+      html += '<div style="font-size:10px;color:var(--muted);margin-top:6px;line-height:1.4">📏 по прямой × 1.4 (извилистость)<br>🚦 средняя Минск ~30 / ~22 км/ч</div>';
+    } else {
+      html += '<div style="font-size:12px;color:var(--muted);padding:14px 0;text-align:center">' + (selectedTask ? 'У объекта нет координат' : 'Выберите или создайте задачу') + '</div>';
+    }
+    html += '</div>';
+
+    // Карточка «Итого»
+    html += '<div class="card" style="padding:14px 16px;background:linear-gradient(135deg,#1e3a5f,#2563eb);color:#fff;border-radius:12px;box-shadow:0 4px 14px rgba(37,99,235,.25)">';
+    html += '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;opacity:.85">📊 ИТОГО</div>';
+    html += '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><span style="font-size:11.5px;opacity:.85">🔧 Работа</span><b style="font-size:14px">' + (workHours ? fmtH(workHours).replace(' ч','') + ' ч' : '—') + '</b></div>';
+    html += '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><span style="font-size:11.5px;opacity:.85">🚗 Дорога (с пробками)</span><b style="font-size:14px">' + (jamMin ? fmtDuration(jamMin) : '—') + '</b></div>';
+    html += '<div style="border-top:1px solid rgba(255,255,255,.2);margin:8px 0 6px"></div>';
+    html += '<div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:12px;font-weight:700">⏱ Всё вместе</span><b style="font-size:20px;font-weight:900">' + (totalHours > 0 ? fmtH(totalHours).replace(' ч','') + ' ч' : '—') + '</b></div>';
+    html += '<div style="font-size:10px;opacity:.75;margin-top:4px">' + (jamMin ? '(работа ' + workHours + ' ч + дорога ' + (jamMin/60).toFixed(2) + ' ч)' : 'для расчёта нужна работа + задача') + '</div>';
+    html += '</div>';
+
+    html += '</div>'; // /right column
+    html += '</div>'; // /grid
 
     // Подсказка
     html += '<div class="card" style="margin-top:14px;padding:14px 18px;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;font-size:12.5px;color:var(--txt);line-height:1.5">';
