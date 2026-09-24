@@ -733,7 +733,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-35 · все точки и области (ГРП, ШРП, ГРС, ПГРП) · виды работ 13 атрибутов · восстановлена страница «Тест» · добавлена страница «Тест зависимости»'],
+    objmap: ['Карта объектов', 'Сборка 22.09-36 · все точки и области (ГРП, ШРП, ГРС, ПГРП) · виды работ 13 атрибутов · тестовая карта: оценка пробок по часу суток'],
     testmap: ['Тест', 'Полигон: копия «Карта маршрутов» для экспериментов — рабочие страницы не затрагивает'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -15330,6 +15330,26 @@
      коэффициент — цифры совпадают с Яндекс.Картами с точностью ~±15%.
      Пробки учитываются отдельно — живыми тайлами Яндекс.Пробок (см. tJamsAdjust). */
   var T_YANDEX_K = 1.39;
+  /* Коэффициент пробок по часу суток (Минск, типичные будни).
+     Усреднённые значения: пик 7–10 и 17–20 — ×1.35–1.5, день — ×1.15, ночь — ×1.0.
+     Это ПРИБЛИЖЁННАЯ эвристика (точный расчёт требует Яндекс.Карт API с ключом
+     + живые тайлы пробок). Используется, чтобы OSRM-время × 1.39 ближе к Яндексу. */
+  function jamFactorByHour(h) {
+    var f = [1.00, 1.00, 1.00, 1.00, 1.00, 1.05, 1.20, 1.40,  // 0..7
+             1.45, 1.40, 1.30, 1.20, 1.15, 1.15, 1.15, 1.20,  // 8..15
+             1.30, 1.45, 1.50, 1.45, 1.30, 1.15, 1.05, 1.00]; // 16..23
+    return f[((h | 0) % 24 + 24) % 24];
+  }
+  /* Сейчас выбранный час дня (для калибровки времени маршрута пробками) */
+  function currentHourForJam() {
+    try {
+      // Берём час из активной даты на тестовой карте (TS.off) если есть, иначе — сейчас
+      var off = (window.TS && TS.off != null) ? TS.off : 0;
+      var d = offToDate(off);
+      if (off !== 0) return 10; // не сегодня — условно дневное время (10:00)
+      return new Date().getHours();
+    } catch (e) { return new Date().getHours(); }
+  }
   var tState = { token: 0, loaded: false, loading: false, waiting: [], ymap: null, pts: [], route: null, manualOrder: false, leafletMap: null, leafletRouteLayer: null, leafletArrows: [], leafletMarkers: [], roadClosures: [], closureLayers: [], manualClosures: [], drawingClosure: false, drawPoints: [] };
   var TEST_CLOSURES_KEY = 'smartplan_test_closures';
   function tFindTask() { return null; } /* ТЕСТ: реальными задачами не оперируем — записи отключены */
@@ -16315,14 +16335,32 @@
       el.innerHTML = "⚠ маршрут не построен";
       el.style.color = "var(--red)";
     } else if (info.km != null) {
-      /* ТЕСТ: данные маршрута — из нашего расчёта, диалог виджета не используется */
+      /* ТЕСТ: данные маршрута — из нашего расчёта (OSRM Trip × калибровка + пробки).
+         Если jamsMin === freeMin — это была «честная» Яндекс-калибровка без пробок;
+         иначе уже учтены живые тайлы пробок (tJamsAdjust).
+         В любом случае рядом показываем честную оценку с пробками по часу суток. */
       var kmStr = info.km.toFixed(1).replace(".", ",") + " км";
+      var freeMin = info.freeMin || info.jamsMin || 0;
+      var liveJamsMin = info.jamsMin;
+      var jamK = jamFactorByHour(currentHourForJam());
+      var estJamsMin = Math.max(1, Math.round(freeMin * jamK));
       var str = "";
       if (info.jamsMin && info.freeMin && info.jamsMin !== info.freeMin) {
-        str = '<b style="color:var(--ink);font-size:13.5px;">' + kmStr + '</b> · общее время: <b style="color:#dc2626;">' + fmtDuration(info.jamsMin) + ' (с пробками)</b> <span style="color:var(--muted);font-weight:600;">/</span> <b style="color:#16a34a;">' + fmtDuration(info.freeMin) + ' (без пробок)</b>';
+        // Уже есть живые пробки — показываем их + нашу оценку для сравнения
+        str = '<b style="color:var(--ink);font-size:13.5px;">' + kmStr + '</b> · общее время: '
+          + '<b style="color:#dc2626;">' + fmtDuration(info.jamsMin) + ' (с пробками)</b> '
+          + '<span style="color:var(--muted);font-weight:600;">/</span> '
+          + '<b style="color:#16a34a;">' + fmtDuration(info.freeMin) + ' (без пробок)</b>'
+          + (Math.abs(info.jamsMin - estJamsMin) > 5
+             ? ' <span style="color:#94a3b8;font-size:10.5px;font-weight:600;" title="Оценка по часу суток ' + currentHourForJam() + ':00 — коэффициент ×' + jamK.toFixed(2) + '">· оценка Яндекс ~' + fmtDuration(estJamsMin) + '</span>'
+             : '');
       } else if (info.jamsMin || info.freeMin) {
-        var m = info.jamsMin || info.freeMin;
-        str = '<b style="color:var(--ink);font-size:13.5px;">' + kmStr + '</b> · общее время: <b style="color:#2563eb;">' + fmtDuration(m) + ' (по дорогам)</b>';
+        // Пробок нет (роутер без OSRM Trip) — показываем честную калибровку
+        str = '<b style="color:var(--ink);font-size:13.5px;">' + kmStr + '</b> · общее время: '
+          + '<b style="color:#2563eb;">' + fmtDuration(freeMin) + ' (без пробок)</b>'
+          + ' <span style="color:var(--muted);font-weight:600;">/</span> '
+          + '<b style="color:#dc2626;" title="Оценка по часу суток ' + currentHourForJam() + ':00 (Минск, будни)">~' + fmtDuration(estJamsMin) + ' (с пробками)</b>'
+          + ' <span style="color:#94a3b8;font-size:10.5px;font-weight:600;">· OSRM × 1.39, часовой ×' + jamK.toFixed(2) + '</span>';
       } else {
         str = '<b style="color:var(--ink);font-size:13.5px;">' + kmStr + '</b> (напрямую из карты)';
       }
@@ -17209,9 +17247,14 @@
           var yaBtn = document.getElementById('t-btn-yandex');
           if (yaBtn && ordered.length) yaBtn.style.display = '';
           var howOpt = (res.by === 'yandex') ? 'порядок «ближайший сосед»' : 'многостартовая оптимизация OSRM Trip';
+          // Оценка с пробками по часу суток (Минск) — для случая, когда
+          // живые тайлы пробок не удалось получить (CORS/нет ключа).
+          var estJam = Math.max(1, Math.round(res.min * jamFactorByHour(currentHourForJam())));
           toast('ok', '✓ Маршрут (' + howOpt + '): ' + res.km.toFixed(1).replace('.', ',') + ' км, ' +
-            ((jam && jam.ok) ? jamTotal + ' мин с пробками / ' + res.min + ' мин без' : res.min + ' мин') +
-            (res.by === 'yandex' ? ' (роутер Яндекс.Карт)' : ' (время откалибровано по Яндекс.Картам + живые пробки)'));
+            ((jam && jam.ok)
+              ? jamTotal + ' мин с пробками / ' + res.min + ' мин без'
+              : res.min + ' мин без пробок ≈ ~' + estJam + ' с пробками (оценка по часу ' + currentHourForJam() + ':00)') +
+            (res.by === 'yandex' ? ' (роутер Яндекс.Карт)' : ' (калибровка OSRM + Яндекс.Карты)')); 
         }
 
         if (res.by === 'yandex' || !res.geometry || res.geometry.length < 3) { finish(null); return; }
