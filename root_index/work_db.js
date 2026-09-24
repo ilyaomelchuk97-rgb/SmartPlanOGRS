@@ -209,6 +209,22 @@ window.SP_WORK = (function () {
     for (var j = 0; j < DEFAULTS.length; j++) if (DEFAULTS[j].id === id) return DEFAULTS[j];
     return null;
   }
+  // Все виды работ со всех участков + встроенные DEFAULTS (плоский массив для select).
+  // Используется в «Тест зависимости» для удобного выбора.
+  function getWorkTree() {
+    var db = init();
+    var out = [];
+    var seen = {};
+    Object.keys(db.areas).forEach(function (area) {
+      (db.areas[area] || []).forEach(function (w) {
+        if (!seen[w.id]) { seen[w.id] = 1; out.push(Object.assign({ area: area }, w)); }
+      });
+    });
+    (DEFAULTS || []).forEach(function (w) {
+      if (!seen[w.id]) { seen[w.id] = 1; out.push(Object.assign({ area: '__defaults' }, w)); }
+    });
+    return out;
+  }
   function addWork(area, data) {
     var db = init();
     if (!db.areas[area]) db.areas[area] = [];
@@ -272,7 +288,7 @@ window.SP_WORK = (function () {
 
   return {
     ensureSeed: ensureSeed, getAreas: getAreas, getWorks: getWorks, getWork: getWork,
-    getWorkById: getWorkById, addWork: addWork, updateWork: updateWork, deleteWork: deleteWork,
+    getWorkById: getWorkById, getWorkTree: getWorkTree, addWork: addWork, updateWork: updateWork, deleteWork: deleteWork,
     ensureArea: ensureArea, renameArea: renameArea, deleteArea: deleteArea,
     DEFAULTS: DEFAULTS, reloadFromCloud: reloadFromCloud, SCHEMA: SCHEMA
   };

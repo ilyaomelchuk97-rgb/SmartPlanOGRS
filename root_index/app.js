@@ -733,7 +733,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-36 · все точки и области (ГРП, ШРП, ГРС, ПГРП) · виды работ 13 атрибутов · тестовая карта: оценка пробок по часу суток'],
+    objmap: ['Карта объектов', 'Сборка 22.09-37 · все точки и области (ГРП, ШРП, ГРС, ПГРП) · виды работ 13 атрибутов · тестовая карта: Google Maps + оценка пробок'],
     testmap: ['Тест', 'Полигон: копия «Карта маршрутов» для экспериментов — рабочие страницы не затрагивает'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -15418,6 +15418,7 @@
 
       '<button class="btn sm" id="t-btn-traffic" title="Слой Яндекс.Пробок: загруженность дорог и события (аварии, ремонт) на карте">🚦 Пробки</button>' +
       '<button class="btn sm" id="t-btn-yandex" style="display:none;background:#c8102e;border-color:#c8102e;color:#fff" title="Открыть построенный маршрут в Яндекс.Картах (новая вкладка)">↗ Яндекс.Карты</button>' +
+      '<button class="btn sm" id="t-btn-google" style="display:none;background:#1a73e8;border-color:#1a73e8;color:#fff" title="Открыть построенный маршрут в Google Maps (новая вкладка) — реальное время в пути от Google">🌐 Google Maps</button>' +
       (S.role === 'viewer' ? '<span style="font-size:12px;color:var(--muted);font-weight:600;">👁 Режим просмотра</span>' : '<button class="btn primary" id="t-btn-build-route" data-action="t-build-route" disabled style="opacity:.5;cursor:not-allowed;">' + IC.route + ' Оптимизация маршрутов</button>' + '<button class="btn sm" id="t-btn-drive3d" style="background:#dc2626;color:#fff;border-color:#dc2626;display:none;" title="3D-вождение автомобиля по улицам Минска (открывается кодом ↑↓←→)">🏎 Дать газу</button>') +
       '<div class="spacer"></div>' +
       provSelHTML +
@@ -15475,6 +15476,15 @@
       var items = tState.routeItems;
       if (!items || items.length < 2) { toast('warn', 'Сначала постройте маршрут'); return; }
       window.open(buildYandexDirUrl(items, false), '_blank', 'noopener');
+    });
+    var tGBtn = document.getElementById('t-btn-google');
+    if (tGBtn) tGBtn.addEventListener('click', function () {
+      var items = tState.routeItems;
+      if (!items || items.length < 2) { toast('warn', 'Сначала постройте маршрут'); return; }
+      // Без API-ключа открываем страницу Google Maps с маршрутом и временем в пути.
+      // Google сам посчитает время с пробками и покажет его на странице.
+      var url = buildGoogleDirUrl(items);
+      window.open(url, '_blank', 'noopener');
     });
 
     var tTrBtn = document.getElementById('t-btn-traffic');
@@ -17242,10 +17252,12 @@
           }
           var jamTotal = (jam && jam.ok) ? jam.total : res.min;
           setTestRouteInfo({ km: res.km, jamsMin: jamTotal, freeMin: res.min, count: ordered.length });
-          // кнопка «Открыть в Яндекс.Картах» — с готовым маршрутом
+          // кнопки «Открыть в Яндекс.Картах» и «Открыть в Google Maps» — с готовым маршрутом
           tState.routeItems = [base].concat(ordered).concat([base]);
           var yaBtn = document.getElementById('t-btn-yandex');
           if (yaBtn && ordered.length) yaBtn.style.display = '';
+          var gBtn = document.getElementById('t-btn-google');
+          if (gBtn && ordered.length) gBtn.style.display = '';
           var howOpt = (res.by === 'yandex') ? 'порядок «ближайший сосед»' : 'многостартовая оптимизация OSRM Trip';
           // Оценка с пробками по часу суток (Минск) — для случая, когда
           // живые тайлы пробок не удалось получить (CORS/нет ключа).
