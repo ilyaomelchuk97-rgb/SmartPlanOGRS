@@ -733,8 +733,8 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-39 · все точки и области (ГРП, ШРП, ГРС, ПГРП) · виды работ 13 атрибутов · тест зависимости: правая панель «Итого»'],
-    testmap: ['Тест', 'Полигон: копия «Карта маршрутов» для экспериментов — рабочие страницы не затрагивает'],
+    objmap: ['Карта объектов', 'Сборка 22.09-42 · все точки и области (ГРП, ШРП, ГРС, ПГРП) · виды работ 13 атрибутов · тест проезда: 🔀 Сравнить (4 роутера)'],
+    testmap: ['Тест проезда', 'Полигон: карта маршрутов + оптимизация + пробки + Google Maps (копия «Карты маршрутов» для экспериментов)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
     perms: ['Разрешения', 'Система разрешений на производство работ'],
@@ -5570,6 +5570,133 @@
     } else {
       proceedWithCoords(instantResolved);
     }
+  }
+
+  /* === БЕСПЛАТНЫЕ АЛЬТЕРНАТИВНЫЕ РОУТЕРЫ (без API-ключа) ===
+     Дополнительные источники километража/времени по дорогам, кроме OSRM demo.
+     Каждый провайдер возвращает {ok, km, min, geometry, by, legs}.
+     Геометрия в формате [[lng,lat], ...] (как у OSRM). */
+
+  // FOSSGIS OSRM (Германия) — публичный OSRM-сервер, поддерживает alternatives.
+  // Аналогичен router.project-osrm.org, иногда даёт более точные результаты для Европы.
+  function fetchFossgisOSRM(points, base, callback) {
+    var coords = [[base.lng, base.lat]];
+    points.forEach(function (p) { if (p.lat != null) coords.push([p.lng, p.lat]); });
+    coords.push([base.lng, base.lat]);
+    var coordStr = coords.map(function (c) { return c.join(','); }).join(';');
+    // trip с roundtrip для оптимального порядка объезда. FOSSGIS не поддерживает steps=true
+    // для trip (только для route) — поэтому упрощённый запрос. overview=full для отрисовки линии.
+    fetch('https://routing.openstreetmap.de/routed-car/trip/v1/driving/' + coordStr +
+      '?roundtrip=true&source=first&overview=full&geometries=geojson')
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || !res.trips || !res.trips[0]) { callback({ ok: false, msg: 'FOSSGIS: нет trips' }); return; }
+        var trip = res.trips[0];
+        var legs = [];
+        if (trip.legs) {
+          trip.legs.forEach(function (leg) {
+            legs.push({ distance: leg.distance || 0, duration: leg.duration || 0 });
+          });
+        }
+        callback({
+          ok: true,
+          by: 'fossgis',
+          km: trip.distance / 1000,
+          min: Math.round(trip.duration / 60),
+          geometry: trip.geometry.coordinates || [],
+          legs: legs,
+          waypoints: res.waypoints || []
+        });
+      })
+      .catch(function (e) { callback({ ok: false, msg: 'FOSSGIS: ' + e.message }); });
+  }
+
+  // Valhalla публичный (без ключа) — openstreetmap.de даёт 1 запрос/сек без авторизации.
+  // Отличается от OSRM алгоритмом, иногда даёт более «человечные» маршруты (меньше поворотов).
+  function fetchValhallaPublic(points, base, callback) {
+    var locs = [{ lat: base.lat, lon: base.lng, type: 'break' }];
+    points.forEach(function (p) { if (p.lat != null) locs.push({ lat: p.lat, lon: p.lng, type: 'break' }); });
+    locs.push({ lat: base.lat, lon: base.lng, type: 'break' });
+    var body = {
+      locations: locs,
+      costing: 'auto',
+      directions_options: { units: 'kilometers' },
+      // roundtrip через optimized_route — оптимизация порядка
+      shape_format: 'geojson'
+    };
+    var endpoint = locs.length > 2 ? '/optimized_route' : '/route';
+    fetch('https://valhalla1.openstreetmap.de' + endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || !res.trip) { callback({ ok: false, msg: 'Valhalla public: ' + (res && res.error ? res.error : 'нет trip') }); return; }
+        var trip = res.trip;
+        var legs = [];
+        if (trip.legs) {
+          trip.legs.forEach(function (leg) {
+            var sum = leg.summary || {};
+            legs.push({ distance: (sum.length || 0) * 1000, duration: sum.time || 0 });
+          });
+        }
+        var geom = [];
+        if (trip.legs) {
+          trip.legs.forEach(function (leg, li) {
+            if (leg.shape && leg.shape.length) {
+              leg.shape.forEach(function (c, ci) { if (li === 0 || ci > 0) geom.push(c); });
+            }
+          });
+        }
+        callback({
+          ok: true,
+          by: 'valhalla-public',
+          km: trip.summary && trip.summary.length ? trip.summary.length : 0,
+          min: trip.summary && trip.summary.time ? Math.round(trip.summary.time / 60) : 0,
+          geometry: geom,
+          legs: legs
+        });
+      })
+      .catch(function (e) { callback({ ok: false, msg: 'Valhalla public: ' + e.message }); });
+  }
+
+  // Маршрут по прямой с поправкой на дороги — самый быстрый fallback без сети.
+  // Координаты соединяются прямой линией (для визуализации), километраж = distKm * 1.4,
+  // время = по средней скорости Минска (30 км/ч без пробок).
+  function fetchStraightLineRoute(points, base, callback) {
+    var km = 0;
+    var geom = [[base.lng, base.lat]];
+    var prev = base;
+    points.forEach(function (p) {
+      if (p.lat != null) {
+        km += distKm(prev, { lat: p.lat, lng: p.lng });
+        geom.push([p.lng, p.lat]);
+        prev = { lat: p.lat, lng: p.lng };
+      }
+    });
+    km += distKm(prev, base);
+    geom.push([base.lng, base.lat]);
+    km = km * 1.4; // поправка на извилистость дорог
+    var min = Math.max(1, Math.round((km / 30) * 60));
+    callback({ ok: true, by: 'straight', km: km, min: min, geometry: geom, legs: [] });
+  }
+
+  /* Сравнение всех бесплатных роутеров по одним и тем же точкам. */
+  function compareFreeRouters(points, base, onResult) {
+    var results = [];
+    function add(r) {
+      results.push(r);
+      if (onResult) onResult(r);
+      if (results.length === 4) {
+        // Сортируем по расстоянию (для выбора «лучшего»)
+        results.sort(function (a, b) { return (a.km || 0) - (b.km || 0); });
+      }
+    }
+    fetchStraightLineRoute(points, base, function (r) { add(r); });
+    fetchOSMRouteGeometry('osrm', points, base, function (r) { r.by = 'osrm-demo'; add(r); });
+    fetchFossgisOSRM(points, base, function (r) { add(r); });
+    fetchValhallaPublic(points, base, function (r) { add(r); });
   }
 
   function buildRoute(noJam) {
@@ -13348,8 +13475,8 @@
 
   /* ---------- НАВИГАЦИЯ ---------- */
   function setScreen(name) {
-    // «Тест» — полигон только для администратора
-    if (name === 'testmap' && S.role !== 'admin') { toast('err', 'Страница «Тест» — только для администратора'); return; }
+    // «Тест проезда» — полигон только для администратора
+    if (name === 'testmap' && S.role !== 'admin') { toast('err', 'Страница «Тест проезда» — только для администратора'); return; }
     if (name === 'wxtest' && S.role !== 'admin') { toast('err', 'Страница «Тест погодный» — только для администратора'); return; }
     if (name === 'testdep' && S.role !== 'admin') { toast('err', 'Страница «Тест зависимости» — только для администратора'); return; }
     // Защита: страницы администрирования — только админу
@@ -13670,6 +13797,7 @@
     else if (a === 'build-route') { buildYandexRoute(false); }
     else if (a === 't-map-off') { TS.off = parseInt(el.dataset.off, 10) || 0; renderTestMap(); }
     else if (a === 't-build-route') { buildTestRoute(false); }
+    else if (a === 't-build-compare') { buildTestRouteCompare(); }
     else if (a === 'build-route-no-jam') { buildYandexRoute(true); }
     else if (a === 'map-off') { S.mapOff = parseInt(el.dataset.off, 10); renderMap(); }
     else if (a === 'refs-tab') { S.refsTab = el.dataset.tab; renderRefs(); }
@@ -15419,7 +15547,7 @@
       '<button class="btn sm" id="t-btn-traffic" title="Слой Яндекс.Пробок: загруженность дорог и события (аварии, ремонт) на карте">🚦 Пробки</button>' +
       '<button class="btn sm" id="t-btn-yandex" style="display:none;background:#c8102e;border-color:#c8102e;color:#fff" title="Открыть построенный маршрут в Яндекс.Картах (новая вкладка)">↗ Яндекс.Карты</button>' +
       '<button class="btn sm" id="t-btn-google" style="display:none;background:#1a73e8;border-color:#1a73e8;color:#fff" title="Открыть построенный маршрут в Google Maps (новая вкладка) — реальное время в пути от Google">🌐 Google Maps</button>' +
-      (S.role === 'viewer' ? '<span style="font-size:12px;color:var(--muted);font-weight:600;">👁 Режим просмотра</span>' : '<button class="btn primary" id="t-btn-build-route" data-action="t-build-route" disabled style="opacity:.5;cursor:not-allowed;">' + IC.route + ' Оптимизация маршрутов</button>' + '<button class="btn sm" id="t-btn-drive3d" style="background:#dc2626;color:#fff;border-color:#dc2626;display:none;" title="3D-вождение автомобиля по улицам Минска (открывается кодом ↑↓←→)">🏎 Дать газу</button>') +
+      (S.role === 'viewer' ? '<span style="font-size:12px;color:var(--muted);font-weight:600;">👁 Режим просмотра</span>' : '<button class="btn primary" id="t-btn-build-route" data-action="t-build-route" disabled style="opacity:.5;cursor:not-allowed;">' + IC.route + ' Оптимизация маршрутов</button>' + '<button class="btn sm" id="t-btn-compare" data-action="t-build-compare" style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;font-weight:700" title="Сравнить результаты 4 бесплатных роутеров (OSRM demo / FOSSGIS / Valhalla public / Прямая линия ×1.4)">🔀 Сравнить</button>' + '<button class="btn sm" id="t-btn-drive3d" style="background:#dc2626;color:#fff;border-color:#dc2626;display:none;" title="3D-вождение автомобиля по улицам Минска (открывается кодом ↑↓←→)">🏎 Дать газу</button>') +
       '<div class="spacer"></div>' +
       provSelHTML +
       '</div>';
@@ -15964,32 +16092,21 @@
       html += '</div>';
     }
 
-    // Блок 4: вид работы + трудоёмкость
+    // Блок 4: трудоёмкость (берётся из задачи автоматически, можно править руками)
     html += '<div style="margin-bottom:14px">';
-    html += '<label style="display:block;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:4px">Вид работы (из справочника)</label>';
-    html += '<select id="td-work" style="width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:var(--bg);color:var(--ink)">';
-    html += '<option value="">— выберите вид работы —</option>';
-    works.forEach(function (w) {
-      var sel = (data.workId === w.id) ? ' selected' : '';
-      html += '<option value="' + esc(w.id) + '"' + sel + '>' + esc(w.name) + (w.norm != null ? ' (' + w.norm + ' ч)' : '') + '</option>';
-    });
-    html += '</select>';
-    if (!works.length) {
-      html += '<div style="font-size:11px;color:#dc2626;margin-top:4px">Справочник работ пуст.</div>';
-    }
+    html += '<label style="display:block;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:4px">Трудоёмкость (из задачи, чел·ч)</label>';
+    html += '<div style="display:flex;align-items:center;gap:8px">';
+    html += '<input type="number" id="td-hours" step="0.1" min="0" placeholder="2.5" value="' + (data.hours != null ? data.hours : '') + '" style="width:200px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:var(--bg);color:var(--ink)">';
+    html += '<span style="font-size:12px;color:var(--muted)">чел·ч</span>';
     html += '</div>';
-
-    html += '<div style="margin-bottom:14px">';
-    html += '<label style="display:block;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:4px">Трудоёмкость (норма, чел·ч)</label>';
-    html += '<input type="number" id="td-hours" step="0.1" min="0" placeholder="Например: 2.5" value="' + (data.hours != null ? data.hours : '') + '" style="width:200px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:var(--bg);color:var(--ink)">';
-    html += '<span style="margin-left:8px;font-size:12px;color:var(--muted)">чел·ч</span>';
+    html += '<div style="font-size:11px;color:var(--muted);margin-top:4px">Рассчитывается автоматически из выбранной задачи (norm × объём). Можно править руками для проверки формулы.</div>';
     html += '</div>';
 
     // Кнопки
     html += '<div style="display:flex;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid var(--line)">';
     html += '<button type="button" id="td-save" class="btn" style="background:#0f2740;color:#fff;border:none;padding:9px 18px;font-weight:700">💾 Сохранить</button>';
     html += '<button type="button" id="td-clear" class="btn" style="background:var(--bg);color:var(--ink);padding:9px 18px">Очистить</button>';
-    html += '<button type="button" id="td-from-work" class="btn" style="background:#2563eb;color:#fff;border:none;padding:9px 18px;font-weight:700" title="Подставить трудоёмкость из выбранного вида работы">⟲ Из справочника</button>';
+    html += '<button type="button" id="td-from-task" class="btn" style="background:#2563eb;color:#fff;border:none;padding:9px 18px;font-weight:700" title="Пересчитать трудоёмкость из выбранной задачи (norm × объём по всем видам работ)">⟲ Из задачи</button>';
     html += '</div>';
 
     html += '</div>'; // /left card
@@ -16002,10 +16119,8 @@
         selectedTask = _tasks.find(function (x) { return x.id === data.taskId; }) || null;
       } catch (e) {}
     }
-    var selectedWork = null;
-    if (data.workId) {
-      selectedWork = works.find(function (w) { return w.id === data.workId; }) || null;
-    }
+    // Координаты объекта (выбираются из выбранной задачи; workId больше не используется,
+    // потому что вид работы берётся из самой задачи)
     // Координаты объекта (из выбранной задачи или из справочника)
     var objCoords = null;
     if (selectedTask) {
@@ -16028,20 +16143,60 @@
       freeMin = calculateYandexMinskTime(roadKm, false);
       jamMin = calculateYandexMinskTime(roadKm, true);
     }
-    var workHours = (selectedWork && selectedWork.norm) ? selectedWork.norm : 0;
-    var totalHours = workHours + (jamMin / 60);
+    // workHours будет перезаписан в карточке «Трудоёмкость работы» (по всем работам задачи)
+    var workHours = 0;
+    var totalHours = 0;
     html += '<div style="display:flex;flex-direction:column;gap:12px;position:sticky;top:12px">';
 
-    // Карточка «Трудоёмкость работы»
+    // Карточка «Трудоёмкость работы» — список всех работ из выбранной задачи
+    // Берём работы из задачи (selectedTask.works), а не из отдельного select.
+    var taskWorksList = [];
+    var taskWorksTotal = 0;
+    if (selectedTask && selectedTask.works && selectedTask.works.length) {
+      var _m = masterById(selectedTask.m);
+      var _area = _m ? _m.area : null;
+      selectedTask.works.forEach(function (wid, i) {
+        var _w = null;
+        // сначала ищем в work_db по участку
+        if (_area && typeof WORK !== 'undefined' && WORK.getWork) {
+          _w = WORK.getWork(_area, wid);
+        }
+        // fallback — getWorkById
+        if (!_w && typeof WORK !== 'undefined' && WORK.getWorkById) _w = WORK.getWorkById(wid);
+        if (!_w) {
+          // fallback — ищем в works (getWorkTree)
+          _w = works.find(function (x) { return x.id === wid; });
+        }
+        if (!_w) _w = { id: wid, name: wid, norm: 0 };
+        var _vol = 1;
+        if (selectedTask.volumes && selectedTask.volumes[i] != null) _vol = parseFloat(selectedTask.volumes[i]) || 1;
+        else _vol = parseFloat(selectedTask.volume) || 1;
+        var _h = (_w.norm || 0) * _vol;
+        taskWorksTotal += _h;
+        taskWorksList.push({ w: _w, vol: _vol, h: _h });
+      });
+    }
+    workHours = taskWorksTotal; // перезаписываем — теперь трудоёмкость из задачи
+
     html += '<div class="card" style="padding:14px 16px;background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #86efac;border-radius:12px">';
     html += '<div style="font-size:11px;font-weight:800;color:#166534;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🔧 Трудоёмкость работы</div>';
-    if (selectedWork) {
-      html += '<div style="font-size:13px;font-weight:800;color:var(--ink);margin-bottom:4px">' + esc(selectedWork.name) + '</div>';
-      if (selectedWork.group) html += '<div style="font-size:11px;color:var(--muted);margin-bottom:6px">📂 ' + esc(selectedWork.group) + '</div>';
-      html += '<div style="font-size:24px;font-weight:900;color:#15803d;line-height:1">' + (workHours ? fmtH(workHours).replace(' ч','') : '—') + ' <span style="font-size:14px;font-weight:700;color:#166534">чел·ч</span></div>';
-      html += '<div style="font-size:10.5px;color:var(--muted);margin-top:4px">норма из справочника работ</div>';
+    if (taskWorksList.length) {
+      taskWorksList.forEach(function (it, i) {
+        html += '<div style="border-bottom:' + (i < taskWorksList.length - 1 ? '1px dashed #86efac' : 'none') + ';padding:6px 0">';
+        html += '<div style="font-size:12.5px;font-weight:700;color:var(--ink);margin-bottom:2px">' + esc(it.w.name) + '</div>';
+        if (it.w.group) html += '<div style="font-size:10.5px;color:var(--muted);margin-bottom:3px">📂 ' + esc(it.w.group) + '</div>';
+        html += '<div style="font-size:11px;color:var(--txt);display:flex;justify-content:space-between;align-items:baseline"><span>норма ' + (it.w.norm || 0) + ' × объём ' + it.vol + '</span><b style="color:#15803d">' + (it.h ? it.h.toFixed(2).replace('.', ',') + ' ч' : '—') + '</b></div>';
+        html += '</div>';
+      });
+      html += '<div style="border-top:2px solid #86efac;margin-top:8px;padding-top:8px;display:flex;justify-content:space-between;align-items:baseline">';
+      html += '<span style="font-size:11px;font-weight:800;color:#166534">ВСЕГО</span>';
+      html += '<b style="font-size:18px;font-weight:900;color:#15803d">' + (taskWorksTotal ? taskWorksTotal.toFixed(2).replace('.', ',') + ' ч' : '—') + '</b>';
+      html += '</div>';
+      html += '<div style="font-size:10.5px;color:var(--muted);margin-top:6px">из выбранной задачи</div>';
+    } else if (selectedTask) {
+      html += '<div style="font-size:12px;color:var(--muted);padding:14px 0;text-align:center">У задачи не указан вид работ</div>';
     } else {
-      html += '<div style="font-size:12px;color:var(--muted);padding:14px 0;text-align:center">Выберите вид работы ниже</div>';
+      html += '<div style="font-size:12px;color:var(--muted);padding:14px 0;text-align:center">Выберите или создайте задачу</div>';
     }
     html += '</div>';
 
@@ -16075,7 +16230,7 @@
     // Подсказка
     html += '<div class="card" style="margin-top:14px;padding:14px 18px;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;font-size:12.5px;color:var(--txt);line-height:1.5">';
     html += '<div style="font-weight:800;color:var(--ink);margin-bottom:6px">Что дальше</div>';
-    html += 'Когда задача создана — пришлите логику расчёта (вид работы + параметры объекта). Я встрою формулу прямо в этот экран — в реальном времени по мере изменения параметров.';
+    html += 'Когда задача выбрана — пришлите логику расчёта (параметры объекта ГРП/ШРП). Я встрою формулу прямо в этот экран — в реальном времени по мере изменения параметров. Вид работы уже хранится в самой задаче.';
     html += '</div>';
 
     html += '</div>';
@@ -16109,10 +16264,13 @@
                 if (latest) {
                   var d = load();
                   d.taskId = latest.id;
+                  // Автозаполнение трудоёмкости из новой задачи
+                  var _h = (typeof taskHours === 'function') ? taskHours(latest) : 0;
+                  if (_h > 0) d.hours = +_h.toFixed(2);
                   save(d);
                   // Обновим экран testdep
                   renderTestDep();
-                  toast('ok', '✓ Задача создана и подключена к тесту');
+                  toast('ok', '✓ Задача создана и подключена к тесту (' + (_h ? _h.toFixed(2) + ' ч' : 'без нормы') + ')');
                 }
               }
             }, 300);
@@ -16131,6 +16289,18 @@
     if (taskEl) taskEl.addEventListener('change', function () {
       var d = load();
       d.taskId = this.value || null;
+      // Автозаполнение трудоёмкости из задачи (если поле пустое)
+      if (d.taskId) {
+        var _t = null;
+        try {
+          var _tasks = (window.SP_TASKS && SP_TASKS.getTasks) ? SP_TASKS.getTasks() : (S.tasks || []);
+          _t = _tasks.find(function (x) { return x.id === d.taskId; }) || null;
+        } catch (e) {}
+        if (_t) {
+          var _h = (typeof taskHours === 'function') ? taskHours(_t) : 0;
+          if (_h > 0) d.hours = +_h.toFixed(2);
+        }
+      }
       save(d);
       renderTestDep();
     });
@@ -16146,19 +16316,18 @@
     });
 
     function readForm() {
+      // workId больше не нужен в форме — берётся из выбранной задачи
       return {
         taskId: data.taskId || null,
-        workId: document.getElementById('td-work').value,
         hours: parseFloat(document.getElementById('td-hours').value) || 0
       };
     }
     var saveBtn = document.getElementById('td-save');
     if (saveBtn) saveBtn.addEventListener('click', function () {
       var d = readForm();
-      if (!d.workId) { toast('warn', 'Выберите вид работы'); return; }
       if (!d.hours || d.hours <= 0) { toast('warn', 'Укажите трудоёмкость > 0'); return; }
       save(d);
-      toast('ok', '✓ Сохранено в localStorage');
+      toast('ok', '✓ Сохранено в localStorage (smartplan_test_dep)');
     });
     var clrBtn = document.getElementById('td-clear');
     if (clrBtn) clrBtn.addEventListener('click', function () {
@@ -16166,14 +16335,22 @@
       renderTestDep();
       toast('ok', 'Очищено');
     });
-    var fromWorkBtn = document.getElementById('td-from-work');
-    if (fromWorkBtn) fromWorkBtn.addEventListener('click', function () {
-      var wid = document.getElementById('td-work').value;
-      var w = works.find(function (x) { return x.id === wid; });
-      if (!w) { toast('warn', 'Сначала выберите вид работы'); return; }
-      var h = document.getElementById('td-hours');
-      h.value = (w.norm != null ? w.norm : 0);
-      toast('ok', 'Подставлена норма: ' + h.value + ' ч');
+    var fromTaskBtn = document.getElementById('td-from-task');
+    if (fromTaskBtn) fromTaskBtn.addEventListener('click', function () {
+      // Берём трудоёмкость из выбранной задачи (taskHours считает сумму по всем работам × объём)
+      var _t = null;
+      if (data.taskId) {
+        try {
+          var _tasks = (window.SP_TASKS && SP_TASKS.getTasks) ? SP_TASKS.getTasks() : (S.tasks || []);
+          _t = _tasks.find(function (x) { return x.id === data.taskId; }) || null;
+        } catch (e) {}
+      }
+      if (!_t) { toast('warn', 'Сначала выберите задачу'); return; }
+      var h = (typeof taskHours === 'function') ? taskHours(_t) : 0;
+      if (!h || h <= 0) { toast('warn', 'У задачи не указан вид работ или норма = 0'); return; }
+      var inp = document.getElementById('td-hours');
+      inp.value = h.toFixed(2);
+      toast('ok', 'Пересчитано из задачи: ' + h.toFixed(2) + ' ч');
     });
   }
   function renderTestLeafletMap(canvas, points, base, provider, inactive) {
@@ -17365,6 +17542,87 @@
 
   /* ТЕСТ: оптимизация маршрута — «ближайший сосед» → OSRM Trip с многостартовой
      оптимизацией (или официальный роутер Яндекса при ключе), затем пробки. */
+  // === СРАВНЕНИЕ 4 БЕСПЛАТНЫХ РОУТЕРОВ (тест проезда) ===
+  // Параллельный опрос 4 источников и показ результатов в панели под картой.
+  // Не конфликтует с основной кнопкой «Оптимизация маршрутов» — отдельная панель.
+  function buildTestRouteCompare() {
+    var sel = (tState.pts || []).filter(function (p) { return p.lat != null; });
+    var base = currentBase();
+    if (!sel.length) { toast('warn', 'Выберите хотя бы одно задание с координатами'); return; }
+    var pts = sel.map(function (p) { return { id: p.id, lat: p.lat, lng: p.lng, addr: p.addr }; });
+
+    // Найдём или создадим панель сравнения
+    var panel = document.getElementById('t-compare-panel');
+    if (!panel) {
+      panel = document.createElement('div');
+      panel.id = 't-compare-panel';
+      panel.style.cssText = 'margin-top:10px;padding:12px 16px;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 2px 8px rgba(15,39,64,.06);font-size:12px';
+      var statsEl = document.getElementById('t-map-stats');
+      if (statsEl && statsEl.parentNode) statsEl.parentNode.insertBefore(panel, statsEl.nextSibling);
+    }
+    panel.innerHTML = '<div style="font-weight:800;color:#0f2740;margin-bottom:8px;display:flex;align-items:center;gap:6px">' +
+      '<span style="font-size:14px">🔀</span> Сравнение бесплатных роутеров <span style="font-weight:600;color:var(--muted);font-size:11px">(4 источника)</span></div>' +
+      '<div id="t-compare-list" style="display:flex;flex-direction:column;gap:5px"></div>';
+    var listEl = document.getElementById('t-compare-list');
+    function renderRow(r, isNew) {
+      var icon = r.by === 'osrm-demo' ? '🟦' : r.by === 'fossgis' ? '🟩' : r.by === 'valhalla-public' ? '🟧' : '⬜';
+      var name = r.by === 'osrm-demo' ? 'OSRM demo' :
+                 r.by === 'fossgis' ? 'FOSSGIS OSRM' :
+                 r.by === 'valhalla-public' ? 'Valhalla public' : 'Прямая ×1.4';
+      var url = r.by === 'osrm-demo' ? 'https://router.project-osrm.org' :
+                r.by === 'fossgis' ? 'https://routing.openstreetmap.de/routed-car' :
+                r.by === 'valhalla-public' ? 'https://valhalla1.openstreetmap.de' : '';
+      var okMark = r.ok ? '' : ' ⚠';
+      var kmStr = r.ok ? r.km.toFixed(1).replace('.', ',') + ' км' : '—';
+      var minStr = r.ok ? fmtDuration(r.min) : (r.msg || 'нет');
+      var bar = isNew ? 'animation:tp 0.4s' : '';
+      var row = '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 10px;background:var(--panel-2);border-radius:6px;' + bar + '">' +
+        '<span>' + icon + ' <b>' + name + '</b>' + okMark +
+        (url ? ' <a href="' + url + '" target="_blank" rel="noopener" style="font-size:10px;color:#94a3b8;text-decoration:none;margin-left:6px" title="Открыть сервис">↗</a>' : '') + '</span>' +
+        '<span><b>' + kmStr + '</b> · ' + minStr + '</span></div>';
+      if (isNew) listEl.insertAdjacentHTML('beforeend', row);
+      else listEl.innerHTML += row;
+    }
+
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    renderRow({ by: 'pending', ok: false, msg: '⏳ опрашиваем...' }, true);
+    setTimeout(function () {
+      var rows = listEl.querySelectorAll('div');
+      if (rows.length) rows[0].remove();
+    }, 100);
+
+    var allResults = [];
+    function onResult(r) {
+      allResults.push(r);
+      renderRow(r, true);
+      if (allResults.length === 4) {
+        // Сортируем по расстоянию (меньше = лучше)
+        allResults.sort(function (a, b) { return (a.ok ? a.km : 9999) - (b.ok ? b.km : 9999); });
+        // Подсветим лучший
+        var listRows = listEl.querySelectorAll('div');
+        var bestRow = null;
+        listRows.forEach(function (row) {
+          var text = row.textContent;
+          if (text.indexOf(allResults[0].by === 'osrm-demo' ? 'OSRM demo' :
+                            allResults[0].by === 'fossgis' ? 'FOSSGIS OSRM' :
+                            allResults[0].by === 'valhalla-public' ? 'Valhalla public' : 'Прямая ×1.4') !== -1) {
+            row.style.background = '#dcfce7';
+            row.style.borderLeft = '3px solid #16a34a';
+            if (!bestRow) {
+              bestRow = row;
+              var badge = '<div style="margin-top:8px;padding:6px 10px;background:#dcfce7;border-radius:6px;font-size:11.5px;color:#15803d;font-weight:700">✅ Лучший маршрут: ' + (allResults[0].km.toFixed(1).replace('.', ',') + ' км · ' + fmtDuration(allResults[0].min)) + '</div>';
+              listEl.insertAdjacentHTML('beforeend', badge);
+            }
+          }
+        });
+      }
+    }
+    fetchStraightLineRoute(pts, base, onResult);
+    fetchOSRMRouteGeometry('osrm', pts, base, function (r) { r.by = 'osrm-demo'; onResult(r); });
+    fetchFossgisOSRM(pts, base, onResult);
+    fetchValhallaPublic(pts, base, onResult);
+  }
+
   function buildTestRoute(noJam) {
     TS.noJam = !!noJam;
     var btn = document.getElementById('t-btn-build-route');
@@ -17381,6 +17639,10 @@
     if (ri) ri.textContent = '⏳ Оптимизируем порядок объезда…';
     var pts = sel.map(function (p) { return { id: p.id, lat: p.lat, lng: p.lng, addr: p.addr }; });
     function restoreBtn() { if (btn) { btn.disabled = false; btn.style.opacity = ''; btn.innerHTML = btnHtml; } }
+    // Отдельная кнопка «🔀 Сравнить роутеры» (рядом с «Оптимизация маршрутов»).
+    // Запускает параллельный опрос 4 бесплатных источников и показывает
+    // результаты в отдельной панели сравнения (не конфликтует с основным маршрутом).
+
 
     // === ШАГ 1: стартовый порядок — «ближайший сосед» (база → ближайшая точка →
     // ближайшая к прошлой → … → база). Дорожный расчёт (OSRM Trip) затем

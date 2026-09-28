@@ -1019,6 +1019,7 @@
 .wx-map-fab:active{transform:translateY(0)}
 @media(max-width:767px){.wx-map-fab{padding:6px 11px;font-size:11px}}
 @media(max-width:767px){#wx-map-window{inset:8px}}
+@keyframes tp{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
 </style>
 </head>
 <body>
@@ -1051,7 +1052,7 @@
           <div style="margin-top:6px;font-size:11px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-39 · в тесте зависимости добавлена правая панель «Итого»: трудоёмкость работы + расстояние/время от базы (по прямой × 1.4) — без пробок / с пробками. Координаты берутся из объекта справочника ГРП/ШРП или из задачи.</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-42 · в тесте проезда добавлена кнопка «🔀 Сравнить» — параллельный опрос 4 бесплатных роутеров (OSRM demo, FOSSGIS OSRM, Valhalla public, прямая ×1.4). Результаты появляются по мере готовности, лучший маршрут подсвечивается.</div>
     </div>
   </div>
   </div>
@@ -1095,7 +1096,7 @@
       <a data-screen="users"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>Пользователи</a>
       <a data-screen="logs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/><path d="M3 12h2M19 12h2M12 3v2M12 19v2"/></svg>Журнал действий</a>
       <a data-screen="errlogs" title="Логи ошибок приложения и API"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>Логи ошибок</a>
-      <a data-screen="testmap" title="Полигон: копия «Карта маршрутов» для тестов"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3v6l-5.2 8.3A2 2 0 005.5 20h13a2 2 0 001.7-2.7L15 9V3"/><path d="M8 3h8M7.5 14h9"/></svg>Тест</a>
+      <a data-screen="testmap" title="Полигон: тест проезда между объектами — карта маршрутов + оптимизация + пробки + Google Maps"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3v6l-5.2 8.3A2 2 0 005.5 20h13a2 2 0 001.7-2.7L15 9V3"/><path d="M8 3h8M7.5 14h9"/></svg>Тест проезда</a>
       <a data-screen="testdep" title="Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3z"/><path d="M3 9h18M9 21V9"/></svg>Тест зависимости</a>
     </nav>
     <div class="sb-foot">УП «МИНГАЗ» · v0.9 прототип<br>© 2026 SmartPlan</div>
