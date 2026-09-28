@@ -775,7 +775,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-62 · основная карта: 🚦 Пробки + BRouter trekking + закрытия удалены + чистка мёртвого кода + графики смен'],
+    objmap: ['Карта объектов', 'Сборка 22.09-64 · графики смен: цикл общий на бригаду, из карточки работника убран'],
     testmap: ['Тест проезда', 'Полигон: карта маршрутов + оптимизация + пробки + Google Maps (копия «Карты маршрутов» для экспериментов)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -8855,8 +8855,9 @@
     s += '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px">';
     s += '<label style="' + wkLblCss + '">Время<select data-wk="hours" data-uid="' + esc(u.id) + '"' + dis + ' style="' + wkFieldCss + '"><option value="8"' + (wd.hours !== 12 ? ' selected' : '') + '>8 часов</option><option value="12"' + (wd.hours === 12 ? ' selected' : '') + '>12 часов</option></select></label>';
     s += '<label style="' + wkLblCss + '">График<select data-wk="sched" data-uid="' + esc(u.id) + '"' + dis + ' style="' + wkFieldCss + '"><option value="5/2"' + (wd.sched !== '2/2' ? ' selected' : '') + '>5/2</option><option value="2/2"' + (wd.sched === '2/2' ? ' selected' : '') + '>2/2</option></select></label>';
+    // Цикл 2/2 — общий на бригаду, меняется в шапке бригады на странице «Работники».
     if (wd.sched === '2/2') {
-      s += '<label style="' + wkLblCss + '" title="Первый рабочий день цикла (2 рабочих, 2 выходных)">Цикл с<input type="date" data-wk="cycle" data-uid="' + esc(u.id) + '" value="' + esc(wd.cycle || '2026-01-05') + '"' + dis + ' style="' + wkFieldCss + '"></label>';
+      s += '<div style="font-size:11px;color:var(--muted);font-weight:700;padding:4px 0;margin-top:-2px">Цикл 2/2 — общий на бригаду, меняется в шапке бригады</div>';
     }
     if (isSlesar) {
       s += '<label style="' + wkLblCss + '">Бригада<select data-wk="brigade" data-uid="' + esc(u.id) + '"' + dis + ' style="' + wkFieldCss + '">';
@@ -8889,7 +8890,6 @@
           patch.sched = (patch.hours === 12) ? '2/2' : '5/2';
         }
         else if (f === 'sched') patch.sched = inp.value;
-        else if (f === 'cycle') patch.cycle = inp.value;
         else if (f === 'brigade') patch.brigade = inp.value || null;
         if (window.SP_WORKERS) SP_WORKERS.setWorker(uid, patch);
         toast('ok', '✓ Сохранено');
@@ -8956,15 +8956,22 @@
       html += '<div data-wk-drop="' + esc(m.id) + '" style="margin-bottom:16px;border:1px dashed var(--line);border-radius:14px;padding:10px;transition:outline-color .15s">';
       html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap"><span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">👷 Бригада мастера ' + esc(m.full_name) + (members.length ? ' · ' + (members.length + 1) + ' чел.' : '') + '</span>';
       html += '<span style="font-size:10.5px;color:#94a3b8">⇩ перетащите сюда карточку слесаря</span>';
-      // Быстрая замена времени и графика ВСЕЙ бригаде (мастер + его работники)
+      // Быстрая замена времени, графика и цикла ВСЕЙ бригаде (мастер + его работники)
       if (members.length) {
         var _wdm = wkData(m.id);
         var _bdis = wkCanEdit(m) ? '' : ' disabled';
         html += '<span style="margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap" title="Замена сразу всем работникам бригады">';
         html += '<label style="font-size:10.5px;color:var(--muted);font-weight:700">Время: <select data-wkbrig="hours" data-uid="' + esc(m.id) + '"' + _bdis + ' style="padding:3px 6px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:11px;background:var(--card);font-weight:700"><option value="8"' + (_wdm.hours !== 12 ? ' selected' : '') + '>8 ч</option><option value="12"' + (_wdm.hours === 12 ? ' selected' : '') + '>12 ч</option></select></label>';
         html += '<label style="font-size:10.5px;color:var(--muted);font-weight:700">График: <select data-wkbrig="sched" data-uid="' + esc(m.id) + '"' + _bdis + ' style="padding:3px 6px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:11px;background:var(--card);font-weight:700"><option value="5/2"' + (_wdm.sched !== '2/2' ? ' selected' : '') + '>5/2</option><option value="2/2"' + (_wdm.sched === '2/2' ? ' selected' : '') + '>2/2</option></select></label>';
+        // Цикл — показываем только при 2/2 (для 5/2 цикл не имеет смысла)
+        if (_wdm.sched === '2/2') {
+          html += '<label style="font-size:10.5px;color:var(--muted);font-weight:700" title="Первый рабочий день цикла (2 раб / 2 вых)">Цикл с: <input type="date" data-wkbrig="cycle" data-uid="' + esc(m.id) + '" value="' + esc(_wdm.cycle || '2026-01-05') + '"' + _bdis + ' style="padding:3px 6px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:11px;background:var(--card);font-weight:700"></label>';
+        }
         html += '</span>';
       }
+      // Кнопка «Полный график» — доступна и для одиночного мастера (распечатать свой график)
+      var _bdis2 = wkCanEdit(m) ? '' : ' disabled';
+      html += '<button type="button" class="btn sm" data-action="brig-full-schedule" data-uid="' + esc(m.id) + '" title="Открыть полный график бригады на месяц или год — можно распечатать или скачать в Excel"' + _bdis2 + ' style="margin-left:auto;padding:3px 8px;font-size:11px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;border-color:#0284c7">📆 Полный график</button>';
       html += '</div>';
       html += '<div style="display:flex;flex-wrap:wrap;gap:10px">';
       html += wkCardHtml(m, masters);
@@ -8990,29 +8997,40 @@
     html += '</div></div>';
     v.innerHTML = html;
     wireWkDnD(v);
-    // Быстрые «Время»/«График» в заголовке бригады — замена сразу всей бригаде
-    v.querySelectorAll('select[data-wkbrig]').forEach(function (sel) {
-      sel.addEventListener('change', function () {
-        var mid = sel.getAttribute('data-uid'), f = sel.getAttribute('data-wkbrig');
+    // Быстрые «Время»/«График»/«Цикл» в заголовке бригады — замена сразу всей бригаде
+    v.querySelectorAll('[data-wkbrig]').forEach(function (el) {
+      var evt = el.tagName === 'SELECT' ? 'change' : 'change';
+      el.addEventListener(evt, function () {
+        var mid = el.getAttribute('data-uid'), f = el.getAttribute('data-wkbrig');
         var mu = DB.getUser(mid);
         if (!mu || !wkCanEdit(mu)) { toast('err', 'Нет прав: только свой участок'); renderWorkers(); return; }
         var brig = wkBrigadeOf(mid).filter(function (s) { return wkCanEdit(s); });
         var patch = {};
         if (f === 'hours') {
-          patch.hours = parseInt(sel.value, 10) || 8;
+          patch.hours = parseInt(el.value, 10) || 8;
           // 8 ч → 5/2, 12 ч → 2/2 (автоматически всей бригаде);
           // при 2/2 цикл мастера уходит бригаде вместе с графиком
           patch.sched = (patch.hours === 12) ? '2/2' : '5/2';
           if (patch.sched === '2/2') patch.cycle = wkData(mid).cycle || '2026-01-05';
         }
-        else if (f === 'sched') { patch.sched = sel.value; patch.cycle = wkData(mid).cycle || '2026-01-05'; } // цикл мастера уходит бригаде вместе с графиком
+        else if (f === 'sched') { patch.sched = el.value; patch.cycle = wkData(mid).cycle || '2026-01-05'; } // цикл мастера уходит бригаде вместе с графиком
+        else if (f === 'cycle') {
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(el.value)) { toast('err', 'Некорректная дата цикла'); renderWorkers(); return; }
+          patch.cycle = el.value;
+          // Цикл сам по себе — оставляем график как есть (если у бригады 5/2, поле просто неактивно в UI)
+        }
         if (window.SP_WORKERS) {
           SP_WORKERS.setWorker(mid, patch);
           brig.forEach(function (s) { SP_WORKERS.setWorker(s.id, patch); });
         }
-        toast('ok', '✓ ' + (f === 'hours' ? 'Время' : 'График') + ' заменено всей бригаде — ' + (brig.length + 1) + ' чел.');
+        var label = (f === 'hours' ? 'Время' : f === 'sched' ? 'График' : 'Цикл');
+        toast('ok', '✓ ' + label + ' заменено всей бригаде — ' + (brig.length + 1) + ' чел.');
         renderWorkers();
       });
+    });
+    // Кнопка «Полный график бригады» — открывает большой оверлей
+    v.querySelectorAll('[data-action="brig-full-schedule"]').forEach(function (b) {
+      b.addEventListener('click', function () { openBrigadeFullSchedule(b.getAttribute('data-uid')); });
     });
   }
 
@@ -9150,7 +9168,9 @@
     var html = '<tr style="background:' + bg + '">';
     html += '<td style="position:sticky;left:0;background:' + bg + ';z-index:1;padding:6px 8px;border-bottom:1px solid var(--line);font-weight:800;color:var(--ink);white-space:nowrap;min-width:200px">' +
       '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + (master.color || '#94a3b8') + ';margin-right:6px"></span>' +
-      '👷 ' + esc(master.full_name) + ' <span style="color:var(--muted);font-weight:700;font-size:10px">· ' + wd.hours + ' ч · ' + wd.sched + (wd.sched === '2/2' ? ' (' + esc(wd.cycle) + ')' : '') + '</span></td>';
+      '👷 ' + esc(master.full_name) + ' <span style="color:var(--muted);font-weight:700;font-size:10px">· ' + wd.hours + ' ч · ' + wd.sched + (wd.sched === '2/2' ? ' (' + esc(wd.cycle) + ')' : '') + '</span> ' +
+      '<button type="button" class="btn sm" data-action="brig-full-schedule" data-uid="' + esc(master.id) + '" title="Открыть полный график бригады (месяц/год, печать, Excel)" style="margin-left:6px;padding:2px 7px;font-size:10px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;border-color:#0284c7">📆</button>' +
+      '</td>';
     for (var li = 0; li < lead; li++) html += '<td style="border-bottom:1px solid var(--line)"></td>';
     var wOrAbs = 0, wOff = 0, wAbs = 0;
     for (var dd = 1; dd <= dim; dd++) {
@@ -9235,6 +9255,359 @@
     });
     var sel = v.querySelector('select[data-action="sch-mode"]');
     if (sel) sel.addEventListener('change', function () { S.schMode = sel.value; renderSchedules(); });
+    // Кнопка «Полный график» в строке бригады (тоже самое, что в «Работниках»)
+    v.querySelectorAll('[data-action="brig-full-schedule"]').forEach(function (b) {
+      b.addEventListener('click', function () { openBrigadeFullSchedule(b.getAttribute('data-uid')); });
+    });
+  }
+
+  /* ===== ПОЛНОЭКРАННЫЙ ГРАФИК БРИГАДЫ (месяц / год) =====
+     Оверлей на весь экран. Кнопки: печать (window.print) + скачать в Excel (xlsx).
+     Те же ячейки-цвета, что в основной таблице графиков смен, но крупно. */
+  function openBrigadeFullSchedule(masterId) {
+    var master = DB.getUser(masterId);
+    if (!master) return;
+    var members = wkBrigadeOf(masterId);
+    var canEdit = wkCanEdit(master);
+    var initialRange = S.brigFullRange || 'month';
+
+    var overlay = document.createElement('div');
+    overlay.id = 'brig-full-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:2000;display:flex;align-items:stretch;justify-content:stretch;padding:14px';
+    overlay.innerHTML =
+      '<div style="background:var(--card);border-radius:14px;flex:1;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.45)">' +
+        // Шапка оверлея
+        '<div id="brig-full-head" style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap">' +
+          '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + (master.color || '#94a3b8') + '"></span>' +
+          '<b style="font-size:14.5px;color:var(--ink)">Полный график — бригада ' + esc(master.full_name) + '</b>' +
+          '<span class="sub" style="font-size:11px">' + (members.length + 1) + ' чел.</span>' +
+          '<span style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap">' +
+            '<button type="button" class="btn sm" data-action="bfs-prev" title="Назад">‹</button>' +
+            '<select data-action="bfs-mode" style="padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:11.5px;font-weight:700;background:var(--card)">' +
+              '<option value="month"' + (initialRange === 'month' ? ' selected' : '') + '>Месяц</option>' +
+              '<option value="year"' + (initialRange === 'year' ? ' selected' : '') + '>Год</option>' +
+            '</select>' +
+            '<b data-action="bfs-label" style="font-size:13px;color:var(--ink);min-width:140px;text-align:center"></b>' +
+            '<button type="button" class="btn sm" data-action="bfs-next" title="Вперёд">›</button>' +
+            '<span style="width:1px;height:22px;background:var(--line);margin:0 4px"></span>' +
+            '<button type="button" class="btn sm" data-action="bfs-print" title="Печать" style="background:#475569;color:#fff;border-color:#475569">🖨 Печать</button>' +
+            '<button type="button" class="btn sm" data-action="bfs-excel" title="Скачать в Excel" style="background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border-color:#15803d">📥 Excel</button>' +
+            '<button type="button" class="btn sm" data-action="bfs-close" title="Закрыть" style="background:#dc2626;color:#fff;border-color:#dc2626">✕ Закрыть</button>' +
+          '</span>' +
+        '</div>' +
+        // Тело — таблица графика
+        '<div id="brig-full-body" style="flex:1;overflow:auto;padding:14px"></div>' +
+      '</div>';
+
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) closeBrigadeFullSchedule(); });
+    overlay.querySelector('[data-action="bfs-close"]').addEventListener('click', closeBrigadeFullSchedule);
+    overlay.querySelector('[data-action="bfs-mode"]').addEventListener('change', function (e) {
+      S.brigFullRange = e.target.value;
+      renderBrigFullBody(master, members, canEdit);
+    });
+    overlay.querySelector('[data-action="bfs-prev"]').addEventListener('click', function () {
+      brigFullShift(-1); renderBrigFullBody(master, members, canEdit);
+    });
+    overlay.querySelector('[data-action="bfs-next"]').addEventListener('click', function () {
+      brigFullShift(1); renderBrigFullBody(master, members, canEdit);
+    });
+    overlay.querySelector('[data-action="bfs-print"]').addEventListener('click', function () { brigFullPrint(master, members, canEdit); });
+    overlay.querySelector('[data-action="bfs-excel"]').addEventListener('click', function () { brigFullExcel(master, members, canEdit); });
+    // ESC закрывает
+    var escH = function (e) { if (e.key === 'Escape') { closeBrigadeFullSchedule(); document.removeEventListener('keydown', escH); } };
+    document.addEventListener('keydown', escH);
+    S.brigFullMaster = masterId;
+    S.brigFullAnchor = S.brigFullAnchor || TODAY.toISOString().slice(0, 10); // первая точка диапазона
+    renderBrigFullBody(master, members, canEdit);
+  }
+
+  function closeBrigadeFullSchedule() {
+    var ov = document.getElementById('brig-full-overlay');
+    if (ov) ov.remove();
+  }
+
+  function brigFullShift(dn) {
+    // anchor сдвигаем на ±1 месяц или ±1 год
+    var mode = S.brigFullRange || 'month';
+    var parts = (S.brigFullAnchor || key(TODAY)).split('-');
+    var d = new Date(+parts[0], +parts[1] - 1, +parts[2]);
+    if (mode === 'month') d.setMonth(d.getMonth() + dn);
+    else d.setFullYear(d.getFullYear() + dn);
+    S.brigFullAnchor = d.toISOString().slice(0, 10);
+  }
+
+  function brigFullGetRange() {
+    var mode = S.brigFullRange || 'month';
+    var parts = (S.brigFullAnchor || key(TODAY)).split('-');
+    var y = +parts[0], m = +parts[1] - 1;
+    if (mode === 'month') {
+      var dim = new Date(y, m + 1, 0).getDate();
+      return { mode: 'month', y: y, m: m, dim: dim, label: MON_NOM[m] + ' ' + y };
+    }
+    return { mode: 'year', y: y, label: String(y) };
+  }
+
+  function renderBrigFullBody(master, members, canEdit) {
+    var body = document.getElementById('brig-full-body');
+    var headLabel = document.querySelector('[data-action="bfs-label"]');
+    if (!body) return;
+    var range = brigFullGetRange();
+    if (headLabel) headLabel.textContent = range.label;
+    if (range.mode === 'month') {
+      body.innerHTML = brigFullMonthTable(master, members, canEdit, range);
+    } else {
+      body.innerHTML = brigFullYearTable(master, members, canEdit, range);
+    }
+  }
+
+  function brigFullMonthTable(master, members, canEdit, range) {
+    var dim = range.dim;
+    var lead = (new Date(range.y, range.m, 1).getDay() + 6) % 7;
+    var all = [master].concat(members);
+    var colW = 28;
+    var html = '<div id="bfs-printable">';
+    html += '<div style="display:flex;gap:14px;align-items:center;font-size:11px;color:var(--muted);margin-bottom:10px;flex-wrap:wrap;font-weight:700">' +
+      '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#dcfce7;border:1px solid #16a34a"></span>рабочий по графику</span>' +
+      '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#f1f5f9;border:1px solid #cbd5e1"></span>выходной</span>' +
+      '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#fee2e2;border:1px solid #dc2626"></span>отсутствие</span>' +
+      '<span style="margin-left:auto;color:var(--ink);font-size:13px"><b>Бригада:</b> ' + esc(master.full_name) + ' · <b>Месяц:</b> ' + range.label + ' · <b>Сотрудников:</b> ' + all.length + '</span>' +
+      '</div>';
+    html += '<table style="border-collapse:separate;border-spacing:0;width:auto;font-size:11px;background:var(--card);border:1px solid var(--line);border-radius:8px;overflow:hidden">';
+    html += '<thead><tr style="background:var(--panel-2)">';
+    html += '<th style="position:sticky;left:0;background:var(--panel-2);z-index:2;padding:8px 10px;text-align:left;font-size:12px;color:var(--ink);min-width:240px;border-bottom:1px solid var(--line)">Сотрудник</th>';
+    for (var li = 0; li < lead; li++) html += '<th style="width:' + colW + 'px;border-bottom:1px solid var(--line)"></th>';
+    for (var dd = 1; dd <= dim; dd++) {
+      var dtH = new Date(range.y, range.m, dd);
+      var dowH = dtH.getDay();
+      var isWeH = dowH === 0 || dowH === 6;
+      var isTodayH = sameDay(dtH, TODAY);
+      html += '<th style="width:' + colW + 'px;padding:4px 0;font-size:11px;font-weight:800;color:' + (isWeH ? '#94a3b8' : 'var(--muted)') + ';border-bottom:1px solid var(--line);text-align:center;' + (isTodayH ? 'background:rgba(37,99,235,.1);' : '') + '">' + dd + '</th>';
+    }
+    // Итог
+    html += '<th style="padding:4px 8px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--line);text-align:center;background:var(--panel-2)">раб</th>';
+    html += '<th style="padding:4px 8px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--line);text-align:center;background:var(--panel-2)">вых</th>';
+    html += '<th style="padding:4px 8px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--line);text-align:center;background:var(--panel-2)">отс</th>';
+    html += '</tr></thead><tbody>';
+    all.forEach(function (u, rowIdx) {
+      var isM = u.id === master.id;
+      html += '<tr>';
+      html += '<td style="position:sticky;left:0;background:var(--card);z-index:1;padding:6px 10px;border-bottom:1px solid var(--line);color:var(--ink);white-space:nowrap;min-width:240px;font-weight:' + (isM ? '800' : '600') + '">' +
+        '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:' + (u.color || '#94a3b8') + ';margin-right:6px"></span>' +
+        esc(u.full_name) + (isM ? ' <span style="color:var(--muted);font-weight:700;font-size:10px">(мастер)</span>' : '') + '</td>';
+      for (var li = 0; li < lead; li++) html += '<td style="border-bottom:1px solid var(--line)"></td>';
+      var w = 0, o = 0, a = 0;
+      for (var dd = 1; dd <= dim; dd++) {
+        var ds = range.y + '-' + String(range.m + 1).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
+        var st = wkDayState(u.id, ds);
+        var bg2 = st === 'work' ? '#dcfce7' : (st === 'abs' ? '#fee2e2' : '#f1f5f9');
+        var bd2 = st === 'work' ? '#16a34a' : (st === 'abs' ? '#dc2626' : '#cbd5e1');
+        if (st === 'work') w++; else if (st === 'abs') a++; else o++;
+        html += '<td title="' + esc(ds) + ' · ' + (st === 'work' ? 'рабочий' : st === 'abs' ? 'отсутствие' : 'выходной') + '" style="width:' + colW + 'px;height:24px;padding:0;background:' + bg2 + ';border-left:1px solid ' + bd2 + ';border-bottom:1px solid var(--line)"></td>';
+      }
+      html += '<td style="padding:4px 8px;font-weight:800;color:#16a34a;text-align:center;background:var(--card);border-bottom:1px solid var(--line)">' + w + '</td>';
+      html += '<td style="padding:4px 8px;font-weight:800;color:#94a3b8;text-align:center;background:var(--card);border-bottom:1px solid var(--line)">' + o + '</td>';
+      html += '<td style="padding:4px 8px;font-weight:800;color:#dc2626;text-align:center;background:var(--card);border-bottom:1px solid var(--line)">' + a + '</td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    html += '</div>';
+    return html;
+  }
+
+  function brigFullYearTable(master, members, canEdit, range) {
+    var y = range.y;
+    var all = [master].concat(members);
+    // Сетка: столбец «Сотрудник» + 12 столбцов-месяцев. В каждом месяце — рабочих/выходных/отс.
+    var html = '<div id="bfs-printable">';
+    html += '<div style="margin-bottom:10px;font-size:12px;color:var(--ink)"><b>Бригада:</b> ' + esc(master.full_name) + ' · <b>Год:</b> ' + y + ' · <b>Сотрудников:</b> ' + all.length + '</div>';
+    html += '<table style="border-collapse:separate;border-spacing:0;width:auto;font-size:11px;background:var(--card);border:1px solid var(--line);border-radius:8px;overflow:hidden">';
+    html += '<thead><tr style="background:var(--panel-2)">';
+    html += '<th rowspan="2" style="position:sticky;left:0;background:var(--panel-2);z-index:2;padding:8px 10px;text-align:left;font-size:12px;color:var(--ink);min-width:240px;border-bottom:1px solid var(--line);border-right:1px solid var(--line)">Сотрудник</th>';
+    for (var mm = 0; mm < 12; mm++) {
+      html += '<th colspan="3" style="padding:4px 8px;font-size:11px;color:var(--ink);border-bottom:1px solid var(--line);border-left:1px solid var(--line);text-align:center;font-weight:800">' + MON_NOM[mm] + '</th>';
+    }
+    html += '</tr><tr style="background:var(--panel-2)">';
+    for (var mm2 = 0; mm2 < 12; mm2++) {
+      html += '<th style="padding:3px 4px;font-size:9.5px;color:#16a34a;border-bottom:1px solid var(--line);border-left:1px solid var(--line);min-width:42px">раб</th>';
+      html += '<th style="padding:3px 4px;font-size:9.5px;color:#94a3b8;border-bottom:1px solid var(--line);min-width:42px">вых</th>';
+      html += '<th style="padding:3px 4px;font-size:9.5px;color:#dc2626;border-bottom:1px solid var(--line);min-width:42px">отс</th>';
+    }
+    html += '</tr></thead><tbody>';
+    var yearTotals = { work: 0, off: 0, abs: 0 };
+    all.forEach(function (u, rowIdx) {
+      var isM = u.id === master.id;
+      html += '<tr>';
+      html += '<td style="position:sticky;left:0;background:var(--card);z-index:1;padding:6px 10px;border-bottom:1px solid var(--line);color:var(--ink);white-space:nowrap;min-width:240px;font-weight:' + (isM ? '800' : '600') + ';border-right:1px solid var(--line)">' +
+        '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:' + (u.color || '#94a3b8') + ';margin-right:6px"></span>' +
+        esc(u.full_name) + (isM ? ' <span style="color:var(--muted);font-weight:700;font-size:10px">(мастер)</span>' : '') + '</td>';
+      var rowW = 0, rowO = 0, rowA = 0;
+      for (var mm3 = 0; mm3 < 12; mm3++) {
+        var dim = new Date(y, mm3 + 1, 0).getDate();
+        var mw = 0, mo = 0, ma = 0;
+        for (var dd = 1; dd <= dim; dd++) {
+          var ds = y + '-' + String(mm3 + 1).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
+          var st = wkDayState(u.id, ds);
+          if (st === 'work') mw++; else if (st === 'abs') ma++; else mo++;
+        }
+        rowW += mw; rowO += mo; rowA += ma;
+        html += '<td style="padding:4px;font-weight:800;color:#16a34a;text-align:center;border-left:1px solid var(--line);border-bottom:1px solid var(--line)">' + mw + '</td>';
+        html += '<td style="padding:4px;font-weight:800;color:#94a3b8;text-align:center;border-bottom:1px solid var(--line)">' + mo + '</td>';
+        html += '<td style="padding:4px;font-weight:800;color:#dc2626;text-align:center;border-bottom:1px solid var(--line)">' + ma + '</td>';
+      }
+      html += '</tr>';
+      yearTotals.work += rowW; yearTotals.off += rowO; yearTotals.abs += rowA;
+    });
+    // Итог по бригаде за год
+    html += '<tr style="background:var(--panel-2)">';
+    html += '<td style="position:sticky;left:0;background:var(--panel-2);z-index:1;padding:6px 10px;font-weight:800;color:var(--ink);border-right:1px solid var(--line);border-top:2px solid var(--line)">ИТОГО бригада</td>';
+    // Пересчитаем по бригаде (все члены суммарно)
+    var yrTotals = { work: 0, off: 0, abs: 0 };
+    for (var mm4 = 0; mm4 < 12; mm4++) {
+      var dim = new Date(y, mm4 + 1, 0).getDate();
+      var mw = 0, mo = 0, ma = 0;
+      for (var dd = 1; dd <= dim; dd++) {
+        var ds = y + '-' + String(mm4 + 1).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
+        all.forEach(function (u) {
+          var st = wkDayState(u.id, ds);
+          if (st === 'work') mw++; else if (st === 'abs') ma++; else mo++;
+        });
+      }
+      yrTotals.work += mw; yrTotals.off += mo; yrTotals.abs += ma;
+      html += '<td style="padding:4px;font-weight:800;color:#16a34a;text-align:center;border-left:1px solid var(--line);border-top:2px solid var(--line)">' + mw + '</td>';
+      html += '<td style="padding:4px;font-weight:800;color:#94a3b8;text-align:center;border-top:2px solid var(--line)">' + mo + '</td>';
+      html += '<td style="padding:4px;font-weight:800;color:#dc2626;text-align:center;border-top:2px solid var(--line)">' + ma + '</td>';
+    }
+    html += '</tr>';
+    html += '</tbody></table>';
+    // Итог за год
+    html += '<div style="margin-top:12px;display:flex;gap:14px;align-items:center;font-size:12px;color:var(--ink);flex-wrap:wrap;font-weight:700">' +
+      '<span>Итого за ' + y + ' год (вся бригада):</span>' +
+      '<span style="color:#16a34a">● ' + yrTotals.work + ' рабочих</span>' +
+      '<span style="color:#94a3b8">● ' + yrTotals.off + ' выходных</span>' +
+      '<span style="color:#dc2626">● ' + yrTotals.abs + ' отсутствий</span>' +
+      '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  // Печать: открываем новое окно с упрощённой HTML-таблицей и зовём window.print
+  function brigFullPrint(master, members, canEdit) {
+    var printable = document.getElementById('bfs-printable');
+    if (!printable) return;
+    var range = brigFullGetRange();
+    var w = window.open('', '_blank');
+    if (!w) { toast('err', 'Разрешите всплывающие окна для печати'); return; }
+    var title = 'График — бригада ' + master.full_name + ' (' + range.label + ')';
+    var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(title) + '</title>' +
+      '<style>body{font-family:Arial,sans-serif;color:#000;padding:14px} h1{font-size:16px;margin:0 0 8px} .legend{display:flex;gap:14px;margin-bottom:10px;font-size:11px} .legend span{display:inline-flex;gap:5px;align-items:center} .legend i{display:inline-block;width:14px;height:14px;border-radius:3px;border:1px solid #888} table{border-collapse:collapse;width:100%} th,td{border:1px solid #999;padding:4px;text-align:center;font-size:10px} th{background:#e2e8f0} td.stick{background:#f8fafc;text-align:left;white-space:nowrap;font-weight:700} .work{background:#dcfce7}.off{background:#f1f5f9}.abs{background:#fee2e2;color:#7f1d1d} @media print{.no-print{display:none} body{padding:6mm}}</style>' +
+      '</head><body>';
+    html += '<h1>' + esc(title) + '</h1>';
+    html += '<div class="legend"><span><i style="background:#dcfce7"></i>рабочий</span><span><i style="background:#f1f5f9"></i>выходной</span><span><i style="background:#fee2e2"></i>отсутствие</span><span style="margin-left:auto">Печать: ' + esc(new Date().toLocaleString('ru-RU')) + '</span></div>';
+    // Берём исходную таблицу и заменяем классы для печати (на случай цветной печати)
+    var tbl = printable.querySelector('table');
+    if (tbl) {
+      var clone = tbl.cloneNode(true);
+      // Применяем CSS-классы к ячейкам по background-color
+      clone.querySelectorAll('td, th').forEach(function (c) {
+        var bg = c.style.background;
+        if (!bg) return;
+        if (bg.indexOf('#dcfce7') !== -1) c.classList.add('work');
+        else if (bg.indexOf('#f1f5f9') !== -1) c.classList.add('off');
+        else if (bg.indexOf('#fee2e2') !== -1) c.classList.add('abs');
+        c.style.background = '';
+      });
+      html += clone.outerHTML;
+    } else {
+      html += printable.innerHTML;
+    }
+    html += '<div class="no-print" style="margin-top:16px"><button onclick="window.print()" style="padding:8px 14px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">🖨 Печатать</button></div>';
+    html += '<scr' + 'ipt>setTimeout(function(){window.print();},250);</scr' + 'ipt>';
+    html += '</body></html>';
+    w.document.open(); w.document.write(html); w.document.close();
+  }
+
+  // Excel: генерируем CSV с BOM (Excel правильно откроет) — без зависимостей от xlsx.full.min.js (быстрее и проще).
+  function brigFullExcel(master, members, canEdit) {
+    var range = brigFullGetRange();
+    var all = [master].concat(members);
+    var lines = [];
+    var sep = ';'; // Excel в ru-RU понимает ;
+    function cell(v) {
+      var s = String(v == null ? '' : v);
+      // CSV-экранирование: если есть ; " или перевод строки — оборачиваем в кавычки
+      if (s.indexOf(sep) !== -1 || s.indexOf('"') !== -1 || s.indexOf('\n') !== -1) {
+        return '"' + s.replace(/"/g, '""') + '"';
+      }
+      return s;
+    }
+    if (range.mode === 'month') {
+      var dim = range.dim;
+      // Заголовок: Бригада, год
+      lines.push([cell('Бригада: ' + master.full_name), cell(range.label + ' (' + dim + ' дн.)')].join(sep));
+      lines.push(''); // пустая строка
+      // Шапка: ФИО, должность, время, график, цикл, 1, 2, ..., 31, Итого раб, Итого вых, Итого отс
+      var header = ['Сотрудник', 'Должность', 'Время', 'График', 'Цикл'];
+      for (var dd = 1; dd <= dim; dd++) header.push(String(dd));
+      header.push('раб', 'вых', 'отс');
+      lines.push(header.map(cell).join(sep));
+      // Строки сотрудников
+      all.forEach(function (u) {
+        var wd = wkData(u.id);
+        var row = [u.full_name, wkRoleLabel(u.role), wd.hours + ' ч', wd.sched, wd.cycle || ''];
+        var w = 0, o = 0, a = 0;
+        for (var d = 1; d <= dim; d++) {
+          var ds = range.y + '-' + String(range.m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+          var st = wkDayState(u.id, ds);
+          row.push(st === 'work' ? 'раб' : (st === 'abs' ? 'отс' : 'вых'));
+          if (st === 'work') w++; else if (st === 'abs') a++; else o++;
+        }
+        row.push(String(w), String(o), String(a));
+        lines.push(row.map(cell).join(sep));
+      });
+      var fname = 'График_' + master.full_name.replace(/\s+/g, '_') + '_' + range.y + '-' + String(range.m + 1).padStart(2, '0') + '.csv';
+    } else {
+      // Год
+      var y = range.y;
+      lines.push([cell('Бригада: ' + master.full_name), cell('Год: ' + y)].join(sep));
+      lines.push('');
+      // Шапка: ФИО, должность, время, график, цикл, и для каждого месяца три колонки раб/вых/отс
+      var header2 = ['Сотрудник', 'Должность', 'Время', 'График', 'Цикл'];
+      for (var mm = 0; mm < 12; mm++) {
+        var mon = MON_NOM[mm];
+        header2.push(mon + ' раб', mon + ' вых', mon + ' отс');
+      }
+      header2.push('Итого раб', 'Итого вых', 'Итого отс');
+      lines.push(header2.map(cell).join(sep));
+      all.forEach(function (u) {
+        var wd = wkData(u.id);
+        var row = [u.full_name, wkRoleLabel(u.role), wd.hours + ' ч', wd.sched, wd.cycle || ''];
+        var yW = 0, yO = 0, yA = 0;
+        for (var mm2 = 0; mm2 < 12; mm2++) {
+          var dim = new Date(y, mm2 + 1, 0).getDate();
+          var mw = 0, mo = 0, ma = 0;
+          for (var d = 1; d <= dim; d++) {
+            var ds = y + '-' + String(mm2 + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+            var st = wkDayState(u.id, ds);
+            if (st === 'work') mw++; else if (st === 'abs') ma++; else mo++;
+          }
+          yW += mw; yO += mo; yA += ma;
+          row.push(String(mw), String(mo), String(ma));
+        }
+        row.push(String(yW), String(yO), String(yA));
+        lines.push(row.map(cell).join(sep));
+      });
+      var fname = 'График_' + master.full_name.replace(/\s+/g, '_') + '_' + y + '.csv';
+    }
+    // BOM + строки. \r\n для надёжного открытия в Excel
+    var csv = '\ufeff' + lines.join('\r\n') + '\r\n';
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = fname;
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
+    toast('ok', '✓ Скачан файл: ' + fname);
   }
 
   // Модалка дня отсутствия (комментарий к дню + отметить/убрать)
