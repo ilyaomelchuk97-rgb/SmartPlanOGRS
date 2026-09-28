@@ -239,6 +239,7 @@
   }
   // Рабочий ли день по графику работника (без учёта отсутствий — их накладываем отдельно).
   // 5/2: ПН–ПТ работа, СБ–ВС отдых. 2/2: считаем дни от cycle (2 раб / 2 вых).
+  // Для 2/2 cycle берём общий на бригаду — у мастера бригады (если работник в бригаде).
   function wkIsWorking(uid, dateStr) {
     var wd = wkData(uid);
     var sched = wd.sched || '5/2';
@@ -249,7 +250,12 @@
       return dow !== 0 && dow !== 6;
     }
     if (sched === '2/2') {
+      // Цикл общий на бригаду. У мастера свой wd.cycle, у слесаря — мастера его бригады.
       var cycleStr = wd.cycle || '2026-01-05';
+      if (wd.brigade) {
+        var mw = wkData(wd.brigade);
+        if (mw && mw.cycle) cycleStr = mw.cycle;
+      }
       var cParts = cycleStr.split('-');
       var c = new Date(+cParts[0], +cParts[1] - 1, +cParts[2]);
       var days = Math.floor((d - c) / 86400000);
@@ -775,7 +781,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-64 · графики смен: цикл общий на бригаду, из карточки работника убран'],
+    objmap: ['Карта объектов', 'Сборка 22.09-67 · графики: цикл общий на бригаду в логике, печать+Excel в графике смен'],
     testmap: ['Тест проезда', 'Полигон: карта маршрутов + оптимизация + пробки + Google Maps (копия «Карты маршрутов» для экспериментов)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -9089,7 +9095,11 @@
     modes.forEach(function (m) {
       html += '<option value="' + esc(m.id) + '"' + (m.id === curMode ? ' selected' : '') + '>' + esc(m.label) + '</option>';
     });
-    html += '</select></span></div>';
+    html += '</select>';
+    html += '<span style="width:1px;height:20px;background:var(--line);margin:0 4px"></span>';
+    html += '<button type="button" class="btn sm" data-action="sch-print" title="Печать сводного графика (текущий месяц, выбранный режим)" style="background:#475569;color:#fff;border-color:#475569">🖨 Печать</button>';
+    html += '<button type="button" class="btn sm" data-action="sch-excel" title="Скачать в Excel — текущий месяц, выбранный режим" style="background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border-color:#15803d">📥 Excel</button>';
+    html += '</span></div>';
     html += '<div class="card-b">';
 
     if (!rows.length) {
@@ -9100,16 +9110,42 @@
       return;
     }
 
-    // Шапка дней — обрезаем по 4 строки (4 недели), но реально показываем до 31 день.
     // Ширина столбца фиксированная (~24px), иначе таблица уплывает на больших мониторах.
     var colW = 24;
+
+    // Фильтруем строки по режиму (нужно ДО расчёта nameColW, чтобы учесть только видимых)
+    var showRows = rows;
+    if (curMode === 'free') {
+      showRows = rows.filter(function (r) { return r.kind === 'free'; });
+    } else if (curMode.indexOf('b:') === 0) {
+      var mbId = curMode.slice(2);
+      showRows = rows.filter(function (r) { return r.kind === 'brigade' && r.master && r.master.id === mbId; });
+    }
+
+    // Ширина колонки ФИО — одинаковая для всех строк, по самому широкому ФИО.
+    // Без фиксированной ширины строки «гуляют» по длине текста, и справа от ФИО
+    // появляются пустые квадратики, визуально принадлежащие этой строке.
+    var nameColW = 200; // минимум
+    var sampleAll = [];
+    showRows.forEach(function (row) {
+      if (row.kind === 'brigade') sampleAll.push(row.master);
+      sampleAll = sampleAll.concat(row.members);
+    });
+    sampleAll.forEach(function (u) {
+      // Грубая оценка: 7px на символ кириллицы + 16 на кружок + 60 на отступы/пометку про график.
+      var approx = (u.full_name || '').length * 7 + 100;
+      if (approx > nameColW) nameColW = approx;
+    });
+    if (nameColW > 360) nameColW = 360; // потолок
+
     var html2 = '<div style="overflow:auto;border:1px solid var(--line);border-radius:12px;background:var(--card)">';
-    html2 += '<table style="border-collapse:separate;border-spacing:0;width:100%;min-width:' + (220 + dim * colW) + 'px;font-size:11px">';
+    // border-collapse:collapse — чтобы окантовка ячеек не «слипалась» в толстую линию.
+    html2 += '<table style="border-collapse:collapse;border-spacing:0;width:100%;min-width:' + (nameColW + lead * colW + dim * colW + 2) + 'px;font-size:11px">';
     // Шапка: пустая ячейка + дни месяца (с подсветкой выходных)
     html2 += '<thead><tr style="background:var(--panel-2)">';
-    html2 += '<th style="position:sticky;left:0;background:var(--panel-2);z-index:2;padding:6px 8px;text-align:left;border-bottom:1px solid var(--line);font-size:11px;color:var(--muted);font-weight:700;min-width:200px">Бригада / работник</th>';
+    html2 += '<th style="position:sticky;left:0;background:var(--panel-2);z-index:2;padding:6px 8px;text-align:left;border-bottom:1px solid var(--line);border-right:1px solid var(--line);font-size:11px;color:var(--muted);font-weight:700;width:' + nameColW + 'px">Бригада / работник</th>';
     // Сдвиг для первой недели
-    for (var li = 0; li < lead; li++) html2 += '<th style="width:' + colW + 'px;border-bottom:1px solid var(--line)"></th>';
+    for (var li = 0; li < lead; li++) html2 += '<th style="width:' + colW + 'px;border-bottom:1px solid var(--line);border-right:1px solid var(--line)"></th>';
     for (var dd = 1; dd <= dim; dd++) {
       var dtH = new Date(wm.y, wm.m, dd);
       var dowH = dtH.getDay();
@@ -9119,14 +9155,7 @@
     }
     html2 += '</tr></thead><tbody>';
 
-    // Фильтруем строки по режиму
-    var showRows = rows;
-    if (curMode === 'free') {
-      showRows = rows.filter(function (r) { return r.kind === 'free'; });
-    } else if (curMode.indexOf('b:') === 0) {
-      var mbId = curMode.slice(2);
-      showRows = rows.filter(function (r) { return r.kind === 'brigade' && r.master && r.master.id === mbId; });
-    }
+    // (showRows и nameColW посчитаны выше — до открытия таблицы)
 
     if (!showRows.length) {
       html2 += '<tr><td colspan="' + (1 + lead + dim) + '" style="padding:18px;text-align:center;color:var(--muted)">Нет работников в выбранном режиме</td></tr>';
@@ -9135,13 +9164,13 @@
     showRows.forEach(function (row) {
       // Заголовок бригады (если не free) — одна строка с мастером
       if (row.kind === 'brigade') {
-        html2 += schBrigadeRow(row.master, wm, lead, dim, colW, true);
+        html2 += schBrigadeRow(row.master, wm, lead, dim, colW, true, nameColW);
         row.members.forEach(function (s) {
-          html2 += schWorkerRow(s, wm, lead, dim, colW);
+          html2 += schWorkerRow(s, wm, lead, dim, colW, nameColW);
         });
       } else {
         row.members.forEach(function (s) {
-          html2 += schWorkerRow(s, wm, lead, dim, colW);
+          html2 += schWorkerRow(s, wm, lead, dim, colW, nameColW);
         });
       }
     });
@@ -9162,16 +9191,15 @@
     wireSchedulesControls(v);
   }
 
-  function schBrigadeRow(master, wm, lead, dim, colW, isHeader) {
+  function schBrigadeRow(master, wm, lead, dim, colW, isHeader, nameColW) {
     var wd = wkData(master.id);
     var bg = isHeader ? 'var(--panel-2)' : 'var(--card)';
     var html = '<tr style="background:' + bg + '">';
-    html += '<td style="position:sticky;left:0;background:' + bg + ';z-index:1;padding:6px 8px;border-bottom:1px solid var(--line);font-weight:800;color:var(--ink);white-space:nowrap;min-width:200px">' +
+    html += '<td data-uid="' + esc(master.id) + '" style="position:sticky;left:0;background:' + bg + ';z-index:1;padding:6px 8px;border-bottom:1px solid var(--line);border-right:1px solid var(--line);font-weight:800;color:var(--ink);white-space:nowrap;width:' + nameColW + 'px;overflow:hidden;text-overflow:ellipsis">' +
       '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + (master.color || '#94a3b8') + ';margin-right:6px"></span>' +
-      '👷 ' + esc(master.full_name) + ' <span style="color:var(--muted);font-weight:700;font-size:10px">· ' + wd.hours + ' ч · ' + wd.sched + (wd.sched === '2/2' ? ' (' + esc(wd.cycle) + ')' : '') + '</span> ' +
-      '<button type="button" class="btn sm" data-action="brig-full-schedule" data-uid="' + esc(master.id) + '" title="Открыть полный график бригады (месяц/год, печать, Excel)" style="margin-left:6px;padding:2px 7px;font-size:10px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;border-color:#0284c7">📆</button>' +
+      '👷 ' + esc(master.full_name) + ' <span style="color:var(--muted);font-weight:700;font-size:10px">· ' + wd.hours + ' ч · ' + wd.sched + (wd.sched === '2/2' ? ' (' + esc(wd.cycle) + ')' : '') + '</span>' +
       '</td>';
-    for (var li = 0; li < lead; li++) html += '<td style="border-bottom:1px solid var(--line)"></td>';
+    for (var li = 0; li < lead; li++) html += '<td style="border-bottom:1px solid var(--line);width:' + colW + 'px"></td>';
     var wOrAbs = 0, wOff = 0, wAbs = 0;
     for (var dd = 1; dd <= dim; dd++) {
       var ds = wm.y + '-' + String(wm.m + 1).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
@@ -9184,14 +9212,14 @@
     html += '</tr>';
     return html;
   }
-  function schWorkerRow(worker, wm, lead, dim, colW) {
+  function schWorkerRow(worker, wm, lead, dim, colW, nameColW) {
     var wd = wkData(worker.id);
     var bg = 'var(--card)';
     var html = '<tr>';
-    html += '<td style="position:sticky;left:0;background:' + bg + ';z-index:1;padding:4px 8px 4px 24px;border-bottom:1px solid var(--line);color:var(--ink);white-space:nowrap;min-width:200px;font-size:11px">' +
+    html += '<td data-uid="' + esc(worker.id) + '" style="position:sticky;left:0;background:' + bg + ';z-index:1;padding:4px 8px 4px 24px;border-bottom:1px solid var(--line);border-right:1px solid var(--line);color:var(--ink);white-space:nowrap;width:' + nameColW + 'px;overflow:hidden;text-overflow:ellipsis;font-size:11px">' +
       '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + (worker.color || '#94a3b8') + ';margin-right:6px"></span>' +
       esc(worker.full_name) + ' <span style="color:var(--muted);font-weight:700;font-size:9.5px">· ' + wd.sched + '</span></td>';
-    for (var li = 0; li < lead; li++) html += '<td style="border-bottom:1px solid var(--line)"></td>';
+    for (var li = 0; li < lead; li++) html += '<td style="border-bottom:1px solid var(--line);width:' + colW + 'px"></td>';
     for (var dd = 1; dd <= dim; dd++) {
       var ds = wm.y + '-' + String(wm.m + 1).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
       var st = wkDayState(worker.id, ds);
@@ -9209,11 +9237,13 @@
     var title = state === 'work' ? (esc(ds) + ' · рабочий')
               : state === 'abs'  ? (esc(ds) + ' · отсутствие' + (wkData(user.id).abs[ds] ? ' (' + esc(wkData(user.id).abs[ds]) + ')' : ''))
               : (esc(ds) + ' · выходной');
-    var ring = isToday ? ';box-shadow:inset 0 0 0 2px rgba(37,99,235,.4)' : '';
+    var ring = isToday ? 'box-shadow:inset 0 0 0 2px rgba(37,99,235,.4);' : '';
     var act = state === 'abs' ? 'wk-open-day' : 'wk-quick-abs';
+    // Полная окантовка (border:1px solid) — каждая ячейка окружена рамкой.
+    // border-collapse:collapse на таблице (см. выше) — рамки не «слипаются» в 2px.
     return '<td data-action="' + (can ? act : '') + '" data-uid="' + esc(user.id) + '" data-ds="' + ds + '"' +
       (can ? ' role="button"' : '') +
-      ' title="' + title + '" style="width:' + colW + 'px;height:22px;padding:0;background:' + bg + ';border-left:1px solid ' + bd + ';border-bottom:1px solid var(--line);cursor:' + (can ? 'pointer' : 'default') + ring + '"></td>';
+      ' title="' + title + '" style="width:' + colW + 'px;height:22px;padding:0;background:' + bg + ';border:1px solid ' + bd + ';cursor:' + (can ? 'pointer' : 'default') + ';' + ring + '"></td>';
   }
   // Под каждой бригадой — итог: рабочих / выходных / отсутствий за месяц
   function schMonthSummary(rows, wm) {
@@ -9259,6 +9289,111 @@
     v.querySelectorAll('[data-action="brig-full-schedule"]').forEach(function (b) {
       b.addEventListener('click', function () { openBrigadeFullSchedule(b.getAttribute('data-uid')); });
     });
+    // Печать и Excel — работают с тем, что юзер видит на экране (текущий месяц + режим)
+    var pBtn = v.querySelector('[data-action="sch-print"]');
+    if (pBtn) pBtn.addEventListener('click', schPrintCurrent);
+    var eBtn = v.querySelector('[data-action="sch-excel"]');
+    if (eBtn) eBtn.addEventListener('click', schExcelCurrent);
+  }
+
+  // Текущая таблица графика смен (живёт в #view) — собираем данные из DOM.
+  function schCollectCurrent() {
+    var table = document.querySelector('#view table');
+    if (!table) return null;
+    var wm = wkMonth();
+    var dim = new Date(wm.y, wm.m + 1, 0).getDate();
+    // Соберём пользователей из первых ячеек строк (там ФИО + цветной кружок).
+    var rows = [];
+    table.querySelectorAll('tbody tr').forEach(function (tr) {
+      var firstTd = tr.querySelector('td');
+      if (!firstTd) return;
+      var uid = firstTd.getAttribute('data-uid') || '';
+      var name = firstTd.textContent.trim().replace(/\s+/g, ' ');
+      if (!uid) return; // пустая строка «Нет работников»
+      var states = [];
+      tr.querySelectorAll('td').forEach(function (td, idx) {
+        if (idx === 0) return;
+        var bg = td.style.background || '';
+        if (bg.indexOf('#dcfce7') !== -1) states.push('work');
+        else if (bg.indexOf('#fee2e2') !== -1) states.push('abs');
+        else states.push('off');
+      });
+      rows.push({ uid: uid, name: name, states: states });
+    });
+    return { y: wm.y, m: wm.m, dim: dim, label: MON_NOM[wm.m] + ' ' + wm.y, rows: rows };
+  }
+
+  // Печать текущего вида «Графики смен»
+  function schPrintCurrent() {
+    var data = schCollectCurrent();
+    if (!data || !data.rows.length) { toast('err', 'Нет данных для печати'); return; }
+    var w = window.open('', '_blank');
+    if (!w) { toast('err', 'Разрешите всплывающие окна для печати'); return; }
+    var title = 'Графики смен — ' + data.label;
+    var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(title) + '</title>' +
+      '<style>body{font-family:Arial,sans-serif;color:#000;padding:10px} h1{font-size:16px;margin:0 0 6px} .legend{display:flex;gap:14px;margin-bottom:8px;font-size:11px} .legend span{display:inline-flex;gap:5px;align-items:center} .legend i{display:inline-block;width:12px;height:12px;border-radius:2px;border:1px solid #888} table{border-collapse:collapse;width:100%;margin-top:8px} th,td{border:1px solid #999;padding:3px;text-align:center;font-size:10px} th{background:#e2e8f0;font-weight:700} td.stick{background:#f8fafc;text-align:left;white-space:nowrap;font-weight:700} .work{background:#dcfce7}.off{background:#f1f5f9}.abs{background:#fee2e2;color:#7f1d1d} @media print{.no-print{display:none} body{padding:6mm} @page{landscape}}</style>' +
+      '</head><body>';
+    html += '<h1>' + esc(title) + '</h1>';
+    html += '<div class="legend"><span><i style="background:#dcfce7"></i>рабочий</span><span><i style="background:#f1f5f9"></i>выходной</span><span><i style="background:#fee2e2"></i>отсутствие</span><span style="margin-left:auto">Печать: ' + esc(new Date().toLocaleString('ru-RU')) + '</span></div>';
+    html += '<table><thead><tr><th>Сотрудник</th>';
+    for (var dd = 1; dd <= data.dim; dd++) html += '<th>' + dd + '</th>';
+    html += '</tr></thead><tbody>';
+    data.rows.forEach(function (r) {
+      html += '<tr><td class="stick">' + esc(r.name) + '</td>';
+      for (var i = 0; i < data.dim; i++) {
+        var cls = r.states[i] || 'off';
+        html += '<td class="' + cls + '"></td>';
+      }
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    html += '<div class="no-print" style="margin-top:14px"><button onclick="window.print()" style="padding:8px 14px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">🖨 Печатать</button></div>';
+    html += '<scr' + 'ipt>setTimeout(function(){window.print();},250);</scr' + 'ipt>';
+    html += '</body></html>';
+    w.document.open(); w.document.write(html); w.document.close();
+  }
+
+  // Excel текущего вида «Графики смен» — CSV с BOM
+  function schExcelCurrent() {
+    var data = schCollectCurrent();
+    if (!data || !data.rows.length) { toast('err', 'Нет данных для экспорта'); return; }
+    var sep = ';';
+    function cell(v) {
+      var s = String(v == null ? '' : v);
+      if (s.indexOf(sep) !== -1 || s.indexOf('"') !== -1 || s.indexOf('\n') !== -1) {
+        return '"' + s.replace(/"/g, '""') + '"';
+      }
+      return s;
+    }
+    var lines = [];
+    lines.push([cell('Графики смен'), cell(data.label)].join(sep));
+    lines.push('');
+    var header = ['Сотрудник'];
+    for (var dd = 1; dd <= data.dim; dd++) header.push(String(dd));
+    header.push('раб', 'вых', 'отс');
+    lines.push(header.map(cell).join(sep));
+    data.rows.forEach(function (r) {
+      var row = [r.name];
+      var w = 0, o = 0, a = 0;
+      for (var i = 0; i < data.dim; i++) {
+        var s = r.states[i] || 'off';
+        if (s === 'work') w++;
+        else if (s === 'abs') a++;
+        else o++;
+        row.push(s === 'work' ? 'раб' : (s === 'abs' ? 'отс' : 'вых'));
+      }
+      row.push(String(w), String(o), String(a));
+      lines.push(row.map(cell).join(sep));
+    });
+    var fname = 'Графики_смен_' + data.y + '-' + String(data.m + 1).padStart(2, '0') + '.csv';
+    var csv = '\ufeff' + lines.join('\r\n') + '\r\n';
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = fname;
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
+    toast('ok', '✓ Скачан файл: ' + fname);
   }
 
   /* ===== ПОЛНОЭКРАННЫЙ ГРАФИК БРИГАДЫ (месяц / год) =====
@@ -9273,9 +9408,12 @@
 
     var overlay = document.createElement('div');
     overlay.id = 'brig-full-overlay';
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:2000;display:flex;align-items:stretch;justify-content:stretch;padding:14px';
+    // Оверлей — полупрозрачный фон на весь экран, центрирует содержимое.
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:2000;display:flex;align-items:center;justify-content:center;padding:14px';
+    // Внутренний блок подгоняется по высоте под содержимое, но не выше 95% экрана —
+    // на маленьких ноутбуках таблица будет скроллиться внутри, а оверлей не уедет.
     overlay.innerHTML =
-      '<div style="background:var(--card);border-radius:14px;flex:1;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.45)">' +
+      '<div style="background:var(--card);border-radius:14px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.45);width:max-content;max-width:96vw;max-height:95vh">' +
         // Шапка оверлея
         '<div id="brig-full-head" style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap">' +
           '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + (master.color || '#94a3b8') + '"></span>' +
@@ -9295,8 +9433,8 @@
             '<button type="button" class="btn sm" data-action="bfs-close" title="Закрыть" style="background:#dc2626;color:#fff;border-color:#dc2626">✕ Закрыть</button>' +
           '</span>' +
         '</div>' +
-        // Тело — таблица графика
-        '<div id="brig-full-body" style="flex:1;overflow:auto;padding:14px"></div>' +
+        // Тело — таблица графика; скроллится только если реально не влезает в 95vh
+        '<div id="brig-full-body" style="overflow:auto;padding:14px"></div>' +
       '</div>';
 
     document.body.appendChild(overlay);
@@ -9366,6 +9504,13 @@
     var lead = (new Date(range.y, range.m, 1).getDay() + 6) % 7;
     var all = [master].concat(members);
     var colW = 28;
+    // Ширина колонки ФИО — по самому длинному ФИО, чтобы строки были ровные.
+    var nameColW = 240;
+    all.forEach(function (u) {
+      var approx = (u.full_name || '').length * 7 + 80;
+      if (approx > nameColW) nameColW = approx;
+    });
+    if (nameColW > 400) nameColW = 400;
     var html = '<div id="bfs-printable">';
     html += '<div style="display:flex;gap:14px;align-items:center;font-size:11px;color:var(--muted);margin-bottom:10px;flex-wrap:wrap;font-weight:700">' +
       '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#dcfce7;border:1px solid #16a34a"></span>рабочий по графику</span>' +
@@ -9373,29 +9518,29 @@
       '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#fee2e2;border:1px solid #dc2626"></span>отсутствие</span>' +
       '<span style="margin-left:auto;color:var(--ink);font-size:13px"><b>Бригада:</b> ' + esc(master.full_name) + ' · <b>Месяц:</b> ' + range.label + ' · <b>Сотрудников:</b> ' + all.length + '</span>' +
       '</div>';
-    html += '<table style="border-collapse:separate;border-spacing:0;width:auto;font-size:11px;background:var(--card);border:1px solid var(--line);border-radius:8px;overflow:hidden">';
+    html += '<table style="border-collapse:collapse;border-spacing:0;width:auto;font-size:11px;background:var(--card);border:1px solid var(--line);border-radius:8px;overflow:hidden">';
     html += '<thead><tr style="background:var(--panel-2)">';
-    html += '<th style="position:sticky;left:0;background:var(--panel-2);z-index:2;padding:8px 10px;text-align:left;font-size:12px;color:var(--ink);min-width:240px;border-bottom:1px solid var(--line)">Сотрудник</th>';
-    for (var li = 0; li < lead; li++) html += '<th style="width:' + colW + 'px;border-bottom:1px solid var(--line)"></th>';
+    html += '<th style="position:sticky;left:0;background:var(--panel-2);z-index:2;padding:8px 10px;text-align:left;font-size:12px;color:var(--ink);width:' + nameColW + 'px;border-bottom:1px solid var(--line);border-right:1px solid var(--line)">Сотрудник</th>';
+    for (var li = 0; li < lead; li++) html += '<th style="width:' + colW + 'px;border-bottom:1px solid var(--line);border-right:1px solid var(--line)"></th>';
     for (var dd = 1; dd <= dim; dd++) {
       var dtH = new Date(range.y, range.m, dd);
       var dowH = dtH.getDay();
       var isWeH = dowH === 0 || dowH === 6;
       var isTodayH = sameDay(dtH, TODAY);
-      html += '<th style="width:' + colW + 'px;padding:4px 0;font-size:11px;font-weight:800;color:' + (isWeH ? '#94a3b8' : 'var(--muted)') + ';border-bottom:1px solid var(--line);text-align:center;' + (isTodayH ? 'background:rgba(37,99,235,.1);' : '') + '">' + dd + '</th>';
+      html += '<th style="width:' + colW + 'px;padding:4px 0;font-size:11px;font-weight:800;color:' + (isWeH ? '#94a3b8' : 'var(--muted)') + ';border-bottom:1px solid var(--line);border-right:1px solid var(--line);text-align:center;' + (isTodayH ? 'background:rgba(37,99,235,.1);' : '') + '">' + dd + '</th>';
     }
     // Итог
-    html += '<th style="padding:4px 8px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--line);text-align:center;background:var(--panel-2)">раб</th>';
-    html += '<th style="padding:4px 8px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--line);text-align:center;background:var(--panel-2)">вых</th>';
+    html += '<th style="padding:4px 8px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--line);border-right:1px solid var(--line);text-align:center;background:var(--panel-2)">раб</th>';
+    html += '<th style="padding:4px 8px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--line);border-right:1px solid var(--line);text-align:center;background:var(--panel-2)">вых</th>';
     html += '<th style="padding:4px 8px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--line);text-align:center;background:var(--panel-2)">отс</th>';
     html += '</tr></thead><tbody>';
     all.forEach(function (u, rowIdx) {
       var isM = u.id === master.id;
       html += '<tr>';
-      html += '<td style="position:sticky;left:0;background:var(--card);z-index:1;padding:6px 10px;border-bottom:1px solid var(--line);color:var(--ink);white-space:nowrap;min-width:240px;font-weight:' + (isM ? '800' : '600') + '">' +
+      html += '<td style="position:sticky;left:0;background:var(--card);z-index:1;padding:6px 10px;border-bottom:1px solid var(--line);border-right:1px solid var(--line);color:var(--ink);white-space:nowrap;width:' + nameColW + 'px;font-weight:' + (isM ? '800' : '600') + ';overflow:hidden;text-overflow:ellipsis">' +
         '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:' + (u.color || '#94a3b8') + ';margin-right:6px"></span>' +
         esc(u.full_name) + (isM ? ' <span style="color:var(--muted);font-weight:700;font-size:10px">(мастер)</span>' : '') + '</td>';
-      for (var li = 0; li < lead; li++) html += '<td style="border-bottom:1px solid var(--line)"></td>';
+      for (var li = 0; li < lead; li++) html += '<td style="border-bottom:1px solid var(--line);border-right:1px solid var(--line);width:' + colW + 'px"></td>';
       var w = 0, o = 0, a = 0;
       for (var dd = 1; dd <= dim; dd++) {
         var ds = range.y + '-' + String(range.m + 1).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
@@ -9403,11 +9548,12 @@
         var bg2 = st === 'work' ? '#dcfce7' : (st === 'abs' ? '#fee2e2' : '#f1f5f9');
         var bd2 = st === 'work' ? '#16a34a' : (st === 'abs' ? '#dc2626' : '#cbd5e1');
         if (st === 'work') w++; else if (st === 'abs') a++; else o++;
-        html += '<td title="' + esc(ds) + ' · ' + (st === 'work' ? 'рабочий' : st === 'abs' ? 'отсутствие' : 'выходной') + '" style="width:' + colW + 'px;height:24px;padding:0;background:' + bg2 + ';border-left:1px solid ' + bd2 + ';border-bottom:1px solid var(--line)"></td>';
+        // Полная окантовка вокруг ячейки дня.
+        html += '<td title="' + esc(ds) + ' · ' + (st === 'work' ? 'рабочий' : st === 'abs' ? 'отсутствие' : 'выходной') + '" style="width:' + colW + 'px;height:24px;padding:0;background:' + bg2 + ';border:1px solid ' + bd2 + '"></td>';
       }
-      html += '<td style="padding:4px 8px;font-weight:800;color:#16a34a;text-align:center;background:var(--card);border-bottom:1px solid var(--line)">' + w + '</td>';
-      html += '<td style="padding:4px 8px;font-weight:800;color:#94a3b8;text-align:center;background:var(--card);border-bottom:1px solid var(--line)">' + o + '</td>';
-      html += '<td style="padding:4px 8px;font-weight:800;color:#dc2626;text-align:center;background:var(--card);border-bottom:1px solid var(--line)">' + a + '</td>';
+      html += '<td style="padding:4px 8px;font-weight:800;color:#16a34a;text-align:center;background:var(--card);border-bottom:1px solid var(--line);border-left:1px solid var(--line)">' + w + '</td>';
+      html += '<td style="padding:4px 8px;font-weight:800;color:#94a3b8;text-align:center;background:var(--card);border-bottom:1px solid var(--line);border-left:1px solid var(--line)">' + o + '</td>';
+      html += '<td style="padding:4px 8px;font-weight:800;color:#dc2626;text-align:center;background:var(--card);border-bottom:1px solid var(--line);border-left:1px solid var(--line)">' + a + '</td>';
       html += '</tr>';
     });
     html += '</tbody></table>';
