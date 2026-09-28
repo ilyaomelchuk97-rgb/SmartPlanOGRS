@@ -9077,8 +9077,7 @@
     var masters = users.filter(function (u) { return u.role === 'master'; });
     var slesars = users.filter(function (u) { return u.role === 'slesar'; });
     var wm = wkMonth();
-
-    var dim = period.dim;
+    var dim = new Date(wm.y, wm.m + 1, 0).getDate();
     var lead = (new Date(wm.y, wm.m, 1).getDay() + 6) % 7;
 
     // Собираем строки: «бригада» — мастер + его слесари; плюс отдельная «без бригады»
