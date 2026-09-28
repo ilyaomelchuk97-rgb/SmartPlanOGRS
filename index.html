@@ -1076,7 +1076,7 @@
           <div style="margin-top:6px;font-size:11px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-55 · в Тесте проезда добавлен выбор роутера перед «Оптимизация маршрутов»: 🚗 OSRM (по умолчанию), 🚗 BRouter car-fast, 🥾 BRouter trekking, 🟧 Valhalla. BRouter trekking хорош для пешеходных прогонов (избегает автомагистралей, лезет через дворы/парки — на 5 точках Минска: 12.2 км/35 мин против 13.2 км/35 мин через car-fast). Оптимизация порядка для BRouter идёт через OSRM Table API (BRouter сам порядок не оптимизирует, зато хорошо считает дорожную геометрию).</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-57 · переключение основного роутера Теста проезда на **🥾 BRouter trekking** по умолчанию. Выбор сохраняется в localStorage (`smartplan_test_router`), поэтому между сессиями работает. Оптимизация порядка — через OSRM Table API (NN+2-opt+or-opt по дорожной матрице), геометрия — BRouter trekking. Односторонние/пешеходные зоны/парки — учитываются BRouter автоматически. Можно переключить обратно на OSRM/Valhalla в селекторе над кнопкой «Оптимизация маршрутов».</div>
     </div>
   </div>
   </div>

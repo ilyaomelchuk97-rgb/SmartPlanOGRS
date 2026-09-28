@@ -733,7 +733,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-55 · Тест проезда: выбор роутера (OSRM / BRouter trekking / Valhalla)'],
+    objmap: ['Карта объектов', 'Сборка 22.09-57 · основной роутер Теста проезда — 🥾 BRouter trekking (сохранение в localStorage)'],
     testmap: ['Тест проезда', 'Полигон: карта маршрутов + оптимизация + пробки + Google Maps (копия «Карты маршрутов» для экспериментов)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -15482,7 +15482,14 @@
          время маршрутов (saveRouteTime), кэш планирования — tFindTask
          всегда возвращает null, поэтому блоки записи не срабатывают.
      Рабочие страницы («Карта маршрутов» и остальные) работают как раньше. */
-  var TS = { off: 0, master: null, provider: 'yandex', sel: {}, traffic: false }; // пробки ВЫКЛ по умолчанию
+  var TS = { off: 0, master: null, provider: 'yandex', sel: {}, traffic: false, router: 'brouter-trek' }; // BRouter trekking — основной роутер Теста проезда
+  // Восстанавливаем выбор роутера из localStorage, чтобы между сессиями работал.
+  try {
+    var _savedRouter = localStorage.getItem('smartplan_test_router');
+    if (_savedRouter && /^(osrm|brouter-car|brouter-trek|valhalla)$/.test(_savedRouter)) {
+      TS.router = _savedRouter;
+    }
+  } catch (e) {}
   /* КАЛИБРОВКА ВРЕМЕНИ ПО ЯНДЕКС.КАРТАМ: свободное время роутера Яндекса
      стабильно длиннее дорожного времени OSRM (медиана 1,385 по 12 контрольным
      маршрутам по Минску — Ботаническая↔центр, ВС↔ЮЗ, запад↔восток и т.д.,
@@ -15581,9 +15588,9 @@
       '<button class="btn sm" id="t-btn-google" style="display:none;background:#1a73e8;border-color:#1a73e8;color:#fff" title="Открыть построенный маршрут в Google Maps (новая вкладка) — реальное время в пути от Google">🌐 Google Maps</button>' +
       (S.role === 'viewer' ? '<span style="font-size:12px;color:var(--muted);font-weight:600;">👁 Режим просмотра</span>' :
         '<select id="t-route-router-sel" title="Роутер для построения основного маршрута" style="padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;background:var(--card);color:var(--ink);font-weight:700;cursor:pointer;height:32px">' +
-          '<option value="osrm" ' + (TS.router === 'osrm' || !TS.router ? 'selected' : '') + '>🚗 OSRM</option>' +
+          '<option value="osrm" ' + (TS.router === 'osrm' ? 'selected' : '') + '>🚗 OSRM</option>' +
           '<option value="brouter-car" ' + (TS.router === 'brouter-car' ? 'selected' : '') + '>🚗 BRouter car-fast</option>' +
-          '<option value="brouter-trek" ' + (TS.router === 'brouter-trek' ? 'selected' : '') + '>🥾 BRouter trekking</option>' +
+          '<option value="brouter-trek" ' + (TS.router === 'brouter-trek' || !TS.router ? 'selected' : '') + '>🥾 BRouter trekking</option>' +
           '<option value="valhalla" ' + (TS.router === 'valhalla' ? 'selected' : '') + '>🟧 Valhalla</option>' +
         '</select>' +
         '<button class="btn primary" id="t-btn-build-route" data-action="t-build-route" disabled style="opacity:.5;cursor:not-allowed;">' + IC.route + ' Оптимизация маршрутов</button>' + '<button class="btn sm" id="t-btn-compare" data-action="t-build-compare" style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;font-weight:700" title="Сравнить результаты 4 бесплатных роутеров (OSRM demo / FOSSGIS / Valhalla public / Прямая линия ×1.4)">🔀 Сравнить</button>' + '<button class="btn sm" id="t-btn-drive3d" style="background:#dc2626;color:#fff;border-color:#dc2626;display:none;" title="3D-вождение автомобиля по улицам Минска (открывается кодом ↑↓←→)">🏎 Дать газу</button>') +
@@ -15802,6 +15809,8 @@
       rSel.__wired = true;
       rSel.addEventListener('change', function (e) {
         TS.router = e.target.value;
+        // Сохраняем выбор в localStorage, чтобы работал между сессиями
+        try { localStorage.setItem('smartplan_test_router', TS.router); } catch (er) {}
         // Подсветить подсказку
         var labels = {
           'osrm': 'OSRM (автомобильный, дорожная сеть OSM)',
@@ -18582,7 +18591,7 @@
 
   function buildTestRoute(noJam) {
     TS.noJam = !!noJam;
-    var routerKey = TS.router || 'osrm';
+    var routerKey = TS.router || 'brouter-trek';
     var btn = document.getElementById('t-btn-build-route');
     var btnHtml = btn ? btn.innerHTML : '';
     if (btn) { btn.disabled = true; btn.style.opacity = '.5'; btn.style.cursor = 'not-allowed'; btn.innerHTML = '⏳ Расчёт…'; }
@@ -18924,34 +18933,72 @@
       // 2) Запрашиваем BRouter по этому порядку
       if (ri) ri.textContent = '⏳ BRouter ' + profile + ': расчёт маршрута…';
       var lonlats = [];
-      [base].concat(orderedPts).concat([base]).forEach(function (p) {
-        if (p && p.lat != null) lonlats.push(p.lng.toFixed(6) + ',' + p.lat.toFixed(6));
+      // Функция: получить валидные координаты из объекта задания.
+      // Допустим имена: lat/lng, latitude/longitude. Если хоть что-то не число — return null.
+      function _ck(p) {
+        if (!p) return null;
+        var lo = (p.lng != null) ? p.lng : p.longitude;
+        var la = (p.lat != null) ? p.lat : p.latitude;
+        if (typeof lo !== 'number' || typeof la !== 'number') return null;
+        if (!isFinite(lo) || !isFinite(la)) return null;
+        // Разумные пределы (НЕ экватор/нулевой меридиан)
+        if (Math.abs(la) > 90 || Math.abs(lo) > 180) return null;
+        return [lo, la];
+      }
+      // Сначала — база, потом заказы, потом возврат на базу
+      var routePath = [].concat([base], orderedPts).concat([base]);
+      routePath.forEach(function (p) {
+        var c = _ck(p);
+        if (c) lonlats.push(c[0].toFixed(6) + ',' + c[1].toFixed(6));
+        // Намеренно НЕ добавляем невалидные точки — иначе BRouter вернёт 404.
       });
+      if (lonlats.length < 2) {
+        if (ri) ri.textContent = 'BRouter: нет валидных координат';
+        try { toast('err', '⚠ BRouter: нет координат у точек маршрута (lat/lng не заполнены)'); } catch (er) {}
+        restoreBtn();
+        return;
+      }
       var url = 'https://brouter.de/brouter?lonlats=' + encodeURIComponent(lonlats.join('|')) +
         '&profile=' + encodeURIComponent(profile) + '&alternativeidx=0&format=geojson';
 
       var ctrl = (typeof AbortController === 'function') ? new AbortController() : null;
       var timer = setTimeout(function () { try { if (ctrl) ctrl.abort(); } catch (e) {} }, 30000);
-      fetch(url, ctrl ? { signal: ctrl.signal } : {}).then(function (r) { return r.json(); }).then(function (res) {
-        clearTimeout(timer);
-        if (!res || !res.features || !res.features[0] || !res.features[0].properties) {
-          if (ri) ri.textContent = 'BRouter: пустой ответ';
-          try { toast('err', 'BRouter вернул пустой ответ — попробуйте OSRM или Valhalla'); } catch (e) {}
-          restoreBtn();
-          return;
-        }
-        var p = res.features[0].properties;
-        var km = parseFloat(p['track-length']) / 1000;
-        var mn = Math.round((parseFloat(p['total-time']) || 0) / 60);
-        if (!(km > 0)) {
-          if (ri) ri.textContent = 'BRouter: точки недостижимы для профиля ' + profile;
-          try { toast('err', 'BRouter не смог построить маршрут — точки недостижимы'); } catch (e) {}
-          restoreBtn();
-          return;
-        }
-        // Координаты: BRouter вернул [lng, lat] в geometry.coordinates
-        var geom = (res.features[0].geometry && res.features[0].geometry.coordinates || []).map(function (c) { return [c[1], c[0]]; });
-        if (ri) ri.textContent = '⏳ Учитываем пробки…';
+      fetch(url, ctrl ? { signal: ctrl.signal } : {})
+        .then(function (r) {
+          clearTimeout(timer);
+          // Проверка HTTP-статуса: 200 / JSON. Иначе читаем body как текст
+          if (!r.ok) {
+            return r.text().then(function (txt) {
+              throw new Error('HTTP ' + r.status + ' — ' + (txt ? txt.slice(0, 200) : 'нет тела'));
+            });
+          }
+          var ct = (r.headers && r.headers.get && r.headers.get('content-type')) || '';
+          if (ct.indexOf('json') < 0) {
+            return r.text().then(function (txt) {
+              throw new Error('BRouter вернул не-JSON (' + ct + '): ' + txt.slice(0, 200));
+            });
+          }
+          return r.json();
+        })
+        .then(function (res) {
+          if (!res || !res.features || !res.features[0] || !res.features[0].properties) {
+            if (ri) ri.textContent = 'BRouter: пустой ответ';
+            try { toast('err', 'BRouter вернул пустой ответ — попробуйте OSRM или Valhalla'); } catch (e) {}
+            restoreBtn();
+            return;
+          }
+          var pp = res.features[0].properties;
+          var km = parseFloat(pp['track-length']) / 1000;
+          var mn = Math.round((parseFloat(pp['total-time']) || 0) / 60);
+          if (!(km > 0)) {
+            if (ri) ri.textContent = 'BRouter: точки недостижимы для профиля ' + profile;
+            try { toast('err', 'BRouter не смог построить маршрут — точки недостижимы'); } catch (e) {}
+            restoreBtn();
+            return;
+          }
+          // Координаты: BRouter вернул [lng, lat] в geometry.coordinates
+          var geom = (res.features[0].geometry && res.features[0].geometry.coordinates || []).map(function (c) { return [c[1], c[0]]; });
+          if (ri) ri.textContent = '⏳ Учитываем пробки…';
 
         // Часовая модель пробок (как у OSRM)
         var h = typeof currentHourForJam === 'function' ? currentHourForJam() : new Date().getHours();
