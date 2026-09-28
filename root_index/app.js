@@ -733,7 +733,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-57 · основной роутер Теста проезда — 🥾 BRouter trekking (сохранение в localStorage)'],
+    objmap: ['Карта объектов', 'Сборка 22.09-58 · Тест проезда: выбор карты Яндекс / OpenStreetMap'],
     testmap: ['Тест проезда', 'Полигон: карта маршрутов + оптимизация + пробки + Google Maps (копия «Карты маршрутов» для экспериментов)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -15482,12 +15482,16 @@
          время маршрутов (saveRouteTime), кэш планирования — tFindTask
          всегда возвращает null, поэтому блоки записи не срабатывают.
      Рабочие страницы («Карта маршрутов» и остальные) работают как раньше. */
-  var TS = { off: 0, master: null, provider: 'yandex', sel: {}, traffic: false, router: 'brouter-trek' }; // BRouter trekking — основной роутер Теста проезда
+  var TS = { off: 0, master: null, provider: 'yandex', sel: {}, traffic: false, router: 'brouter-trek', mapEngine: 'yandex' }; // mapEngine: 'yandex' | 'osm' — выбор карты в Тесте проезда
   // Восстанавливаем выбор роутера из localStorage, чтобы между сессиями работал.
   try {
     var _savedRouter = localStorage.getItem('smartplan_test_router');
     if (_savedRouter && /^(osrm|brouter-car|brouter-trek|valhalla)$/.test(_savedRouter)) {
       TS.router = _savedRouter;
+    }
+    var _savedMap = localStorage.getItem('smartplan_test_map_engine');
+    if (_savedMap && /^(yandex|osm)$/.test(_savedMap)) {
+      TS.mapEngine = _savedMap;
     }
   } catch (e) {}
   /* КАЛИБРОВКА ВРЕМЕНИ ПО ЯНДЕКС.КАРТАМ: свободное время роутера Яндекса
@@ -15572,7 +15576,13 @@
     });
 
     var prov = 'yandex'; // ТЕСТ: только Яндекс-карта
-    var provSelHTML = '<div style="display:flex;align-items:center;gap:6px;margin-left:auto;"><span style="font-size:12px;color:var(--ink);font-weight:700;">Карта:</span><span class="tag ok" style="font-size:11.5px">Яндекс</span></div>';
+    var provSelHTML = '<div style="display:flex;align-items:center;gap:6px;margin-left:auto;">' +
+      '<span style="font-size:12px;color:var(--ink);font-weight:700;">Карта:</span>' +
+      '<select id="t-map-engine-sel" title="Выбор карты в Тесте проезда" style="padding:5px 10px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;background:var(--card);color:var(--ink);font-weight:700;cursor:pointer;">' +
+        '<option value="yandex" ' + (TS.mapEngine !== 'osm' ? 'selected' : '') + '>Яндекс.Карты</option>' +
+        '<option value="osm" ' + (TS.mapEngine === 'osm' ? 'selected' : '') + '>OpenStreetMap</option>' +
+      '</select>' +
+    '</div>';
 
     var html = '<div class="cal-head"><div class="seg">' +
       '<button class="' + (off === -1 ? 'on' : '') + '" data-action="t-map-off" data-off="-1">Вчера</button>' +
@@ -15819,6 +15829,25 @@
           'valhalla': 'Valhalla public (авто, с проверкой закрытий)'
         };
         try { toast('info', '🚦 Роутер: ' + (labels[TS.router] || TS.router)); } catch (er) {}
+      });
+    }
+    // Выбор карты: Яндекс.Карты / OpenStreetMap
+    var mapSel = document.getElementById('t-map-engine-sel');
+    if (mapSel && !mapSel.__wired) {
+      mapSel.__wired = true;
+      mapSel.addEventListener('change', function (e) {
+        var newEngine = e.target.value;
+        if (newEngine === TS.mapEngine) return;
+        var oldEngine = TS.mapEngine;
+        TS.mapEngine = newEngine;
+        try { localStorage.setItem('smartplan_test_map_engine', TS.mapEngine); } catch (er) {}
+        // Удалить старую карту
+        try {
+          if (oldEngine === 'yandex' && tState.ymap) { tState.ymap.destroy(); tState.ymap = null; tState.route = null; }
+          if (oldEngine === 'osm' && tState.leafletMap) { tState.leafletMap.remove(); tState.leafletMap = null; tState.routeLayer = null; }
+        } catch (er) {}
+        try { toast('info', newEngine === 'osm' ? '🗺 Карта: OpenStreetMap' : '🗺 Карта: Яндекс.Карты'); } catch (er) {}
+        renderTestMap();
       });
     }
     var drive3dBtn = document.getElementById('t-btn-drive3d');
@@ -16977,6 +17006,42 @@
       var on = sel.length > 0;
       btn.disabled = !on; btn.style.opacity = on ? '' : '.5'; btn.style.cursor = on ? '' : 'not-allowed';
     }
+
+    // === Выбор движка карты: 'yandex' (по умолчанию) или 'osm' ===
+    var useOSM = TS.mapEngine === 'osm';
+    var trafBtnHide = document.getElementById('t-btn-traffic');
+    if (trafBtnHide) trafBtnHide.style.display = useOSM ? 'none' : '';
+
+    if (useOSM) {
+      ensureLeaflet(function () {
+        if (!document.getElementById('t-canvas')) return;
+        try {
+          if (tState.leafletMap) {
+            try {
+              var ce = tState.leafletMap.getContainer();
+              if (!ce || !document.body.contains(ce)) { tState.leafletMap.remove(); tState.leafletMap = null; tState.routeLayer = null; }
+            } catch (e) { tState.leafletMap = null; tState.routeLayer = null; }
+          }
+          if (!tState.leafletMap) {
+            var mapDivOSM = document.createElement('div');
+            mapDivOSM.style.cssText = 'position:absolute;inset:0';
+            holder.innerHTML = '';
+            holder.appendChild(mapDivOSM);
+            tState.leafletMap = window.L.map(mapDivOSM, { center: [53.9023, 27.5619], zoom: 11, attributionControl: false, zoomControl: false });
+            try {
+              window.L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '© OpenStreetMap contributors'
+              }).addTo(tState.leafletMap);
+            } catch (e) { /* OSM не загрузились — работаем без тайлов */ }
+          }
+          tDrawTestMarkersOSM();
+          if (tState.routeGeom) tDrawTestRouteLineOSM(tState.routeGeom);
+        } catch (e) { /* карта не может ломать страницу */ }
+      });
+      return;
+    }
+
     ensureYandex(function () {
       if (!document.getElementById('t-canvas')) return; // страницу уже сменили
       try {
@@ -17008,6 +17073,8 @@
   }
   // маркеры базы и объектов (нумерованные кружки); tState.leafletMarkers — хранилище (имя историческое)
   function tDrawTestMarkers() {
+    // OSM-вариант: маркеры рисуются на Leaflet
+    if (TS.mapEngine === 'osm') { tDrawTestMarkersOSM(); return; }
     var map = tState.ymap;
     if (!map) return;
     // Сбрасываем «выбранные» карточки — после перерисовки маркеров старый выбор неактуален
@@ -17119,6 +17186,8 @@
   }
   // линия маршрута на Яндекс-карте (координаты [[lat,lng],…])
   function tDrawTestRouteLine(geom) {
+    // OSM-вариант: маршрут рисуется на Leaflet
+    if (TS.mapEngine === 'osm') { tDrawTestRouteLineOSM(geom); return; }
     var map = tState.ymap;
     if (!map) return;
     if (tState.route) { try { map.geoObjects.remove(tState.route); } catch (e) {} tState.route = null; }
@@ -17142,6 +17211,105 @@
       tState.routeJamFactor = k;
     } catch (e) { /* линия не может ломать карту */ }
   }
+
+  /* === OpenStreetMap (Leaflet) вариант для Теста проезда ===
+     Замена Яндекс.Карт: тот же набор маркеров/линий, что и tDrawTestMarkers
+     + tDrawTestRouteLine, но без Яндекс.Пробок (на OSM пробочного слоя нет). */
+  function tDrawTestMarkersOSM() {
+    var map = tState.leafletMap;
+    if (!map || !window.L) return;
+    document.querySelectorAll('#t-mlist .mtask.t-picked').forEach(function (c) { c.classList.remove('t-picked'); });
+    document.querySelectorAll('#t-mlist .mtask.t-hover').forEach(function (c) { c.classList.remove('t-hover'); });
+    (tState.leafletMarkers || []).forEach(function (m) {
+      try { if (m && map.hasLayer) map.removeLayer(m); else if (m && m.remove) m.remove(); } catch (e) {}
+    });
+    tState.leafletMarkers = [];
+    tState._hoveredTask = null;
+    var base = currentBase();
+    function addMarkOSM(lat, lng, label, bg, size, taskId, idx) {
+      try {
+        var iconSize = size || 32;
+        var html = '<div style="background:' + (bg || '#2563eb') + ';color:#fff;border-radius:50%;width:' + iconSize + 'px;height:' + iconSize + 'px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:' + Math.round(iconSize * 0.46) + 'px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.3)">' + label + '</div>';
+        var icon = window.L.divIcon({ html: html, className: '', iconSize: [iconSize, iconSize], iconAnchor: [iconSize / 2, iconSize / 2] });
+        var m = window.L.marker([+lat, +lng], { icon: icon }).addTo(map);
+        m._taskId = taskId || null;
+        m._taskIdx = (typeof idx === 'number') ? idx : -1;
+        m._label = label;
+        m._bg = bg;
+        m._size = iconSize;
+        tState.leafletMarkers.push(m);
+        if (m._taskId) {
+          m.on('mouseover', function () {
+            tState._hoveredTask = m._taskId;
+            try {
+              var hlHtml = '<div style="background:' + m._bg + ';color:#fff;border-radius:50%;width:' + (m._size + 8) + 'px;height:' + (m._size + 8) + 'px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:' + Math.round((m._size + 8) * 0.46) + 'px;border:2px solid #fff;box-shadow:0 0 0 3px rgba(255,255,255,.7),0 0 0 6px ' + m._bg + '">' + m._label + '</div>';
+              m.setIcon(window.L.divIcon({ html: hlHtml, className: '', iconSize: [m._size + 8, m._size + 8], iconAnchor: [(m._size + 8) / 2, (m._size + 8) / 2] }));
+            } catch (e) {}
+            var card = document.querySelector('#t-mlist .mtask[data-mid="' + m._taskId + '"]');
+            if (card) {
+              card.classList.add('t-hover');
+              try {
+                var rect = card.getBoundingClientRect();
+                if (rect.top < 80 || rect.bottom > window.innerHeight - 20) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+              } catch (e) {}
+            }
+          });
+          m.on('mouseout', function () {
+            if (tState._hoveredTask === m._taskId) tState._hoveredTask = null;
+            try {
+              var baseHtml = '<div style="background:' + m._bg + ';color:#fff;border-radius:50%;width:' + m._size + 'px;height:' + m._size + 'px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:' + Math.round(m._size * 0.46) + 'px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.3)">' + m._label + '</div>';
+              m.setIcon(window.L.divIcon({ html: baseHtml, className: '', iconSize: [m._size, m._size], iconAnchor: [m._size / 2, m._size / 2] }));
+            } catch (e) {}
+            var card = document.querySelector('#t-mlist .mtask[data-mid="' + m._taskId + '"]');
+            if (card) card.classList.remove('t-hover');
+          });
+          m.on('click', function () {
+            tUnmarkAllPicked();
+            try {
+              var pkHtml = '<div style="background:#7c3aed;color:#fff;border-radius:50%;width:' + (m._size + 8) + 'px;height:' + (m._size + 8) + 'px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:' + Math.round((m._size + 8) * 0.46) + 'px;border:2px solid #fff;box-shadow:0 0 0 4px rgba(124,58,237,.35)">' + m._label + '</div>';
+              m.setIcon(window.L.divIcon({ html: pkHtml, className: '', iconSize: [m._size + 8, m._size + 8], iconAnchor: [(m._size + 8) / 2, (m._size + 8) / 2] }));
+            } catch (e) {}
+            var card = document.querySelector('#t-mlist .mtask[data-mid="' + m._taskId + '"]');
+            if (card) { card.classList.add('t-picked'); try { card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) {} }
+            try { map.setView([+lat, +lng], Math.max(map.getZoom(), 14), { animate: true }); } catch (e) {}
+          });
+        }
+      } catch (e) {}
+    }
+    addMarkOSM(base.lat, base.lng, 'Б', '#0f2740', 36, 'BASE', -1);
+    (tState.pts || []).forEach(function (p, i) {
+      if (p.lat != null) addMarkOSM(p.lat, p.lng, String(i + 1), p.mcol || '#2563eb', 32, p.id, i);
+    });
+    (tState.inactivePts || []).forEach(function (p) {
+      if (p.lat != null) addMarkOSM(p.lat, p.lng, '·', '#94a3b8', 22, p.id, -1);
+    });
+    // Bounds
+    var all = [{ lat: base.lat, lng: base.lng }].concat(tState.pts || []);
+    var withCoords = all.filter(function (p) { return p.lat != null; });
+    if (withCoords.length > 1) {
+      try { map.fitBounds(withCoords.map(function (p) { return [p.lat, p.lng]; }), { padding: [40, 40] }); } catch (e) {}
+    }
+  }
+
+  function tDrawTestRouteLineOSM(geom) {
+    var map = tState.leafletMap;
+    if (!map || !window.L) return;
+    if (tState.routeLayer) { try { map.removeLayer(tState.routeLayer); } catch (e) {} tState.routeLayer = null; }
+    tState.routeGeom = geom || null;
+    if (!geom || geom.length < 2) return;
+    try {
+      var h = (typeof currentHourForJam === 'function') ? currentHourForJam() : new Date().getHours();
+      var k = (typeof jamFactorByHour === 'function') ? jamFactorByHour(h) : 1.0;
+      var stroke = '#2563eb';
+      if (k >= 1.45) stroke = '#dc2626';
+      else if (k >= 1.30) stroke = '#f59e0b';
+      else if (k >= 1.10) stroke = '#10b981';
+      var line = window.L.polyline(geom, { color: stroke, weight: 5, opacity: 0.9 }).addTo(map);
+      tState.routeLayer = line;
+      try { map.fitBounds(line.getBounds(), { padding: [60, 60] }); } catch (e) {}
+    } catch (e) {}
+  }
+
   /* ПОСТРОЕНИЕ МАРШРУТА НА ТЕСТ-СТРАНИЦЕ — с реальной оптимизацией и пробками.
      Шаг 1. ОПТИМИЗАЦИЯ порядка объезда: база → ближайшая точка → ближайшая
              к прошлой → … → возврат на базу. Глобально — сервис OSRM Trip
