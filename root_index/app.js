@@ -9481,7 +9481,7 @@
       '<div style="display:flex;gap:8px;font-size:10.5px;font-weight:700;margin-top:4px">' +
         '<span style="color:#16a34a">● ' + pW + ' раб</span>' +
         '<span style="color:#94a3b8">● ' + pO + ' вых</span>' +
-        '<span style="color:#dc2626">● ' + yA + ' отс</span>' +
+        '<span style="color:#dc2626">● ' + pA + ' отс</span>' +
       '</div>' +
       '</div>';
   }
