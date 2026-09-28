@@ -46,8 +46,12 @@ window.SP_SYNC_POLL = (function () {
     errors: 0,
     lastPoll: 0,
     stopped: false,
-    onChange: null
+    onChange: null,
+    online: []          // массив {id, full_name, role, login, last_seen}
   };
+
+  // Геттер для UI (дропдаун в топбаре)
+  function getOnline() { return state.online.slice(); }
 
   function fmtAgo(ts) {
     if (!ts) return '—';
@@ -301,7 +305,10 @@ window.SP_SYNC_POLL = (function () {
         state.errors = 0;
         state.lastPoll = Date.now();
         state.lastTs = r.now || Date.now();
-        updateIndicator('connected', { online: r.online ? r.online.length : 0 });
+        state.online = Array.isArray(r.online) ? r.online.slice() : [];
+        updateIndicator('connected', { online: state.online.length });
+        // Если открыт дропдаун — обновим его (без перезакрытия)
+        try { if (typeof window.__syncRefreshDropdown === 'function') window.__syncRefreshDropdown(); } catch (e) {}
         var changed = applyChanges(r.sections);
         if (changed) {
           refreshModules();
@@ -364,6 +371,7 @@ window.SP_SYNC_POLL = (function () {
     POLL_INTERVAL: POLL_INTERVAL,
     LS_KEYS: LS_KEYS,
     applyOne: applyOne,
+    getOnline: getOnline,
     onChange: function (cb) { state.onChange = cb; }
   };
 })();

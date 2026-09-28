@@ -733,7 +733,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-44 · адаптивный сайдбар: overlay при ≤1080px, клик вне закрывает'],
+    objmap: ['Карта объектов', 'Сборка 22.09-46 · админу: клик по «Сервер: в сети · N» — список онлайн'],
     testmap: ['Тест проезда', 'Полигон: карта маршрутов + оптимизация + пробки + Google Maps (копия «Карты маршрутов» для экспериментов)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -13456,6 +13456,8 @@
     var bs = document.getElementById('base-select'); if (bs) bs.value = S.baseId;
     applyUser();
     setScreen(S.role === 'slesar' ? 'map' : 'dashboard');
+    // Дропдаун онлайн-пользователей (после входа — знаем роль и ID юзера)
+    try { setupSyncDropdown(); } catch (e) { console.error('setupSyncDropdown:', e); }
     setTimeout(function () {
       var info = ROLE_INFO[u.role] || { label: u.role };
       logAction('Вход в систему', '');
@@ -17581,6 +17583,26 @@
     if (!sel.length) { toast('warn', 'Выберите хотя бы одно задание с координатами'); return; }
     var pts = sel.map(function (p) { return { id: p.id, lat: p.lat, lng: p.lng, addr: p.addr }; });
 
+    // Защитим кнопку от повторного клика, чтобы не плодить дубли параллельных запросов
+    var btnCmp = document.getElementById('t-btn-compare');
+    if (btnCmp) { btnCmp.disabled = true; var oldHtml = btnCmp.innerHTML; btnCmp.innerHTML = '⏳ Сравниваю…'; }
+    function releaseBtn() {
+      if (btnCmp) { btnCmp.disabled = false; btnCmp.innerHTML = oldHtml || '🔀 Сравнить'; }
+    }
+    // Авто-разблокировка через 12 секунд — что бы ни случилось
+    var releaseTimer = setTimeout(releaseBtn, 12000);
+
+    // Обёртка: fetch с таймаутом. r.osrm.de и valhalla1.openstreetmap.de любят висеть.
+    function fetchWithTimeout(url, opts, ms) {
+      return new Promise(function (resolve, reject) {
+        var ctrl = new AbortController();
+        var t = setTimeout(function () { ctrl.abort(); reject(new Error('timeout ' + ms + 'ms')); }, ms);
+        fetch(url, Object.assign({}, opts || {}, { signal: ctrl.signal }))
+          .then(function (r) { clearTimeout(t); resolve(r); })
+          .catch(function (e) { clearTimeout(t); reject(e); });
+      });
+    }
+
     // Найдём или создадим панель сравнения
     var panel = document.getElementById('t-compare-panel');
     if (!panel) {
@@ -17648,20 +17670,64 @@
       }
     }
     fetchStraightLineRoute(pts, base, onResult);
-    // Встроенный OSRM demo (router.project-osrm.org) — не зависит от других функций
+    // Встроенный OSRM demo (router.project-osrm.org) — таймаут 10 секунд
     try {
       var coordStr = pts.map(function (p) { return p.lng + ',' + p.lat; }).join(';');
       var osrmUrl = 'https://router.project-osrm.org/trip/v1/driving/' + base.lng + ',' + base.lat + ';' + coordStr + ';' + base.lng + ',' + base.lat +
         '?roundtrip=true&source=first&overview=simplified&geometries=geojson&steps=false';
-      fetch(osrmUrl).then(function (resp) { return resp.json(); }).then(function (res) {
-        if (res && res.trips && res.trips[0]) {
-          var t = res.trips[0];
-          onResult({ ok: true, by: 'osrm-demo', km: t.distance / 1000, min: Math.round(t.duration / 60), geometry: t.geometry.coordinates || [], legs: t.legs || [] });
-        } else onResult({ ok: false, by: 'osrm-demo', msg: 'OSRM: нет trips' });
-      }).catch(function (e) { onResult({ ok: false, by: 'osrm-demo', msg: 'OSRM: ' + e.message }); });
+      fetchWithTimeout(osrmUrl, null, 10000)
+        .then(function (resp) { return resp.json(); })
+        .then(function (res) {
+          if (res && res.trips && res.trips[0]) {
+            var t = res.trips[0];
+            onResult({ ok: true, by: 'osrm-demo', km: t.distance / 1000, min: Math.round(t.duration / 60), geometry: t.geometry.coordinates || [], legs: t.legs || [] });
+          } else onResult({ ok: false, by: 'osrm-demo', msg: 'OSRM: нет trips' });
+        }).catch(function (e) { onResult({ ok: false, by: 'osrm-demo', msg: 'OSRM: ' + e.message }); });
     } catch (e) { onResult({ ok: false, by: 'osrm-demo', msg: 'OSRM: ' + (e.message || 'init err') }); }
-    fetchFossgisOSRM(pts, base, onResult);
-    fetchValhallaPublic(pts, base, onResult);
+    // FOSSGIS — таймаут 8 секунд (часто виснет или CORS)
+    try {
+      var coords2 = [[base.lng, base.lat]];
+      pts.forEach(function (p) { coords2.push([p.lng, p.lat]); });
+      coords2.push([base.lng, base.lat]);
+      var coordStr2 = coords2.map(function (c) { return c.join(','); }).join(';');
+      var fossgisUrl = 'https://routing.openstreetmap.de/routed-car/trip/v1/driving/' + coordStr2 +
+        '?roundtrip=true&source=first&overview=simplified&geometries=geojson';
+      fetchWithTimeout(fossgisUrl, null, 8000)
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (!res || !res.trips || !res.trips[0]) { onResult({ ok: false, by: 'fossgis', msg: 'FOSSGIS: нет trips' }); return; }
+          var t2 = res.trips[0];
+          onResult({ ok: true, by: 'fossgis', km: t2.distance / 1000, min: Math.round(t2.duration / 60), geometry: t2.geometry.coordinates || [] });
+        }).catch(function (e) { onResult({ ok: false, by: 'fossgis', msg: 'FOSSGIS: ' + e.message }); });
+    } catch (e2) { onResult({ ok: false, by: 'fossgis', msg: 'FOSSGIS: ' + (e2.message || 'init err') }); }
+    // Valhalla public — таймаут 10 секунд (rate-limit 1/s, может висеть)
+    try {
+      var locs3 = [{ lat: base.lat, lon: base.lng, type: 'break' }];
+      pts.forEach(function (p) { locs3.push({ lat: p.lat, lon: p.lng, type: 'break' }); });
+      locs3.push({ lat: base.lat, lon: base.lng, type: 'break' });
+      var body3 = { locations: locs3, costing: 'auto', directions_options: { units: 'kilometers' }, shape_format: 'geojson' };
+      var ep3 = locs3.length > 2 ? '/optimized_route' : '/route';
+      fetchWithTimeout('https://valhalla1.openstreetmap.de' + ep3, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body3)
+      }, 10000)
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (!res || !res.trip) { onResult({ ok: false, by: 'valhalla-public', msg: 'Valhalla: ' + (res && res.error ? res.error : 'нет trip') }); return; }
+          var t3 = res.trip;
+          var km = (t3.summary && t3.summary.length) || 0;
+          var mn = (t3.summary && t3.summary.time) ? Math.round(t3.summary.time / 60) : 0;
+          onResult({ ok: true, by: 'valhalla-public', km: km, min: mn, geometry: [] });
+        }).catch(function (e) { onResult({ ok: false, by: 'valhalla-public', msg: 'Valhalla: ' + e.message }); });
+    } catch (e3) { onResult({ ok: false, by: 'valhalla-public', msg: 'Valhalla: ' + (e3.message || 'init err') }); }
+
+    // Разблокируем кнопку, когда придут все 4
+    var _origOnResult = onResult;
+    onResult = function (r) {
+      _origOnResult(r);
+      if (allResults.length >= 4) { clearTimeout(releaseTimer); releaseBtn(); }
+    };
   }
 
   function buildTestRoute(noJam) {
@@ -17918,4 +17984,92 @@
     console.error('SmartPlan init error:', err);
     showLoginScreen();
   });
+
+  /* ---------- Дропдаун "Пользователи онлайн" в топбаре ----------
+     Только админу: при клике на #sync-indicator открывается список
+     пользователей, у которых last_seen < 2 минут (сервер уже фильтрует).
+     Текущий пользователь выделен пометкой «Вы». */
+  function setupSyncDropdown() {
+    var ind = document.getElementById('sync-indicator');
+    var dd = document.getElementById('sync-dropdown');
+    var caret = document.getElementById('sync-caret');
+    var list = document.getElementById('sync-dd-list');
+    var ddCount = document.getElementById('sync-dd-count');
+    if (!ind || !dd || !list) return;
+
+    var isAdmin = (S && S.role === 'admin');
+    if (caret) caret.style.display = isAdmin ? 'inline' : 'none';
+    ind.style.cursor = isAdmin ? 'pointer' : 'default';
+
+    function roleLabel(r) {
+      var m = { admin: 'Админ', nach: 'Начальник', smaster: 'Ст. мастер', master: 'Мастер', engineer: 'Инженер СЭОГС', viewer: 'Просмотр', worker: 'Рабочий', account: 'Бухгалтерия', hr: 'Кадры' };
+      return m[r] || (r ? r : '—');
+    }
+    function fmtAgo(ts) {
+      if (!ts) return '—';
+      var s = Math.round((Date.now() - ts) / 1000);
+      if (s < 5) return 'только что';
+      if (s < 60) return s + ' с назад';
+      if (s < 3600) return Math.round(s / 60) + ' мин назад';
+      return Math.round(s / 3600) + ' ч назад';
+    }
+    function paint() {
+      var arr = (window.SP_SYNC_POLL && SP_SYNC_POLL.getOnline) ? SP_SYNC_POLL.getOnline() : [];
+      // Текущего юзера — наверх
+      var meId = S && S.user && S.user.id;
+      arr.sort(function (a, b) {
+        if (meId && a.id === meId && b.id !== meId) return -1;
+        if (meId && b.id === meId && a.id !== meId) return 1;
+        return (b.last_seen || 0) - (a.last_seen || 0);
+      });
+      if (ddCount) ddCount.textContent = arr.length;
+      if (!arr.length) {
+        list.innerHTML = '<div style="padding:18px 14px;text-align:center;color:var(--muted);font-size:12px">Нет пользователей онлайн</div>';
+        return;
+      }
+      list.innerHTML = arr.map(function (u) {
+        var you = meId && u.id === meId;
+        var name = esc(u.full_name || u.login || '—');
+        var login = u.login && u.full_name ? '<span style="color:var(--muted);font-weight:500;font-size:11px;margin-left:4px">@' + esc(u.login) + '</span>' : '';
+        var last = fmtAgo(u.last_seen);
+        var role = esc(roleLabel(u.role));
+        var bg = you ? 'background:#fef9c3' : 'background:transparent';
+        var youBadge = you ? ' <span style="background:#16a34a;color:#fff;font-size:9.5px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">ВЫ</span>' : '';
+        return '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);' + bg + ';transition:background .2s" onmouseover="this.style.background=\'' + (you ? '#fef3c7' : '#f1f5f9') + '\'" onmouseout="this.style.background=\'' + (you ? '#fef9c3' : 'transparent') + '\'">' +
+          '<div style="flex:0 0 auto"><div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#0f2740,#1e3a5f);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800">' + esc((u.full_name || u.login || '?').trim().charAt(0).toUpperCase()) + '</div></div>' +
+          '<div style="flex:1;min-width:0">' +
+            '<div style="font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + name + youBadge + login + '</div>' +
+            '<div style="font-size:11px;color:var(--muted);margin-top:1px">' + role + ' · ' + last + '</div>' +
+          '</div>' +
+          '<span style="width:8px;height:8px;border-radius:50%;background:#16a34a;box-shadow:0 0 0 2px #dcfce7"></span>' +
+        '</div>';
+      }).join('');
+    }
+    window.__syncRefreshDropdown = paint;
+
+    ind.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (!isAdmin) return;
+      var open = dd.style.display === 'block';
+      if (open) { dd.style.display = 'none'; return; }
+      paint();
+      // позиционируем под индикатором
+      var r = ind.getBoundingClientRect();
+      dd.style.top = (r.bottom + 6) + 'px';
+      dd.style.right = Math.max(8, (window.innerWidth - r.right)) + 'px';
+      dd.style.left = 'auto';
+      dd.style.display = 'block';
+    });
+    // Клик снаружи — закрыть
+    document.addEventListener('click', function (e) {
+      if (dd.style.display !== 'block') return;
+      if (dd.contains(e.target) || ind.contains(e.target)) return;
+      dd.style.display = 'none';
+    });
+    // Esc — закрыть
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && dd.style.display === 'block') dd.style.display = 'none';
+    });
+  }
+  // setupSyncDropdown() запускается из enterApp() после входа пользователя в систему.
 })();
