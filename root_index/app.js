@@ -733,7 +733,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-42 · все точки и области (ГРП, ШРП, ГРС, ПГРП) · виды работ 13 атрибутов · тест проезда: 🔀 Сравнить (4 роутера)'],
+    objmap: ['Карта объектов', 'Сборка 22.09-44 · адаптивный сайдбар: overlay при ≤1080px, клик вне закрывает'],
     testmap: ['Тест проезда', 'Полигон: карта маршрутов + оптимизация + пробки + Google Maps (копия «Карты маршрутов» для экспериментов)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -13618,8 +13618,38 @@
   document.getElementById('nav').addEventListener('click', function (e) {
     var a = e.target.closest('a[data-screen]'); if (!a) return;
     setScreen(a.dataset.screen);
+    // На узких экранах (<1080) сайдбар — overlay; клик по пункту закрывает его
+    if (window.innerWidth <= 1080) closeDrawer();
   });
-  document.getElementById('burger').addEventListener('click', function () { document.getElementById('sidebar').classList.toggle('open'); });
+
+  // === БУРГЕР + КЛИК ВНЕ САЙДБАРА (для overlay-режима на ≤1080px) ===
+  function closeDrawer() {
+    var sb = document.getElementById('sidebar'); if (sb) sb.classList.remove('open');
+    document.body.classList.remove('drawer-open');
+  }
+  function openDrawer() {
+    var sb = document.getElementById('sidebar'); if (sb) sb.classList.add('open');
+    document.body.classList.add('drawer-open');
+  }
+  document.getElementById('burger').addEventListener('click', function () {
+    var sb = document.getElementById('sidebar');
+    if (!sb) return;
+    if (sb.classList.contains('open')) closeDrawer(); else openDrawer();
+  });
+
+  // Клик по основному контенту (вне сайдбара) закрывает overlay-сайдбар
+  // — работает только при ширине ≤1080px (на десктопе сайдбар всегда видим)
+  function isDrawerOpen() { return document.body.classList.contains('drawer-open'); }
+  document.addEventListener('click', function (e) {
+    if (window.innerWidth > 1080) return;       // десктоп — не трогаем
+    if (!isDrawerOpen()) return;                // закрыт — нечего закрывать
+    var sb = document.getElementById('sidebar');
+    var burger = document.getElementById('burger');
+    // клик по самому сайдбару / бургеру не закрывает
+    if (sb && sb.contains(e.target)) return;
+    if (burger && burger.contains(e.target)) return;
+    closeDrawer();
+  });
   var baseSel = document.getElementById('base-select');
   if (baseSel) baseSel.addEventListener('change', function (e) { S.baseId = e.target.value; refresh(); });
   overlay.addEventListener('click', function (e) { /* клик мимо окна не закрывает — только кнопкой × или «Отмена» */ });
@@ -17618,7 +17648,18 @@
       }
     }
     fetchStraightLineRoute(pts, base, onResult);
-    fetchOSRMRouteGeometry('osrm', pts, base, function (r) { r.by = 'osrm-demo'; onResult(r); });
+    // Встроенный OSRM demo (router.project-osrm.org) — не зависит от других функций
+    try {
+      var coordStr = pts.map(function (p) { return p.lng + ',' + p.lat; }).join(';');
+      var osrmUrl = 'https://router.project-osrm.org/trip/v1/driving/' + base.lng + ',' + base.lat + ';' + coordStr + ';' + base.lng + ',' + base.lat +
+        '?roundtrip=true&source=first&overview=simplified&geometries=geojson&steps=false';
+      fetch(osrmUrl).then(function (resp) { return resp.json(); }).then(function (res) {
+        if (res && res.trips && res.trips[0]) {
+          var t = res.trips[0];
+          onResult({ ok: true, by: 'osrm-demo', km: t.distance / 1000, min: Math.round(t.duration / 60), geometry: t.geometry.coordinates || [], legs: t.legs || [] });
+        } else onResult({ ok: false, by: 'osrm-demo', msg: 'OSRM: нет trips' });
+      }).catch(function (e) { onResult({ ok: false, by: 'osrm-demo', msg: 'OSRM: ' + e.message }); });
+    } catch (e) { onResult({ ok: false, by: 'osrm-demo', msg: 'OSRM: ' + (e.message || 'init err') }); }
     fetchFossgisOSRM(pts, base, onResult);
     fetchValhallaPublic(pts, base, onResult);
   }

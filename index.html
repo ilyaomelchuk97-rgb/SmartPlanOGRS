@@ -396,6 +396,27 @@
   .burger{display:none;background:none;border:1px solid var(--line);border-radius:8px;padding:7px;cursor:pointer;align-items:center;justify-content:center}
   .burger svg{width:18px;height:18px}
 
+  /* ---------- АДАПТИВНЫЙ САЙДБАР (≤1080px): превращается в overlay ---------- */
+  @media (max-width:1080px){
+    .app{flex-direction:column}
+    .sidebar{
+      position:fixed;left:-280px;top:0;bottom:0;width:260px;flex-basis:260px;z-index:90;
+      transition:left .25s cubic-bezier(.4,0,.2,1);
+      box-shadow:0 0 40px rgba(0,0,0,.3);
+    }
+    .sidebar.open{left:0}
+    /* затемнение фона при открытом сайдбаре */
+    body.drawer-open::after{
+      content:"";position:fixed;inset:0;background:rgba(15,39,64,.55);z-index:85;
+      animation:fadeIn .15s ease;
+    }
+    /* ВАЖНО: показать бургер-кнопку ВСЕГДА при ≤1080px */
+    .burger{display:inline-flex!important}
+    /* когда сайдбар закрыт и ширина ≤1080 — контент растягивается на всю ширину */
+    .main{flex:1;min-width:0}
+  }
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+
   /* =====================================================================
      ПОЛНАЯ АДАПТИВНОСТЬ — 24", 11", 7", горизонталь/вертикаль
      ===================================================================== */
@@ -1052,7 +1073,7 @@
           <div style="margin-top:6px;font-size:11px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-42 · в тесте проезда добавлена кнопка «🔀 Сравнить» — параллельный опрос 4 бесплатных роутеров (OSRM demo, FOSSGIS OSRM, Valhalla public, прямая ×1.4). Результаты появляются по мере готовности, лучший маршрут подсвечивается.</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-44 · адаптивный сайдбар: при ширине ≤1080px превращается в overlay. Бургер-кнопка открывает/закрывает, клик по основному контенту закрывает, затемнение фона. На десктопе (>1080px) поведение прежнее.</div>
     </div>
   </div>
   </div>
