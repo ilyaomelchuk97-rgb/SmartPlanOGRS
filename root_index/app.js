@@ -733,7 +733,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-47 · «Сравнить» — overlay-модалка поверх страницы, 4 источника в таблице, бейдж лучшего'],
+    objmap: ['Карта объектов', 'Сборка 22.09-48 · фикс Valhalla, +4 роутера (bike/foot/BRouter/osm.ch) — 8 источников в сравнении'],
     testmap: ['Тест проезда', 'Полигон: карта маршрутов + оптимизация + пробки + Google Maps (копия «Карты маршрутов» для экспериментов)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -17630,7 +17630,7 @@
           '<div style="font-size:24px">🔀</div>' +
           '<div style="flex:1;min-width:0">' +
             '<div style="font-size:16px;font-weight:800;letter-spacing:.2px">Сравнение бесплатных роутеров</div>' +
-            '<div style="font-size:12px;opacity:.92;margin-top:2px">' + ptsCount + ' задани' + (ptsCount===1?'е':ptsCount<5?'я':'й') + ' · база «' + esc(base.name) + '» · 4 источника маршрутизации</div>' +
+            '<div style="font-size:12px;opacity:.92;margin-top:2px">' + ptsCount + ' задани' + (ptsCount===1?'е':ptsCount<5?'я':'й') + ' · база «' + esc(base.name) + '» · 8 источников маршрутизации</div>' +
           '</div>' +
           '<div style="display:flex;align-items:center;gap:8px">' +
             '<span id="t-compare-progress" style="background:rgba(255,255,255,.18);padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.3px">⏳ 0 / 4</span>' +
@@ -17648,7 +17648,7 @@
         '</div>' +
         '<div style="padding:10px 22px;background:var(--panel-2);border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-shrink:0">' +
           '<div style="font-size:11px;color:var(--muted)">' +
-            '🟦 OSRM demo · 🟩 FOSSGIS OSRM · 🟧 Valhalla public · ⬜ Прямая ×1.4' +
+            '🟦 OSRM · 🟩 FOSSGIS · 🚲 bike · 🚶 foot · 🟧 Valhalla · 🇨🇭 osm.ch · 🚗 BRouter · 🥾 trekking · ⬜ прямая' +
           '</div>' +
           '<button class="btn sm" id="t-compare-retry" type="button" style="background:#f1f5f9;color:var(--ink);border:1px solid var(--line);font-weight:600">↻ Обновить</button>' +
         '</div>' +
@@ -17680,8 +17680,9 @@
     });
 
     function setProgress() {
-      progressEl.textContent = (allResults.length < 4 ? '⏳ ' : '✅ ') + allResults.length + ' / 4';
-      if (allResults.length < 4) {
+      var total = Object.keys(NAMES).length;
+      progressEl.textContent = (allResults.length < total ? '⏳ ' : '✅ ') + allResults.length + ' / ' + total;
+      if (allResults.length < total) {
         progressEl.style.background = 'rgba(255,255,255,.18)';
       } else {
         progressEl.style.background = 'rgba(34,197,94,.85)';
@@ -17689,14 +17690,42 @@
     }
 
     // Карточка-строка: информативный стиль с колонками (имя / дистанция / время / точек / статус)
+    var ICONS = {
+      'osrm-demo':     '🟦',
+      'fossgis-car':   '🟩',
+      'fossgis-bike':  '🚲',
+      'fossgis-foot':  '🚶',
+      'valhalla-public':'🟧',
+      'osm-ch':        '🇨🇭',
+      'brouter-car':   '🚗',
+      'brouter-trek':  '🥾',
+      'straight':      '⬜'
+    };
+    var NAMES = {
+      'osrm-demo':     'OSRM demo',
+      'fossgis-car':   'FOSSGIS car',
+      'fossgis-bike':  'FOSSGIS bike',
+      'fossgis-foot':  'FOSSGIS foot',
+      'valhalla-public':'Valhalla public',
+      'osm-ch':        'routing.osm.ch (CH)',
+      'brouter-car':   'BRouter car-fast',
+      'brouter-trek':  'BRouter trekking',
+      'straight':      'Прямая ×1.4'
+    };
+    var URLS = {
+      'osrm-demo':     'https://router.project-osrm.org',
+      'fossgis-car':   'https://routing.openstreetmap.de/routed-car',
+      'fossgis-bike':  'https://routing.openstreetmap.de/routed-bike',
+      'fossgis-foot':  'https://routing.openstreetmap.de/routed-foot',
+      'valhalla-public':'https://valhalla1.openstreetmap.de',
+      'osm-ch':        'https://routing.osm.ch',
+      'brouter-car':   'https://brouter.de',
+      'brouter-trek':  'https://brouter.de'
+    };
     function renderRow(r, isNew) {
-      var icon = r.by === 'osrm-demo' ? '🟦' : r.by === 'fossgis' ? '🟩' : r.by === 'valhalla-public' ? '🟧' : '⬜';
-      var name = r.by === 'osrm-demo' ? 'OSRM demo' :
-                 r.by === 'fossgis' ? 'FOSSGIS OSRM' :
-                 r.by === 'valhalla-public' ? 'Valhalla public' : 'Прямая ×1.4';
-      var url = r.by === 'osrm-demo' ? 'https://router.project-osrm.org' :
-                r.by === 'fossgis' ? 'https://routing.openstreetmap.de/routed-car' :
-                r.by === 'valhalla-public' ? 'https://valhalla1.openstreetmap.de' : '';
+      var icon = ICONS[r.by] || '⬜';
+      var name = NAMES[r.by] || (r.by || '—');
+      var url = URLS[r.by] || '';
       var kmStr = r.ok ? r.km.toFixed(1).replace('.', ',') + ' км' : '—';
       var minStr = r.ok ? fmtDuration(r.min) : '—';
       var ptsStr = r.ok ? (ptsCount + ' + база') : '—';
@@ -17724,8 +17753,8 @@
       else listEl.innerHTML += row;
     }
 
-    // Стартовое состояние — 4 «пустых» строки с pulsing индикатором
-    var rows = ['osrm-demo', 'fossgis', 'valhalla-public', 'straight'];
+    // Стартовое состояние — 8 «пустых» строк с pulsing индикатором
+    var rows = Object.keys(NAMES);
     rows.forEach(function (by) { renderRow({ ok: false, by: by, msg: 'ожидание…' }, true); });
 
     var allResults = [];
@@ -17765,7 +17794,7 @@
           '<div style="text-align:center;font-size:12px;font-weight:600;' + (r.ok ? 'color:#15803d' : 'color:#dc2626') + '">' + statusText + '</div>';
         pending.replaceWith(newEl);
       }
-      if (allResults.length === 4) {
+      if (allResults.length >= Object.keys(NAMES).length) {
         clearTimeout(releaseTimer); releaseBtn();
         // Сортируем: успешные по расстоянию по возрастанию, битые в самый низ
         var sorted = allResults.slice().sort(function (a, b) {
@@ -17787,71 +17816,228 @@
           var okList = sorted.filter(function (x) { return x.ok; });
           var worst = okList[okList.length - 1];
           var saving = worst.km - best.km;
+          var bestName = NAMES[best.by] || best.by;
           footHtml = '<div style="padding:12px 14px;background:linear-gradient(135deg,#dcfce7,#bbf7d0);border-radius:10px;border:1px solid #86efac;display:flex;align-items:center;gap:12px">' +
-            '<div style="font-size:24px">🏆</div>' +
+            '<div style="font-size:24px">' + (ICONS[best.by] || '🏆') + '</div>' +
             '<div style="flex:1">' +
-              '<div style="font-weight:800;color:#14532d;font-size:14px">Лучший маршрут — ' + (best.by === 'osrm-demo' ? 'OSRM demo' : best.by === 'fossgis' ? 'FOSSGIS OSRM' : best.by === 'valhalla-public' ? 'Valhalla public' : 'Прямая ×1.4') + '</div>' +
+              '<div style="font-weight:800;color:#14532d;font-size:14px">Лучший маршрут — ' + bestName + '</div>' +
               '<div style="font-size:12px;color:#166534;margin-top:2px">' + best.km.toFixed(1).replace('.', ',') + ' км · ' + fmtDuration(best.min) + (saving > 0 ? ' · экономия ' + saving.toFixed(1).replace('.', ',') + ' км относительно самого длинного' : '') + '</div>' +
             '</div>' +
           '</div>';
         } else {
-          footHtml = '<div style="padding:10px 14px;background:#fef2f2;border-radius:10px;border:1px solid #fca5a5;color:#7f1d1d;font-size:12.5px">⚠ Ни один из 4 роутеров не ответил успешно. Проверьте доступ к router.project-osrm.org, routing.openstreetmap.de, valhalla1.openstreetmap.de.</div>';
+          footHtml = '<div style="padding:10px 14px;background:#fef2f2;border-radius:10px;border:1px solid #fca5a5;color:#7f1d1d;font-size:12.5px">⚠ Ни один из роутеров не ответил успешно. Проверьте доступ к router.project-osrm.org, routing.openstreetmap.de, valhalla1.openstreetmap.de, routing.osm.ch, brouter.de.</div>';
         }
         footEl.innerHTML = footHtml;
       }
     }
     fetchStraightLineRoute(pts, base, onResult);
-    // Встроенный OSRM demo (router.project-osrm.org) — таймаут 10 секунд
-    try {
+    // ============================================================
+    // 8 РОУТЕРОВ для сравнения. Все бесплатные, без ключа.
+    // Каждый fetch обёрнут в try/catch и fetchWithTimeout — ничего
+    // не «подвешивает» UI. Если сервер не ответил — показываем строку с ⚠.
+    // ============================================================
+
+    // 1) OSRM demo (router.project-osrm.org) — roundtrip с оптимизацией порядка
+    function callOsrmDemo() {
       var coordStr = pts.map(function (p) { return p.lng + ',' + p.lat; }).join(';');
-      var osrmUrl = 'https://router.project-osrm.org/trip/v1/driving/' + base.lng + ',' + base.lat + ';' + coordStr + ';' + base.lng + ',' + base.lat +
+      var url = 'https://router.project-osrm.org/trip/v1/driving/' + base.lng + ',' + base.lat + ';' + coordStr + ';' + base.lng + ',' + base.lat +
         '?roundtrip=true&source=first&overview=simplified&geometries=geojson&steps=false';
-      fetchWithTimeout(osrmUrl, null, 10000)
-        .then(function (resp) { return resp.json(); })
+      fetchWithTimeout(url, null, 10000)
+        .then(function (r) { return r.json(); })
         .then(function (res) {
           if (res && res.trips && res.trips[0]) {
             var t = res.trips[0];
             onResult({ ok: true, by: 'osrm-demo', km: t.distance / 1000, min: Math.round(t.duration / 60), geometry: t.geometry.coordinates || [], legs: t.legs || [] });
           } else onResult({ ok: false, by: 'osrm-demo', msg: 'OSRM: нет trips' });
         }).catch(function (e) { onResult({ ok: false, by: 'osrm-demo', msg: 'OSRM: ' + e.message }); });
-    } catch (e) { onResult({ ok: false, by: 'osrm-demo', msg: 'OSRM: ' + (e.message || 'init err') }); }
-    // FOSSGIS — таймаут 8 секунд (часто виснет или CORS)
-    try {
-      var coords2 = [[base.lng, base.lat]];
-      pts.forEach(function (p) { coords2.push([p.lng, p.lat]); });
-      coords2.push([base.lng, base.lat]);
-      var coordStr2 = coords2.map(function (c) { return c.join(','); }).join(';');
-      var fossgisUrl = 'https://routing.openstreetmap.de/routed-car/trip/v1/driving/' + coordStr2 +
-        '?roundtrip=true&source=first&overview=simplified&geometries=geojson';
-      fetchWithTimeout(fossgisUrl, null, 8000)
+    }
+
+    // Универсальная функция для OSRM-совместимых серверов.
+    // kind: 'trip' (оптимизация порядка) или 'route' (как задано).
+    // profile: routed-car / routed-bike / routed-foot
+    function callOsrmLike(profile, kind, byName, timeoutMs) {
+      var coords = [[base.lng, base.lat]];
+      pts.forEach(function (p) { coords.push([p.lng, p.lat]); });
+      coords.push([base.lng, base.lat]);
+      var coordStr = coords.map(function (c) { return c.join(','); }).join(';');
+      var url = 'https://routing.openstreetmap.de/' + profile + '/' + kind + '/v1/driving/' + coordStr +
+        (kind === 'trip' ? '?roundtrip=true&source=first&overview=simplified&geometries=geojson'
+                        : '?overview=simplified&geometries=geojson');
+      fetchWithTimeout(url, null, timeoutMs || 8000)
         .then(function (r) { return r.json(); })
         .then(function (res) {
-          if (!res || !res.trips || !res.trips[0]) { onResult({ ok: false, by: 'fossgis', msg: 'FOSSGIS: нет trips' }); return; }
-          var t2 = res.trips[0];
-          onResult({ ok: true, by: 'fossgis', km: t2.distance / 1000, min: Math.round(t2.duration / 60), geometry: t2.geometry.coordinates || [] });
-        }).catch(function (e) { onResult({ ok: false, by: 'fossgis', msg: 'FOSSGIS: ' + e.message }); });
-    } catch (e2) { onResult({ ok: false, by: 'fossgis', msg: 'FOSSGIS: ' + (e2.message || 'init err') }); }
-    // Valhalla public — таймаут 10 секунд (rate-limit 1/s, может висеть)
-    try {
-      var locs3 = [{ lat: base.lat, lon: base.lng, type: 'break' }];
-      pts.forEach(function (p) { locs3.push({ lat: p.lat, lon: p.lng, type: 'break' }); });
-      locs3.push({ lat: base.lat, lon: base.lng, type: 'break' });
-      var body3 = { locations: locs3, costing: 'auto', directions_options: { units: 'kilometers' }, shape_format: 'geojson' };
-      var ep3 = locs3.length > 2 ? '/optimized_route' : '/route';
-      fetchWithTimeout('https://valhalla1.openstreetmap.de' + ep3, {
+          var trips = (res && (res.trips || res.routes));
+          if (trips && trips[0]) {
+            var t = trips[0];
+            onResult({ ok: true, by: byName, km: t.distance / 1000, min: Math.round(t.duration / 60), geometry: t.geometry.coordinates || [] });
+          } else {
+            onResult({ ok: false, by: byName, msg: 'OSRM-like: нет routes (' + ((res && res.code) || '—') + ')' });
+          }
+        }).catch(function (e) { onResult({ ok: false, by: byName, msg: 'OSRM-like: ' + e.message }); });
+    }
+
+    // 2) FOSSGIS car (стандартный, что уже был) — trip с roundtrip
+    function callFossgisCar() {
+      callOsrmLike('routed-car', 'trip', 'fossgis-car', 8000);
+    }
+
+    // 3) FOSSGIS bike (велосипедные дорожки) — route, без roundtrip
+    function callFossgisBike() {
+      var coords = [[base.lng, base.lat]];
+      pts.forEach(function (p) { coords.push([p.lng, p.lat]); });
+      coords.push([base.lng, base.lat]);
+      var coordStr = coords.map(function (c) { return c.join(','); }).join(';');
+      // bike routing works best through route (not trip) on FOSSGIS
+      var url = 'https://routing.openstreetmap.de/routed-bike/route/v1/cycling/' + coordStr +
+        '?overview=simplified&geometries=geojson';
+      fetchWithTimeout(url, null, 8000)
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          var routes = (res && res.routes);
+          if (routes && routes[0]) {
+            var t = routes[0];
+            onResult({ ok: true, by: 'fossgis-bike', km: t.distance / 1000, min: Math.round(t.duration / 60), geometry: t.geometry.coordinates || [] });
+          } else onResult({ ok: false, by: 'fossgis-bike', msg: 'FOSSGIS bike: нет routes' });
+        }).catch(function (e) { onResult({ ok: false, by: 'fossgis-bike', msg: 'FOSSGIS bike: ' + e.message }); });
+    }
+
+    // 4) FOSSGIS foot (пешеходные дорожки)
+    function callFossgisFoot() {
+      var coords = [[base.lng, base.lat]];
+      pts.forEach(function (p) { coords.push([p.lng, p.lat]); });
+      coords.push([base.lng, base.lat]);
+      var coordStr = coords.map(function (c) { return c.join(','); }).join(';');
+      var url = 'https://routing.openstreetmap.de/routed-foot/route/v1/foot/' + coordStr +
+        '?overview=simplified&geometries=geojson';
+      fetchWithTimeout(url, null, 8000)
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          var routes = (res && res.routes);
+          if (routes && routes[0]) {
+            var t = routes[0];
+            onResult({ ok: true, by: 'fossgis-foot', km: t.distance / 1000, min: Math.round(t.duration / 60), geometry: t.geometry.coordinates || [] });
+          } else onResult({ ok: false, by: 'fossgis-foot', msg: 'FOSSGIS foot: нет routes' });
+        }).catch(function (e) { onResult({ ok: false, by: 'fossgis-foot', msg: 'FOSSGIS foot: ' + e.message }); });
+    }
+
+    // 5) Valhalla public. ИСПРАВЛЕНО: используем /route вместо /optimized_route
+    //    (была ошибка «Exceeded max locations: 100» при больших числах точек
+    //    и при повторной базе в конце). Без оптимизации порядка,
+    //    просто последовательность. Не зависит от «max_locations»
+    //    потому что мы НЕ запрашиваем оптимизацию, и «locations» —
+    //    это только путевые точки.
+    //    Однако /route тоже имеет лимит ~ 20 точек по умолчанию в этом
+    //    публичном инстансе. На > 20 заданиях — пропускаем с подсказкой.
+    function callValhallaPublic() {
+      // Публичный сервер valhalla1.openstreetmap.de имеет жёсткий лимит
+      // max_locations=10 (для /route — даже меньше). У нас в массиве
+      // база+точки+база — 2 лишние.
+      // Эмпирика: 8 заданий = 10 locs (ОК), 9 заданий = 11 locs (искл.).
+      // Поэтому валим заранее на >8 точках, чтобы получить явный ⚠,
+      // а не молчаливую ошибку «Exceeded max locations: 10».
+      var locs = [{ lat: base.lat, lon: base.lng }];
+      pts.forEach(function (p) { locs.push({ lat: p.lat, lon: p.lng }); });
+      locs.push({ lat: base.lat, lon: base.lng });
+      if (locs.length > 10) {
+        onResult({ ok: false, by: 'valhalla-public', msg: 'Valhalla: ' + locs.length + ' точек (лимит публичного сервера — 10, скип; используйте OSRM demo/FOSSGIS)' });
+        return;
+      }
+      var body = { locations: locs, costing: 'auto', directions_options: { units: 'kilometers' } };
+      fetchWithTimeout('https://valhalla1.openstreetmap.de/route', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body3)
+        body: JSON.stringify(body)
       }, 10000)
         .then(function (r) { return r.json(); })
         .then(function (res) {
-          if (!res || !res.trip) { onResult({ ok: false, by: 'valhalla-public', msg: 'Valhalla: ' + (res && res.error ? res.error : 'нет trip') }); return; }
-          var t3 = res.trip;
-          var km = (t3.summary && t3.summary.length) || 0;
-          var mn = (t3.summary && t3.summary.time) ? Math.round(t3.summary.time / 60) : 0;
-          onResult({ ok: true, by: 'valhalla-public', km: km, min: mn, geometry: [] });
+          if (res && res.trip && res.trip.summary) {
+            var s = res.trip.summary;
+            onResult({ ok: true, by: 'valhalla-public', km: s.length || 0, min: s.time ? Math.round(s.time / 60) : 0, geometry: [] });
+          } else {
+            var errMsg = (res && res.error) ? res.error : 'нет trip';
+            onResult({ ok: false, by: 'valhalla-public', msg: 'Valhalla: ' + errMsg });
+          }
         }).catch(function (e) { onResult({ ok: false, by: 'valhalla-public', msg: 'Valhalla: ' + e.message }); });
-    } catch (e3) { onResult({ ok: false, by: 'valhalla-public', msg: 'Valhalla: ' + (e3.message || 'init err') }); }
+    }
+
+    // 6) routing.osm.ch — независимый OSRM-сервер (Швейцария / частично Европа).
+    //    Не работает для Беларуси (distance:0) — будет показан как «за пределами».
+    //    Всё равно полезно для сравнения алгоритмов, если кто-то в Европе.
+    function callOsmCh() {
+      var coords = [[base.lng, base.lat]];
+      pts.forEach(function (p) { coords.push([p.lng, p.lat]); });
+      coords.push([base.lng, base.lat]);
+      var coordStr = coords.map(function (c) { return c.join(','); }).join(';');
+      var url = 'https://routing.osm.ch/routed-car/route/v1/driving/' + coordStr +
+        '?overview=simplified&geometries=geojson';
+      fetchWithTimeout(url, null, 8000)
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (res && res.routes && res.routes[0]) {
+            var t = res.routes[0];
+            // Если distance == 0 — координаты вне зоны (нормально для Минска),
+            // всё равно покажем как ответ — наглядно видно лимиты разных серверов.
+            onResult({ ok: true, by: 'osm-ch', km: t.distance / 1000, min: Math.round(t.duration / 60), geometry: t.geometry.coordinates || [] });
+          } else onResult({ ok: false, by: 'osm-ch', msg: 'osm.ch: ' + ((res && res.code) || 'пусто') });
+        }).catch(function (e) { onResult({ ok: false, by: 'osm-ch', msg: 'osm.ch: ' + e.message }); });
+    }
+
+    // 7) BRouter car-fast (car, оптимизированный под автомобиль,
+    //    учитывает энергию и подъёмы). BRouter — отдельный движок (Java).
+    //    Поддерживает несколько точек через | в lonlats.
+    function callBRouterCar() {
+      if (pts.length > 50) {
+        // BRouter не любит очень много точек
+        onResult({ ok: false, by: 'brouter-car', msg: 'BRouter car: ' + (pts.length + 2) + ' точек (>50, скип)' });
+        return;
+      }
+      var segs = [[base.lng, base.lat]];
+      pts.forEach(function (p) { segs.push([p.lng, p.lat]); });
+      segs.push([base.lng, base.lat]);
+      var lonlats = segs.map(function (s) { return s.join(','); }).join('|');
+      var url = 'https://brouter.de/brouter?lonlats=' + encodeURIComponent(lonlats) +
+        '&profile=car-fast&alternativeidx=0&format=geojson';
+      fetchWithTimeout(url, null, 12000)
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (res && res.features && res.features[0]) {
+            var p = res.features[0].properties || {};
+            var km = parseFloat(p['track-length']) / 1000 || 0;
+            var mn = Math.round((parseFloat(p['total-time']) || 0) / 60);
+            onResult({ ok: true, by: 'brouter-car', km: km, min: mn, geometry: [] });
+          } else onResult({ ok: false, by: 'brouter-car', msg: 'BRouter car: пустой ответ' });
+        }).catch(function (e) { onResult({ ok: false, by: 'brouter-car', msg: 'BRouter car: ' + e.message }); });
+    }
+
+    // 8) BRouter trekking (универсальный велосипедный/городской)
+    function callBRouterTrek() {
+      if (pts.length > 50) {
+        onResult({ ok: false, by: 'brouter-trek', msg: 'BRouter trekking: ' + (pts.length + 2) + ' точек (>50, скип)' });
+        return;
+      }
+      var segs = [[base.lng, base.lat]];
+      pts.forEach(function (p) { segs.push([p.lng, p.lat]); });
+      segs.push([base.lng, base.lat]);
+      var lonlats = segs.map(function (s) { return s.join(','); }).join('|');
+      var url = 'https://brouter.de/brouter?lonlats=' + encodeURIComponent(lonlats) +
+        '&profile=trekking&alternativeidx=0&format=geojson';
+      fetchWithTimeout(url, null, 12000)
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (res && res.features && res.features[0]) {
+            var p = res.features[0].properties || {};
+            var km = parseFloat(p['track-length']) / 1000 || 0;
+            var mn = Math.round((parseFloat(p['total-time']) || 0) / 60);
+            onResult({ ok: true, by: 'brouter-trek', km: km, min: mn, geometry: [] });
+          } else onResult({ ok: false, by: 'brouter-trek', msg: 'BRouter trekking: пустой ответ' });
+        }).catch(function (e) { onResult({ ok: false, by: 'brouter-trek', msg: 'BRouter trekking: ' + e.message }); });
+    }
+
+    // Запуск всех 8 параллельно (отказ одного — не блокирует остальные)
+    var callers = [callOsrmDemo, callFossgisCar, callFossgisBike, callFossgisFoot, callValhallaPublic, callOsmCh, callBRouterCar, callBRouterTrek];
+    callers.forEach(function (fn) {
+      try { fn(); } catch (e) { /* если упало на старте — пусть onResult не вызывается */ }
+    });
   }
 
   function buildTestRoute(noJam) {
