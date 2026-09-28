@@ -781,7 +781,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-69 · графики смен: Месяц/Год, Excel с цветами, печать на всю ширину, карточки ФИО+профессия'],
+    objmap: ['Карта объектов', 'Сборка 22.09-71 · графики: год отдельным блоком под месяцем (отступ 30px), селектор года'],
     testmap: ['Тест проезда', 'Полигон: карта маршрутов + оптимизация + пробки + Google Maps (копия «Карты маршрутов» для экспериментов)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -9076,15 +9076,7 @@
     var users = wkVisibleUsers();
     var masters = users.filter(function (u) { return u.role === 'master'; });
     var slesars = users.filter(function (u) { return u.role === 'slesar'; });
-    var period = wkPeriod();
     var wm = wkMonth();
-
-    // Режим «год» — отдельная сетка 12 месяцев × N работников
-    if (period.kind === 'year') {
-      renderSchedulesYear(v, users, masters, slesars, wm);
-      wireSchedulesControls(v);
-      return;
-    }
 
     var dim = period.dim;
     var lead = (new Date(wm.y, wm.m, 1).getDay() + 6) % 7;
@@ -9103,15 +9095,11 @@
 
     var html = '<div class="card"><div class="card-h"><h2>📅 Графики смен</h2>';
     html += '<span class="sub">' + masters.length + ' бригад · ' + slesars.length + ' слесарей · ' + users.length + ' чел.</span><div class="spacer"></div>';
-    // Управление: период (месяц/год) + режим отображения
+    // Управление: переключатель месяца + режим отображения
     html += '<span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">';
-    html += '<select data-action="sch-range" style="padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:11.5px;font-weight:700;background:var(--card)">';
-    html += '<option value="month"' + (S.schRange !== 'year' ? ' selected' : '') + '>Месяц</option>';
-    html += '<option value="year"' + (S.schRange === 'year' ? ' selected' : '') + '>Год</option>';
-    html += '</select>';
-    html += '<button type="button" class="btn sm" data-action="sch-period-prev" title="Предыдущий">‹</button>';
-    html += '<b data-action="sch-period-label" style="font-size:13px;color:var(--ink);min-width:140px;text-align:center">' + (S.schRange === 'year' ? wm.y : (MON_NOM[wm.m] + ' ' + wm.y)) + '</b>';
-    html += '<button type="button" class="btn sm" data-action="sch-period-next" title="Следующий">›</button>';
+    html += '<button type="button" class="btn sm" data-action="sch-month-prev" title="Предыдущий месяц">‹</button>';
+    html += '<b data-action="sch-month-label" style="font-size:13px;color:var(--ink);min-width:140px;text-align:center">' + MON_NOM[wm.m] + ' ' + wm.y + '</b>';
+    html += '<button type="button" class="btn sm" data-action="sch-month-next" title="Следующий месяц">›</button>';
     html += '<span style="width:1px;height:20px;background:var(--line);margin:0 4px"></span>';
     var modes = [
       { id: 'all',  label: 'Все бригады' },
@@ -9138,8 +9126,9 @@
       return;
     }
 
-    // Ширина столбца фиксированная (~24px), иначе таблица уплывает на больших мониторах.
-    var colW = 24;
+    // Ширина столбца дня = 18px. 18 × 31 = 558, плюс колонка ФИО (~240) и сдвиг первой недели —
+    // всё гарантированно влезает на любой ноутбук от 1024px без пустого хвоста.
+    var colW = 18;
 
     // Фильтруем строки по режиму (нужно ДО расчёта nameColW, чтобы учесть только видимых)
     var showRows = rows;
@@ -9169,7 +9158,9 @@
     var html2 = '<div style="overflow:auto;border:1px solid var(--line);border-radius:12px;background:var(--card)">';
     // border-collapse:separate + border-spacing:0 — каждая ячейка имеет свою рамку,
     // на стыке двух одинаковых рамок получается 2px (1px бордюр одной + 1px бордюр другой).
-    html2 += '<table style="border-collapse:separate;border-spacing:0;width:100%;min-width:' + (nameColW + lead * colW + dim * colW + 2) + 'px;font-size:11px">';
+    // table-layout:fixed + width:100% — браузер распределяет ширину колонок пропорционально,
+    // все 31 день гарантированно растягиваются на всю ширину контейнера без пустого хвоста.
+    html2 += '<table style="border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed;min-width:' + (nameColW + lead * colW + dim * colW + 2) + 'px;font-size:11px">';
     // Шапка: пустая ячейка + дни месяца (с подсветкой выходных)
     html2 += '<thead><tr style="background:var(--panel-2)">';
     html2 += '<th style="position:sticky;left:0;background:var(--panel-2);z-index:2;padding:6px 8px;text-align:left;border-bottom:1px solid var(--line);border-right:1px solid var(--line);font-size:11px;color:var(--muted);font-weight:700;width:' + nameColW + 'px">Бригада / работник</th>';
@@ -9215,6 +9206,10 @@
     // Карточки работников по бригадам внизу — ФИО + профессия, мастер и слесари рядом,
     // каждый мастер с новой строки. Итоги считаются за выбранный период.
     html2 += schBrigadeCards(showRows, wm.y, { kind: 'month', y: wm.y, m: wm.m });
+
+    // ===== График за год (отдельный блок под месяцем) =====
+    // Выбранный год берётся из S.schYear (по умолчанию — текущий год месяца).
+    html2 += schYearBlock(users, masters, slesars, curMode);
 
     html += html2 + '</div></div>';
     v.innerHTML = html;
@@ -9309,6 +9304,7 @@
   }
   // Годовая таблица графика смен — 12 месяцев × N работников.
   // В каждой ячейке-месяце — три значения (раб / вых / отс) цветом.
+  // Используется в renderSchedulesYear (отдельный экран) и в schYearBlock (блок под месяцем).
   function renderSchedulesYear(v, users, masters, slesars, wm) {
     var y = wm.y;
     var curMode = S.schMode || 'all';
@@ -9448,6 +9444,49 @@
     html += '</div>';
     return html;
   }
+  // Блок «График за год» под месячной таблицей. Отступ 30px сверху.
+  // Использует S.schYear (по умолчанию — текущий год). S.schYear меняется через селектор.
+  function schYearBlock(users, masters, slesars, curMode) {
+    if (S.schYear == null) S.schYear = (typeof TODAY === 'object' ? TODAY.getFullYear() : new Date().getFullYear());
+    var y = S.schYear;
+    var showRows = buildBrigadeRows(masters, slesars, curMode);
+    var html = '<div style="margin-top:30px;padding-top:18px;border-top:1px solid var(--line)">';
+    // Заголовок с селектором года
+    html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">';
+    html += '<h3 style="margin:0;font-size:15px;color:var(--ink)">📊 График за год</h3>';
+    html += '<span style="display:inline-flex;align-items:center;gap:6px;margin-left:8px">';
+    html += '<label style="font-size:11px;color:var(--muted);font-weight:700">Год:</label>';
+    var yearOpts = '';
+    var yNow = (typeof TODAY === 'object' ? TODAY.getFullYear() : new Date().getFullYear());
+    for (var yy = yNow - 3; yy <= yNow + 3; yy++) {
+      yearOpts += '<option value="' + yy + '"' + (yy === y ? ' selected' : '') + '>' + yy + '</option>';
+    }
+    html += '<select data-action="sch-year" style="padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:12px;font-weight:700;background:var(--card)">' + yearOpts + '</select>';
+    html += '</span>';
+    html += '<span class="sub" style="font-size:11px">' + y + ' год — ' + masters.length + ' бригад · ' + slesars.length + ' слесарей</span>';
+    html += '<span style="margin-left:auto;display:flex;gap:6px">';
+    html += '<button type="button" class="btn sm" data-action="sch-year-print" title="Печать годового графика" style="background:#475569;color:#fff;border-color:#475569">🖨 Печать</button>';
+    html += '<button type="button" class="btn sm" data-action="sch-year-excel" title="Скачать в Excel" style="background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border-color:#15803d">📥 Excel</button>';
+    html += '</span>';
+    html += '</div>';
+    // Легенда
+    html += '<div style="display:flex;gap:14px;align-items:center;font-size:11px;color:var(--muted);margin-bottom:10px;flex-wrap:wrap;font-weight:700">' +
+      '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background-color:#dcfce7;border:1px solid #16a34a"></span>рабочий по графику</span>' +
+      '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background-color:#f1f5f9;border:1px solid #cbd5e1"></span>выходной</span>' +
+      '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background-color:#fee2e2;border:1px solid #dc2626"></span>отсутствие</span>' +
+      '</div>';
+    // Таблица
+    if (!showRows.length) {
+      html += '<div class="empty" style="padding:30px">Нет работников в выбранном режиме</div>';
+    } else {
+      html += schYearTable(showRows, y);
+      // Карточки по бригадам — ФИО + профессия, мастер + слесари рядом
+      html += schBrigadeCards(showRows, y, { kind: 'year', y: y, m: 0 });
+    }
+    html += '</div>';
+    return html;
+  }
+
   // Карточка работника: ФИО сверху, профессия под ним. Итоги — за выбранный период (месяц/год).
   function schBrigadePersonCard(u, isMaster, period) {
     var pW = 0, pO = 0, pA = 0;
@@ -9487,25 +9526,35 @@
   }
 
   function wireSchedulesControls(v) {
-    v.querySelectorAll('[data-action="sch-period-prev"]').forEach(function (b) {
-      b.addEventListener('click', function () { wkShiftPeriod(-1); renderSchedules(); });
+    // Месяц: ‹ / ›
+    v.querySelectorAll('[data-action="sch-month-prev"]').forEach(function (b) {
+      b.addEventListener('click', function () { wkShiftMonth(-1); renderSchedules(); });
     });
-    v.querySelectorAll('[data-action="sch-period-next"]').forEach(function (b) {
-      b.addEventListener('click', function () { wkShiftPeriod(1); renderSchedules(); });
+    v.querySelectorAll('[data-action="sch-month-next"]').forEach(function (b) {
+      b.addEventListener('click', function () { wkShiftMonth(1); renderSchedules(); });
     });
-    var rs = v.querySelector('select[data-action="sch-range"]');
-    if (rs) rs.addEventListener('change', function () { S.schRange = rs.value; renderSchedules(); });
+    // Год: селектор
+    var ys = v.querySelector('select[data-action="sch-year"]');
+    if (ys) ys.addEventListener('change', function () {
+      S.schYear = parseInt(ys.value, 10) || new Date().getFullYear();
+      renderSchedules();
+    });
     var sel = v.querySelector('select[data-action="sch-mode"]');
     if (sel) sel.addEventListener('change', function () { S.schMode = sel.value; renderSchedules(); });
-    // Кнопка «Полный график» в строке бригады (тоже самое, что в «Работниках»)
+    // Кнопка «Полный график» в строке бригады
     v.querySelectorAll('[data-action="brig-full-schedule"]').forEach(function (b) {
       b.addEventListener('click', function () { openBrigadeFullSchedule(b.getAttribute('data-uid')); });
     });
-    // Печать и Excel — работают с тем, что юзер видит на экране
+    // Печать и Excel месяца
     var pBtn = v.querySelector('[data-action="sch-print"]');
-    if (pBtn) pBtn.addEventListener('click', schPrintCurrent);
+    if (pBtn) pBtn.addEventListener('click', function () { schPrintCurrent('month'); });
     var eBtn = v.querySelector('[data-action="sch-excel"]');
-    if (eBtn) eBtn.addEventListener('click', schExcelCurrent);
+    if (eBtn) eBtn.addEventListener('click', function () { schExcelCurrent('month'); });
+    // Печать и Excel года
+    var pBtnY = v.querySelector('[data-action="sch-year-print"]');
+    if (pBtnY) pBtnY.addEventListener('click', function () { schPrintCurrent('year'); });
+    var eBtnY = v.querySelector('[data-action="sch-year-excel"]');
+    if (eBtnY) eBtnY.addEventListener('click', function () { schExcelCurrent('year'); });
   }
 
   // Текущая таблица графика смен (живёт в #view) — собираем данные из DOM.
@@ -9555,8 +9604,9 @@
   // Собрать данные текущего режима (месяц или год).
   // month: { y, m, dim, label, rows: [{uid, name, states:[]}] }
   // year:  { y, kind:'year', rows: [{uid, name, yearData:[{m, w, o, a}]}] }
-  function schCollectCurrent() {
-    if (S.schRange === 'year') return schCollectYear();
+  // kind: 'month' (по умолчанию) или 'year' (из годового блока)
+  function schCollectFor(kind) {
+    if (kind === 'year') return schCollectYear();
     return schCollectMonth();
   }
   function schCollectMonth() {
@@ -9585,9 +9635,10 @@
     return { kind: 'month', y: wm.y, m: wm.m, dim: dim, label: MON_NOM[wm.m] + ' ' + wm.y, rows: rows };
   }
   function schCollectYear() {
-    var wm = wkMonth();
-    var y = wm.y;
-    var table = document.querySelector('#view table');
+    var y = S.schYear != null ? S.schYear : new Date().getFullYear();
+    // На странице «Графики смен» теперь две таблицы: первая = месяц, вторая = год.
+    var tables = document.querySelectorAll('#view table');
+    var table = tables.length > 1 ? tables[1] : tables[0];
     if (!table) return null;
     var rows = [];
     table.querySelectorAll('tbody tr').forEach(function (tr) {
@@ -9629,8 +9680,9 @@
   }
 
   // Печать текущего вида «Графики смен» — таблица всегда в ширину страницы (A4 landscape).
-  function schPrintCurrent() {
-    var data = schCollectCurrent();
+  // mode: 'month' (по умолчанию) или 'year' (из годового блока).
+  function schPrintCurrent(mode) {
+    var data = schCollectFor(mode === 'year' ? 'year' : 'month');
     if (!data || !data.rows.length) { toast('err', 'Нет данных для печати'); return; }
     if (data.kind === 'year') return schPrintYear(data);
     return schPrintMonth(data);
@@ -9719,8 +9771,9 @@
   }
 
   // Excel текущего вида «Графики смен» — настоящий XLSX с цветными ячейками.
-  function schExcelCurrent() {
-    var data = schCollectCurrent();
+  // mode: 'month' (по умолчанию) или 'year' (из годового блока).
+  function schExcelCurrent(mode) {
+    var data = schCollectFor(mode === 'year' ? 'year' : 'month');
     if (!data || !data.rows.length) { toast('err', 'Нет данных для экспорта'); return; }
     if (data.kind === 'year') return schExcelYear(data);
     return schExcelMonth(data);
