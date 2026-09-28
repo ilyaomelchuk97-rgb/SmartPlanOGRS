@@ -220,6 +220,9 @@
   .mtask.drop-above{border-top:3px solid var(--blue)!important;margin-top:5px}
   .mtask:hover{border-color:var(--blue);background:#f8faff}
   .mtask.sel{border-color:var(--blue);background:#eff6ff;box-shadow:0 0 0 2px rgba(37,99,235,.18)}
+  /* Подсветка маркера на карте ↔ карточка слева (Тест проезда) */
+  .mtask.t-hover{border-color:#7c3aed;background:#faf5ff;box-shadow:0 0 0 2px rgba(124,58,237,.18);transform:translateX(2px)}
+  .mtask.t-picked{border-color:#7c3aed;background:linear-gradient(135deg,#ede9fe,#f5d0fe);box-shadow:0 0 0 3px rgba(124,58,237,.35)}
   .mtask .pin{width:24px;height:24px;border-radius:50%;background:var(--blue);color:#fff;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center;flex:0 0 24px}
   .mtask .mt-t{font-weight:700;color:var(--ink);font-size:12.5px}
   .mtask .mt-s{font-size:11px;color:var(--muted)}
@@ -1073,7 +1076,7 @@
           <div style="margin-top:6px;font-size:11px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-48 · фикс Valhalla «Exceeded max locations: 100» (теперь /route вместо /optimized_route, лимит 20 точек); добавлено 4 новых роутера в сравнение: FOSSGIS bike 🚲, FOSSGIS foot 🚶, BRouter car-fast 🚗, BRouter trekking 🥾, routing.osm.ch 🇨🇭. Итого 8 источников маршрутизации.</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-51 · связь маркер ↔ карточка в Тесте проезда: hover/click на карточке подсвечивает парный маркер на карте (размер ↑ + фиолетовое кольцо) и центрирует карту. Hover/click на маркере подсвечивает карточку слева (фиолетовая рамка + лёгкий сдвиг), прокручивает список к карточке если она не видна. Клик фиксирует «выбранную» задачу (t-picked) — повторный клик по другой сбрасывает выбор.</div>
     </div>
   </div>
   </div>

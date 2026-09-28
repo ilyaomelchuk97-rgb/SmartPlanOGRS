@@ -733,7 +733,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-48 · фикс Valhalla, +4 роутера (bike/foot/BRouter/osm.ch) — 8 источников в сравнении'],
+    objmap: ['Карта объектов', 'Сборка 22.09-51 · Тест проезда: hover/click на маркере ↔ карточке (подсветка пары)'],
     testmap: ['Тест проезда', 'Полигон: карта маршрутов + оптимизация + пробки + Google Maps (копия «Карты маршрутов» для экспериментов)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -15704,6 +15704,68 @@
       reorderTestCard(mapDragId, card.dataset.mid);
     });
 
+    // === HOVER/CLICK подсветка карточка ↔ маркер ===
+    // Наводимся на карточку — подсвечиваем её маркер на карте.
+    // Клик по карточке — центрируем карту + ставим «выбранную» подсветку.
+    var mlistHL = document.getElementById('t-mlist');
+    if (mlistHL && !mlistHL.__hoverWired) {
+      mlistHL.__hoverWired = true;
+      mlistHL.addEventListener('mouseover', function (e) {
+        var card = e.target.closest && e.target.closest('.mtask');
+        if (!card) return;
+        var id = card.dataset.mid;
+        if (!id) return;
+        if (!tState._activeHL) tState._activeHL = {};
+        tState._activeHL[id] = true;
+        // Подсвечиваем парный маркер
+        var mk = (tState.leafletMarkers || []).find(function (m) { return m._taskId === id; });
+        if (mk) {
+          try { mk.options.set('iconImageHref', lmSvgIcon(mk._label, mk._bg, mk._size + 8, true)); } catch (er) {}
+        }
+      });
+      mlistHL.addEventListener('mouseout', function (e) {
+        var card = e.target.closest && e.target.closest('.mtask');
+        if (!card) return;
+        var id = card.dataset.mid;
+        if (!id) return;
+        // На мышь может быть переход на тот же card — проверим relatedTarget
+        var to = e.relatedTarget;
+        if (to && card.contains(to)) return;
+        if (tState._activeHL) delete tState._activeHL[id];
+        var mk = (tState.leafletMarkers || []).find(function (m) { return m._taskId === id; });
+        if (mk) {
+          try { mk.options.set('iconImageHref', lmSvgIcon(mk._label, mk._bg, mk._size, false)); } catch (er) {}
+        }
+      });
+      // Клик по карточке (но НЕ по зоне перетаскивания) — центрируем карту
+      mlistHL.addEventListener('click', function (e) {
+        if (!e.target || !e.target.closest) return;
+        var grip = e.target.closest('.mtask-grip');
+        if (grip) return; // клик по зоне drag — пусть обрабатывает старый код
+        var pin = e.target.closest('.pin');
+        // клик по пину/тексту — центрируем и подсвечиваем
+        var card = e.target.closest('.mtask');
+        if (!card) return;
+        var id = card.dataset.mid;
+        if (!id) return;
+        // Стандартный обработчик (вкл/выкл) тоже сработает — это ок.
+        // Мы только добавляем центрирование и переключаем .t-picked.
+        tUnmarkAllPicked();
+        var mk = (tState.leafletMarkers || []).find(function (m) { return m._taskId === id; });
+        if (mk && tState.ymap) {
+          try {
+            tState.ymap.setCenter([mk.geometry.getCoordinates()[0], mk.geometry.getCoordinates()[1]], Math.max(tState.ymap.getZoom(), 14), { duration: 250 });
+            mk.options.set('iconImageHref', lmSvgIcon(mk._label, '#7c3aed', mk._size + 8, true));
+          } catch (er) {}
+          card.classList.add('t-picked');
+        }
+      });
+      // Клик по подвалу — закрываем «выбрано»
+      mlistHL.addEventListener('mouseleave', function () {
+        // не сбрасываем t-picked, чтобы не терять выбор при случайных выходах
+      });
+    }
+
 // Привязка кнопки ручной разметки закрытых дорог
     var drawBtn = document.getElementById('t-btn-draw-closure');
     if (drawBtn) drawBtn.onclick = function(e) {
@@ -16916,24 +16978,94 @@
   function tDrawTestMarkers() {
     var map = tState.ymap;
     if (!map) return;
+    // Сбрасываем «выбранные» карточки — после перерисовки маркеров старый выбор неактуален
+    document.querySelectorAll('#t-mlist .mtask.t-picked').forEach(function (c) {
+      c.classList.remove('t-picked');
+    });
+    document.querySelectorAll('#t-mlist .mtask.t-hover').forEach(function (c) {
+      c.classList.remove('t-hover');
+    });
     (tState.leafletMarkers || []).forEach(function (m) { try { map.geoObjects.remove(m); } catch (e) {} });
     tState.leafletMarkers = [];
+    // Хранилище «активный hover»: id задачи и индекс — чтобы быстро находить пару
+    tState._hoveredTask = null;
     var base = currentBase();
-    function addMark(lat, lng, label, bg, size) {
+    function addMark(lat, lng, label, bg, size, isActive, taskId, idx) {
       try {
         var m = new ymaps.Placemark([+lat, +lng], {}, {
           iconLayout: 'default#image',
           iconImageHref: lmSvgIcon(label, bg, size || 32),
           iconImageSize: [size || 32, size || 32], iconImageOffset: [-(size || 32) / 2, -(size || 32) / 2],
-          hasBalloon: false, hasHint: false, interactivityModel: 'default#transparent'
+          hasBalloon: false, hasHint: false,
+          // 'default#geoObject' — события мыши (mouseenter/click) работают,
+          // но без балуна/хинта
+          interactivityModel: 'default#geoObject'
         });
+        // Сохраняем данные, чтобы обработчик знал, что подсвечивать
+        m._taskId = taskId || null;
+        m._taskIdx = (typeof idx === 'number') ? idx : -1;
+        m._label = label;
+        m._bg = bg;
+        m._size = size || 32;
+        m._isActive = !!isActive;
         map.geoObjects.add(m);
         tState.leafletMarkers.push(m);
+        // Подвешиваем hover/click только если это активная задача (есть id)
+        if (m._taskId) {
+          m.events.add('mouseenter', function () {
+            tState._hoveredTask = m._taskId;
+            // Увеличиваем и добавляем кольцо подсветки
+            try { m.options.set('iconImageHref', lmSvgIcon(m._label, m._bg, m._size + 8, true)); } catch (e) {}
+            // Подсвечиваем парную карточку слева
+            var card = document.querySelector('#t-mlist .mtask[data-mid="' + m._taskId + '"]');
+            if (card) {
+              card.classList.add('t-hover');
+              // Прокручиваем к карточке, если не видна
+              try {
+                var rect = card.getBoundingClientRect();
+                if (rect.top < 80 || rect.bottom > window.innerHeight - 20) {
+                  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+              } catch (e) {}
+            }
+          });
+          m.events.add('mouseleave', function () {
+            if (tState._hoveredTask === m._taskId) tState._hoveredTask = null;
+            try { m.options.set('iconImageHref', lmSvgIcon(m._label, m._bg, m._size, false)); } catch (e) {}
+            var card = document.querySelector('#t-mlist .mtask[data-mid="' + m._taskId + '"]');
+            if (card) card.classList.remove('t-hover');
+          });
+          m.events.add('click', function (e) {
+            // Не даём карте обрабатывать клик как обычный (балун и пр.)
+            try { if (e) e.stopPropagation && e.stopPropagation(); } catch (er) {}
+            // Подсветить маркер + карточку как «выбранную» (сильнее hover)
+            tUnmarkAllPicked();
+            try { m.options.set('iconImageHref', lmSvgIcon(m._label, '#7c3aed', m._size + 8, true)); } catch (er) {}
+            var card = document.querySelector('#t-mlist .mtask[data-mid="' + m._taskId + '"]');
+            if (card) {
+              card.classList.add('t-picked');
+              try { card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (er) {}
+            }
+            // Центрируем карту на маркере, чуть крупнее
+            try {
+              map.setCenter([+lat, +lng], Math.max(map.getZoom(), 14), { duration: 250 });
+            } catch (er) {}
+          });
+        }
       } catch (e) {}
     }
-    addMark(base.lat, base.lng, 'Б', '#0f2740');
-    (tState.pts || []).forEach(function (p, i) { if (p.lat != null) addMark(p.lat, p.lng, String(i + 1), p.mcol || '#2563eb'); });
-    tState.inactivePts.forEach(function (p) { if (p.lat != null) addMark(p.lat, p.lng, '·', '#94a3b8', 22); });
+    addMark(base.lat, base.lng, 'Б', '#0f2740', 36, false, 'BASE', -1);
+    (tState.pts || []).forEach(function (p, i) {
+      if (p.lat != null) addMark(p.lat, p.lng, String(i + 1), p.mcol || '#2563eb', 32, true, p.id, i);
+    });
+    tState.inactivePts.forEach(function (p, i) {
+      if (p.lat != null) addMark(p.lat, p.lng, '·', '#94a3b8', 22, false, p.id, -1);
+    });
+    // Храним для обратной навигации (idx -> marker)
+    tState._testMarkersByIdx = {};
+    tState.leafletMarkers.forEach(function (m) {
+      if (m._taskIdx >= 0) tState._testMarkersByIdx[m._taskIdx] = m;
+    });
     var all = [{ lat: base.lat, lng: base.lng }].concat(tState.pts || []);
     var withCoords = all.filter(function (p) { return p.lat != null; });
     if (withCoords.length > 1) {
@@ -16941,6 +17073,17 @@
       withCoords.forEach(function (p) { b1[0] = Math.min(b1[0], +p.lat); b1[1] = Math.min(b1[1], +p.lng); b2[0] = Math.max(b2[0], +p.lat); b2[1] = Math.max(b2[1], +p.lng); });
       try { tState.ymap.setBounds([b1, b2], { checkZoomRange: true, zoomMargin: 40 }); } catch (e) {}
     }
+  }
+
+  // Утилита: снять со всех маркеров «выбран» и убрать класс t-picked со всех карточек
+  function tUnmarkAllPicked() {
+    if (!tState || !tState.leafletMarkers) return;
+    tState.leafletMarkers.forEach(function (m) {
+      if (m._taskId) m.options.set('iconImageHref', lmSvgIcon(m._label, m._bg, m._size, false));
+    });
+    document.querySelectorAll('#t-mlist .mtask.t-picked').forEach(function (c) {
+      c.classList.remove('t-picked');
+    });
   }
   // линия маршрута на Яндекс-карте (координаты [[lat,lng],…])
   function tDrawTestRouteLine(geom) {
@@ -17619,10 +17762,11 @@
         '@keyframes tpcard{from{transform:translateY(-12px) scale(.97);opacity:0}to{transform:none;opacity:1}}' +
         '@keyframes tp{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}' +
         '#t-compare-card{animation:tpcard .28s cubic-bezier(.2,.8,.4,1)}' +
-        '#t-compare-list .tcr{transition:background .3s,border-color .3s,transform .25s}' +
-        '#t-compare-list .tcr.best{background:#dcfce7!important;border-left:3px solid #16a34a;transform:translateX(2px)}' +
+        '#t-compare-list .tcr{transition:background .3s,border-color .3s,box-shadow .25s,transform .25s}' +
+        '#t-compare-list .tcr.best{background:linear-gradient(90deg,#f0fdf4,#ecfdf5 60%,var(--panel-2))!important;box-shadow:inset 3px 0 0 #16a34a}' +
         '#t-compare-list .tcr.err{background:#fef2f2;border-left:3px solid #dc2626}' +
         '#t-compare-list .tcr.warn{background:#fffbeb;border-left:3px solid #f59e0b}' +
+        '#t-compare-list .tcr input[type=radio]:hover + span{filter:brightness(1.1)}' +
       '</style>' +
       '<div id="t-compare-card" role="dialog" aria-modal="true" aria-label="Сравнение роутеров"' +
       ' style="background:var(--card);border-radius:14px;box-shadow:0 25px 60px rgba(15,23,42,.45),0 0 0 1px rgba(255,255,255,.06);width:min(720px,calc(100vw - 32px));max-height:calc(100vh - 40px);overflow:hidden;display:flex;flex-direction:column;font-family:inherit">' +
@@ -17630,7 +17774,7 @@
           '<div style="font-size:24px">🔀</div>' +
           '<div style="flex:1;min-width:0">' +
             '<div style="font-size:16px;font-weight:800;letter-spacing:.2px">Сравнение бесплатных роутеров</div>' +
-            '<div style="font-size:12px;opacity:.92;margin-top:2px">' + ptsCount + ' задани' + (ptsCount===1?'е':ptsCount<5?'я':'й') + ' · база «' + esc(base.name) + '» · 8 источников маршрутизации</div>' +
+            '<div style="font-size:12px;opacity:.92;margin-top:2px">' + ptsCount + ' задани' + (ptsCount===1?'е':ptsCount<5?'я':'й') + ' · база «' + esc(base.name) + '» · ⭐ рекомендация (самый короткий) или выберите роутер радио-кнопкой</div>' +
           '</div>' +
           '<div style="display:flex;align-items:center;gap:8px">' +
             '<span id="t-compare-progress" style="background:rgba(255,255,255,.18);padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.3px">⏳ 0 / 4</span>' +
@@ -17640,15 +17784,16 @@
           '</div>' +
         '</div>' +
         '<div id="t-compare-body" style="padding:18px 22px;overflow-y:auto;flex:1;background:var(--card)">' +
-          '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:8px 12px;background:var(--panel-2);border-radius:8px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">' +
-            '<div>Источник</div><div style="text-align:right">Дистанция</div><div style="text-align:right">Время</div><div style="text-align:right">Точек</div><div style="text-align:center">Статус</div>' +
+          '<div style="display:grid;grid-template-columns:42px minmax(140px,2fr) 1fr 1fr 1fr 36px;gap:10px;padding:8px 12px;background:var(--panel-2);border-radius:8px;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;align-items:center">' +
+            '<div></div><div>Роутер / движок</div><div style="text-align:right">Дистанция</div><div style="text-align:right">Время</div><div style="text-align:center">Статус</div><div style="text-align:center">Взять</div>' +
           '</div>' +
           '<div id="t-compare-list" style="display:flex;flex-direction:column;gap:8px"></div>' +
           '<div id="t-compare-foot" style="margin-top:14px"></div>' +
         '</div>' +
         '<div style="padding:10px 22px;background:var(--panel-2);border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-shrink:0">' +
-          '<div style="font-size:11px;color:var(--muted)">' +
-            '🟦 OSRM · 🟩 FOSSGIS · 🚲 bike · 🚶 foot · 🟧 Valhalla · 🇨🇭 osm.ch · 🚗 BRouter · 🥾 trekking · ⬜ прямая' +
+          '<div style="font-size:10.5px;color:var(--muted);line-height:1.5">' +
+            '<b>Цветной кружок</b> слева = движок (O=OSRM, F=FOSSGIS car, B=bike, W=foot, V=Valhalla, C=osm.ch, A=BRouter car, T=BRouter trek, 0=прямая).<br>' +
+            '<b>⭐</b> слева вверху — рекомендация системы (минимальная дистанция). Справа в строке — радио-кнопка для вашего выбора.' +
           '</div>' +
           '<button class="btn sm" id="t-compare-retry" type="button" style="background:#f1f5f9;color:var(--ink);border:1px solid var(--line);font-weight:600">↻ Обновить</button>' +
         '</div>' +
@@ -17690,6 +17835,18 @@
     }
 
     // Карточка-строка: информативный стиль с колонками (имя / дистанция / время / точек / статус)
+    // Цветные «бейджи движка» — круг с буквой движка. Это первое, что бросается в глаза.
+    var BADGE = {
+      'osrm-demo':      { letter: 'O', bg: '#1d4ed8', fg: '#fff', title: 'OSRM demo (project-osrm.org)' },
+      'fossgis-car':    { letter: 'F', bg: '#15803d', fg: '#fff', title: 'FOSSGIS OSRM, профиль car' },
+      'fossgis-bike':   { letter: 'B', bg: '#0891b2', fg: '#fff', title: 'FOSSGIS OSRM, профиль bike' },
+      'fossgis-foot':   { letter: 'W', bg: '#7c3aed', fg: '#fff', title: 'FOSSGIS OSRM, профиль foot' },
+      'valhalla-public':{ letter: 'V', bg: '#ea580c', fg: '#fff', title: 'Valhalla public' },
+      'osm-ch':         { letter: 'C', bg: '#dc2626', fg: '#fff', title: 'routing.osm.ch (CH/EU)' },
+      'brouter-car':    { letter: 'A', bg: '#0f172a', fg: '#fff', title: 'BRouter, car-fast' },
+      'brouter-trek':   { letter: 'T', bg: '#65a30d', fg: '#fff', title: 'BRouter, trekking' },
+      'straight':       { letter: '0', bg: '#64748b', fg: '#fff', title: 'Прямая линия ×1.4 (без сети)' }
+    };
     var ICONS = {
       'osrm-demo':     '🟦',
       'fossgis-car':   '🟩',
@@ -17703,13 +17860,13 @@
     };
     var NAMES = {
       'osrm-demo':     'OSRM demo',
-      'fossgis-car':   'FOSSGIS car',
-      'fossgis-bike':  'FOSSGIS bike',
-      'fossgis-foot':  'FOSSGIS foot',
+      'fossgis-car':   'FOSSGIS · car',
+      'fossgis-bike':  'FOSSGIS · bike',
+      'fossgis-foot':  'FOSSGIS · foot',
       'valhalla-public':'Valhalla public',
-      'osm-ch':        'routing.osm.ch (CH)',
-      'brouter-car':   'BRouter car-fast',
-      'brouter-trek':  'BRouter trekking',
+      'osm-ch':        'osm.ch (CH)',
+      'brouter-car':   'BRouter · car',
+      'brouter-trek':  'BRouter · trek',
       'straight':      'Прямая ×1.4'
     };
     var URLS = {
@@ -17722,7 +17879,9 @@
       'brouter-car':   'https://brouter.de',
       'brouter-trek':  'https://brouter.de'
     };
-    function renderRow(r, isNew) {
+    // html строки-результата. Один шаблон для pending и для onResult.
+    function rowHtml(r) {
+      var badge = BADGE[r.by] || { letter: '?', bg: '#94a3b8', fg: '#fff', title: r.by || '—' };
       var icon = ICONS[r.by] || '⬜';
       var name = NAMES[r.by] || (r.by || '—');
       var url = URLS[r.by] || '';
@@ -17732,28 +17891,49 @@
       var statusText, statusClass = '';
       if (r.ok) statusText = '✅ ОК';
       else { statusText = '⚠ ' + (r.msg || 'нет'); statusClass = 'err'; }
-      var anim = isNew && r.ok ? 'animation:tp 0.4s' : '';
-
-      // id-row — чтобы потом легко подсветить лучшую
       var safeId = 'tcr-' + r.by;
-      var row =
-        '<div id="' + safeId + '" class="tcr ' + statusClass + '"' +
-        ' style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:11px 12px;background:var(--panel-2);border-radius:8px;align-items:center;font-size:13px;' + anim + '">' +
-          '<div style="display:flex;align-items:center;gap:6px;overflow:hidden">' +
-            '<span style="font-size:15px">' + icon + '</span>' +
-            '<b style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + name + '</b>' +
-            (url ? '<a href="' + url + '" target="_blank" rel="noopener" style="font-size:10px;color:#94a3b8;text-decoration:none" title="Открыть сервис">↗</a>' : '') +
-          '</div>' +
-          '<div style="text-align:right;font-variant-numeric:tabular-nums"><b>' + kmStr + '</b></div>' +
-          '<div style="text-align:right;font-variant-numeric:tabular-nums"><b>' + minStr + '</b></div>' +
-          '<div style="text-align:right;color:var(--muted);font-size:12px">' + ptsStr + '</div>' +
-          '<div style="text-align:center;font-size:12px;font-weight:600;' + (r.ok ? 'color:#15803d' : 'color:#dc2626') + '">' + statusText + '</div>' +
-        '</div>';
-      if (isNew) listEl.insertAdjacentHTML('beforeend', row);
-      else listEl.innerHTML += row;
+      // Радио-кнопка выбора (только если результат успешный)
+      var radio = r.ok
+        ? '<label style="display:flex;align-items:center;justify-content:center;cursor:pointer" title="Использовать этот маршрут как итоговый">' +
+            '<input type="radio" name="t-compare-pick" value="' + r.by + '" data-km="' + r.km + '" data-min="' + r.min + '" style="width:18px;height:18px;cursor:pointer;accent-color:#7c3aed">' +
+          '</label>'
+        : '<span style="color:var(--muted);font-size:16px" title="Нельзя выбрать — нет результата">—</span>';
+      return {
+        id: safeId,
+        cls: statusClass,
+        html:
+          '<div id="' + safeId + '" class="tcr ' + statusClass + '" data-by="' + r.by + '"' +
+          ' style="display:grid;grid-template-columns:42px minmax(140px,2fr) 1fr 1fr 1fr 36px;gap:10px;padding:11px 12px;background:var(--panel-2);border-radius:8px;align-items:center;font-size:13px;border:2px solid transparent">' +
+            // Бейдж движка — крупный цветной круг с буквой
+            '<div title="' + badge.title + '" style="width:32px;height:32px;border-radius:50%;background:' + badge.bg + ';color:' + badge.fg + ';display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;flex-shrink:0;box-shadow:0 1px 3px rgba(0,0,0,.2)">' + badge.letter + '</div>' +
+            // Название + иконка + ссылка
+            '<div style="display:flex;flex-direction:column;gap:1px;min-width:0">' +
+              '<div style="display:flex;align-items:center;gap:6px;overflow:hidden">' +
+                '<span style="font-size:14px;flex-shrink:0">' + icon + '</span>' +
+                '<b style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + name + '</b>' +
+                (url ? '<a href="' + url + '" target="_blank" rel="noopener" style="font-size:10px;color:#94a3b8;text-decoration:none;flex-shrink:0" title="Открыть сервис">↗</a>' : '') +
+              '</div>' +
+              '<div style="font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + badge.title + '</div>' +
+            '</div>' +
+            // Дистанция
+            '<div style="text-align:right;font-variant-numeric:tabular-nums"><b style="font-size:14px">' + kmStr + '</b></div>' +
+            // Время
+            '<div style="text-align:right;font-variant-numeric:tabular-nums"><b style="font-size:14px">' + minStr + '</b></div>' +
+            // Статус
+            '<div style="text-align:center;font-size:11.5px;font-weight:600;' + (r.ok ? 'color:#15803d' : 'color:#dc2626') + '">' + statusText + '</div>' +
+            // Радио-кнопка
+            '<div style="display:flex;justify-content:center">' + radio + '</div>' +
+          '</div>'
+      };
     }
 
-    // Стартовое состояние — 8 «пустых» строк с pulsing индикатором
+    function renderRow(r, isNew) {
+      var o = rowHtml(r);
+      if (isNew) listEl.insertAdjacentHTML('beforeend', o.html);
+      else listEl.innerHTML += o.html;
+    }
+
+    // Стартовое состояние — 9 «пустых» строк
     var rows = Object.keys(NAMES);
     rows.forEach(function (by) { renderRow({ ok: false, by: by, msg: 'ожидание…' }, true); });
 
@@ -17764,35 +17944,11 @@
       var pendingId = 'tcr-' + r.by;
       var pending = document.getElementById(pendingId);
       if (pending) {
-        // Сразу строим новую ноду и заменяем — без лишнего HTML и шаблонов
-        var icon = r.by === 'osrm-demo' ? '🟦' : r.by === 'fossgis' ? '🟩' : r.by === 'valhalla-public' ? '🟧' : '⬜';
-        var name = r.by === 'osrm-demo' ? 'OSRM demo' :
-                   r.by === 'fossgis' ? 'FOSSGIS OSRM' :
-                   r.by === 'valhalla-public' ? 'Valhalla public' : 'Прямая ×1.4';
-        var url = r.by === 'osrm-demo' ? 'https://router.project-osrm.org' :
-                  r.by === 'fossgis' ? 'https://routing.openstreetmap.de/routed-car' :
-                  r.by === 'valhalla-public' ? 'https://valhalla1.openstreetmap.de' : '';
-        var kmStr = r.ok ? r.km.toFixed(1).replace('.', ',') + ' км' : '—';
-        var minStr = r.ok ? fmtDuration(r.min) : '—';
-        var ptsStr = r.ok ? (ptsCount + ' + база') : '—';
-        var statusText, statusClass = '';
-        if (r.ok) statusText = '✅ ОК';
-        else { statusText = '⚠ ' + (r.msg || 'нет'); statusClass = 'err'; }
-        var newEl = document.createElement('div');
-        newEl.id = pendingId;
-        newEl.className = 'tcr ' + statusClass;
-        newEl.style.cssText = 'display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:11px 12px;background:var(--panel-2);border-radius:8px;align-items:center;font-size:13px;animation:tp 0.4s';
-        newEl.innerHTML =
-          '<div style="display:flex;align-items:center;gap:6px;overflow:hidden">' +
-            '<span style="font-size:15px">' + icon + '</span>' +
-            '<b style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + name + '</b>' +
-            (url ? '<a href="' + url + '" target="_blank" rel="noopener" style="font-size:10px;color:#94a3b8;text-decoration:none" title="Открыть сервис">↗</a>' : '') +
-          '</div>' +
-          '<div style="text-align:right;font-variant-numeric:tabular-nums"><b>' + kmStr + '</b></div>' +
-          '<div style="text-align:right;font-variant-numeric:tabular-nums"><b>' + minStr + '</b></div>' +
-          '<div style="text-align:right;color:var(--muted);font-size:12px">' + ptsStr + '</div>' +
-          '<div style="text-align:center;font-size:12px;font-weight:600;' + (r.ok ? 'color:#15803d' : 'color:#dc2626') + '">' + statusText + '</div>';
-        pending.replaceWith(newEl);
+        var o = rowHtml(r);
+        pending.outerHTML = o.html;
+        // Перевесим обработчик радио-кнопки
+        var newNode = document.getElementById(pendingId);
+        if (newNode && r.ok) wirePickHandler(newNode);
       }
       if (allResults.length >= Object.keys(NAMES).length) {
         clearTimeout(releaseTimer); releaseBtn();
@@ -17807,9 +17963,13 @@
           var el = document.getElementById('tcr-' + x.by);
           if (!el) return;
           listEl.appendChild(el);          // переставить в начало
-          if (i === 0 && x.ok) el.classList.add('best');
+          if (i === 0 && x.ok) {
+            el.classList.add('best');
+            // Также выделим рекомендацию плашкой
+            var nameEl = el.querySelector('b');
+          }
         });
-        // Подвал: бейдж с лучшим
+        // Бейдж «рекомендация системы» (самый короткий) — но НЕ переключает радио.
         var best = sorted[0];
         var footHtml = '';
         if (best.ok) {
@@ -17818,16 +17978,82 @@
           var saving = worst.km - best.km;
           var bestName = NAMES[best.by] || best.by;
           footHtml = '<div style="padding:12px 14px;background:linear-gradient(135deg,#dcfce7,#bbf7d0);border-radius:10px;border:1px solid #86efac;display:flex;align-items:center;gap:12px">' +
-            '<div style="font-size:24px">' + (ICONS[best.by] || '🏆') + '</div>' +
+            '<div title="' + (BADGE[best.by] && BADGE[best.by].title || '') + '" style="width:36px;height:36px;border-radius:50%;background:' + (BADGE[best.by] && BADGE[best.by].bg || '#16a34a') + ';color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px">' + (BADGE[best.by] && BADGE[best.by].letter || '✓') + '</div>' +
             '<div style="flex:1">' +
-              '<div style="font-weight:800;color:#14532d;font-size:14px">Лучший маршрут — ' + bestName + '</div>' +
-              '<div style="font-size:12px;color:#166534;margin-top:2px">' + best.km.toFixed(1).replace('.', ',') + ' км · ' + fmtDuration(best.min) + (saving > 0 ? ' · экономия ' + saving.toFixed(1).replace('.', ',') + ' км относительно самого длинного' : '') + '</div>' +
+              '<div style="font-weight:800;color:#14532d;font-size:14px">Рекомендация — ' + bestName + '</div>' +
+              '<div style="font-size:12px;color:#166534;margin-top:2px">' + best.km.toFixed(1).replace('.', ',') + ' км · ' + fmtDuration(best.min) + (saving > 0 ? ' · на ' + saving.toFixed(1).replace('.', ',') + ' км короче самого длинного' : '') + '</div>' +
             '</div>' +
+            '<label style="display:flex;align-items:center;gap:5px;background:#fff;border:1px solid #16a34a;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:11.5px;font-weight:700;color:#15803d;white-space:nowrap" title="Принять рекомендацию">' +
+              '<input type="radio" name="t-compare-pick-quick" style="accent-color:#16a34a;cursor:pointer"> ' +
+              '<span>Взять</span>' +
+            '</label>' +
           '</div>';
+          // Обработчик «Взять рекомендацию»
+          setTimeout(function () {
+            var quickR = footEl.querySelector('input[name="t-compare-pick-quick"]');
+            if (quickR) quickR.addEventListener('change', function () {
+              var pickRadio = listEl.querySelector('input[name="t-compare-pick"][value="' + best.by + '"]');
+              if (pickRadio) {
+                pickRadio.checked = true;
+                pickRadio.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+            });
+          }, 0);
         } else {
           footHtml = '<div style="padding:10px 14px;background:#fef2f2;border-radius:10px;border:1px solid #fca5a5;color:#7f1d1d;font-size:12.5px">⚠ Ни один из роутеров не ответил успешно. Проверьте доступ к router.project-osrm.org, routing.openstreetmap.de, valhalla1.openstreetmap.de, routing.osm.ch, brouter.de.</div>';
         }
         footEl.innerHTML = footHtml;
+      }
+    }
+
+    // При выборе радио-кнопки — подсвечиваем строку, сохраняем выбранное
+    function wirePickHandler(rowEl) {
+      var radio = rowEl.querySelector('input[name="t-compare-pick"]');
+      if (!radio) return;
+      radio.addEventListener('change', function () {
+        // У всех строк убираем «picked» и подсветку
+        listEl.querySelectorAll('.tcr').forEach(function (r) {
+          r.style.border = '2px solid transparent';
+          r.style.boxShadow = '';
+        });
+        rowEl.style.border = '2px solid #7c3aed';
+        rowEl.style.boxShadow = '0 0 0 3px rgba(124,58,237,.18)';
+        // Обновим состояние выбранного в подвале
+        var r = allResults.find(function (x) { return x.by === radio.value; });
+        if (r) {
+          footEl.innerHTML =
+            '<div style="padding:12px 14px;background:linear-gradient(135deg,#ede9fe,#f5d0fe);border-radius:10px;border:1px solid #c4b5fd;display:flex;align-items:center;gap:12px">' +
+              '<div title="' + (BADGE[r.by] && BADGE[r.by].title || '') + '" style="width:36px;height:36px;border-radius:50%;background:' + (BADGE[r.by] && BADGE[r.by].bg || '#7c3aed') + ';color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px">' + (BADGE[r.by] && BADGE[r.by].letter || '✓') + '</div>' +
+              '<div style="flex:1">' +
+                '<div style="font-weight:800;color:#4c1d95;font-size:14px">Вы выбрали — ' + (NAMES[r.by] || r.by) + '</div>' +
+                '<div style="font-size:12px;color:#5b21b6;margin-top:2px">' + r.km.toFixed(1).replace('.', ',') + ' км · ' + fmtDuration(r.min) + ' · нажмите «Применить к маршруту» внизу модалки</div>' +
+              '</div>' +
+              '<button type="button" id="t-compare-apply" class="btn sm primary" style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;font-weight:700;padding:6px 14px">✓ Применить</button>' +
+            '</div>';
+          setTimeout(function () {
+            var btn = document.getElementById('t-compare-apply');
+            if (btn) btn.addEventListener('click', applyPicked);
+          }, 0);
+        }
+      });
+    }
+
+    // Применить выбранный маршрут к основной карте Теста проезда
+    function applyPicked() {
+      // selectedBy берём из радио, которое активно
+      var pickedRadio = listEl.querySelector('input[name="t-compare-pick"]:checked');
+      if (!pickedRadio) { try { toast('warn', 'Сначала выберите маршрут радио-кнопкой'); } catch (e) {} return; }
+      var by = pickedRadio.value;
+      var r = (allResults || []).find(function (x) { return x.by === by; });
+      if (!r || !r.ok) return;
+      // Запомним выбор для setTestRouteInfo
+      window.__tComparePicked = { by: by, km: r.km, min: r.min, geometry: r.geometry || [] };
+      try { toast('ok', '✅ Применён маршрут: ' + (NAMES[by] || by) + ' — ' + r.km.toFixed(1).replace('.', ',') + ' км · ' + fmtDuration(r.min)); } catch (e) {}
+      // Если есть основная функция построения маршрута — перевызовем её
+      if (typeof buildTestRoute === 'function') {
+        try { closeModal(); setTimeout(function () { buildTestRoute(true); }, 80); } catch (e) { console.error('rebuild:', e); }
+      } else {
+        closeModal();
       }
     }
     fetchStraightLineRoute(pts, base, onResult);
@@ -18110,6 +18336,25 @@
           setTestRouteInfo({ km: res.km, jamsMin: jamTotal, freeMin: res.min, count: ordered.length });
           // кнопки «Открыть в Яндекс.Картах» и «Открыть в Google Maps» — с готовым маршрутом
           tState.routeItems = [base].concat(ordered).concat([base]);
+          // === ГЛАВНЫЙ ФИКС: после оптимизации порядок tState.pts мог измениться,
+          //     а номера на маркерах на карте остались от прежнего порядка.
+          //     Пересинхронизируем tState.pts и вызовем tDrawTestMarkers(),
+          //     чтобы маркеры получили актуальные номера 1, 2, 3, ... ===
+          var sameOrder = (tState.pts && tState.pts.length === ordered.length);
+          if (sameOrder) {
+            for (var ii = 0; ii < ordered.length; ii++) {
+              if (tState.pts[ii] !== ordered[ii]) { sameOrder = false; break; }
+            }
+          }
+          if (!sameOrder) {
+            tState.pts = ordered.slice();
+            refreshTestCards(ordered);
+            if (tState.ymap) tDrawTestMarkers();
+          } else if (tState.ymap) {
+            // порядок тот же — всё равно перерисуем маркеры: могли измениться
+            // времена/километры и цвета (p.mcol от мастера), а номера те же
+            tDrawTestMarkers();
+          }
           var yaBtn = document.getElementById('t-btn-yandex');
           if (yaBtn && ordered.length) yaBtn.style.display = '';
           var gBtn = document.getElementById('t-btn-google');
