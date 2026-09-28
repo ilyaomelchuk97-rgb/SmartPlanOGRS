@@ -1076,7 +1076,7 @@
           <div style="margin-top:6px;font-size:11px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-58 · Тест проезда: выбор карты между **Яндекс.Карты** и **OpenStreetMap** (на русском). Селектор в шапке страницы; выбор сохраняется в localStorage (`smartplan_test_map_engine`). OSM-вариант рисует маркеры заданий, линию маршрута, hover/click подсветку маркер↔карточка — на Leaflet с тайлами tile.openstreetmap.org. Кнопка «🚦 Пробки» в OSM-варианте скрыта (пробочный слой есть только у Яндекса).</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-60 · основная карта маршрутов: (1) кнопки «🚧 Закрытие» и «🗑 Удалить выбранное» удалены — функционал закрытий полностью убран вместе с 193 строками кода. (2) добавлена кнопка «🚦 Пробки» — пробочный слой Яндекс накладывается поверх основной карты через Leaflet-плагин, сохраняется в localStorage. (3) BRouter trekking — основной роутер для основной карты, выбран по умолчанию; в селекторе также BRouter car-fast / OSRM / Google / Valhalla. Оптимизация порядка через OSRM Table API + честные километры/время от BRouter. PR «Полностью убрать OSM как слой в drawMap» отложен — это большая переделка Leaflet-рендеринга, риск регрессий.</div>
     </div>
   </div>
   </div>

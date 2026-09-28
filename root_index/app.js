@@ -188,7 +188,7 @@
     calMode: 'week',      // week | month | day
     weekShift: 0, monthShift: 0, dayShift: 0,
     mapOff: 0,
-    mapProvider: 'yandex',
+    mapProvider: 'brouter-trek',
     mapSel: {},
     baseId: 'b1',
     dashArea: null, // выбранный участок на панели мониторинга: действует во всех вкладках (кроме карты местоположения); null = все участки
@@ -207,7 +207,13 @@
       return Object.assign({ id: 't' + (i + 1), travelMin: tm }, t);
     })
   };
-
+  // Восстанавливаем выбор роутера (дашборд) из localStorage
+  try {
+    var _savedProv = localStorage.getItem('smartplan_map_provider');
+    if (_savedProv && /^(osrm|brouter-car|brouter-trek|valhalla|google|2gis|osm)$/.test(_savedProv)) {
+      S.mapProvider = _savedProv;
+    }
+  } catch (e) {}
   var CAP = 8; // ФРВ: рабочий день = 8 ч (Пн–Чт)
   function dayCapacity(off) { return offToDate(off).getDay() === 5 ? 7.25 : 8; } // Пт=7.25, остальное=8
 
@@ -733,7 +739,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-58 · Тест проезда: выбор карты Яндекс / OpenStreetMap'],
+    objmap: ['Карта объектов', 'Сборка 22.09-60 · основная карта: 🚦 Пробки + BRouter trekking + закрытия удалены'],
     testmap: ['Тест проезда', 'Полигон: карта маршрутов + оптимизация + пробки + Google Maps (копия «Карты маршрутов» для экспериментов)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -3952,11 +3958,18 @@
       return { id: t.id, lat: lat, lng: lng, addr: addrOf(t), addr_be: t.addr_be || addrOf(t), type: o ? o.type : '—', work: w ? w.name : '?', master: m ? m.name : '?', mcol: m ? m.color : '#94a3b8', hours: taskHours(t), norm: w ? w.norm : 0, travelMin: travelMin, travelText: travelText, travelKm: travelKm, travelKmText: travelKmText };
     });
 
-    var prov = S.mapProvider || 'osrm';
-    var provSelHTML = '<div style="display:flex;align-items:center;gap:6px;margin-left:auto;"><span style="font-size:12px;color:var(--ink);font-weight:700;">Выбор карты:</span><select id="map-provider-sel" style="padding:5px 10px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;background:var(--card);color:var(--ink);font-weight:700;cursor:pointer;">' +
-      '<option value="yandex"' + (prov === 'yandex' ? ' selected' : '') + '>Яндекс карта</option>' +
-      '<option value="osrm"' + (prov === 'osrm' ? ' selected' : '') + '>OpenStreetMap</option>' +
-    '</select></div>';
+    var prov = S.mapProvider || 'brouter-trek';
+    var provSelHTML = '<div style="display:flex;align-items:center;gap:6px;margin-left:auto;">' +
+      '<span style="font-size:12px;color:var(--ink);font-weight:700;">Роутер:</span>' +
+      '<select id="map-provider-sel" title="Сервис построения маршрута" style="padding:5px 10px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;background:var(--card);color:var(--ink);font-weight:700;cursor:pointer;">' +
+        '<option value="brouter-trek" ' + (prov === 'brouter-trek' || !prov ? 'selected' : '') + '>🥾 BRouter trekking</option>' +
+        '<option value="brouter-car" ' + (prov === 'brouter-car' ? 'selected' : '') + '>🚗 BRouter car-fast</option>' +
+        '<option value="osrm" ' + (prov === 'osrm' ? 'selected' : '') + '>OSRM (авто)</option>' +
+        '<option value="google" ' + (prov === 'google' ? 'selected' : '') + '>Google Maps</option>' +
+        '<option value="valhalla" ' + (prov === 'valhalla' ? 'selected' : '') + '>Valhalla</option>' +
+      '</select>' +
+      '<button class="btn sm" id="btn-traffic-main" title="Слой Яндекс.Пробок: цвета загруженности и события (аварии, ремонт) на карте" style="background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;border-color:#16a34a;font-weight:700">🚦 Пробки</button>' +
+    '</div>';
 
     var html = '<div class="cal-head"><div class="seg">' +
       '<button class="' + (off === -1 ? 'on' : '') + '" data-action="map-off" data-off="-1">Вчера</button>' +
@@ -3966,8 +3979,7 @@
         '<span style="font-size:12.5px;color:var(--muted);font-weight:600;">Выбрать дату:</span>' +
         '<input type="date" id="map-date-sel" value="' + key(offToDate(off)) + '" style="padding:5px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;background:var(--card);color:var(--ink);font-weight:600;cursor:pointer;" title="Выбрать любую дату для просмотра маршрута">' +
       '</div>' +
-      (S.role === 'viewer' || prov === 'yandex' ? '' : '<button class="btn sm" id="btn-draw-closure" title="Отметить закрытый участок дороги на карте" style="background:#dc2626;color:#fff;border-color:#dc2626;">🚧 Закрытие</button>') +
-      (S.role === 'viewer' ? '' : '<button class="btn sm" id="btn-delete-closure" style="display:none;background:#b91c1c;color:#fff;border-color:#b91c1c;" title="Удалить выбранный закрытый участок дороги">🗑 Удалить выбранное</button>') +
+      '' +  // Кнопки «🚧 Закрытие» и «🗑 Удалить выбранное» удалены — функционал закрытий убран
       (S.role === 'viewer' ? '<span style="font-size:12px;color:var(--muted);font-weight:600;">👁 Режим просмотра</span>' : '<button class="btn primary" id="btn-build-route" data-action="build-route" disabled style="opacity:.5;cursor:not-allowed;">' + IC.route + ' Оптимизация маршрутов</button>' + '<button class="btn sm" id="btn-drive3d" style="background:#dc2626;color:#fff;border-color:#dc2626;display:none;" title="3D-вождение автомобиля по улицам Минска (открывается кодом ↑↓←→)">🏎 Дать газу</button>') +
       '<div class="spacer"></div>' +
       provSelHTML +
@@ -4023,6 +4035,7 @@
     var provSelEl = document.getElementById('map-provider-sel');
     if (provSelEl) provSelEl.addEventListener('change', function(e) {
       S.mapProvider = e.target.value;
+      try { localStorage.setItem('smartplan_map_provider', S.mapProvider); } catch (er) {}
       renderMap();
     });
 
@@ -4072,31 +4085,36 @@
       reorderMapCard(mapDragId, card.dataset.mid);
     });
 
-// Привязка кнопки ручной разметки закрытых дорог
-    var drawBtn = document.getElementById('btn-draw-closure');
-    if (drawBtn) drawBtn.onclick = function(e) {
-      if (e) { e.preventDefault(); e.stopPropagation(); }
-      if (ymState.leafletMap) {
-        if (ymState.drawingClosure) {
-          finishDrawingClosure(ymState.leafletMap);
-        } else {
-          startDrawingClosure(ymState.leafletMap);
-        }
-      } else {
-        toast('warn', 'Карта ещё загружается...');
-      }
-    };
-    var delClosureBtn = document.getElementById('btn-delete-closure');
-    if (delClosureBtn) delClosureBtn.onclick = function(e) {
-      if (e) { e.preventDefault(); e.stopPropagation(); }
-      if (ymState.leafletMap) deleteSelectedClosure(ymState.leafletMap);
-      else toast('warn', 'Карта ещё загружается...');
-    };
+// Привязка кнопок ручной разметки закрытых дорог удалена — функционал закрытий убран
     drawMap(pts);
     var mSel = document.getElementById('map-master-sel');
     if (mSel) mSel.addEventListener('change', function (e) { S.mapMaster = e.target.value; renderMap(); });
     var drive3dBtn = document.getElementById('btn-drive3d');
     if (drive3dBtn) drive3dBtn.onclick = function (e) { if (e) { e.preventDefault(); e.stopPropagation(); } openDrive3D(); };
+    // 🚦 Пробки: переключаем слой Яндекс.Пробок на основной карте маршрутов
+    var trafBtn = document.getElementById('btn-traffic-main');
+    if (trafBtn && !trafBtn.__wired) {
+      trafBtn.__wired = true;
+      // Сохраняем в S и восстанавливаем при загрузке
+      try {
+        var _savedTr = localStorage.getItem('smartplan_map_traffic');
+        if (_savedTr === '1') S.mapTraffic = true;
+      } catch (e) {}
+      if (S.mapTraffic) trafBtn.style.background = 'linear-gradient(135deg,#0f7d36,#16a34a)';
+      trafBtn.onclick = function (e) {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        S.mapTraffic = !S.mapTraffic;
+        try { localStorage.setItem('smartplan_map_traffic', S.mapTraffic ? '1' : '0'); } catch (er) {}
+        // Перерисовываем карту через renderMap, чтобы пробочный слой подхватил флаг
+        if (typeof renderMap === 'function') {
+          renderMap();
+        }
+        trafBtn.style.background = S.mapTraffic
+          ? 'linear-gradient(135deg,#0f7d36,#16a34a)'
+          : 'linear-gradient(135deg,#16a34a,#22c55e)';
+        try { toast('ok', S.mapTraffic ? '🚦 Слой пробок включён' : '🚦 Слой пробок выключен'); } catch (er) {}
+      };
+    }
     } catch (err) {
       console.error('renderMap error:', err);
       var viewEl = document.getElementById('view');
@@ -4481,6 +4499,33 @@
           console.warn('Стиль не загружен для переработки, fallback на language:', e);
           factory({ apiKey: key, style: 'streets', language: 'ru', tileSize: 512, zoomOffset: -1, crossOrigin: true }).addTo(map);
         });
+      // === Пробочный слой Яндекс поверх MapTiler (включается только если S.mapTraffic=true) ===
+      // Та же Web Mercator проекция, поэтому тайлы ложатся ровно.
+      try {
+        map._yandexTraffic = window.L.tileLayer('', {
+          tileSize: 256,
+          opacity: 0.85,
+          attribution: '🚦 Яндекс.Пробки'
+        });
+        // Переопределяем getTileUrl через подмену createTile в момент добавления
+        var origCreate = window.L.TileLayer.prototype.createTile;
+        map._yandexTraffic.createTile = function (coords, done) {
+          var tile = document.createElement('img');
+          tile.alt = '';
+          tile.setAttribute('role', 'presentation');
+          tile.style.opacity = this.options.opacity || 1;
+          tile.style.filter = 'hue-rotate(0deg) saturate(1.05)';
+          // Используем функции из Теста: tJamsTileUrl уже определена
+          try {
+            tile.src = tJamsTileUrl(coords.x, coords.y, coords.z);
+          } catch (e) {
+            tile.src = 'https://core-traffic.maps.yandex.net/tiles?l=trf&lang=ru_RU&projection=web_mercator&x=' + coords.x + '&y=' + coords.y + '&z=' + coords.z + '&scale=1';
+          }
+          done(null, tile);
+          return tile;
+        };
+        if (S.mapTraffic) map._yandexTraffic.addTo(map);
+      } catch (e) { /* проблемы с Leaflet — без пробок */ }
     });
   }
 
@@ -4570,199 +4615,6 @@
     }
   }
 
-  // === Ручная разметка закрытых дорог на карте ===
-  // Пользователь кликает по карте, создавая точки. Двойной клик — завершить.
-  // Закрытый участок сохраняется и используется для объезда маршрута.
-  var CLOSURES_KEY = 'smartplan_manual_closures';
-  function getManualClosures() {
-    try { var raw = localStorage.getItem(CLOSURES_KEY); if (raw) return JSON.parse(raw); } catch(e) {}
-    return [];
-  }
-  function saveManualClosures(closures) {
-    try { localStorage.setItem(CLOSURES_KEY, JSON.stringify(closures)); } catch(e) {}
-  }
-
-  function startDrawingClosure(map) {
-    if (ymState.drawingClosure) { finishDrawingClosure(map); return; }
-    ymState.drawingClosure = true;
-    var btn = document.getElementById('btn-draw-closure');
-    if (btn) { btn.textContent = '✓ Завершить'; btn.style.background = '#16a34a'; }
-    ymState.drawPoints = [];
-    ymState._tempMarkers = [];
-    ymState._lastClosureLL = null;
-    toast('info', '🚧 Кликайте по карте, расставляя точки закрытого участка. Готово — нажмите «✓ Завершить» (нужно ≥ 2 точек).');
-    map._closureClickHandler = function(e) {
-      var ll = [e.latlng.lat, e.latlng.lng];
-      // Защита от случайного двойного клика: пропускаем клик в ту же точку подряд
-      if (ymState._lastClosureLL) {
-        var dx = ymState._lastClosureLL[0] - ll[0], dy = ymState._lastClosureLL[1] - ll[1];
-        if (dx * dx + dy * dy < 1e-12) return;
-      }
-      ymState._lastClosureLL = ll;
-      ymState.drawPoints.push(ll);
-      if (ymState._tempLine) { try { ymState._tempLine.remove(); } catch (ex) {} }
-      if (ymState.drawPoints.length >= 2) {
-        ymState._tempLine = window.L.polyline(ymState.drawPoints, { color: '#dc2626', weight: 5, opacity: 0.8, dashArray: '6,4' }).addTo(map);
-      }
-      var cm = window.L.circleMarker(e.latlng, { radius: 5, color: '#dc2626', fillColor: '#fff', fillOpacity: 1 }).addTo(map);
-      ymState._tempMarkers.push(cm);
-    };
-    map.on('click', map._closureClickHandler);
-    map.doubleClickZoom.disable();
-  }
-
-  function finishDrawingClosure(map) {
-    if (!ymState.drawingClosure) return;
-    ymState.drawingClosure = false;
-    var btn = document.getElementById('btn-draw-closure');
-    if (btn) { btn.textContent = '🚧 Закрытие'; btn.style.background = '#dc2626'; }
-    map.off('click', map._closureClickHandler);
-    map.doubleClickZoom.enable();
-    if (ymState._tempLine) { try { ymState._tempLine.remove(); } catch (e) {} ymState._tempLine = null; }
-    if (ymState._tempMarkers) { ymState._tempMarkers.forEach(function (m) { try { m.remove(); } catch (e) {} }); ymState._tempMarkers = []; }
-    if (ymState.drawPoints.length >= 2) {
-      var mc = getManualClosures();
-      var name = 'Закрытие №' + (mc.length + 1);
-      var closure = { latlngs: ymState.drawPoints.slice(), name: name, type: 'manual', manual: true };
-      ymState.roadClosures.push(closure);
-      mc.push(closure);
-      saveManualClosures(mc);
-      showRoadClosures(map);
-      toast('ok', '✓ Закрытый участок добавлен (' + ymState.drawPoints.length + ' точек). Маршрут будет строиться в объезд.');
-      logAction('Добавление закрытия дороги', name);
-    } else {
-      toast('warn', 'Нужно минимум 2 точки — участок не сохранён.');
-    }
-    ymState.drawPoints = [];
-    ymState._lastClosureLL = null;
-  }
-
-  function loadManualClosures() {
-    var mc = getManualClosures();
-    mc.forEach(function(c) {
-      // Проверяем, не добавлен ли уже
-      var exists = ymState.roadClosures.some(function(r) { return r.manual && r.name === c.name && JSON.stringify(r.latlngs) === JSON.stringify(c.latlngs); });
-      if (!exists) ymState.roadClosures.push(c);
-    });
-  }
-
-  function clearManualClosures(map) {
-    if (!window.confirm('Удалить все ручные разметки закрытых дорог?')) return;
-    saveManualClosures([]);
-    // Полностью пересоздаём roadClosures без ручных
-    ymState.roadClosures = ymState.roadClosures.filter(function(c) { return !c.manual; });
-    // Удаляем temp markers если есть
-    if (ymState._tempMarkers) { ymState._tempMarkers.forEach(function(m) { try { m.remove(); } catch(e) {} }); ymState._tempMarkers = []; }
-    if (map) {
-      showRoadClosures(map);
-    } else if (ymState.leafletMap) {
-      showRoadClosures(ymState.leafletMap);
-    }
-    toast('ok', 'Ручные разметки очищены');
-  }
-
-  // === Загрузка закрытых/ремонтируемых дорог из OpenStreetMap (Overpass API) ===
-  var closuresLoaded = false, closuresLoading = false;
-  function loadRoadClosures(callback) {
-    if (closuresLoaded) { callback(ymState.roadClosures); return; }
-    if (closuresLoading) { setTimeout(function() { loadRoadClosures(callback); }, 2000); return; }
-    closuresLoading = true;
-    var query = '[out:json][timeout:25];(' +
-      'way["construction"](53.7,27.3,54.1,27.9);' +
-      'way["highway"="construction"](53.7,27.3,54.1,27.9);' +
-      'way["highway"]["access"="no"](53.7,27.3,54.1,27.9);' +
-      'way["highway"]["motor_vehicle"="no"](53.7,27.3,54.1,27.9);' +
-      'way["highway"]["motorcar"="no"](53.7,27.3,54.1,27.9);' +
-      'way["highway"]["disused:highway"](53.7,27.3,54.1,27.9);' +
-      'way["highway"]["note"~"закрыт|перекрыт|ремонт|перекрытие",i](53.7,27.3,54.1,27.9);' +
-      ');out geom;';
-    fetch('https://overpass-api.de/api/interpreter', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: 'data=' + encodeURIComponent(query)
-    }).then(function(r) { return r.json(); }).then(function(data) {
-      var roadTypes = ['residential','primary','secondary','tertiary','service','trunk','unclassified','yes','motorway','motorway_link'];
-      var closures = [];
-      (data.elements || []).forEach(function(e) {
-        var tags = e.tags || {};
-        var con = tags.construction || '';
-        if (roadTypes.indexOf(con) !== -1 || tags.highway === 'construction') {
-          var geom = e.geometry || [];
-          if (geom.length >= 2) {
-            var latlngs = geom.map(function(g) { return [g.lat, g.lon]; });
-            closures.push({ latlngs: latlngs, name: tags.name || 'без названия', type: con || 'construction' });
-          }
-        }
-      });
-      ymState.roadClosures = closures;
-      closuresLoaded = true; closuresLoading = false;
-      console.log('🚧 Загружено закрытых дорог из OSM:', closures.length);
-      callback(closures);
-    }).catch(function(e) {
-      closuresLoading = false;
-      console.warn('Overpass API недоступен:', e);
-      callback([]);
-    });
-  }
-
-  function showRoadClosures(map) {
-    if (ymState.closureLayers) { ymState.closureLayers.forEach(function(l) { try { l.remove(); } catch(e) {} }); }
-    ymState.closureLayers = [];
-    ymState.roadClosures.forEach(function(c) {
-      var isSelected = ymState.selectedClosure === c;
-      var style;
-      if (c.manual && isSelected) {
-        style = { color: '#16a34a', weight: 9, opacity: 1 };             // ВЫБРАНО — зелёный, сплошной
-      } else if (c.manual) {
-        style = { color: '#dc2626', weight: 6, opacity: 0.8, dashArray: '6,4' };
-      } else {
-        style = { color: '#dc2626', weight: 4, opacity: 0.5, dashArray: '6,4' };
-      }
-      var line = window.L.polyline(c.latlngs, style).addTo(map);
-      var tip = '🚧 ' + c.name + (c.manual ? (isSelected ? ' (выбрано — нажмите «🗑 Удалить выбранное»)' : ' — нажмите, чтобы выбрать') : ' (из OSM)');
-      line.bindTooltip(tip, { sticky: true });
-      if (c.manual) {
-        line.on('click', function() {
-          // клик по заметке = ВЫБОР (не удаление); повторный клик — снятие выбора
-          ymState.selectedClosure = (ymState.selectedClosure === c) ? null : c;
-          showRoadClosures(map);
-          updateClosureDeleteBtn();
-        });
-      }
-      ymState.closureLayers.push(line);
-    });
-  }
-
-  // Показывает/прячет кнопку удаления выбранного закрытия
-  function updateClosureDeleteBtn() {
-    var btn = document.getElementById('btn-delete-closure');
-    if (!btn) return;
-    if (ymState.selectedClosure) {
-      btn.style.display = '';
-      btn.textContent = '🗑 Удалить «' + (ymState.selectedClosure.name || 'закрытие') + '»';
-    } else {
-      btn.style.display = 'none';
-    }
-  }
-
-  // Удаляет выбранное закрытие (вызывается кнопкой «🗑 Удалить выбранное»)
-  function deleteSelectedClosure(map) {
-    if (!ymState.selectedClosure) { toast('warn', 'Сначала выберите закрытый участок — кликните по нему.'); return; }
-    var c = ymState.selectedClosure;
-    ymState.roadClosures = ymState.roadClosures.filter(function(r) { return r !== c; });
-    if (c.manual) {
-      var mc = getManualClosures();
-      mc = mc.filter(function(r) { return r.name !== c.name || JSON.stringify(r.latlngs) !== JSON.stringify(c.latlngs); });
-      saveManualClosures(mc);
-    }
-    ymState.selectedClosure = null;
-    showRoadClosures(map);
-    updateClosureDeleteBtn();
-    toast('ok', '✓ Закрытый участок удалён');
-    logAction('Удаление закрытия дороги', c.name || '');
-  }
-
-  // === Рендер Leaflet карты для OSRM / GraphHopper / OpenRouteService ===
   function renderLeafletMap(canvas, points, base, provider, inactive) {
     ensureLeaflet(function() {
       if (!window.L) { canvas.innerHTML = '<div class="empty">Не удалось загрузить Leaflet</div>'; return; }
@@ -5710,8 +5562,8 @@
     var tasks = pts.filter(function (p) { return p.addr && p.addr.trim() && p.addr !== "?"; });
     if (!tasks.length) { toast("warn", "В заданиях не указаны адреса."); return; }
 
-    var prov = S.mapProvider || "osrm";
-    var provName = prov === "google" ? "Google Maps" : prov === "valhalla" ? "Valhalla" : prov === "osrm" ? "OpenStreetMap" : prov === "graphhopper" ? "GraphHopper" : prov === "ors" ? "OpenRouteService" : prov === "osm" ? "OpenStreetMap" : prov === "2gis" ? "2ГИС" : "Яндекс.Карт";
+    var prov = S.mapProvider || "brouter-trek";
+    var provName = prov === "google" ? "Google Maps" : prov === "valhalla" ? "Valhalla" : prov === "osrm" ? "OSRM (авто)" : prov === "brouter-trek" ? "BRouter trekking" : prov === "brouter-car" ? "BRouter car-fast" : prov === "graphhopper" ? "GraphHopper" : prov === "ors" ? "OpenRouteService" : prov === "osm" ? "OpenStreetMap" : prov === "2gis" ? "2ГИС" : "Яндекс.Карт";
 
     setRouteInfo({ km: 0, count: tasks.length, building: true });
     toast("ok", "⏳ Оптимизирую маршрут для сервиса " + provName + "…");
@@ -5719,6 +5571,10 @@
     var remaining = tasks.slice();
     var ordered = [];
     var cur = base;
+
+    // === BRouter trekking — короткий путь: оптимизация через OSRM Table + BRouter ===
+    // (Ниже, после проверок провайдера.)
+
     while (remaining.length) {
       var bestIdx = 0, bestDist = Infinity;
       for (var i = 0; i < remaining.length; i++) {
@@ -5846,6 +5702,101 @@
         };
         document.head.appendChild(s);
       }
+    } else if (prov === 'brouter-trek' || prov === 'brouter-car') {
+      // === BRouter trekking / car-fast для основной карты маршрутов ===
+      var brProfile = prov === 'brouter-car' ? 'car-fast' : 'trekking';
+      var brLabel = prov === 'brouter-car' ? 'BRouter car-fast' : 'BRouter trekking';
+      setRouteInfo({ km: 0, count: tasks.length, building: true });
+      toast('ok', '⏳ ' + brLabel + ': оптимизация по матрице OSRM…');
+      clearTimeout(fallbackTimeoutId);
+      var allCoords = [[base.lng, base.lat]];
+      ordered.forEach(function (p) { if (p.lat != null) allCoords.push([p.lng, p.lat]); });
+      tMatrixCall(allCoords, function (matrixRes) {
+        if (!matrixRes) {
+          toast('err', '⚠ OSRM Table не ответил — пробую обычную оптимизацию');
+          updateFallbackRouteInfo(ordered);
+          renderProviderFrame('yandex', routeItems, noJam);
+          return;
+        }
+        var solved = tSolveMatrixFromBase(matrixRes.distances, 0, allCoords.length - 1);
+        if (!solved || !solved.order || !solved.order.length) {
+          toast('err', '⚠ Не удалось построить оптимальный порядок');
+          updateFallbackRouteInfo(ordered);
+          renderProviderFrame('yandex', routeItems, noJam);
+          return;
+        }
+        var brOrdered = solved.order.map(function (i) { return ordered[i - 1]; });
+        // Обновим карточки слева — новые номера
+        updateDayListCards(brOrdered);
+        refreshMapCards(brOrdered);
+        // Запрос BRouter
+        var lonlatsBR = [];
+        [base].concat(brOrdered).concat([base]).forEach(function (p) {
+          if (p && typeof p.lng === 'number' && typeof p.lat === 'number') {
+            lonlatsBR.push(p.lng.toFixed(6) + ',' + p.lat.toFixed(6));
+          }
+        });
+        if (lonlatsBR.length < 2) {
+          toast('err', '⚠ BRouter: недостаточно валидных координат');
+          updateFallbackRouteInfo(ordered);
+          renderProviderFrame('yandex', routeItems, noJam);
+          return;
+        }
+        var brUrl = 'https://brouter.de/brouter?lonlats=' + encodeURIComponent(lonlatsBR.join('|')) +
+          '&profile=' + encodeURIComponent(brProfile) + '&alternativeidx=0&format=geojson';
+        var brCtrl = (typeof AbortController === 'function') ? new AbortController() : null;
+        var brTimer = setTimeout(function () { try { if (brCtrl) brCtrl.abort(); } catch (e) {} }, 30000);
+        fetch(brUrl, brCtrl ? { signal: brCtrl.signal } : {})
+          .then(function (r) {
+            clearTimeout(brTimer);
+            if (!r.ok) return r.text().then(function (txt) { throw new Error('HTTP ' + r.status + ' — ' + (txt ? txt.slice(0, 200) : '')); });
+            var ct = (r.headers && r.headers.get && r.headers.get('content-type')) || '';
+            if (ct.indexOf('json') < 0) return r.text().then(function (txt) { throw new Error('BRouter вернул не-JSON (' + ct + '): ' + txt.slice(0, 200)); });
+            return r.json();
+          })
+          .then(function (res) {
+            if (!res || !res.features || !res.features[0] || !res.features[0].properties) {
+              toast('err', '⚠ BRouter: пустой ответ');
+              renderProviderFrame('yandex', routeItems, noJam);
+              return;
+            }
+            var pp = res.features[0].properties;
+            var brKm = parseFloat(pp['track-length']) / 1000;
+            var brMin = Math.round((parseFloat(pp['total-time']) || 0) / 60);
+            if (!(brKm > 0)) {
+              toast('err', '⚠ BRouter: точки недостижимы');
+              renderProviderFrame('yandex', routeItems, noJam);
+              return;
+            }
+            // Обновим карточки с временем и км
+            brOrdered.forEach(function (pt, idx) {
+              pt.travelKm = brKm / Math.max(1, brOrdered.length);
+              pt.travelKmText = (brKm / Math.max(1, brOrdered.length)).toFixed(1).replace('.', ',') + ' км';
+              pt.travelMin = Math.round(brMin / Math.max(1, brOrdered.length));
+              pt.travelText = fmtDuration(pt.travelMin);
+            });
+            updateDayListCards(brOrdered);
+            refreshMapCards(brOrdered);
+            var h = (typeof currentHourForJam === 'function') ? currentHourForJam() : new Date().getHours();
+            var jamK = (typeof jamFactorByHour === 'function') ? jamFactorByHour(h) : 1.0;
+            var mnJammed = Math.max(1, Math.round(brMin * jamK));
+            setRouteInfo({ km: brKm, jamsMin: mnJammed, freeMin: brMin, count: brOrdered.length });
+            // Прячем «Открыть в Яндекс.Картах» / «Google Maps» — не подходит для BRouter
+            var yaBtnD = document.getElementById('btn-route-yandex');
+            var gBtnD = document.getElementById('btn-route-google');
+            if (yaBtnD) yaBtnD.style.display = 'none';
+            if (gBtnD) gBtnD.style.display = 'none';
+            // Финальный маршрут через Яндекс-виджет
+            renderProviderFrame('yandex', [base].concat(brOrdered).concat([base]), noJam);
+            toast('ok', '✓ ' + brLabel + ': ' + brKm.toFixed(1).replace('.', ',') + ' км · ' + fmtDuration(brMin) + ' (с пробками ~' + fmtDuration(mnJammed) + ')');
+          })
+          .catch(function (e) {
+            clearTimeout(brTimer);
+            console.error('BRouter error:', e);
+            toast('err', '⚠ ' + brLabel + ' недоступен: ' + (e.message || 'ошибка сети'));
+            renderProviderFrame('yandex', routeItems, noJam);
+          });
+      });
     } else if (prov === "osrm" || prov === "graphhopper" || prov === "ors" || prov === "valhalla") {
       var provName = prov === "valhalla" ? "Valhalla" : prov === "osrm" ? "OpenStreetMap" : prov === "graphhopper" ? "GraphHopper" : "OpenRouteService";
       setRouteInfo({ km: 0, count: ordered.length, building: true });
@@ -15576,13 +15527,7 @@
     });
 
     var prov = 'yandex'; // ТЕСТ: только Яндекс-карта
-    var provSelHTML = '<div style="display:flex;align-items:center;gap:6px;margin-left:auto;">' +
-      '<span style="font-size:12px;color:var(--ink);font-weight:700;">Карта:</span>' +
-      '<select id="t-map-engine-sel" title="Выбор карты в Тесте проезда" style="padding:5px 10px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;background:var(--card);color:var(--ink);font-weight:700;cursor:pointer;">' +
-        '<option value="yandex" ' + (TS.mapEngine !== 'osm' ? 'selected' : '') + '>Яндекс.Карты</option>' +
-        '<option value="osm" ' + (TS.mapEngine === 'osm' ? 'selected' : '') + '>OpenStreetMap</option>' +
-      '</select>' +
-    '</div>';
+    var provSelHTML = '<div style="display:flex;align-items:center;gap:6px;margin-left:auto;"><span style="font-size:12px;color:var(--ink);font-weight:700;">Карта:</span><span class="tag ok" style="font-size:11.5px" title="Яндекс.Карты с подписями на русском языке">Яндекс (русский)</span></div>';
 
     var html = '<div class="cal-head"><div class="seg">' +
       '<button class="' + (off === -1 ? 'on' : '') + '" data-action="t-map-off" data-off="-1">Вчера</button>' +
@@ -15831,24 +15776,12 @@
         try { toast('info', '🚦 Роутер: ' + (labels[TS.router] || TS.router)); } catch (er) {}
       });
     }
-    // Выбор карты: Яндекс.Карты / OpenStreetMap
+    // Выбор карты удалён — в Тесте проезда только Яндекс.Карты (русский язык)
     var mapSel = document.getElementById('t-map-engine-sel');
     if (mapSel && !mapSel.__wired) {
       mapSel.__wired = true;
-      mapSel.addEventListener('change', function (e) {
-        var newEngine = e.target.value;
-        if (newEngine === TS.mapEngine) return;
-        var oldEngine = TS.mapEngine;
-        TS.mapEngine = newEngine;
-        try { localStorage.setItem('smartplan_test_map_engine', TS.mapEngine); } catch (er) {}
-        // Удалить старую карту
-        try {
-          if (oldEngine === 'yandex' && tState.ymap) { tState.ymap.destroy(); tState.ymap = null; tState.route = null; }
-          if (oldEngine === 'osm' && tState.leafletMap) { tState.leafletMap.remove(); tState.leafletMap = null; tState.routeLayer = null; }
-        } catch (er) {}
-        try { toast('info', newEngine === 'osm' ? '🗺 Карта: OpenStreetMap' : '🗺 Карта: Яндекс.Карты'); } catch (er) {}
-        renderTestMap();
-      });
+      // Селектор больше не отображается; этот код оставлен на случай,
+      // если пользователь захочет вернуть переключатель.
     }
     var drive3dBtn = document.getElementById('t-btn-drive3d');
     if (drive3dBtn) drive3dBtn.onclick = function (e) { if (e) { e.preventDefault(); e.stopPropagation(); } openDrive3D(); };
@@ -17010,37 +16943,7 @@
     // === Выбор движка карты: 'yandex' (по умолчанию) или 'osm' ===
     var useOSM = TS.mapEngine === 'osm';
     var trafBtnHide = document.getElementById('t-btn-traffic');
-    if (trafBtnHide) trafBtnHide.style.display = useOSM ? 'none' : '';
-
-    if (useOSM) {
-      ensureLeaflet(function () {
-        if (!document.getElementById('t-canvas')) return;
-        try {
-          if (tState.leafletMap) {
-            try {
-              var ce = tState.leafletMap.getContainer();
-              if (!ce || !document.body.contains(ce)) { tState.leafletMap.remove(); tState.leafletMap = null; tState.routeLayer = null; }
-            } catch (e) { tState.leafletMap = null; tState.routeLayer = null; }
-          }
-          if (!tState.leafletMap) {
-            var mapDivOSM = document.createElement('div');
-            mapDivOSM.style.cssText = 'position:absolute;inset:0';
-            holder.innerHTML = '';
-            holder.appendChild(mapDivOSM);
-            tState.leafletMap = window.L.map(mapDivOSM, { center: [53.9023, 27.5619], zoom: 11, attributionControl: false, zoomControl: false });
-            try {
-              window.L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '© OpenStreetMap contributors'
-              }).addTo(tState.leafletMap);
-            } catch (e) { /* OSM не загрузились — работаем без тайлов */ }
-          }
-          tDrawTestMarkersOSM();
-          if (tState.routeGeom) tDrawTestRouteLineOSM(tState.routeGeom);
-        } catch (e) { /* карта не может ломать страницу */ }
-      });
-      return;
-    }
+    if (trafBtnHide) trafBtnHide.style.display = '';
 
     ensureYandex(function () {
       if (!document.getElementById('t-canvas')) return; // страницу уже сменили
