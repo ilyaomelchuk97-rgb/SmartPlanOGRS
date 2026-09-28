@@ -733,7 +733,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-46 · админу: клик по «Сервер: в сети · N» — список онлайн'],
+    objmap: ['Карта объектов', 'Сборка 22.09-47 · «Сравнить» — overlay-модалка поверх страницы, 4 источника в таблице, бейдж лучшего'],
     testmap: ['Тест проезда', 'Полигон: карта маршрутов + оптимизация + пробки + Google Maps (копия «Карты маршрутов» для экспериментов)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -17603,19 +17603,92 @@
       });
     }
 
-    // Найдём или создадим панель сравнения
-    var panel = document.getElementById('t-compare-panel');
-    if (!panel) {
-      panel = document.createElement('div');
-      panel.id = 't-compare-panel';
-      panel.style.cssText = 'margin-top:10px;padding:12px 16px;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 2px 8px rgba(15,39,64,.06);font-size:12px';
-      var statsEl = document.getElementById('t-map-stats');
-      if (statsEl && statsEl.parentNode) statsEl.parentNode.insertBefore(panel, statsEl.nextSibling);
+    // Overlay-модалка поверх всей страницы. Один экземпляр, переиспользуем.
+    var overlayId = 't-compare-overlay';
+    var oldOv = document.getElementById(overlayId);
+    if (oldOv) oldOv.remove();
+    var ptsCount = pts.length;
+    var hasJamBtn = (typeof TS !== 'undefined' && TS && TS.last);
+
+    var overlay = document.createElement('div');
+    overlay.id = overlayId;
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:20px;animation:tpoverlay .25s ease-out';
+    overlay.innerHTML =
+      '<style>' +
+        '@keyframes tpoverlay{from{opacity:0}to{opacity:1}}' +
+        '@keyframes tpcard{from{transform:translateY(-12px) scale(.97);opacity:0}to{transform:none;opacity:1}}' +
+        '@keyframes tp{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}' +
+        '#t-compare-card{animation:tpcard .28s cubic-bezier(.2,.8,.4,1)}' +
+        '#t-compare-list .tcr{transition:background .3s,border-color .3s,transform .25s}' +
+        '#t-compare-list .tcr.best{background:#dcfce7!important;border-left:3px solid #16a34a;transform:translateX(2px)}' +
+        '#t-compare-list .tcr.err{background:#fef2f2;border-left:3px solid #dc2626}' +
+        '#t-compare-list .tcr.warn{background:#fffbeb;border-left:3px solid #f59e0b}' +
+      '</style>' +
+      '<div id="t-compare-card" role="dialog" aria-modal="true" aria-label="Сравнение роутеров"' +
+      ' style="background:var(--card);border-radius:14px;box-shadow:0 25px 60px rgba(15,23,42,.45),0 0 0 1px rgba(255,255,255,.06);width:min(720px,calc(100vw - 32px));max-height:calc(100vh - 40px);overflow:hidden;display:flex;flex-direction:column;font-family:inherit">' +
+        '<div style="background:linear-gradient(135deg,#7c3aed 0%,#a855f7 60%,#c084fc 100%);color:#fff;padding:18px 22px;display:flex;align-items:center;gap:12px;flex-shrink:0">' +
+          '<div style="font-size:24px">🔀</div>' +
+          '<div style="flex:1;min-width:0">' +
+            '<div style="font-size:16px;font-weight:800;letter-spacing:.2px">Сравнение бесплатных роутеров</div>' +
+            '<div style="font-size:12px;opacity:.92;margin-top:2px">' + ptsCount + ' задани' + (ptsCount===1?'е':ptsCount<5?'я':'й') + ' · база «' + esc(base.name) + '» · 4 источника маршрутизации</div>' +
+          '</div>' +
+          '<div style="display:flex;align-items:center;gap:8px">' +
+            '<span id="t-compare-progress" style="background:rgba(255,255,255,.18);padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.3px">⏳ 0 / 4</span>' +
+            '<button id="t-compare-close" type="button" aria-label="Закрыть" title="Закрыть (Esc)"' +
+            ' style="background:rgba(255,255,255,.18);border:none;color:#fff;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:20px;line-height:1;display:flex;align-items:center;justify-content:center;transition:background .2s"' +
+            ' onmouseover="this.style.background=\'rgba(255,255,255,.32)\'" onmouseout="this.style.background=\'rgba(255,255,255,.18)\'">×</button>' +
+          '</div>' +
+        '</div>' +
+        '<div id="t-compare-body" style="padding:18px 22px;overflow-y:auto;flex:1;background:var(--card)">' +
+          '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:8px 12px;background:var(--panel-2);border-radius:8px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">' +
+            '<div>Источник</div><div style="text-align:right">Дистанция</div><div style="text-align:right">Время</div><div style="text-align:right">Точек</div><div style="text-align:center">Статус</div>' +
+          '</div>' +
+          '<div id="t-compare-list" style="display:flex;flex-direction:column;gap:8px"></div>' +
+          '<div id="t-compare-foot" style="margin-top:14px"></div>' +
+        '</div>' +
+        '<div style="padding:10px 22px;background:var(--panel-2);border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-shrink:0">' +
+          '<div style="font-size:11px;color:var(--muted)">' +
+            '🟦 OSRM demo · 🟩 FOSSGIS OSRM · 🟧 Valhalla public · ⬜ Прямая ×1.4' +
+          '</div>' +
+          '<button class="btn sm" id="t-compare-retry" type="button" style="background:#f1f5f9;color:var(--ink);border:1px solid var(--line);font-weight:600">↻ Обновить</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    var listEl = overlay.querySelector('#t-compare-list');
+    var progressEl = overlay.querySelector('#t-compare-progress');
+    var footEl = overlay.querySelector('#t-compare-foot');
+    var card = overlay.querySelector('#t-compare-card');
+
+    // Закрытие
+    function closeModal() {
+      overlay.remove();
+      document.removeEventListener('keydown', onEsc);
     }
-    panel.innerHTML = '<div style="font-weight:800;color:#0f2740;margin-bottom:8px;display:flex;align-items:center;gap:6px">' +
-      '<span style="font-size:14px">🔀</span> Сравнение бесплатных роутеров <span style="font-weight:600;color:var(--muted);font-size:11px">(4 источника)</span></div>' +
-      '<div id="t-compare-list" style="display:flex;flex-direction:column;gap:5px"></div>';
-    var listEl = document.getElementById('t-compare-list');
+    function onEsc(e) { if (e.key === 'Escape') closeModal(); }
+    document.addEventListener('keydown', onEsc);
+    overlay.addEventListener('click', function (e) {
+      // клик по затемнению (но НЕ по карточке) — закрыть
+      if (e.target === overlay) closeModal();
+    });
+    overlay.querySelector('#t-compare-close').addEventListener('click', closeModal);
+    // Retry — повторный опрос без закрытия
+    overlay.querySelector('#t-compare-retry').addEventListener('click', function () {
+      closeModal();
+      // дёргаем buildTestRouteCompare заново (рекурсивно)
+      setTimeout(buildTestRouteCompare, 60);
+    });
+
+    function setProgress() {
+      progressEl.textContent = (allResults.length < 4 ? '⏳ ' : '✅ ') + allResults.length + ' / 4';
+      if (allResults.length < 4) {
+        progressEl.style.background = 'rgba(255,255,255,.18)';
+      } else {
+        progressEl.style.background = 'rgba(34,197,94,.85)';
+      }
+    }
+
+    // Карточка-строка: информативный стиль с колонками (имя / дистанция / время / точек / статус)
     function renderRow(r, isNew) {
       var icon = r.by === 'osrm-demo' ? '🟦' : r.by === 'fossgis' ? '🟩' : r.by === 'valhalla-public' ? '🟧' : '⬜';
       var name = r.by === 'osrm-demo' ? 'OSRM demo' :
@@ -17624,49 +17697,107 @@
       var url = r.by === 'osrm-demo' ? 'https://router.project-osrm.org' :
                 r.by === 'fossgis' ? 'https://routing.openstreetmap.de/routed-car' :
                 r.by === 'valhalla-public' ? 'https://valhalla1.openstreetmap.de' : '';
-      var okMark = r.ok ? '' : ' ⚠';
       var kmStr = r.ok ? r.km.toFixed(1).replace('.', ',') + ' км' : '—';
-      var minStr = r.ok ? fmtDuration(r.min) : (r.msg || 'нет');
-      var bar = isNew ? 'animation:tp 0.4s' : '';
-      var row = '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 10px;background:var(--panel-2);border-radius:6px;' + bar + '">' +
-        '<span>' + icon + ' <b>' + name + '</b>' + okMark +
-        (url ? ' <a href="' + url + '" target="_blank" rel="noopener" style="font-size:10px;color:#94a3b8;text-decoration:none;margin-left:6px" title="Открыть сервис">↗</a>' : '') + '</span>' +
-        '<span><b>' + kmStr + '</b> · ' + minStr + '</span></div>';
+      var minStr = r.ok ? fmtDuration(r.min) : '—';
+      var ptsStr = r.ok ? (ptsCount + ' + база') : '—';
+      var statusText, statusClass = '';
+      if (r.ok) statusText = '✅ ОК';
+      else { statusText = '⚠ ' + (r.msg || 'нет'); statusClass = 'err'; }
+      var anim = isNew && r.ok ? 'animation:tp 0.4s' : '';
+
+      // id-row — чтобы потом легко подсветить лучшую
+      var safeId = 'tcr-' + r.by;
+      var row =
+        '<div id="' + safeId + '" class="tcr ' + statusClass + '"' +
+        ' style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:11px 12px;background:var(--panel-2);border-radius:8px;align-items:center;font-size:13px;' + anim + '">' +
+          '<div style="display:flex;align-items:center;gap:6px;overflow:hidden">' +
+            '<span style="font-size:15px">' + icon + '</span>' +
+            '<b style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + name + '</b>' +
+            (url ? '<a href="' + url + '" target="_blank" rel="noopener" style="font-size:10px;color:#94a3b8;text-decoration:none" title="Открыть сервис">↗</a>' : '') +
+          '</div>' +
+          '<div style="text-align:right;font-variant-numeric:tabular-nums"><b>' + kmStr + '</b></div>' +
+          '<div style="text-align:right;font-variant-numeric:tabular-nums"><b>' + minStr + '</b></div>' +
+          '<div style="text-align:right;color:var(--muted);font-size:12px">' + ptsStr + '</div>' +
+          '<div style="text-align:center;font-size:12px;font-weight:600;' + (r.ok ? 'color:#15803d' : 'color:#dc2626') + '">' + statusText + '</div>' +
+        '</div>';
       if (isNew) listEl.insertAdjacentHTML('beforeend', row);
       else listEl.innerHTML += row;
     }
 
-    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    renderRow({ by: 'pending', ok: false, msg: '⏳ опрашиваем...' }, true);
-    setTimeout(function () {
-      var rows = listEl.querySelectorAll('div');
-      if (rows.length) rows[0].remove();
-    }, 100);
+    // Стартовое состояние — 4 «пустых» строки с pulsing индикатором
+    var rows = ['osrm-demo', 'fossgis', 'valhalla-public', 'straight'];
+    rows.forEach(function (by) { renderRow({ ok: false, by: by, msg: 'ожидание…' }, true); });
 
     var allResults = [];
     function onResult(r) {
       allResults.push(r);
-      renderRow(r, true);
+      setProgress();
+      var pendingId = 'tcr-' + r.by;
+      var pending = document.getElementById(pendingId);
+      if (pending) {
+        // Сразу строим новую ноду и заменяем — без лишнего HTML и шаблонов
+        var icon = r.by === 'osrm-demo' ? '🟦' : r.by === 'fossgis' ? '🟩' : r.by === 'valhalla-public' ? '🟧' : '⬜';
+        var name = r.by === 'osrm-demo' ? 'OSRM demo' :
+                   r.by === 'fossgis' ? 'FOSSGIS OSRM' :
+                   r.by === 'valhalla-public' ? 'Valhalla public' : 'Прямая ×1.4';
+        var url = r.by === 'osrm-demo' ? 'https://router.project-osrm.org' :
+                  r.by === 'fossgis' ? 'https://routing.openstreetmap.de/routed-car' :
+                  r.by === 'valhalla-public' ? 'https://valhalla1.openstreetmap.de' : '';
+        var kmStr = r.ok ? r.km.toFixed(1).replace('.', ',') + ' км' : '—';
+        var minStr = r.ok ? fmtDuration(r.min) : '—';
+        var ptsStr = r.ok ? (ptsCount + ' + база') : '—';
+        var statusText, statusClass = '';
+        if (r.ok) statusText = '✅ ОК';
+        else { statusText = '⚠ ' + (r.msg || 'нет'); statusClass = 'err'; }
+        var newEl = document.createElement('div');
+        newEl.id = pendingId;
+        newEl.className = 'tcr ' + statusClass;
+        newEl.style.cssText = 'display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:11px 12px;background:var(--panel-2);border-radius:8px;align-items:center;font-size:13px;animation:tp 0.4s';
+        newEl.innerHTML =
+          '<div style="display:flex;align-items:center;gap:6px;overflow:hidden">' +
+            '<span style="font-size:15px">' + icon + '</span>' +
+            '<b style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + name + '</b>' +
+            (url ? '<a href="' + url + '" target="_blank" rel="noopener" style="font-size:10px;color:#94a3b8;text-decoration:none" title="Открыть сервис">↗</a>' : '') +
+          '</div>' +
+          '<div style="text-align:right;font-variant-numeric:tabular-nums"><b>' + kmStr + '</b></div>' +
+          '<div style="text-align:right;font-variant-numeric:tabular-nums"><b>' + minStr + '</b></div>' +
+          '<div style="text-align:right;color:var(--muted);font-size:12px">' + ptsStr + '</div>' +
+          '<div style="text-align:center;font-size:12px;font-weight:600;' + (r.ok ? 'color:#15803d' : 'color:#dc2626') + '">' + statusText + '</div>';
+        pending.replaceWith(newEl);
+      }
       if (allResults.length === 4) {
-        // Сортируем по расстоянию (меньше = лучше)
-        allResults.sort(function (a, b) { return (a.ok ? a.km : 9999) - (b.ok ? b.km : 9999); });
-        // Подсветим лучший
-        var listRows = listEl.querySelectorAll('div');
-        var bestRow = null;
-        listRows.forEach(function (row) {
-          var text = row.textContent;
-          if (text.indexOf(allResults[0].by === 'osrm-demo' ? 'OSRM demo' :
-                            allResults[0].by === 'fossgis' ? 'FOSSGIS OSRM' :
-                            allResults[0].by === 'valhalla-public' ? 'Valhalla public' : 'Прямая ×1.4') !== -1) {
-            row.style.background = '#dcfce7';
-            row.style.borderLeft = '3px solid #16a34a';
-            if (!bestRow) {
-              bestRow = row;
-              var badge = '<div style="margin-top:8px;padding:6px 10px;background:#dcfce7;border-radius:6px;font-size:11.5px;color:#15803d;font-weight:700">✅ Лучший маршрут: ' + (allResults[0].km.toFixed(1).replace('.', ',') + ' км · ' + fmtDuration(allResults[0].min)) + '</div>';
-              listEl.insertAdjacentHTML('beforeend', badge);
-            }
-          }
+        clearTimeout(releaseTimer); releaseBtn();
+        // Сортируем: успешные по расстоянию по возрастанию, битые в самый низ
+        var sorted = allResults.slice().sort(function (a, b) {
+          if (a.ok && !b.ok) return -1;
+          if (!a.ok && b.ok) return 1;
+          if (!a.ok && !b.ok) return 0;
+          return a.km - b.km;
         });
+        sorted.forEach(function (x, i) {
+          var el = document.getElementById('tcr-' + x.by);
+          if (!el) return;
+          listEl.appendChild(el);          // переставить в начало
+          if (i === 0 && x.ok) el.classList.add('best');
+        });
+        // Подвал: бейдж с лучшим
+        var best = sorted[0];
+        var footHtml = '';
+        if (best.ok) {
+          var okList = sorted.filter(function (x) { return x.ok; });
+          var worst = okList[okList.length - 1];
+          var saving = worst.km - best.km;
+          footHtml = '<div style="padding:12px 14px;background:linear-gradient(135deg,#dcfce7,#bbf7d0);border-radius:10px;border:1px solid #86efac;display:flex;align-items:center;gap:12px">' +
+            '<div style="font-size:24px">🏆</div>' +
+            '<div style="flex:1">' +
+              '<div style="font-weight:800;color:#14532d;font-size:14px">Лучший маршрут — ' + (best.by === 'osrm-demo' ? 'OSRM demo' : best.by === 'fossgis' ? 'FOSSGIS OSRM' : best.by === 'valhalla-public' ? 'Valhalla public' : 'Прямая ×1.4') + '</div>' +
+              '<div style="font-size:12px;color:#166534;margin-top:2px">' + best.km.toFixed(1).replace('.', ',') + ' км · ' + fmtDuration(best.min) + (saving > 0 ? ' · экономия ' + saving.toFixed(1).replace('.', ',') + ' км относительно самого длинного' : '') + '</div>' +
+            '</div>' +
+          '</div>';
+        } else {
+          footHtml = '<div style="padding:10px 14px;background:#fef2f2;border-radius:10px;border:1px solid #fca5a5;color:#7f1d1d;font-size:12.5px">⚠ Ни один из 4 роутеров не ответил успешно. Проверьте доступ к router.project-osrm.org, routing.openstreetmap.de, valhalla1.openstreetmap.de.</div>';
+        }
+        footEl.innerHTML = footHtml;
       }
     }
     fetchStraightLineRoute(pts, base, onResult);
@@ -17721,13 +17852,6 @@
           onResult({ ok: true, by: 'valhalla-public', km: km, min: mn, geometry: [] });
         }).catch(function (e) { onResult({ ok: false, by: 'valhalla-public', msg: 'Valhalla: ' + e.message }); });
     } catch (e3) { onResult({ ok: false, by: 'valhalla-public', msg: 'Valhalla: ' + (e3.message || 'init err') }); }
-
-    // Разблокируем кнопку, когда придут все 4
-    var _origOnResult = onResult;
-    onResult = function (r) {
-      _origOnResult(r);
-      if (allResults.length >= 4) { clearTimeout(releaseTimer); releaseBtn(); }
-    };
   }
 
   function buildTestRoute(noJam) {
