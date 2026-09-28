@@ -232,6 +232,42 @@
     var a = wkData(uid).abs;
     return !!(a && a[key(offToDate(off))] !== undefined); // '' (без причины) — тоже отсутствие
   }
+  // Принимает либо off (как у wkIsAbsent), либо dateStr 'YYYY-MM-DD'
+  function wkIsAbsentDs(uid, dateStr) {
+    var a = wkData(uid).abs;
+    return !!(a && a[dateStr] !== undefined);
+  }
+  // Рабочий ли день по графику работника (без учёта отсутствий — их накладываем отдельно).
+  // 5/2: ПН–ПТ работа, СБ–ВС отдых. 2/2: считаем дни от cycle (2 раб / 2 вых).
+  function wkIsWorking(uid, dateStr) {
+    var wd = wkData(uid);
+    var sched = wd.sched || '5/2';
+    var parts = dateStr.split('-');
+    var d = new Date(+parts[0], +parts[1] - 1, +parts[2]);
+    if (sched === '5/2') {
+      var dow = d.getDay(); // 0=вс, 6=сб
+      return dow !== 0 && dow !== 6;
+    }
+    if (sched === '2/2') {
+      var cycleStr = wd.cycle || '2026-01-05';
+      var cParts = cycleStr.split('-');
+      var c = new Date(+cParts[0], +cParts[1] - 1, +cParts[2]);
+      var days = Math.floor((d - c) / 86400000);
+      if (days < 0) {
+        // До начала цикла — рабочий день считается по 5/2 (привычный дефолт)
+        var dow2 = d.getDay();
+        return dow2 !== 0 && dow2 !== 6;
+      }
+      // Цикл 4 дня: 0,1 — работа; 2,3 — отдых.
+      return (days % 4) < 2;
+    }
+    return true;
+  }
+  // Итоговое состояние дня: 'work' (рабочий по графику), 'off' (выходной), 'abs' (отсутствие).
+  function wkDayState(uid, dateStr) {
+    if (wkIsAbsentDs(uid, dateStr)) return 'abs';
+    return wkIsWorking(uid, dateStr) ? 'work' : 'off';
+  }
   // Бригада мастера (страница «Работники»): слесари, приписанные к нему перетаскиванием
   function wkBrigadeOf(masterId) {
     if (!masterId) return [];
@@ -739,13 +775,14 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-60 · основная карта: 🚦 Пробки + BRouter trekking + закрытия удалены'],
+    objmap: ['Карта объектов', 'Сборка 22.09-62 · основная карта: 🚦 Пробки + BRouter trekking + закрытия удалены + чистка мёртвого кода + графики смен'],
     testmap: ['Тест проезда', 'Полигон: карта маршрутов + оптимизация + пробки + Google Maps (копия «Карты маршрутов» для экспериментов)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
     perms: ['Разрешения', 'Система разрешений на производство работ'],
     refs: ['Справочники', 'Виды работ, нормы времени, объекты газоснабжения'],
     workers: ['Работники', 'Графики работы (8 ч → 5/2, 12 ч → 2/2), бригады и отсутствия'],
+    schedules: ['Графики смен', 'Сводный календарь по бригадам: кто работает / отдыхает / отсутствует'],
     users: ['Пользователи', 'Учётные записи, роли и доступ к системе'],
     reports: ['Отчёты', 'Печатные формы для подписи у руководства'],
     logs: ['Журнал действий', 'Действия пользователей системы']
@@ -4624,9 +4661,6 @@
       ymState.leafletMap = null;
       ymState.leafletRouteLayer = null;
       ymState.leafletArrows = [];
-      ymState.drawingClosure = false;   // сброс режима рисования при пересоздании карты
-      ymState.drawPoints = [];
-      ymState.selectedClosure = null;   // сброс выбора закрытия
 
       setTimeout(function() {
         var mapEl = document.getElementById('leaflet-canvas');
@@ -4641,9 +4675,6 @@
         ymState.leafletMap = map;
         // Слой карты: MapTiler OMT — векторные тайлы с подписями ТОЛЬКО на русском языке
         addMapTilerBasemap(map);
-        // Загружаем и показываем закрытые дороги из OpenStreetMap (Overpass API)
-        loadManualClosures();
-        loadRoadClosures(function() { showRoadClosures(map); });
 
         var allCoords = [[base.lat, base.lng]];
         var baseIcon = window.L.divIcon({ html: '<div style="font-size:28px;line-height:1">🚩</div>', className: '', iconSize: [28, 28], iconAnchor: [14, 28] });
@@ -8749,7 +8780,8 @@
       '</div>';
   }
 
-  // Календарь отсутствий работника (сетка месяца; красный день = отсутствует)
+  // Календарь работника: сетка месяца с тремя состояниями дня.
+  // 🟢 рабочий по графику, ⚪ выходной, 🔴 отсутствие (отпуск/больничный).
   function wkCalendarHtml(u, wd) {
     var wm = wkMonth();
     var dim = new Date(wm.y, wm.m + 1, 0).getDate();
@@ -8759,7 +8791,12 @@
     s += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">';
     s += '<button type="button" class="btn sm" data-action="wk-month-prev" title="Предыдущий месяц">‹</button>';
     s += '<span style="font-weight:800;font-size:12.5px;color:var(--ink);flex:1;text-align:center">' + MON_NOM[wm.m] + ' ' + wm.y + '</span>';
-    s += '<button type="button" class="btn sm" data-action="wk-month-next" title="Следующий месяц">›</button></div>';
+    s += '<button type="button" class="btn sm" data-action="wk-month-next" title="Следующий месяц">›</button>';
+    s += '<span style="font-size:10px;color:var(--muted);display:flex;gap:6px;align-items:center;font-weight:700">' +
+      '<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#dcfce7;border:1px solid #16a34a"></span>раб' +
+      '<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#f1f5f9;border:1px solid #cbd5e1"></span>вых' +
+      '<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#fee2e2;border:1px solid #dc2626"></span>отс' +
+      '</span></div>';
     s += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;font-size:10px;color:var(--muted);text-align:center;margin-bottom:3px;font-weight:700">' +
       ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(function (d) { return '<span>' + d + '</span>'; }).join('') + '</div>';
     s += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px">';
@@ -8767,20 +8804,26 @@
     for (var dd = 1; dd <= dim; dd++) {
       var dt = new Date(wm.y, wm.m, dd);
       var ds = wm.y + '-' + String(wm.m + 1).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
-      var absent = !!(wd.abs && wd.abs[ds] !== undefined); // '' (без причины) — тоже отсутствие
-      var we = dt.getDay() === 0 || dt.getDay() === 6;
+      var state = wkDayState(u.id, ds); // 'work' | 'off' | 'abs'
+      var absent = state === 'abs';
       var isToday = sameDay(dt, TODAY);
+      var bg, border, fg;
+      if (state === 'abs')        { bg = '#fee2e2'; border = '#dc2626'; fg = '#b91c1c'; }
+      else if (state === 'work')  { bg = '#dcfce7'; border = '#16a34a'; fg = '#14532d'; }
+      else                        { bg = '#f1f5f9'; border = '#cbd5e1'; fg = '#94a3b8'; }
       var title = absent
         ? ('Отсутствует' + (wd.abs[ds] ? ' — ' + wd.abs[ds] : '') + (can ? ' · нажмите, чтобы изменить причину или снять' : ''))
-        : (can ? 'Нажмите — отсутствие отметится сразу (ещё раз — причина/снятие)' : '');
+        : (state === 'work'
+          ? (can ? 'Рабочий по графику · нажмите, чтобы отметить отсутствие' : 'Рабочий по графику')
+          : (can ? 'Выходной по графику · нажмите, чтобы отметить отсутствие' : 'Выходной по графику'));
       // пустой день: один клик = отсутствие сразу (без комментария);
       // красный день: клик = модалка (причина / убрать отметку)
       var dayAct = absent ? 'wk-open-day' : 'wk-quick-abs';
       s += '<span role="button"' + (can ? ' data-action="' + dayAct + '" data-uid="' + esc(u.id) + '" data-ds="' + ds + '"' : '') +
         ' style="display:flex;align-items:center;justify-content:center;min-height:26px;border-radius:6px;font-size:11px;font-weight:700;cursor:' + (can ? 'pointer' : 'default') +
-        ';border:1px solid ' + (absent ? '#dc2626' : 'var(--line)') +
-        ';background:' + (absent ? '#fee2e2' : (we ? '#f8fafc' : '#fff')) +
-        ';color:' + (absent ? '#b91c1c' : (we ? '#94a3b8' : 'var(--ink)')) +
+        ';border:1px solid ' + border +
+        ';background:' + bg +
+        ';color:' + fg +
         (isToday ? ';box-shadow:0 0 0 2px rgba(37,99,235,.35)' : '') + '" title="' + esc(title) + '">' + dd + '</span>';
     }
     s += '</div></div>';
@@ -8983,6 +9026,215 @@
       '<div class="modal-b">' + wkPanelHtml(u, masters) + '</div>';
     overlay.classList.add('show');
     wireWkControls(modal);
+  }
+
+  /* ========== ГРАФИКИ СМЕН (бригады × дни месяца) ========== */
+  // Сводный календарь по бригадам: вид «бригада → строка, дни → столбцы».
+  // Цвета ячейки: 🟢 рабочий, ⚪ выходной, 🔴 отсутствие.
+  // Клик по ячейке — отмечает/снимает отсутствие (если есть права на этого работника).
+  function renderSchedules() {
+    var v = document.getElementById('view');
+    var users = wkVisibleUsers();
+    var masters = users.filter(function (u) { return u.role === 'master'; });
+    var slesars = users.filter(function (u) { return u.role === 'slesar'; });
+    var wm = wkMonth();
+    var dim = new Date(wm.y, wm.m + 1, 0).getDate();
+    var lead = (new Date(wm.y, wm.m, 1).getDay() + 6) % 7;
+
+    // Собираем строки: «бригада» — мастер + его слесари; плюс отдельная «без бригады»
+    var rows = [];
+    masters.forEach(function (m) {
+      var members = slesars.filter(function (s) { return wkData(s.id).brigade === m.id; });
+      rows.push({ kind: 'brigade', master: m, members: members });
+    });
+    var free = slesars.filter(function (s) {
+      var b = wkData(s.id).brigade;
+      return !b || !masters.some(function (m) { return m.id === b; });
+    });
+    if (free.length) rows.push({ kind: 'free', master: null, members: free });
+
+    var html = '<div class="card"><div class="card-h"><h2>📅 Графики смен</h2>';
+    html += '<span class="sub">' + masters.length + ' бригад · ' + slesars.length + ' слесарей · ' + users.length + ' чел.</span><div class="spacer"></div>';
+    // Управление: месяц + режим отображения
+    html += '<span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">';
+    html += '<button type="button" class="btn sm" data-action="sch-month-prev" title="Предыдущий месяц">‹</button>';
+    html += '<b style="font-size:13px;color:var(--ink);min-width:140px;text-align:center">' + MON_NOM[wm.m] + ' ' + wm.y + '</b>';
+    html += '<button type="button" class="btn sm" data-action="sch-month-next" title="Следующий месяц">›</button>';
+    html += '<span style="width:1px;height:20px;background:var(--line);margin:0 4px"></span>';
+    var modes = [
+      { id: 'all',  label: 'Все бригады' },
+      { id: 'free', label: 'Только без бригады' }
+    ];
+    masters.forEach(function (m) { modes.push({ id: 'b:' + m.id, label: 'Бригада ' + m.full_name.split(' ')[0] }); });
+    var curMode = S.schMode || 'all';
+    html += '<select data-action="sch-mode" style="padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:11.5px;font-weight:700;background:var(--card)">';
+    modes.forEach(function (m) {
+      html += '<option value="' + esc(m.id) + '"' + (m.id === curMode ? ' selected' : '') + '>' + esc(m.label) + '</option>';
+    });
+    html += '</select></span></div>';
+    html += '<div class="card-b">';
+
+    if (!rows.length) {
+      html += '<div class="empty" style="padding:30px">Нет работников</div>';
+      html += '</div></div>';
+      v.innerHTML = html;
+      wireSchedulesControls(v);
+      return;
+    }
+
+    // Шапка дней — обрезаем по 4 строки (4 недели), но реально показываем до 31 день.
+    // Ширина столбца фиксированная (~24px), иначе таблица уплывает на больших мониторах.
+    var colW = 24;
+    var html2 = '<div style="overflow:auto;border:1px solid var(--line);border-radius:12px;background:var(--card)">';
+    html2 += '<table style="border-collapse:separate;border-spacing:0;width:100%;min-width:' + (220 + dim * colW) + 'px;font-size:11px">';
+    // Шапка: пустая ячейка + дни месяца (с подсветкой выходных)
+    html2 += '<thead><tr style="background:var(--panel-2)">';
+    html2 += '<th style="position:sticky;left:0;background:var(--panel-2);z-index:2;padding:6px 8px;text-align:left;border-bottom:1px solid var(--line);font-size:11px;color:var(--muted);font-weight:700;min-width:200px">Бригада / работник</th>';
+    // Сдвиг для первой недели
+    for (var li = 0; li < lead; li++) html2 += '<th style="width:' + colW + 'px;border-bottom:1px solid var(--line)"></th>';
+    for (var dd = 1; dd <= dim; dd++) {
+      var dtH = new Date(wm.y, wm.m, dd);
+      var dowH = dtH.getDay();
+      var isWeH = dowH === 0 || dowH === 6;
+      var isTodayH = sameDay(dtH, TODAY);
+      html2 += '<th title="' + dd + ' ' + MON_NOM[wm.m] + '" style="width:' + colW + 'px;padding:3px 0;font-size:10px;font-weight:700;color:' + (isWeH ? '#94a3b8' : 'var(--muted)') + ';border-bottom:1px solid var(--line);text-align:center;' + (isTodayH ? 'background:rgba(37,99,235,.1);' : '') + '">' + dd + '</th>';
+    }
+    html2 += '</tr></thead><tbody>';
+
+    // Фильтруем строки по режиму
+    var showRows = rows;
+    if (curMode === 'free') {
+      showRows = rows.filter(function (r) { return r.kind === 'free'; });
+    } else if (curMode.indexOf('b:') === 0) {
+      var mbId = curMode.slice(2);
+      showRows = rows.filter(function (r) { return r.kind === 'brigade' && r.master && r.master.id === mbId; });
+    }
+
+    if (!showRows.length) {
+      html2 += '<tr><td colspan="' + (1 + lead + dim) + '" style="padding:18px;text-align:center;color:var(--muted)">Нет работников в выбранном режиме</td></tr>';
+    }
+
+    showRows.forEach(function (row) {
+      // Заголовок бригады (если не free) — одна строка с мастером
+      if (row.kind === 'brigade') {
+        html2 += schBrigadeRow(row.master, wm, lead, dim, colW, true);
+        row.members.forEach(function (s) {
+          html2 += schWorkerRow(s, wm, lead, dim, colW);
+        });
+      } else {
+        row.members.forEach(function (s) {
+          html2 += schWorkerRow(s, wm, lead, dim, colW);
+        });
+      }
+    });
+
+    html2 += '</tbody></table></div>';
+    // Легенда
+    html2 += '<div style="margin-top:10px;display:flex;gap:14px;align-items:center;font-size:11px;color:var(--muted);flex-wrap:wrap;font-weight:700">' +
+      '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#dcfce7;border:1px solid #16a34a"></span>рабочий по графику</span>' +
+      '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#f1f5f9;border:1px solid #cbd5e1"></span>выходной по графику</span>' +
+      '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#fee2e2;border:1px solid #dc2626"></span>отсутствие (отпуск/больничный)</span>' +
+      '<span style="color:#94a3b8">· клик по ячейке — отметить/снять отсутствие</span>' +
+      '</div>';
+    // Подсказка: смены итого по бригаде (текущий месяц)
+    html2 += schMonthSummary(showRows, wm);
+
+    html += html2 + '</div></div>';
+    v.innerHTML = html;
+    wireSchedulesControls(v);
+  }
+
+  function schBrigadeRow(master, wm, lead, dim, colW, isHeader) {
+    var wd = wkData(master.id);
+    var bg = isHeader ? 'var(--panel-2)' : 'var(--card)';
+    var html = '<tr style="background:' + bg + '">';
+    html += '<td style="position:sticky;left:0;background:' + bg + ';z-index:1;padding:6px 8px;border-bottom:1px solid var(--line);font-weight:800;color:var(--ink);white-space:nowrap;min-width:200px">' +
+      '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + (master.color || '#94a3b8') + ';margin-right:6px"></span>' +
+      '👷 ' + esc(master.full_name) + ' <span style="color:var(--muted);font-weight:700;font-size:10px">· ' + wd.hours + ' ч · ' + wd.sched + (wd.sched === '2/2' ? ' (' + esc(wd.cycle) + ')' : '') + '</span></td>';
+    for (var li = 0; li < lead; li++) html += '<td style="border-bottom:1px solid var(--line)"></td>';
+    var wOrAbs = 0, wOff = 0, wAbs = 0;
+    for (var dd = 1; dd <= dim; dd++) {
+      var ds = wm.y + '-' + String(wm.m + 1).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
+      var st = wkDayState(master.id, ds);
+      var bg2 = st === 'work' ? '#dcfce7' : (st === 'abs' ? '#fee2e2' : '#f1f5f9');
+      var bd2 = st === 'work' ? '#16a34a' : (st === 'abs' ? '#dc2626' : '#cbd5e1');
+      html += schCellHtml(master, ds, st, bg2, bd2, colW, wm, dd);
+      if (st === 'work') wOrAbs++; else if (st === 'abs') wAbs++; else wOff++;
+    }
+    html += '</tr>';
+    return html;
+  }
+  function schWorkerRow(worker, wm, lead, dim, colW) {
+    var wd = wkData(worker.id);
+    var bg = 'var(--card)';
+    var html = '<tr>';
+    html += '<td style="position:sticky;left:0;background:' + bg + ';z-index:1;padding:4px 8px 4px 24px;border-bottom:1px solid var(--line);color:var(--ink);white-space:nowrap;min-width:200px;font-size:11px">' +
+      '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + (worker.color || '#94a3b8') + ';margin-right:6px"></span>' +
+      esc(worker.full_name) + ' <span style="color:var(--muted);font-weight:700;font-size:9.5px">· ' + wd.sched + '</span></td>';
+    for (var li = 0; li < lead; li++) html += '<td style="border-bottom:1px solid var(--line)"></td>';
+    for (var dd = 1; dd <= dim; dd++) {
+      var ds = wm.y + '-' + String(wm.m + 1).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
+      var st = wkDayState(worker.id, ds);
+      var bg2 = st === 'work' ? '#dcfce7' : (st === 'abs' ? '#fee2e2' : '#f1f5f9');
+      var bd2 = st === 'work' ? '#16a34a' : (st === 'abs' ? '#dc2626' : '#cbd5e1');
+      html += schCellHtml(worker, ds, st, bg2, bd2, colW, wm, dd);
+    }
+    html += '</tr>';
+    return html;
+  }
+  function schCellHtml(user, ds, state, bg, bd, colW, wm, dd) {
+    var can = wkCanEdit(user);
+    var dt = new Date(wm.y, wm.m, dd);
+    var isToday = sameDay(dt, TODAY);
+    var title = state === 'work' ? (esc(ds) + ' · рабочий')
+              : state === 'abs'  ? (esc(ds) + ' · отсутствие' + (wkData(user.id).abs[ds] ? ' (' + esc(wkData(user.id).abs[ds]) + ')' : ''))
+              : (esc(ds) + ' · выходной');
+    var ring = isToday ? ';box-shadow:inset 0 0 0 2px rgba(37,99,235,.4)' : '';
+    var act = state === 'abs' ? 'wk-open-day' : 'wk-quick-abs';
+    return '<td data-action="' + (can ? act : '') + '" data-uid="' + esc(user.id) + '" data-ds="' + ds + '"' +
+      (can ? ' role="button"' : '') +
+      ' title="' + title + '" style="width:' + colW + 'px;height:22px;padding:0;background:' + bg + ';border-left:1px solid ' + bd + ';border-bottom:1px solid var(--line);cursor:' + (can ? 'pointer' : 'default') + ring + '"></td>';
+  }
+  // Под каждой бригадой — итог: рабочих / выходных / отсутствий за месяц
+  function schMonthSummary(rows, wm) {
+    var dim = new Date(wm.y, wm.m + 1, 0).getDate();
+    if (!rows.length) return '';
+    var html = '<div style="margin-top:14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px">';
+    rows.forEach(function (row) {
+      if (row.kind !== 'brigade') return;
+      var all = [row.master].concat(row.members);
+      var work = 0, off = 0, abs = 0;
+      for (var dd = 1; dd <= dim; dd++) {
+        var ds = wm.y + '-' + String(wm.m + 1).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
+        all.forEach(function (u) {
+          var st = wkDayState(u.id, ds);
+          if (st === 'work') work++; else if (st === 'abs') abs++; else off++;
+        });
+      }
+      var membersCount = all.length;
+      html += '<div style="border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--card)">' +
+        '<div style="font-size:11.5px;font-weight:800;color:var(--ink)">' +
+        '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + (row.master.color || '#94a3b8') + ';margin-right:5px"></span>' +
+        esc(row.master.full_name) + '</div>' +
+        '<div style="font-size:10.5px;color:var(--muted);margin-top:3px">' + membersCount + ' чел. · ' + MON_NOM[wm.m] + ' ' + wm.y + '</div>' +
+        '<div style="display:flex;gap:8px;margin-top:5px;font-size:11px;font-weight:700">' +
+          '<span style="color:#16a34a">● ' + work + ' раб</span>' +
+          '<span style="color:#94a3b8">● ' + off + ' вых</span>' +
+          '<span style="color:#dc2626">● ' + abs + ' отс</span>' +
+        '</div></div>';
+    });
+    html += '</div>';
+    return html;
+  }
+  function wireSchedulesControls(v) {
+    v.querySelectorAll('[data-action="sch-month-prev"]').forEach(function (b) {
+      b.addEventListener('click', function () { wkShiftMonth(-1); renderSchedules(); });
+    });
+    v.querySelectorAll('[data-action="sch-month-next"]').forEach(function (b) {
+      b.addEventListener('click', function () { wkShiftMonth(1); renderSchedules(); });
+    });
+    var sel = v.querySelector('select[data-action="sch-mode"]');
+    if (sel) sel.addEventListener('change', function () { S.schMode = sel.value; renderSchedules(); });
   }
 
   // Модалка дня отсутствия (комментарий к дню + отметить/убрать)
@@ -13349,6 +13601,8 @@
     // СЭОГС — начальник и заместитель (просмотр всех бригад). Слесарю скрыто.
     var wkNav = document.querySelector('#nav a[data-screen="workers"]');
     if (wkNav) wkNav.style.display = (S.role === 'slesar') ? 'none' : '';
+    var schNav = document.querySelector('#nav a[data-screen="schedules"]');
+    if (schNav) schNav.style.display = (S.role === 'slesar') ? 'none' : '';
     var ob = document.querySelector('button[data-action="optimize"]');
     if (ob) ob.style.display = (canPlan() ? 'inline-flex' : 'none');
     // Индикатор синхронизации управляется модулем sync_polling.js (22.09-25)
@@ -13442,6 +13696,11 @@
       toast('err', 'Вкладка «Работники» недоступна');
       return;
     }
+    // «Графики смен»: слесарю недоступна (управление графиками — для руководства)
+    if (name === 'schedules' && S.role === 'slesar') {
+      toast('err', 'Вкладка «Графики смен» недоступна');
+      return;
+    }
     // Слесарь: только карты (маршрутов / местоположения / объектов)
     if (S.role === 'slesar' && !SLESAR_SCREENS[name]) {
       toast('err', 'Слесарю доступны только карты: маршрутов, местоположения и объектов');
@@ -13531,6 +13790,7 @@
     else if (S.screen === 'livemap') renderLiveMap();
     else if (S.screen === 'perms') renderPerms();
     else if (S.screen === 'workers') renderWorkers();
+    else if (S.screen === 'schedules') renderSchedules();
     else if (S.screen === 'refs') renderRefs();
     else if (S.screen === 'users') renderUsers();
     else if (S.screen === 'reports') renderReports();
@@ -13706,6 +13966,7 @@
       toast('ok', '✓ Отсутствие отмечено — нажмите на день, чтобы указать причину');
       var _backQ = S.wkModalUid;
       if (S.screen === 'workers') renderWorkers();
+      else if (S.screen === 'schedules') renderSchedules();
       if (_backQ) openWkCardModal(_backQ);
     }
     else if (a === 'wk-open-day') { openWkDayModal(el.dataset.uid, el.dataset.ds); }
@@ -13717,8 +13978,13 @@
         toast('ok', '✓ Отсутствие отмечено');
         var _backUid = S.wkModalUid; S.wkDay = null;
         if (S.screen === 'workers') renderWorkers();
+        else if (S.screen === 'schedules') renderSchedules();
         if (_backUid) openWkCardModal(_backUid);
-        else { overlay.classList.remove('show'); renderWorkers(); }
+        else {
+          overlay.classList.remove('show');
+          if (S.screen === 'workers') renderWorkers();
+          else if (S.screen === 'schedules') renderSchedules();
+        }
       }
     }
     else if (a === 'wk-day-del') {
@@ -13727,8 +13993,13 @@
         toast('ok', '✓ Отметка отсутствия снята');
         var _backUid2 = S.wkModalUid; S.wkDay = null;
         if (S.screen === 'workers') renderWorkers();
+        else if (S.screen === 'schedules') renderSchedules();
         if (_backUid2) openWkCardModal(_backUid2);
-        else { overlay.classList.remove('show'); renderWorkers(); }
+        else {
+          overlay.classList.remove('show');
+          if (S.screen === 'workers') renderWorkers();
+          else if (S.screen === 'schedules') renderSchedules();
+        }
       }
     }
     else if (a === 'wk-comment-save') {
