@@ -47,7 +47,6 @@ window.SP_AREAS = (function () {
     }
   }
   function newId() { return 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
-  function apiUrl(path) { return (window.SP_CONFIG && window.SP_CONFIG.serverUrl ? SP_CONFIG.serverUrl : '') + path; }
   // Сборка 22.09-83: автосинхронизация участков с сервером.
   // РАНЬШЕ: вызывалась из save(), но НЕ БЫЛА определена → ReferenceError,
   // создание/переименование/удаление участка через интерфейс падало у всех

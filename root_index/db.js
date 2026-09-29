@@ -124,21 +124,7 @@ window.SP_DB = (function () {
     });
   }
 
-  function apiPut(path, data) {
-    return fetch(API + path, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    }).then(function(r) {
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      return r.json();
-    });
-  }
 
-  function apiDelete(path) {
-    return fetch(API + path, { method: 'DELETE' })
-      .then(function(r) { return r.json(); });
-  }
 
   // ============================================================
   // ПРОВЕРКА ДОСТУПНОСТИ СЕРВЕРА

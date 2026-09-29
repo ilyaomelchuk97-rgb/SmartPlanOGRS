@@ -315,7 +315,6 @@
   */
   // Создание планов и запуск оптимизатора — админ / нач. участка / ст. мастер
   function canPlan() { return S.role === 'admin' || S.role === 'nach' || S.role === 'smaster' || S.role === 'engineer'; }
-  function canApprove() { return S.role === 'admin' || S.role === 'nach'; }
   // Может ли пользователь редактировать конкретную задачу
   function canEditTask(t) {
     if (!t) return false;
@@ -419,16 +418,6 @@
   }
 
   // Проверка погодного ограничения
-  function checkWeatherOk(t, dayOff) {
-    var w = workOf(t);
-    if (!w || w.min_temp == null || w.min_temp <= -50) return { ok: true };
-    var forecast = getWeatherForecast(dayOff);
-    if (forecast == null || forecast.temp == null) return { ok: true, unknown: true };
-    if (forecast.temp < w.min_temp) {
-      return { ok: false, temp: forecast.temp, required: w.min_temp, reason: 'Температура ' + forecast.temp + '°C ниже минимума ' + w.min_temp + '°C' };
-    }
-    return { ok: true, temp: forecast.temp };
-  }
 
   // === ЗАГРУЗКА ПРОГНОЗА ПОГОДЫ ИЗ ЯНДЕКС.ПОГОДЫ / OPEN-METEO ===
   // Кэш: { 'YYYY-MM-DD': { temp: 15, snow: true, snowfall: 2.5, code: 61, desc: 'Снег' }, ... }
@@ -705,42 +694,13 @@
   }
 
   // Проверка наличия снегопада в день (для снегозависимых работ)
-  function hasSnowfallOn(dayOff) {
-    var f = getWeatherForecast(dayOff);
-    if (!f) return false;
-    return f.snow && f.snowfall > 0.1; // более 1 мм снега = снегопад
-  }
 
   // Расчёт дедлайна для снегозависимых работ
   // Если есть данные о снегопаде — дедлайн = дата снегопада + 48ч норматива
-  function calcSnowDeadline(snowDate, work) {
-    var normResponse = 48; // часов на реагирование (по умолчанию)
-    var dl = new Date(snowDate);
-    dl.setTime(dl.getTime() + normResponse * 3600000);
-    return dl;
-  }
 
   // Поиск последнего снегопада в прогнозе (для снегозависимых задач без даты)
-  function findLastSnowfall() {
-    var lastSnow = null;
-    for (var off = 0; off <= 14; off++) {
-      var wf = getWeatherForecast(off);
-      if (wf && wf.snow && wf.snowfall > 0.1) {
-        lastSnow = { date: offToDate(off), off: off, snowfall: wf.snowfall };
-      }
-    }
-    return lastSnow;
-  }
 
   // Определение приоритета задачи
-  function taskPriority(t) {
-    var w = workOf(t);
-    if (!w) return 'normal';
-    if (w.needs_permit) return 'critical';      // Ордер — высший
-    if (w.depends_on_snow) return 'high';        // Снег — высокий
-    if (w.season === 'Зима') return 'medium';    // Сезонные
-    return 'normal';                              // Обычные
-  }
   function taskColor(t) {
     if (t.status === 'done' || t.s === 'done') return 'done';
     // Проверка погодного ограничения (температура)
@@ -781,7 +741,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-89 · профессии: название из выпадающего списка (стандартные + свои, с удалением) или вручную; разряд необязателен («без разряда»)'],
+    objmap: ['Карта объектов', 'Сборка 22.09-90 · чистка: удалён неиспользуемый код (41 «мёртвая» функция, −60 КБ), ускорена загрузка'],
     testmap: ['Тест проезда', 'Полигон: карта маршрутов + оптимизация + пробки + Google Maps (копия «Карты маршрутов» для экспериментов)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -3196,12 +3156,6 @@
       if (kpiEls[3]) kpiEls[3].textContent = permitCount;
     }
   }
-  function ringHTML(pct, size, stroke, small) {
-    var r = (size - stroke) / 2, c = 2 * Math.PI * r, off = c * (1 - pct / 100);
-    var col = pct >= 80 ? 'var(--green)' : pct >= 50 ? 'var(--yellow)' : 'var(--red)';
-    var fs = small ? 13 : 16;
-    return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '"><circle cx="' + (size / 2) + '" cy="' + (size / 2) + '" r="' + r + '" fill="none" stroke="#64748b" stroke-opacity=".35" stroke-width="' + stroke + '"/><circle cx="' + (size / 2) + '" cy="' + (size / 2) + '" r="' + r + '" fill="none" stroke="' + col + '" stroke-width="' + stroke + '" stroke-linecap="round" stroke-dasharray="' + c + '" stroke-dashoffset="' + off + '" transform="rotate(-90 ' + (size / 2) + ' ' + (size / 2) + ')"/><text x="50%" y="54%" text-anchor="middle" font-size="' + fs + '" font-weight="800" fill="#1f2937">' + pct + '%</text></svg>';
-  }
 
   /* =====================================================================
      ПОПАП-КАЛЕНДАРЬ (выбор даты в планировании)
@@ -3920,51 +3874,6 @@
   /* =====================================================================
      ЯДРО: "ОПТИМИЗАТОР"
      ===================================================================== */
-  function checkOverload() {
-    var fixes = 0;
-    visibleMasters().forEach(function (m) {
-      for (var off = -7; off <= 14; off++) {
-        var load = loadForDay(m.id, off);
-        while (load > masterCapacity(m.id, off)) {
-          var dayTasks = S.tasks.filter(function (t) { return t.m === m.id && t.d === off && !isDone(t); }).sort(function (a, b) { return b.dl - a.dl; });
-          if (!dayTasks.length) break;
-          dayTasks[0].d = off + 1; fixes++;
-          load = loadForDay(m.id, off);
-        }
-      }
-    });
-    if (fixes) toast('ok', 'Контроль ФРВ: снято перегрузок — ' + fixes + '.');
-    else toast('ok', 'Контроль ФРВ: перегрузок не обнаружено.');
-    refresh();
-  }
-  function optimizeRoutes() {
-    var edits = 0;
-    visibleMasters().forEach(function (m) {
-      [-1, 0, 1].forEach(function (off) {
-        var dayTasks = S.tasks.filter(function (t) { return t.m === m.id && t.d === off && !isDone(t); });
-        if (dayTasks.length < 3) return;
-        dayTasks.forEach(function (t) {
-          var o = OBJ_MAP[t.o]; if (!o) return;
-          for (var delta = 1; delta <= 2; delta++) {
-            [off + delta, off - delta].forEach(function (adj) {
-              var near = S.tasks.filter(function (x) {
-                if (x.m !== m.id || x.d !== adj || isDone(x)) return false;
-                var ob = OBJ_MAP[x.o]; if (!ob) return false;
-                var dd = Math.sqrt(Math.pow(o.lat - ob.lat, 2) + Math.pow(o.lng - ob.lng, 2));
-                return dd < 0.012;
-              });
-              if (near.length && adj !== off) {
-                var load = loadForDay(m.id, adj);
-                if (load + taskHours(t) <= masterCapacity(m.id, adj)) { t.d = adj; edits++; }
-              }
-            });
-          }
-        });
-      });
-    });
-    toast('ok', 'Маршруты оптимизированы: сгруппировано ' + edits + ' задач по близким адресам.');
-    refresh();
-  }
   function optimizeWorksCalendar() {
     var edits = 0;
     var masters = visibleMasters();
@@ -5543,87 +5452,9 @@
 
   // FOSSGIS OSRM (Германия) — публичный OSRM-сервер, поддерживает alternatives.
   // Аналогичен router.project-osrm.org, иногда даёт более точные результаты для Европы.
-  function fetchFossgisOSRM(points, base, callback) {
-    var coords = [[base.lng, base.lat]];
-    points.forEach(function (p) { if (p.lat != null) coords.push([p.lng, p.lat]); });
-    coords.push([base.lng, base.lat]);
-    var coordStr = coords.map(function (c) { return c.join(','); }).join(';');
-    // trip с roundtrip для оптимального порядка объезда. FOSSGIS не поддерживает steps=true
-    // для trip (только для route) — поэтому упрощённый запрос. overview=full для отрисовки линии.
-    fetch('https://routing.openstreetmap.de/routed-car/trip/v1/driving/' + coordStr +
-      '?roundtrip=true&source=first&overview=full&geometries=geojson')
-      .then(function (r) { return r.json(); })
-      .then(function (res) {
-        if (!res || !res.trips || !res.trips[0]) { callback({ ok: false, msg: 'FOSSGIS: нет trips' }); return; }
-        var trip = res.trips[0];
-        var legs = [];
-        if (trip.legs) {
-          trip.legs.forEach(function (leg) {
-            legs.push({ distance: leg.distance || 0, duration: leg.duration || 0 });
-          });
-        }
-        callback({
-          ok: true,
-          by: 'fossgis',
-          km: trip.distance / 1000,
-          min: Math.round(trip.duration / 60),
-          geometry: trip.geometry.coordinates || [],
-          legs: legs,
-          waypoints: res.waypoints || []
-        });
-      })
-      .catch(function (e) { callback({ ok: false, msg: 'FOSSGIS: ' + e.message }); });
-  }
 
   // Valhalla публичный (без ключа) — openstreetmap.de даёт 1 запрос/сек без авторизации.
   // Отличается от OSRM алгоритмом, иногда даёт более «человечные» маршруты (меньше поворотов).
-  function fetchValhallaPublic(points, base, callback) {
-    var locs = [{ lat: base.lat, lon: base.lng, type: 'break' }];
-    points.forEach(function (p) { if (p.lat != null) locs.push({ lat: p.lat, lon: p.lng, type: 'break' }); });
-    locs.push({ lat: base.lat, lon: base.lng, type: 'break' });
-    var body = {
-      locations: locs,
-      costing: 'auto',
-      directions_options: { units: 'kilometers' },
-      // roundtrip через optimized_route — оптимизация порядка
-      shape_format: 'geojson'
-    };
-    var endpoint = locs.length > 2 ? '/optimized_route' : '/route';
-    fetch('https://valhalla1.openstreetmap.de' + endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    })
-      .then(function (r) { return r.json(); })
-      .then(function (res) {
-        if (!res || !res.trip) { callback({ ok: false, msg: 'Valhalla public: ' + (res && res.error ? res.error : 'нет trip') }); return; }
-        var trip = res.trip;
-        var legs = [];
-        if (trip.legs) {
-          trip.legs.forEach(function (leg) {
-            var sum = leg.summary || {};
-            legs.push({ distance: (sum.length || 0) * 1000, duration: sum.time || 0 });
-          });
-        }
-        var geom = [];
-        if (trip.legs) {
-          trip.legs.forEach(function (leg, li) {
-            if (leg.shape && leg.shape.length) {
-              leg.shape.forEach(function (c, ci) { if (li === 0 || ci > 0) geom.push(c); });
-            }
-          });
-        }
-        callback({
-          ok: true,
-          by: 'valhalla-public',
-          km: trip.summary && trip.summary.length ? trip.summary.length : 0,
-          min: trip.summary && trip.summary.time ? Math.round(trip.summary.time / 60) : 0,
-          geometry: geom,
-          legs: legs
-        });
-      })
-      .catch(function (e) { callback({ ok: false, msg: 'Valhalla public: ' + e.message }); });
-  }
 
   // Маршрут по прямой с поправкой на дороги — самый быстрый fallback без сети.
   // Координаты соединяются прямой линией (для визуализации), километраж = distKm * 1.4,
@@ -5647,21 +5478,6 @@
   }
 
   /* Сравнение всех бесплатных роутеров по одним и тем же точкам. */
-  function compareFreeRouters(points, base, onResult) {
-    var results = [];
-    function add(r) {
-      results.push(r);
-      if (onResult) onResult(r);
-      if (results.length === 4) {
-        // Сортируем по расстоянию (для выбора «лучшего»)
-        results.sort(function (a, b) { return (a.km || 0) - (b.km || 0); });
-      }
-    }
-    fetchStraightLineRoute(points, base, function (r) { add(r); });
-    fetchOSMRouteGeometry('osrm', points, base, function (r) { r.by = 'osrm-demo'; add(r); });
-    fetchFossgisOSRM(points, base, function (r) { add(r); });
-    fetchValhallaPublic(points, base, function (r) { add(r); });
-  }
 
   function buildRoute(noJam) {
     var pts = ymState.pts;
@@ -6070,103 +5886,6 @@
 
   function buildYandexRoute(n) { buildRoute(n); }
 
-  function extractRouteDataFromDOM(container, callback) {
-    var attempts = 0;
-    var maxAttempts = 15; // 15 попыток по 500мс = 7.5 сек максимум
-
-    function tryExtract() {
-      attempts++;
-      // Ищем элементы с данными маршрута внутри контейнера карты
-      var allElements = container.querySelectorAll('*');
-      var kmVal = null, jamsText = null, freeText = null;
-
-      for (var i = 0; i < allElements.length; i++) {
-        var el = allElements[i];
-        var text = (el.textContent || '').trim();
-        if (!text || text.length > 100) continue;
-
-        // Расстояние: "15,2 км" или "15.2 км"
-        if (kmVal === null) {
-          var kmMatch = text.match(/^([\d.,]+)\s*км$/i);
-          if (kmMatch) {
-            kmVal = parseFloat(kmMatch[1].replace(',', '.'));
-          }
-        }
-
-        // Время: "42 мин", "1 ч 15 мин", "1 ч"
-        if (jamsText === null && text.match(/^[\d]+\s*(ч|min|мин)/i) && !text.match(/без/i)) {
-          // Проверяем что это не подпись
-          if (text.match(/^\d/) && (text.indexOf('мин') !== -1 || text.indexOf('ч') !== -1)) {
-            if (jamsText === null) jamsText = text;
-          }
-        }
-
-        // Время без пробок: обычно рядом или с пометкой
-        if (freeText === null && text.match(/^[\d]+\s*(ч|min|мин)/i) && !text.match(/без/i)) {
-          if (jamsText !== null && text !== jamsText && freeText === null) {
-            freeText = text;
-          }
-        }
-      }
-
-      // Если не нашли через точные селекторы — ищем по текстовому содержимому
-      if (kmVal === null) {
-        var fullText = container.textContent || '';
-        var kmMatch2 = fullText.match(/([\d.,]+)\s*км/i);
-        if (kmMatch2) kmVal = parseFloat(kmMatch2[1].replace(',', '.'));
-      }
-
-      if (jamsText === null) {
-        var fullText2 = container.textContent || '';
-        // Ищем паттерны времени
-        var timeMatches = fullText2.match(/(\d+)\s*(?:ч\s*)?(\d+)?\s*мин/g);
-        if (timeMatches && timeMatches.length > 0) {
-          jamsText = timeMatches[0];
-          if (timeMatches.length > 1) freeText = timeMatches[1];
-        }
-        // Или формат "1 ч" без минут
-        var hourMatches = fullText2.match(/(\d+)\s*ч(?!\s*\d)/g);
-        if (hourMatches && jamsText === null) {
-          jamsText = hourMatches[0];
-          if (hourMatches.length > 1) freeText = hourMatches[1];
-        }
-      }
-
-      if (kmVal !== null && kmVal > 0) {
-        // Парсим минуты из текста
-        function parseMinutes(txt) {
-          if (!txt) return 0;
-          var h = txt.match(/(\d+)\s*ч/);
-          var m = txt.match(/(\d+)\s*мин/);
-          var total = 0;
-          if (h) total += parseInt(h[1], 10) * 60;
-          if (m) total += parseInt(m[1], 10);
-          return total || Math.max(1, Math.round(kmVal / 30 * 60));
-        }
-
-        var jamsMin = parseMinutes(jamsText);
-        var freeMin = freeText ? parseMinutes(freeText) : Math.round(jamsMin * 0.75);
-
-        console.log('📊 Данные маршрута из DOM виджета Яндекс.Карт:');
-        console.log('   📍 Расстояние:', kmVal.toFixed(2), 'км');
-        console.log('   🚗 Время с пробками:', jamsMin, 'мин (' + jamsText + ')');
-        console.log('   🛣️ Время без пробок:', freeMin, 'мин (' + (freeText || 'расчётно') + ')');
-
-        callback({ km: kmVal, jamsMin: jamsMin, freeMin: freeMin });
-        return;
-      }
-
-      if (attempts < maxAttempts) {
-        setTimeout(tryExtract, 500);
-      } else {
-        console.warn('⚠ Данные маршрута не найдены в DOM виджета');
-        callback(null);
-      }
-    }
-
-    // Небольшая задержка чтобы DOM успел отрисоваться
-    setTimeout(tryExtract, 800);
-  }
 
   function extractYandexStats(route) {
     if (!route) return null;
@@ -6238,140 +5957,8 @@
     return null;
   }
 
-  function getMultiRouteStatsAsync(route, callback) {
-    // Сразу пробуем извлечь
-    var stats = extractYandexStats(route);
-    if (stats && stats.km > 0) {
-      callback(stats);
-      return;
-    }
-    // Если не получилось — ждём событие requestsuccess на модели
-    try {
-      var handler = function() {
-        var s = extractYandexStats(route);
-        if (s && s.km > 0) {
-          callback(s);
-          // Удаляем обработчик после первого успешного вызова
-          try { route.model.events.remove('requestsuccess', handler); } catch(e) {}
-        }
-      };
-      if (route && route.model && route.model.events) {
-        route.model.events.add('requestsuccess', handler);
-      } else if (route && route.events) {
-        route.events.add('requestsuccess', handler);
-      }
-    } catch(e) {}
-  }
 
   // Извлечение точных расстояний (в метрах/км) и времени пути по дорогам из официального ответа API Яндекс.Карт
-  function applyYandexRouteStats(route, orderedTasks, noJam) {
-    if (!route || !orderedTasks || !orderedTasks.length) return false;
-    var pathsArray = [];
-    try {
-      var targetRoute = route;
-      if (typeof route.getActiveRoute === "function") {
-        var ar = route.getActiveRoute();
-        if (ar) targetRoute = ar;
-      } else if (route.getRoutes && typeof route.getRoutes === "function") {
-        var rCol = route.getRoutes();
-        if (typeof rCol.get === "function") targetRoute = rCol.get(0);
-        else if (rCol[0]) targetRoute = rCol[0];
-      }
-      if (targetRoute && targetRoute.getPaths) {
-        var paths = targetRoute.getPaths();
-        if (typeof paths.each === "function") {
-          paths.each(function(p) { pathsArray.push(p); });
-        } else if (paths.length !== undefined) {
-          for (var i = 0; i < paths.length; i++) pathsArray.push(paths[i]);
-        }
-      }
-      if (!pathsArray.length && targetRoute && targetRoute.getLegs) {
-        var legs = targetRoute.getLegs();
-        if (typeof legs.each === "function") {
-          legs.each(function(l) { pathsArray.push(l); });
-        } else if (legs.length !== undefined) {
-          for (var i = 0; i < legs.length; i++) pathsArray.push(legs[i]);
-        }
-      }
-    } catch(e) {}
-
-    if (!pathsArray.length) return false;
-
-    var success = false;
-    var pathIdx = 0;
-    for (var idx = 0; idx < orderedTasks.length; idx++) {
-      var p = orderedTasks[idx];
-      var prevP = idx > 0 ? orderedTasks[idx - 1] : null;
-      if (prevP && prevP.addr === p.addr) {
-        p.travelKm = 0; p.travelKmText = "0,0 км"; p.travelMin = 0; p.travelText = "0 мин (тот же адрес)";
-        var stDup = findTask(p.id);
-        if (stDup) { stDup.travelKm = 0; stDup.travelKmText = "0,0 км"; stDup.travelMin = 0; stDup.travelText = "0 мин"; if (TASKS_DB) TASKS_DB.updateTask(stDup.id, stDup); }
-        continue;
-      }
-      var path = pathsArray[pathIdx++];
-      if (!path && pathIdx > pathsArray.length) path = pathsArray[pathsArray.length - 1];
-      var distMeters = 0, timeSec = 0;
-      if (path) {
-        if (typeof path.getLength === "function") distMeters = path.getLength();
-        else if (path.properties && typeof path.properties.get === "function" && path.properties.get("distance")) {
-          var dp = path.properties.get("distance"); distMeters = dp.value !== undefined ? dp.value : dp;
-        } else if (path.distance) {
-          distMeters = path.distance.value !== undefined ? path.distance.value : path.distance;
-        }
-        if (!noJam && typeof path.getJamsTime === "function" && path.getJamsTime() > 0) timeSec = path.getJamsTime();
-        else if (typeof path.getTime === "function" && path.getTime() > 0) timeSec = path.getTime();
-        else if (path.properties && typeof path.properties.get === "function" && path.properties.get("duration")) {
-          var tp = path.properties.get("duration"); timeSec = tp.value !== undefined ? tp.value : tp;
-        } else if (path.duration) {
-          timeSec = path.duration.value !== undefined ? path.duration.value : path.duration;
-        }
-      }
-      if (distMeters > 0 || timeSec > 0 || idx === 0) {
-        success = true;
-        var distKmVal = distMeters > 0 ? (distMeters / 1000) : (distKm(idx === 0 ? currentBase() : orderedTasks[idx - 1], p) * 1.4);
-        var kmStr = distKmVal.toFixed(1).replace(".", ",") + " км";
-        var totalMinutes = timeSec > 0 ? Math.max(1, Math.round(timeSec / 60)) : calculateYandexMinskTime(distKmVal, !noJam);
-        var timeStr = fmtDuration(totalMinutes);
-        p.travelKm = distKmVal; p.travelKmText = kmStr; p.travelMin = totalMinutes; p.travelText = timeStr;
-        var st = findTask(p.id);
-        if (st) {
-          st.travelKm = distKmVal; st.travelKmText = kmStr; st.travelMin = totalMinutes; st.travelText = timeStr;
-          if (TASKS_DB) TASKS_DB.updateTask(st.id, st);
-        }
-      }
-    }
-    if (orderedTasks.length > 0) {
-      var retPath = pathsArray.length > 0 ? pathsArray[pathsArray.length - 1] : null;
-      var retMeters = 0, retSec = 0;
-      if (retPath) {
-        if (typeof retPath.getLength === "function") retMeters = retPath.getLength();
-        else if (retPath.properties && typeof retPath.properties.get === "function" && retPath.properties.get("distance")) {
-          var dp = retPath.properties.get("distance"); retMeters = dp.value !== undefined ? dp.value : dp;
-        } else if (retPath.distance) {
-          retMeters = retPath.distance.value !== undefined ? retPath.distance.value : retPath.distance;
-        }
-        if (!noJam && typeof retPath.getJamsTime === "function" && retPath.getJamsTime() > 0) retSec = retPath.getJamsTime();
-        else if (typeof retPath.getTime === "function" && retPath.getTime() > 0) retSec = retPath.getTime();
-        else if (retPath.properties && typeof retPath.properties.get === "function" && retPath.properties.get("duration")) {
-          var tp = retPath.properties.get("duration"); retSec = tp.value !== undefined ? tp.value : tp;
-        } else if (retPath.duration) {
-          retSec = retPath.duration.value !== undefined ? retPath.duration.value : retPath.duration;
-        }
-      }
-      var base = currentBase();
-      var lastP = orderedTasks[orderedTasks.length - 1];
-      var retKm = retMeters > 0 ? (retMeters / 1000) : (distKm(lastP, base) * 1.4);
-      var retMin = retSec > 0 ? Math.max(1, Math.round(retSec / 60)) : calculateYandexMinskTime(retKm, !noJam);
-      orderedTasks.returnTrip = {
-        km: retKm,
-        kmText: retKm.toFixed(1).replace(".", ",") + " км",
-        min: retMin,
-        timeText: fmtDuration(retMin)
-      };
-      ymState.returnTrip = orderedTasks.returnTrip;
-    }
-    return success;
-  }
 
   function updateDayListCards(orderedTasks) {
     var pts = ymState.pts;
@@ -7030,98 +6617,14 @@
     }).catch(function() { if (callback) callback(false, 0); });
   }
 
-  function apply2GisRouteStats(orderedTasks, base, callback) {
-    applyOsmRouteStats(orderedTasks, base, callback);
-  }
 
   // === GraphHopper Routing API ===
   // Нужен бесплатный ключ: зарегистрируйтесь на https://graphhopper.com (Dashboard → API Keys)
   // Вставьте ключ в config.js: graphhopperApiKey: 'ВАШ_КЛЮЧ'
-  function applyGraphHopperRouteStats(orderedTasks, base, callback) {
-    if (!orderedTasks || !orderedTasks.length) { if (callback) callback(false, 0); return; }
-    var ghKey = (window.SP_CONFIG && SP_CONFIG.graphhopperApiKey) || '';
-    if (!ghKey) { console.warn('GraphHopper: нет API-ключа'); if (callback) callback(false, 0); return; }
-
-    // GraphHopper принимает координаты как "lat,lng"
-    var points = [base.lat + ',' + base.lng];
-    orderedTasks.forEach(function(p) { if (p.lat != null && p.lng != null) points.push(p.lat + ',' + p.lng); });
-    points.push(base.lat + ',' + base.lng);
-
-    var url = 'https://graphhopper.com/api/1/route?' +
-      points.map(function(p) { return 'point=' + encodeURIComponent(p); }).join('&') +
-      '&profile=car&locale=ru&points_encoded=false&key=' + ghKey;
-
-    fetch(url).then(function(r) { return r.json(); }).then(function(res) {
-      if (res && res.paths && res.paths[0]) {
-        var path = res.paths[0];
-        var totalKm = (path.distance || 0) / 1000;
-        var totalMin = Math.max(1, Math.round((path.time || 0) / 60000));
-
-        // Распределяем по отрезкам если есть legs
-        if (path.instructions) {
-          orderedTasks.forEach(function(p, idx) {
-            p.travelKm = totalKm / orderedTasks.length;
-            p.travelKmText = p.travelKm.toFixed(1).replace('.', ',') + ' км';
-            p.travelMin = Math.round(totalMin / orderedTasks.length);
-            p.travelText = fmtDuration(p.travelMin);
-            var st = findTask(p.id);
-            if (st) { st.travelKm = p.travelKm; st.travelKmText = p.travelKmText; st.travelMin = p.travelMin; st.travelText = p.travelText; if (TASKS_DB) TASKS_DB.updateTask(st.id, st); }
-          });
-        }
-        console.log('📊 GraphHopper:', totalKm.toFixed(2), 'км,', totalMin, 'мин');
-        if (callback) callback(true, totalKm);
-      } else {
-        if (callback) callback(false, 0);
-      }
-    }).catch(function(e) { console.warn('GraphHopper error:', e.message); if (callback) callback(false, 0); });
-  }
 
   // === OpenRouteService Routing API ===
   // Нужен бесплатный ключ: зарегистрируйтесь на https://openrouteservice.org (Sign Up → Dashboard)
   // Вставьте ключ в config.js: orsApiKey: 'ВАШ_КЛЮЧ'
-  function applyORSRouteStats(orderedTasks, base, callback) {
-    if (!orderedTasks || !orderedTasks.length) { if (callback) callback(false, 0); return; }
-    var orsKey = (window.SP_CONFIG && SP_CONFIG.orsApiKey) || '';
-    if (!orsKey) { console.warn('OpenRouteService: нет API-ключа'); if (callback) callback(false, 0); return; }
-
-    // ORS принимает координаты как [lng,lat] массивы
-    var coords = [[base.lng, base.lat]];
-    orderedTasks.forEach(function(p) { if (p.lng != null && p.lat != null) coords.push([p.lng, p.lat]); });
-    coords.push([base.lng, base.lat]);
-
-    var url = 'https://api.openrouteservice.org/v2/directions/driving-car';
-    fetch(url, {
-      method: 'POST',
-      headers: { 'Authorization': orsKey, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ coordinates: coords })
-    }).then(function(r) { return r.json(); }).then(function(res) {
-      if (res && res.routes && res.routes[0]) {
-        var route = res.routes[0];
-        var summary = route.summary || {};
-        var totalKm = (summary.distance || 0) / 1000;
-        var totalMin = Math.max(1, Math.round((summary.duration || 0) / 60));
-
-        // Распределяем по сегментам
-        if (route.segments) {
-          route.segments.forEach(function(seg, idx) {
-            if (idx < orderedTasks.length) {
-              var p = orderedTasks[idx];
-              var segKm = (seg.distance || 0) / 1000;
-              var segMin = Math.max(1, Math.round((seg.duration || 0) / 60));
-              p.travelKm = segKm; p.travelKmText = segKm.toFixed(1).replace('.', ',') + ' км';
-              p.travelMin = segMin; p.travelText = fmtDuration(segMin);
-              var st = findTask(p.id);
-              if (st) { st.travelKm = segKm; st.travelKmText = p.travelKmText; st.travelMin = segMin; st.travelText = p.travelText; if (TASKS_DB) TASKS_DB.updateTask(st.id, st); }
-            }
-          });
-        }
-        console.log('📊 OpenRouteService:', totalKm.toFixed(2), 'км,', totalMin, 'мин');
-        if (callback) callback(true, totalKm);
-      } else {
-        if (callback) callback(false, 0);
-      }
-    }).catch(function(e) { console.warn('ORS error:', e.message); if (callback) callback(false, 0); });
-  }
 
   /* =====================================================================
      РЕНДЕР: ИНТЕРАКТИВНАЯ КАРТА СЕТЕЙ
@@ -8808,20 +8311,6 @@
     return S.wkMonth;
   }
   // Период для «Графики смен»: month или year. S.schRange = 'month' | 'year'.
-  function wkPeriod() {
-    var wm = wkMonth();
-    if (S.schRange === 'year') return { kind: 'year', y: wm.y, m: 0, dim: 12, label: String(wm.y) };
-    return { kind: 'month', y: wm.y, m: wm.m, dim: new Date(wm.y, wm.m + 1, 0).getDate(), label: MON_NOM[wm.m] + ' ' + wm.y };
-  }
-  function wkShiftPeriod(dn) {
-    var wm = wkMonth();
-    if (S.schRange === 'year') {
-      S.wkMonth = { y: wm.y + dn, m: 0 };
-    } else {
-      var d = new Date(wm.y, wm.m + dn, 1);
-      S.wkMonth = { y: d.getFullYear(), m: d.getMonth() };
-    }
-  }
   function wkShiftMonth(dn) {
     var wm = wkMonth();
     var d = new Date(wm.y, wm.m + dn, 1);
@@ -9340,36 +8829,6 @@
       ' title="' + title + '" style="width:' + colW + 'px;height:22px;padding:0;background:' + bg + ';background-color:' + bg + ';border:1px solid ' + bd + ';cursor:' + (can ? 'pointer' : 'default') + ring + '"></td>';
   }
   // Под каждой бригадой — итог: рабочих / выходных / отсутствий за месяц
-  function schMonthSummary(rows, wm) {
-    var dim = new Date(wm.y, wm.m + 1, 0).getDate();
-    if (!rows.length) return '';
-    var html = '<div style="margin-top:14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px">';
-    rows.forEach(function (row) {
-      if (row.kind !== 'brigade') return;
-      var all = [row.master].concat(row.members);
-      var work = 0, off = 0, abs = 0;
-      for (var dd = 1; dd <= dim; dd++) {
-        var ds = wm.y + '-' + String(wm.m + 1).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
-        all.forEach(function (u) {
-          var st = wkDayState(u.id, ds);
-          if (st === 'work') work++; else if (st === 'abs') abs++; else off++;
-        });
-      }
-      var membersCount = all.length;
-      html += '<div style="border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--card)">' +
-        '<div style="font-size:11.5px;font-weight:800;color:var(--ink)">' +
-        '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + (row.master.color || '#94a3b8') + ';margin-right:5px"></span>' +
-        esc(row.master.full_name) + '</div>' +
-        '<div style="font-size:10.5px;color:var(--muted);margin-top:3px">' + membersCount + ' чел. · ' + MON_NOM[wm.m] + ' ' + wm.y + '</div>' +
-        '<div style="display:flex;gap:8px;margin-top:5px;font-size:11px;font-weight:700">' +
-          '<span style="color:#16a34a">● ' + work + ' раб</span>' +
-          '<span style="color:#94a3b8">● ' + off + ' вых</span>' +
-          '<span style="color:#dc2626">● ' + abs + ' отс</span>' +
-        '</div></div>';
-    });
-    html += '</div>';
-    return html;
-  }
   // Годовая таблица графика смен — 12 месяцев × N работников.
   // В каждой ячейке-месяце — три значения (раб / вых / отс) цветом.
   // Используется в renderSchedulesYear (отдельный экран) и в schYearBlock (блок под месяцем).
@@ -9626,36 +9085,6 @@
   }
 
   // Текущая таблица графика смен (живёт в #view) — собираем данные из DOM.
-  function schCollectCurrent() {
-    var table = document.querySelector('#view table');
-    if (!table) return null;
-    var wm = wkMonth();
-    var dim = new Date(wm.y, wm.m + 1, 0).getDate();
-    // Соберём пользователей из первых ячеек строк (там ФИО + цветной кружок).
-    // Берём data-uid через attr, и читаем backgroundColor (надёжнее, чем style.background).
-    var rows = [];
-    table.querySelectorAll('tbody tr').forEach(function (tr) {
-      var firstTd = tr.querySelector('td');
-      if (!firstTd) return;
-      var uid = firstTd.getAttribute('data-uid') || '';
-      if (!uid) return; // пустая строка «Нет работников»
-      var name = firstTd.textContent.trim().replace(/\s+/g, ' ');
-      var states = [];
-      // Собираем все td, исключаем td с data-uid (= имя) — это первая ячейка.
-      // Если у td НЕТ data-uid — это ячейка дня, читаем её backgroundColor.
-      var dayTds = tr.querySelectorAll('td:not([data-uid])');
-      dayTds.forEach(function (td) {
-        // backgroundColor может быть в rgb(...), конвертируем в hex
-        var bg = td.style.backgroundColor || '';
-        var hex = bgToHex(bg);
-        if (hex === '#dcfce7') states.push('work');
-        else if (hex === '#fee2e2') states.push('abs');
-        else states.push('off');
-      });
-      rows.push({ uid: uid, name: name, states: states });
-    });
-    return { y: wm.y, m: wm.m, dim: dim, label: MON_NOM[wm.m] + ' ' + wm.y, rows: rows };
-  }
   // Конвертация rgb(r,g,b) / rgba(r,g,b,a) → #rrggbb. Пусто или прозрачный → null.
   function bgToHex(s) {
     if (!s) return null;
@@ -13189,12 +12618,6 @@
       }
     };
     reader.readAsArrayBuffer(file);
-  }
-  function plural(n, one, few, many) {
-    var m10 = n % 10, m100 = n % 100;
-    if (m10 === 1 && m100 !== 11) return one;
-    if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return few;
-    return many;
   }
 
   /* =====================================================================
@@ -17802,79 +17225,9 @@
     }
   }
 
-  function tAddDirectionArrows(map, latlngs) {
-    if (tState.leafletArrows) { tState.leafletArrows.forEach(function(a) { try { a.remove(); } catch(e) {} }); }
-    tState.leafletArrows = [];
-    if (!latlngs || latlngs.length < 2 || !window.L) return;
-
-    // Считаем длины отрезков и общую длину
-    var segs = [], total = 0;
-    for (var i = 1; i < latlngs.length; i++) {
-      var d = distKm({ lat: latlngs[i - 1][0], lng: latlngs[i - 1][1] }, { lat: latlngs[i][0], lng: latlngs[i][1] });
-      segs.push({ from: latlngs[i - 1], to: latlngs[i], len: d, acc: total });
-      total += d;
-    }
-    if (total < 0.15) return;
-
-    // Надёжный алгоритм: ровно numArrows стрелок, равномерно по всей длине
-    var numArrows = Math.min(20, Math.max(3, Math.ceil(total / 1.2)));
-    var step = total / numArrows;
-
-    for (var n = 0; n < numArrows; n++) {
-      var dist = step * (n + 0.5);  // позиция стрелки по длине маршрута
-      // Находим отрезок, в который попадает эта дистанция
-      for (var s = 0; s < segs.length; s++) {
-        var seg = segs[s];
-        if (dist >= seg.acc && dist < seg.acc + seg.len && seg.len > 0.001) {
-          var frac = (dist - seg.acc) / seg.len;
-          var lat = seg.from[0] + (seg.to[0] - seg.from[0]) * frac;
-          var lng = seg.from[1] + (seg.to[1] - seg.from[1]) * frac;
-          var bearing = calcBearing(seg.from[0], seg.from[1], seg.to[0], seg.to[1]);
-          var rotation = bearing - 90;  // ➤ смотрит вправо по умолчанию
-          var icon = window.L.divIcon({
-            html: '<div style="transform:rotate(' + rotation + 'deg);font-size:18px;color:#fff;line-height:1;text-shadow:0 1px 4px rgba(37,99,235,.95),0 0 2px #2563eb;transform-origin:center;">\u27A4</div>',
-            className: '', iconSize: [18, 18], iconAnchor: [9, 9]
-          });
-          var arrow = window.L.marker([lat, lng], { icon: icon, interactive: false, keyboard: false });
-          arrow.addTo(map);
-          tState.leafletArrows.push(arrow);
-          break;  // стрелка найдена, переходим к следующей
-        }
-      }
-    }
-  }
 
   // Азимут (угол направления от точки A к точке B), в градусах 0..360
 
-  function redrawTestMarkers(ordered) {
-    if (!tState.leafletMap || !window.L || !ordered || !ordered.length) return;
-    if (tState.leafletMarkers) { tState.leafletMarkers.forEach(function(mk) { try { mk.remove(); } catch(e) {} }); }
-    tState.leafletMarkers = [];
-    var colors = ['#2563eb','#dc2626','#16a34a','#ca8a04','#7c3aed','#0891b2','#db2777'];
-    // Активные маркеры с номерами
-    ordered.forEach(function(p, i) {
-      if (p.lat == null || p.lng == null) return;
-      var numIcon = window.L.divIcon({
-        html: '<div style="background:' + (p.mcol || colors[i % colors.length]) + ';color:#fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.3)">' + (i + 1) + '</div>',
-        className: '', iconSize: [26, 26], iconAnchor: [13, 13]
-      });
-      var mk = window.L.marker([p.lat, p.lng], { icon: numIcon }).addTo(tState.leafletMap)
-        .bindPopup('<b>' + esc(p.addr || '?') + '</b><br>' + esc(p.work || ''));
-      tState.leafletMarkers.push(mk);
-    });
-    // Неактивные маркеры (серые, остаются на месте)
-    if (tState.inactivePts && tState.inactivePts.length) {
-      tState.inactivePts.forEach(function(p) {
-        if (p.lat == null || p.lng == null) return;
-        var grayIcon = window.L.divIcon({
-          html: '<div style="background:#cbd5e1;color:#94a3b8;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.3);opacity:.6">\u25CB</div>',
-          className: '', iconSize: [22, 22], iconAnchor: [11, 11]
-        });
-        var mk = window.L.marker([p.lat, p.lng], { icon: grayIcon, interactive: false }).addTo(tState.leafletMap);
-        tState.leafletMarkers.push(mk);
-      });
-    }
-  }
 
   // === Ручная разметка закрытых дорог на карте ===
   // Пользователь кликает по карте, создавая точки. Двойной клик — завершить.
@@ -17944,29 +17297,7 @@
     tState._lastClosureLL = null;
   }
 
-  function tLoadManualClosures() {
-    var mc = tGetManualClosures();
-    mc.forEach(function(c) {
-      // Проверяем, не добавлен ли уже
-      var exists = tState.roadClosures.some(function(r) { return r.manual && r.name === c.name && JSON.stringify(r.latlngs) === JSON.stringify(c.latlngs); });
-      if (!exists) tState.roadClosures.push(c);
-    });
-  }
 
-  function tClearManualClosures(map) {
-    if (!window.confirm('Удалить все ручные разметки закрытых дорог?')) return;
-    tSaveManualClosures([]);
-    // Полностью пересоздаём roadClosures без ручных
-    tState.roadClosures = tState.roadClosures.filter(function(c) { return !c.manual; });
-    // Удаляем temp markers если есть
-    if (tState._tempMarkers) { tState._tempMarkers.forEach(function(m) { try { m.remove(); } catch(e) {} }); tState._tempMarkers = []; }
-    if (map) {
-      tShowRoadClosures(map);
-    } else if (tState.leafletMap) {
-      tShowRoadClosures(tState.leafletMap);
-    }
-    toast('ok', 'Ручные разметки очищены');
-  }
 
   // === Загрузка закрытых/ремонтируемых дорог из OpenStreetMap (Overpass API) ===
 
@@ -18073,52 +17404,10 @@
 
   // === Рендер Leaflet карты для OSRM / GraphHopper / OpenRouteService ===
 
-  function tForceRussianStyle(style) {
-    if (!style || !style.layers) return style;
-    var ru = ['coalesce', ['get', 'name:ru'], ['get', 'name']];
-    style.layers.forEach(function (layer) {
-      if (!layer.layout || !layer.layout['text-field']) return;
-      var tf = layer.layout['text-field'];
-      if (typeof tf === 'string') {
-        if (/\{\s*name\b/.test(tf)) layer.layout['text-field'] = ru;     // {name}, {name:en}
-      } else if (Array.isArray(tf)) {
-        var j = JSON.stringify(tf);
-        if (j.indexOf('"name"') !== -1 || j.indexOf('"name:') !== -1) layer.layout['text-field'] = ru;
-      }
-    });
-    return style;
-  }
 
   // Добавляет слой MapTiler OMT с подписями ТОЛЬКО на русском языке.
   // map — уже созданный объект Leaflet.
 
-  function tAddMapTilerBasemap(map) {
-    var key = (window.SP_CONFIG && SP_CONFIG.maptilerApiKey) || '';
-    if (!key) {
-      var warn = document.createElement('div');
-      warn.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--card);border:2px solid var(--red);border-radius:12px;padding:18px 22px;text-align:center;z-index:1000;max-width:340px;box-shadow:0 8px 30px rgba(0,0,0,.25);font-size:13px;color:var(--ink);';
-      warn.innerHTML = '<div style="font-size:24px;margin-bottom:8px">🗺️</div><b style="color:var(--red);font-size:14px">Слой карты MapTiler не загрузился</b><br><br>Добавьте бесплатный ключ MapTiler в <code style="background:var(--panel-3);padding:2px 6px;border-radius:4px">config.js</code> → <code style="background:var(--panel-3);padding:2px 6px;border-radius:4px">maptilerApiKey</code><br><br><span style="font-size:12px;color:var(--muted)">Получить бесплатно (без карты): <b>cloud.maptiler.com/account/keys</b> → 100 000 загрузок/мес</span>';
-      map.getContainer().appendChild(warn);
-      return;
-    }
-    ensureMapTiler(function (ok) {
-      if (!map || !map.getContainer) return;                      // карту уже удалили
-      var factory = window.L.maptilerLayer || (window.L.maptiler && window.L.maptiler.maptilerLayer);
-      if (!ok || !factory) { toast('err', 'Не удалось загрузить плагин MapTiler. Проверьте интернет-соединение.'); return; }
-      // Грузим стиль, ПРИНУДИТЕЛЬНО переписываем все подписи на name:ru и передаём объектом.
-      // Это обходит баг SDK (coalesce не заменяется) — гарантия русского во ВСЕХ слоях.
-      fetch('https://api.maptiler.com/maps/streets-v2/style.json?key=' + key)
-        .then(function (r) { return r.json(); })
-        .then(function (style) {
-          tForceRussianStyle(style);
-          factory({ apiKey: key, style: style, tileSize: 512, zoomOffset: -1, crossOrigin: true }).addTo(map);
-        })
-        .catch(function (e) {
-          console.warn('Стиль не загружен для переработки, fallback на language:', e);
-          factory({ apiKey: key, style: 'streets', language: 'ru', tileSize: 512, zoomOffset: -1, crossOrigin: true }).addTo(map);
-        });
-    });
-  }
 
 
   // === ТЕСТ ЗАВИСИМОСТИ: одна задача + вид работы + трудоёмкость ===
@@ -18451,273 +17740,13 @@
       toast('ok', 'Пересчитано из задачи: ' + h.toFixed(2) + ' ч');
     });
   }
-  function renderTestLeafletMap(canvas, points, base, provider, inactive) {
-    ensureLeaflet(function() {
-      if (!window.L) { canvas.innerHTML = '<div class="empty">Не удалось загрузить Leaflet</div>'; return; }
-      canvas.style.position = 'relative';
-      canvas.innerHTML = '<div id="leaflet-canvas" style="width:100%;height:100%;min-height:400px;"></div>';
-      if (tState.leafletMap) { try { tState.leafletMap.remove(); } catch(e) {} }
-      tState.leafletMap = null;
-      tState.leafletRouteLayer = null;
-      tState.leafletArrows = [];
-      tState.drawingClosure = false;   // сброс режима рисования при пересоздании карты
-      tState.drawPoints = [];
-      tState.selectedClosure = null;   // сброс выбора закрытия
-
-      setTimeout(function() {
-        var mapEl = document.getElementById('leaflet-canvas');
-        if (!mapEl || mapEl.offsetWidth === 0) { setTimeout(arguments.callee, 100); return; }
-
-        var map = window.L.map('leaflet-canvas', { center: [base.lat, base.lng], zoom: 14, attributionControl: false, zoomControl: false });
-        // Заглушка для плагина MapTiler: он вызывает map.attributionControl.addAttribution,
-        // а контрол отключён ради чистого интерфейса — без заглушки было
-        // «Cannot read properties of undefined (reading 'addAttribution')»
-        map.attributionControl = { addAttribution: function () {}, removeAttribution: function () {} };
-        window.L.control.zoom({ position: 'bottomright' }).addTo(map);
-        tState.leafletMap = map;
-        // Слой карты: MapTiler OMT — векторные тайлы с подписями ТОЛЬКО на русском языке
-        tAddMapTilerBasemap(map);
-        // Загружаем и показываем закрытые дороги из OpenStreetMap (Overpass API)
-        tLoadManualClosures();
-        tLoadRoadClosures(function() { tShowRoadClosures(map); });
-
-        var allCoords = [[base.lat, base.lng]];
-        var baseIcon = window.L.divIcon({ html: '<div style="font-size:28px;line-height:1">🚩</div>', className: '', iconSize: [28, 28], iconAnchor: [14, 28] });
-        window.L.marker([base.lat, base.lng], { icon: baseIcon, zIndexOffset: 1000 }).addTo(map).bindPopup('<b>База</b><br>' + esc(base.name));
-
-        var colors = ['#2563eb', '#dc2626', '#16a34a', '#ca8a04', '#7c3aed', '#0891b2', '#db2777'];
-        var validPoints = 0;
-        var allMarkers = [];
-
-        // ИСПОЛЬЗУЕМ КООРДИНАТЫ ИЗ POINTS — без повторного геокодирования
-        points.forEach(function(p, i) {
-          if (p.lat != null && p.lng != null) {
-            allMarkers.push({ point: p, index: i, lat: p.lat, lng: p.lng });
-          }
-        });
-
-        // Геокодируем только те, у кого НЕТ координат (серийно, с паузой 1.1с — лимит Nominatim)
-        var needGeocode = points.filter(function(p) { return p.lat == null || p.lng == null; });
-        if (needGeocode.length > 0) {
-          toast('info', '📍 Поиск координат для ' + needGeocode.length + ' адресов (по 1 в секунду)...');
-          geocodeBatchSerial(needGeocode, function (p, c) {
-            if (c) {
-              p.lat = c.lat; p.lng = c.lng;
-              allMarkers.push({ point: p, index: points.indexOf(p), lat: c.lat, lng: c.lng });
-            } else {
-              p.lat = base.lat + (Math.random() - 0.5) * 0.02;
-              p.lng = base.lng + (Math.random() - 0.5) * 0.02;
-              allMarkers.push({ point: p, index: points.indexOf(p), lat: p.lat, lng: p.lng });
-              console.warn('Адрес не найден, точка рядом с базой: ' + p.addr);
-            }
-          }).then(drawAll);
-        } else {
-          drawAll();
-        }
-
-        function drawAll() {
-          // Разблокируем кнопку оптимизации — координаты найдены
-          var brBtn = document.getElementById('t-btn-build-route');
-          if (brBtn) { brBtn.disabled = false; brBtn.style.opacity = ''; brBtn.style.cursor = ''; }
-          allMarkers.sort(function(a, b) { return a.index - b.index; });
-          // Сохраняем для последующей перерисовки с новыми номерами
-          tState.leafletDrawAllMarkers = allMarkers;
-          tState.leafletDrawAllBase = base;
-          tState.leafletColors = colors;
-          drawMarkersByOrder(map, allMarkers, base, colors);
-
-          // Рисуем линию маршрута (база → точки → база)
-          var allCoords = [[base.lat, base.lng]];
-          allMarkers.forEach(function(m) { allCoords.push([m.lat, m.lng]); });
-          allCoords.push([base.lat, base.lng]);
-
-          if (allCoords.length >= 2) {
-            tState.leafletRouteLayer = window.L.polyline(allCoords, {
-              color: '#2563eb', weight: 4, opacity: 0.5, dashArray: '8,6'
-            }).addTo(map);
-            map.fitBounds(tState.leafletRouteLayer.getBounds(), { padding: [50, 50] });
-            tAddDirectionArrows(map, allCoords);
-          }
-          setTimeout(function() { map.invalidateSize(); }, 200);
-
-          // Рисуем неактивные задания (серые маркеры без номеров)
-          if (inactive && inactive.length) {
-            inactive.forEach(function(p) {
-              if (p.lat == null || p.lng == null) return;
-              var grayIcon = window.L.divIcon({
-                html: '<div style="background:#cbd5e1;color:#94a3b8;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.3);opacity:.6">○</div>',
-                className: '', iconSize: [22, 22], iconAnchor: [11, 11]
-              });
-              window.L.marker([p.lat, p.lng], { icon: grayIcon, interactive: false }).addTo(map).bindPopup('<span style="color:#94a3b8">' + esc(p.addr || '?') + ' (неактивно)</span>');
-            });
-          }
-
-          var provName = provider === 'valhalla' ? 'Valhalla' : provider === 'osrm' ? 'OpenStreetMap' : provider === 'graphhopper' ? 'GraphHopper' : 'OpenRouteService';
-          var lp = document.createElement('div');
-          lp.innerHTML = '<span>🚩 <b>База (' + esc(base.name) + ')</b> → ' + allMarkers.length + ' объектов (<b>' + provName + '</b>) → <b>База</b></span><span style="color:#94a3b8;font-size:11px">Нажмите «Оптимизация маршрутов» для расчёта</span>';
-          canvas.appendChild(lp);
-        }
-
-        function drawMarkersByOrder(map, markers, base, colors) {
-          // Удаляем старые маркеры
-          if (tState.leafletMarkers) { tState.leafletMarkers.forEach(function(mk) { try { mk.remove(); } catch(e) {} }); }
-          tState.leafletMarkers = [];
-          markers.forEach(function(m, displayIdx) {
-            var p = m.point, i = displayIdx;
-            var numIcon = window.L.divIcon({
-              html: '<div style="background:' + (p.mcol || colors[i % colors.length]) + ';color:#fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.3)">' + (i + 1) + '</div>',
-              className: '', iconSize: [26, 26], iconAnchor: [13, 13]
-            });
-            var mk = window.L.marker([m.lat, m.lng], { icon: numIcon }).addTo(map)
-              .bindPopup('<b>' + esc(p.addr || '?') + '</b><br>' + esc(p.work || ''));
-            tState.leafletMarkers.push(mk);
-          });
-        }
-      }, 100);
-    });
-  }
 
   // === Запрос маршрута с геометрией для OSM-движков ===
   // Кэш геокодирования в localStorage — координаты сохраняются навсегда
 
-  function tGeocodePointsViaYandex(points) {
-    return new Promise(function (resolve) {
-      if (!points || !points.length) { resolve(points || []); return; }
-      ensureYandex(function () {
-        var idx = 0;
-        function next() {
-          if (idx >= points.length) { resolve(points); return; }
-          var p = points[idx]; idx++;
-          var addr = (p.addr || '').trim();
-          if (!addr || addr === '?') { setTimeout(next, 20); return; }
-          // Точка привязана к объекту справочника (ГРП/ШРП) с координатами —
-          // ставим её по справочным координатам, геокодер НЕ перезаписывает их
-          var stObj = tFindTask(p.id);
-          if (stObj && stObj.o && OBJ_MAP[stObj.o] && OBJ_MAP[stObj.o].lat != null && OBJ_MAP[stObj.o].lng != null) {
-            p.lat = OBJ_MAP[stObj.o].lat; p.lng = OBJ_MAP[stObj.o].lng;
-            if (stObj.lat !== p.lat || stObj.lng !== p.lng) {
-              stObj.lat = p.lat; stObj.lng = p.lng;
-              /* ТЕСТ: в задачи не пишем */
-            }
-            setTimeout(next, 20); return;
-          }
-          geocodeAddr(addr).then(function (c) {
-            // Яндекс вернул координаты [lat, lng] → перезаписываем точку
-            if (c && c[0] != null && !isNaN(parseFloat(c[0])) && !isNaN(parseFloat(c[1]))) {
-              p.lat = parseFloat(c[0]); p.lng = parseFloat(c[1]);
-              var st = tFindTask(p.id);
-              if (st) { st.lat = p.lat; st.lng = p.lng; /* ТЕСТ: в задачи не пишем */ }
-            }
-            setTimeout(next, 250); // мягкая пауза между запросами к геокодеру Яндекса
-          });
-        }
-        next();
-      }, function () {
-        // Яндекс недоступен — точки остаются как есть; fetchOSMRouteGeometry сделает fallback на Nominatim
-        resolve(points);
-      });
-    });
-  }
 
   // Словарь сокращений минских адресов для Nominatim (OSM не понимает аббревиатуры)
 
-  function tExtractRouteDataFromDOM(container, callback) {
-    var attempts = 0;
-    var maxAttempts = 15; // 15 попыток по 500мс = 7.5 сек максимум
-
-    function tryExtract() {
-      attempts++;
-      // Ищем элементы с данными маршрута внутри контейнера карты
-      var allElements = container.querySelectorAll('*');
-      var kmVal = null, jamsText = null, freeText = null;
-
-      for (var i = 0; i < allElements.length; i++) {
-        var el = allElements[i];
-        var text = (el.textContent || '').trim();
-        if (!text || text.length > 100) continue;
-
-        // Расстояние: "15,2 км" или "15.2 км"
-        if (kmVal === null) {
-          var kmMatch = text.match(/^([\d.,]+)\s*км$/i);
-          if (kmMatch) {
-            kmVal = parseFloat(kmMatch[1].replace(',', '.'));
-          }
-        }
-
-        // Время: "42 мин", "1 ч 15 мин", "1 ч"
-        if (jamsText === null && text.match(/^[\d]+\s*(ч|min|мин)/i) && !text.match(/без/i)) {
-          // Проверяем что это не подпись
-          if (text.match(/^\d/) && (text.indexOf('мин') !== -1 || text.indexOf('ч') !== -1)) {
-            if (jamsText === null) jamsText = text;
-          }
-        }
-
-        // Время без пробок: обычно рядом или с пометкой
-        if (freeText === null && text.match(/^[\d]+\s*(ч|min|мин)/i) && !text.match(/без/i)) {
-          if (jamsText !== null && text !== jamsText && freeText === null) {
-            freeText = text;
-          }
-        }
-      }
-
-      // Если не нашли через точные селекторы — ищем по текстовому содержимому
-      if (kmVal === null) {
-        var fullText = container.textContent || '';
-        var kmMatch2 = fullText.match(/([\d.,]+)\s*км/i);
-        if (kmMatch2) kmVal = parseFloat(kmMatch2[1].replace(',', '.'));
-      }
-
-      if (jamsText === null) {
-        var fullText2 = container.textContent || '';
-        // Ищем паттерны времени
-        var timeMatches = fullText2.match(/(\d+)\s*(?:ч\s*)?(\d+)?\s*мин/g);
-        if (timeMatches && timeMatches.length > 0) {
-          jamsText = timeMatches[0];
-          if (timeMatches.length > 1) freeText = timeMatches[1];
-        }
-        // Или формат "1 ч" без минут
-        var hourMatches = fullText2.match(/(\d+)\s*ч(?!\s*\d)/g);
-        if (hourMatches && jamsText === null) {
-          jamsText = hourMatches[0];
-          if (hourMatches.length > 1) freeText = hourMatches[1];
-        }
-      }
-
-      if (kmVal !== null && kmVal > 0) {
-        // Парсим минуты из текста
-        function parseMinutes(txt) {
-          if (!txt) return 0;
-          var h = txt.match(/(\d+)\s*ч/);
-          var m = txt.match(/(\d+)\s*мин/);
-          var total = 0;
-          if (h) total += parseInt(h[1], 10) * 60;
-          if (m) total += parseInt(m[1], 10);
-          return total || Math.max(1, Math.round(kmVal / 30 * 60));
-        }
-
-        var jamsMin = parseMinutes(jamsText);
-        var freeMin = freeText ? parseMinutes(freeText) : Math.round(jamsMin * 0.75);
-
-        console.log('📊 Данные маршрута из DOM виджета Яндекс.Карт:');
-        console.log('   📍 Расстояние:', kmVal.toFixed(2), 'км');
-        console.log('   🚗 Время с пробками:', jamsMin, 'мин (' + jamsText + ')');
-        console.log('   🛣️ Время без пробок:', freeMin, 'мин (' + (freeText || 'расчётно') + ')');
-
-        callback({ km: kmVal, jamsMin: jamsMin, freeMin: freeMin });
-        return;
-      }
-
-      if (attempts < maxAttempts) {
-        setTimeout(tryExtract, 500);
-      } else {
-        console.warn('⚠ Данные маршрута не найдены в DOM виджета');
-        callback(null);
-      }
-    }
-
-    // Небольшая задержка чтобы DOM успел отрисоваться
-    setTimeout(tryExtract, 800);
-  }
 
   function updateTestDayCards(orderedTasks) {
     var pts = tState.pts;
@@ -18830,107 +17859,7 @@
     }
   }
 
-  function updateTestFallbackInfo(orderedTasks) {
-    if (!orderedTasks || !orderedTasks.length) return;
-    var finalItems = [currentBase()];
-    orderedTasks.forEach(function(p) { finalItems.push(p); });
-    finalItems.push(currentBase());
 
-    var sumKm = 0;
-    orderedTasks.forEach(function(p) {
-      if (p.travelKm != null && p.travelKm > 0) sumKm += p.travelKm;
-    });
-    var ret = orderedTasks.returnTrip || tState.returnTrip;
-    if (ret && ret.km > 0) sumKm += ret.km;
-
-    if (sumKm > 0) {
-      var jMin = Math.max(1, Math.round((sumKm / 27.0) * 60));
-      var fMin = Math.max(1, Math.round((sumKm / 27.5) * 60));
-      setTestRouteInfo({ km: sumKm, jamsMin: jMin, freeMin: fMin, count: orderedTasks.length });
-      return;
-    }
-
-    var coords = [];
-    finalItems.forEach(function(it) {
-      if (it.lat != null && it.lng != null) coords.push(it.lng + "," + it.lat);
-    });
-
-    if (coords.length >= 2) {
-      fetch("https://router.project-osrm.org/route/v1/driving/" + coords.join(";") + "?overview=false")
-        .then(function(r) { return r.json(); })
-        .then(function(res) {
-          if (res && res.routes && res.routes[0]) {
-            var distKm = (res.routes[0].distance / 1000) * 1.14; // Калибровка под Яндекс в Минске
-            if (distKm > 0) {
-              var jamsMin = Math.max(1, Math.round((distKm / 27.0) * 60));
-              var freeMin = Math.max(1, Math.round((distKm / 27.5) * 60));
-              setTestRouteInfo({ km: distKm, jamsMin: jamsMin, freeMin: freeMin, count: orderedTasks.length });
-            }
-          }
-        }).catch(function() {});
-    }
-
-    var totalKm = routeDistKm(finalItems) * 1.65; // Калибровка городского проезда с учетом мостов и развязок
-    if (totalKm <= 0) totalKm = Math.max(5.0, orderedTasks.length * 4.5);
-    var jamsMin = Math.max(1, Math.round((totalKm / 27.0) * 60));
-    var freeMin = Math.max(1, Math.round((totalKm / 27.5) * 60));
-    setTestRouteInfo({ km: totalKm, jamsMin: jamsMin, freeMin: freeMin, count: orderedTasks.length });
-  }
-
-  function tApplyOsmRouteStats(orderedTasks, base, callback) {
-    if (!orderedTasks || !orderedTasks.length) { if (callback) callback(false, 0); return; }
-    var coords = [base.lng + "," + base.lat];
-    orderedTasks.forEach(function(p) { if (p.lat != null && p.lng != null) coords.push(p.lng + "," + p.lat); });
-    coords.push(base.lng + "," + base.lat);
-    
-    var osrmUrl = "https://router.project-osrm.org/route/v1/driving/" + coords.join(";") + "?overview=false&steps=true";
-    fetch(osrmUrl).then(function(r) { return r.json(); }).then(function(res) {
-      if (res && res.routes && res.routes[0] && res.routes[0].legs) {
-        var legs = res.routes[0].legs;
-        var totalKm = 0;
-        for (var idx = 0; idx < orderedTasks.length; idx++) {
-          var p = orderedTasks[idx];
-          var prevP = idx > 0 ? orderedTasks[idx - 1] : null;
-          if (prevP && prevP.addr === p.addr) {
-            p.travelKm = 0; p.travelKmText = "0,0 км"; p.travelMin = 0; p.travelText = "0 мин (тот же адрес)";
-            var stDup = tFindTask(p.id);
-            if (stDup) { stDup.travelKm = 0; stDup.travelKmText = "0,0 км"; stDup.travelMin = 0; stDup.travelText = "0 мин"; /* ТЕСТ: в задачи не пишем */ }
-            continue;
-          }
-          if (legs[idx]) {
-            var distM = legs[idx].distance || 0;
-            var timeS = legs[idx].duration || 0;
-            var kmVal = distM / 1000;
-            totalKm += kmVal;
-            var kmStr = kmVal.toFixed(1).replace(".", ",") + " км";
-            var minVal = Math.max(1, Math.round(timeS / 60));
-            var minStr = fmtDuration(minVal);
-            p.travelKm = kmVal; p.travelKmText = kmStr; p.travelMin = minVal; p.travelText = minStr;
-            var st = tFindTask(p.id);
-            if (st) {
-              st.travelKm = kmVal; st.travelKmText = kmStr; st.travelMin = minVal; st.travelText = minStr;
-              /* ТЕСТ: в задачи не пишем */
-            }
-          }
-        }
-        if (legs[orderedTasks.length]) {
-          var retLeg = legs[orderedTasks.length];
-          var rM = retLeg.distance || 0;
-          var rS = retLeg.duration || 0;
-          var rKm = rM > 0 ? (rM / 1000) : (distKm(orderedTasks[orderedTasks.length - 1], base) * 1.4);
-          var rMin = rS > 0 ? Math.max(1, Math.round(rS / 60)) : Math.max(1, Math.round(rKm / 35 * 60));
-          orderedTasks.returnTrip = {
-            km: rKm, kmText: rKm.toFixed(1).replace(".", ",") + " км", min: rMin, timeText: fmtDuration(rMin)
-          };
-          tState.returnTrip = orderedTasks.returnTrip;
-          totalKm += rKm;
-        }
-        if (callback) callback(true, totalKm);
-      } else {
-        if (callback) callback(false, 0);
-      }
-    }).catch(function() { if (callback) callback(false, 0); });
-  }
 
   // ЯНДЕКС-КАРТА ТЕСТ-СТРАНИЦЫ: настоящая карта (тайлы Яндекса), маркеры базы
   // и объектов, линия маршрута. Все гео-объекты прозрачны для событий, без
@@ -19248,7 +18177,6 @@
      Яндекс.Карт — только DOM-элементы. */
   var WXT = { map: null, selH: -1, svg: null, om: null, timer: null, playTimer: null, ticksBuilt: false };
   function wxtTodayStr() { var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
-  function wxtHourTime(h) { return new Date(wxtTodayStr() + 'T' + String(h).padStart(2, '0') + ':00:00').getTime(); }
   function initWxTestMap() {
     var holder = (WXT.canvasHolder) || document.getElementById('wxt-map');
     if (!holder) return;
@@ -19346,7 +18274,6 @@
   /* Кэш радара больше не используется — оставлен пустой stub для совместимости
      (если в старых вкладках браузера есть localStorage записи — просто игнорируем). */
   var WXT_CACHE_KEY = 'smartplan_wx_radar_cache';
-  function wxtCacheHours() { return {}; }
   /* сетка 7×7 по Минску и Минскому райку → Open-Meteo, осадки на сегодня по часам */
   function wxtLoadOm() {
     // 10 широт × 10 долгот = 100 точек сетки. Open-Meteo возвращает массив из
@@ -19715,16 +18642,6 @@
   }
 
   /* OSRM Trip для стартового порядка точек — звено многостартовой оптимизации */
-  function tTripCall(pts, base, cb) {
-    fetchOSMRouteGeometry('osrm', pts, base, function (r) {
-      if (!r || !r.ok) { cb(null); return; }
-      cb({
-        order: lmOrderByWaypoints(pts, r),
-        km: r.km, min: r.min, legs: r.legs || [],
-        geometry: (r.geometry || []).map(function (c) { return [c[1], c[0]]; }) // [lng,lat] → [lat,lng]
-      });
-    });
-  }
 
   /* OSRM route (НЕ trip) по фиксированному порядку — даёт ровно тот
      маршрут, который соответствует заданному порядку точек. Используется
@@ -19755,20 +18672,6 @@
   }
 
   /* «Ближайший сосед», начиная с заданной точки (стартовое порядок для многостартовой) */
-  function tNNFrom(start, pts) {
-    var remaining = pts.filter(function (p) { return p !== start; });
-    var ordered = [start], cur = start;
-    while (remaining.length) {
-      var bi = 0, bd = Infinity;
-      for (var i = 0; i < remaining.length; i++) {
-        var d = distKm(cur, remaining[i]);
-        if (d < bd) { bd = d; bi = i; }
-      }
-      var chosen = remaining.splice(bi, 1)[0];
-      ordered.push(chosen); cur = chosen;
-    }
-    return ordered;
-  }
 
   /* Жадная вставка: лучшая точка вставляется туда, где даёт минимум прироста дистанции.
      Используется как ещё один seed (часто даёт лучший результат, чем NN). */
