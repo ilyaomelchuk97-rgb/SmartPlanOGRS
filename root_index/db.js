@@ -430,6 +430,7 @@ window.SP_DB = (function () {
           // Заполняем сидами только то, чего нет (админ, базовые работы)
           return Promise.all([
             window.SP_AREAS ? window.SP_AREAS.ensureSeed() : Promise.resolve(),
+            window.SP_PROFS ? window.SP_PROFS.ensureSeed() : Promise.resolve(),
             window.SP_USERS_DB.ensureSeed(),
             window.SP_WORK.ensureSeed(),
             window.SP_OBJECTS.ensureSeed(),
@@ -443,6 +444,7 @@ window.SP_DB = (function () {
         // Автономный режим
         return Promise.all([
           window.SP_AREAS ? window.SP_AREAS.ensureSeed() : Promise.resolve(),
+          window.SP_PROFS ? window.SP_PROFS.ensureSeed() : Promise.resolve(),
           window.SP_USERS_DB.ensureSeed(),
           window.SP_WORK.ensureSeed(),
           window.SP_OBJECTS.ensureSeed(),

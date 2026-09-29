@@ -34,6 +34,7 @@ window.SP_SYNC_POLL = (function () {
     tasks: 'smartplan_tasks_db',
     users: 'smartplan_users_db',
     areas: 'smartplan_areas_db',
+    professions: 'smartplan_professions_db',
     workers: 'smartplan_workers_db',
     work_catalog: 'smartplan_work_catalog',
     graphs: 'smartplan_graphs'
@@ -207,6 +208,27 @@ window.SP_SYNC_POLL = (function () {
       return true;
     }
 
+    if (sec === 'professions') {
+      // { schema: 1, professions: [{id, name, grade, ...}, ...] } — как участки (Сборка 22.09-86)
+      var curP = lsRead(lsKey);
+      if (!curP || typeof curP !== 'object') curP = { schema: 1, professions: [] };
+      if (!Array.isArray(curP.professions)) curP.professions = [];
+      var idxP = -1;
+      for (var kp = 0; kp < curP.professions.length; kp++) {
+        if (curP.professions[kp] && curP.professions[kp].id === rec.id) { idxP = kp; break; }
+      }
+      if (rec._deleted) {
+        if (idxP >= 0) curP.professions.splice(idxP, 1);
+      } else {
+        if (idxP >= 0) curP.professions[idxP] = data;
+        else curP.professions.push(data);
+      }
+      curP.schema = 1;
+      curP.updated_at = Date.now();
+      lsWrite(lsKey, curP);
+      return true;
+    }
+
     if (sec === 'workers') {
       // { schema: 1, workers: { uid: {hours, sched, ...} } }
       var curW = lsRead(lsKey);
@@ -279,6 +301,7 @@ window.SP_SYNC_POLL = (function () {
     try { if (window.SP_TASKS && SP_TASKS.reloadFromCloud) SP_TASKS.reloadFromCloud(lsRead(LS_KEYS.tasks)); } catch (e) {}
     try { if (window.SP_USERS_DB && SP_USERS_DB.reloadFromCloud) SP_USERS_DB.reloadFromCloud(lsRead(LS_KEYS.users)); } catch (e) {}
     try { if (window.SP_AREAS && SP_AREAS.reloadFromCloud) SP_AREAS.reloadFromCloud(lsRead(LS_KEYS.areas)); } catch (e) {}
+    try { if (window.SP_PROFS && SP_PROFS.reloadFromCloud) SP_PROFS.reloadFromCloud(lsRead(LS_KEYS.professions)); } catch (e) {}
     try { if (window.SP_WORKERS && SP_WORKERS.reloadFromCloud) SP_WORKERS.reloadFromCloud(lsRead(LS_KEYS.workers)); } catch (e) {}
     try { if (window.SP_WORK && SP_WORK.reloadFromCloud) SP_WORK.reloadFromCloud(lsRead(LS_KEYS.work_catalog)); } catch (e) {}
     // graphs — без reloadFromCloud, у него graphsLoad() читает localStorage

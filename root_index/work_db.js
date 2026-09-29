@@ -120,6 +120,7 @@ window.SP_WORK = (function () {
       op_journal:           false,       // запись в оперативном журнале
       passport_entry:       false,       // запись в эксплуатационном паспорте
       scan_attach:          false,       // присоединение сканов
+      lines_count:          0,           // кол-во линий редуцирования (шт) — Сборка 22.09-87
       crew_size:            0,           // количество исполнителей (общее) — Сборка 22.09-85
       crew:                 []           // состав: [{prof:'...', grade:'3', count:2}]
     };
@@ -167,6 +168,7 @@ window.SP_WORK = (function () {
       op_journal:              toBool(d.op_journal),
       passport_entry:          toBool(d.passport_entry),
       scan_attach:             toBool(d.scan_attach),
+      lines_count:             Math.max(0, Math.round(toNum(d.lines_count, 0))),
       crew_size:               Math.max(0, Math.round(toNum(d.crew_size, 0))),
       crew:                    toCrew(d.crew)
     };

@@ -781,7 +781,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-85 · атрибуты ГРП: количество исполнителей + состав бригады по профессиям (разряд, кол-во), подсказка «распределено X из N»'],
+    objmap: ['Карта объектов', 'Сборка 22.09-87 · импорт норм ГРП из Excel (работы + профессии + исполнители) и новый атрибут «Кол-во линий редуцирования» у атрибутов ГРП'],
     testmap: ['Тест проезда', 'Полигон: карта маршрутов + оптимизация + пробки + Google Maps (копия «Карты маршрутов» для экспериментов)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -10571,6 +10571,129 @@
     }
   }
 
+  /* ===== Импорт норм ГРП (формат «Сопоставление видов работ и норма времени», Сборка 22.09-87) =====
+     Колонки: № | Вид работы | Вид нормы времени | Чел.-ч | Кол-во линий | Тип объекта | Кол-во исп. | <Профессия N р.>…
+     → работы на участок «ГРП» (группа = «Вид работы»), профессии → справочник «Профессии». */
+  var GRP_PROF_ABBR = {
+    'сл. г/исп.': 'Слесарь газоиспользующего оборудования',
+    'электрогаз.': 'Электрогазосварщик',
+    'нал. кипиа': 'Наладчик КИПиА',
+    'слесарь кипиа': 'Слесарь КИПиА',
+    'оператор пэвм': 'Оператор ПЭВМ'
+  };
+  function grpNormClean(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim(); }
+  // Разбор матрицы (массив строк-массивов) → {ok, profs, works, skipped, err}
+  function grpNormParseMatrix(rows) {
+    var out = { ok: false, err: '', profs: [], works: [], skipped: [] };
+    if (!rows || !rows.length) { out.err = 'Файл пуст'; return out; }
+    var headers = (rows[0] || []).map(function (h) { return grpNormClean(h).toLowerCase(); });
+    function findCol() {
+      for (var a = 0; a < arguments.length; a++) {
+        for (var i = 0; i < headers.length; i++) if (headers[i].indexOf(arguments[a]) !== -1) return i;
+      }
+      return -1;
+    }
+    var iGrp = findCol('вид работы');
+    var iName = findCol('вид нормы времени');
+    var iNorm = findCol('чел.-ч', 'чел. ч', 'норма');
+    var iLines = findCol('линий');
+    var iType = findCol('тип объекта');
+    var iCrew = findCol('кол-во исп', 'исполнител');
+    if (iName === -1 || iNorm === -1) { out.err = 'Не найдены колонки «Вид нормы времени»/«Чел.-ч»'; return out; }
+    // Колонки профессий: правее «Кол-во исп.», заголовок вида «<профессия> N р.»
+    var profCols = [];
+    var fromC = (iCrew !== -1 ? iCrew + 1 : (iType !== -1 ? iType + 1 : iNorm + 1));
+    for (var c = fromC; c < headers.length; c++) {
+      var m = headers[c] && headers[c].match(/^(.+?)\s+(\d+)\s*р\.?$/);
+      if (!m) continue;
+      var abbr = m[1].trim();
+      var grade = parseInt(m[2], 10);
+      var fullName = GRP_PROF_ABBR[abbr] || grpNormClean(rows[0][c]).replace(/\s*\d+\s*р\.?\s*$/i, '') || rows[0][c];
+      profCols.push({ col: c, name: fullName, grade: grade });
+    }
+    var seenProf = {};
+    for (var ri = 1; ri < rows.length; ri++) {
+      var r = rows[ri];
+      if (!r || !r.length) continue;
+      var name = grpNormClean(r[iName]);
+      if (!name) continue;
+      var normNum = parseFloat(String(r[iNorm] != null ? r[iNorm] : '').replace(',', '.'));
+      if (!isFinite(normNum) || normNum <= 0) {
+        out.skipped.push({ name: name, reason: 'нет нормы времени' });
+        continue;
+      }
+      var crew = [];
+      var crewSum = 0;
+      profCols.forEach(function (pc) {
+        var v = r[pc.col];
+        if (v == null || v === '' || v === '-') return;
+        var cnt = parseFloat(String(v).replace(',', '.'));
+        if (!isFinite(cnt) || cnt <= 0) return;
+        cnt = Math.round(cnt);
+        crew.push({ prof: pc.name, grade: String(pc.grade), count: cnt });
+        crewSum += cnt;
+        var key = pc.name.toLowerCase() + '|' + pc.grade;
+        if (!seenProf[key]) { seenProf[key] = 1; out.profs.push({ name: pc.name, grade: pc.grade }); }
+      });
+      var crewSize = (iCrew !== -1 ? parseInt(r[iCrew], 10) : 0);
+      if (!isFinite(crewSize) || crewSize < 0) crewSize = 0;
+      if (!crewSize && crewSum) crewSize = crewSum;
+      var lines = (iLines !== -1 ? parseInt(r[iLines], 10) : 0);
+      if (!isFinite(lines) || lines < 0) lines = 0;
+      var typ = grpNormClean(iType !== -1 ? r[iType] : '');
+      var cats = (typ === 'ГРП' || typ === 'ШРП' || typ === 'ПГРП' || typ === 'ГРС') ? [typ] : [];
+      out.works.push({
+        group: (iGrp !== -1 ? grpNormClean(r[iGrp]) : '') || 'Без группы',
+        name: name,
+        norm: Math.round(normNum * 1000) / 1000,
+        unit: 'объект',
+        needs_permit: false, depends_on_snow: false, min_temp: -50,
+        season: 'Круглый год', equipment: '—',
+        min_workers: crewSize || 1, opt_workers: crewSize || 1,
+        object_categories: cats,
+        lines_count: lines,
+        crew_size: crewSize,
+        crew: crew
+      });
+    }
+    out.ok = true;
+    return out;
+  }
+  // Применить разбор: профессии → «Профессии», работы → участок «ГРП» (дубликаты по названию пропускаем)
+  function importGrpNorms(rows) {
+    if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
+    var res = grpNormParseMatrix(rows);
+    if (!res.ok) { toast('err', res.err || 'Не удалось разобрать файл'); return; }
+    if (!res.works.length) { toast('warn', 'В файле не найдено ни одной нормы для импорта'); return; }
+    var profAdded = 0, profExists = 0, profBad = 0;
+    if (window.SP_PROFS && SP_PROFS.addProf) {
+      res.profs.forEach(function (p) {
+        if (SP_PROFS.GRADES.indexOf(p.grade) === -1) { profBad++; return; }
+        var rp = SP_PROFS.addProf(p.name, p.grade);
+        if (rp.ok) profAdded++; else profExists++;
+      });
+    }
+    var area = 'ГРП';
+    try { if (WORK.ensureArea) WORK.ensureArea(area); } catch (e) {}
+    var existing = {};
+    (WORK.getWorks(area) || []).forEach(function (w) { existing[String(w.name || '').trim()] = 1; });
+    var added = 0, exists = 0;
+    res.works.forEach(function (d) {
+      if (existing[d.name]) { exists++; return; }
+      existing[d.name] = 1;
+      WORK.addWork(area, d);
+      added++;
+    });
+    logAction('Импорт норм ГРП из Excel', 'работ +' + added + ', профессий +' + profAdded + ', дублей ' + exists + ', без нормы ' + res.skipped.length);
+    var msg = '📤 Импорт норм ГРП: работ добавлено ' + added;
+    if (exists) msg += ', уже было ' + exists;
+    msg += '; профессий +' + profAdded + (profExists ? ' (уже было ' + profExists + ')' : '');
+    if (res.skipped.length) msg += '; без нормы пропущено: ' + res.skipped.length;
+    if (profBad) msg += '; профессий вне разрядов 3–6: ' + profBad;
+    toast('ok', msg);
+    renderRefs();
+  }
+
   function importRefsFromExcel(file, mode) {
     if (!window.XLSX) { ensureXlsxRetry(function () { importRefsFromExcel(file, mode); }); return; } // ленивая загрузка xlsx
     var reader = new FileReader();
@@ -10588,6 +10711,15 @@
         }
 
         var headers = rows[0].map(function (h) { return String(h || '').toLowerCase().trim(); });
+
+        // === 22.09-87: файл «Сопоставление видов работ и норма времени» (ГРП) ===
+        if (mode === 'works' || mode === 'norms') {
+          var hJoined = ' ' + headers.join(' ') + ' ';
+          if (hJoined.indexOf('вид нормы времени') !== -1 && hJoined.indexOf('чел.-ч') !== -1) {
+            importGrpNorms(rows);
+            return;
+          }
+        }
 
         // === Режим УЧАСТКИ: колонка «Участок» (или первая) ===
         if (mode === 'areas') {
@@ -10783,9 +10915,14 @@
      ===================================================================== */
   function renderRefs() {
     var admin = S.role === 'admin';
-    var refsTabsHtml = '<div class="tabs">' + tabBtn('tree', 'Виды работ') + tabBtn('norms', 'Нормы времени') + tabBtn('areas', 'Участки') + tabBtn('objects', 'Объекты (ГРП/ШРП/ГРС/ПГРП)') + '</div>';
+    var refsTabsHtml = '<div class="tabs">' + tabBtn('profs', 'Профессии') + tabBtn('tree', 'Виды работ') + tabBtn('norms', 'Нормы времени') + tabBtn('areas', 'Участки') + tabBtn('objects', 'Объекты (ГРП/ШРП/ГРС/ПГРП)') + '</div>';
     var html = '';
 
+    if (S.refsTab === 'profs') {
+      html += renderProfsTab(admin, refsTabsHtml);
+      view.innerHTML = html;
+      return;
+    }
     if (S.refsTab === 'areas') {
       html += renderAreasRefTab(admin, refsTabsHtml);
       html += '<input type="file" id="ref-excel-file" accept=".xlsx,.xls,.csv" style="display:none">';
@@ -10873,6 +11010,8 @@
           if (w.op_journal) attr += ' <span class="weather-badge" title="Запись в оперативном журнале">📓 журнал</span>';
           if (w.passport_entry) attr += ' <span class="weather-badge" title="Запись в эксплуатационном паспорте">📋 паспорт</span>';
           if (w.scan_attach) attr += ' <span class="equipment-badge" title="Присоединение сканов">📎 сканы</span>';
+          // Сборка 22.09-87: бейдж количества линий редуцирования
+          if (w.lines_count) attr += ' <span class="equipment-badge" title="Кол-во линий редуцирования (шт)">Линий: ' + w.lines_count + '</span>';
           html += '<li class="w"><span style="color:var(--blue)">▪</span><span>' + esc(w.name) + '</span>' + attr + '<span class="norm">Норма: <b>' + fmtH(w.norm) + ' ч</b> / ' + esc(w.unit) + ' (мин ' + (w.min_workers || 1) + ' чел.)</span>';
           if (admin) html += '<span style="margin-left:10px;white-space:nowrap"><button class="btn sm" data-action="edit-work" data-wid="' + w.id + '">Изменить</button> <button class="btn sm" data-action="del-work" data-wid="' + w.id + '" style="color:var(--red)">Удалить</button></span>';
           html += '</li>';
@@ -10901,6 +11040,84 @@
     });
   }
   function tabBtn(t, label) { return '<button class="' + (S.refsTab === t ? 'on' : '') + '" data-action="refs-tab" data-tab="' + t + '">' + label + '</button>'; }
+
+  /* =====================================================================
+     СПРАВОЧНИК: ПРОФЕССИИ (Сборка 22.09-86)
+     ===================================================================== */
+  function renderProfsTab(admin, tabsHtml) {
+    var profs = window.SP_PROFS ? SP_PROFS.getAll() : [];
+    profs.sort(function (a, b) { return String(a.name || '').localeCompare(String(b.name || ''), 'ru') || ((a.grade || 0) - (b.grade || 0)); });
+    var html = '<div style="margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">';
+    html += '<span class="sub" style="font-size:12px;color:var(--muted)">Всего профессий: ' + profs.length + '</span>';
+    html += '<div style="flex:1"></div>';
+    if (admin) html += '<button class="btn primary" data-action="new-prof">' + IC.plus + ' Добавить профессию</button>';
+    html += '</div>';
+    html += tabsHtml;
+    html += '<div class="card"><table class="dt"><thead><tr><th>Наименование профессии</th><th>Разряд</th>' + (admin ? '<th style="text-align:right">Действия</th>' : '') + '</tr></thead><tbody>';
+    if (!profs.length) html += '<tr><td colspan="' + (admin ? 3 : 2) + '" class="empty">Справочник профессий пуст. ' + (admin ? 'Нажмите «Добавить профессию».' : '') + '</td></tr>';
+    profs.forEach(function (p) {
+      html += '<tr><td><b>' + esc(p.name) + '</b></td><td>' + esc(String(p.grade)) + ' разряд</td>';
+      if (admin) html += '<td style="text-align:right;white-space:nowrap"><button class="btn sm" data-action="edit-prof" data-pid="' + esc(p.id) + '">Изменить</button> <button class="btn sm" data-action="del-prof" data-pid="' + esc(p.id) + '" style="color:var(--red)">Удалить</button></td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+    return html;
+  }
+
+  // Модал добавления/изменения профессии: наименование + разряд (3–6)
+  function openProfModal(mode, pid) {
+    S.profModalMode = mode; S.profModalPid = pid || null;
+    var p = (mode === 'edit' && window.SP_PROFS) ? SP_PROFS.getById(pid) : null;
+    var html = '<div class="modal-h"><h3>' + (mode === 'edit' ? 'Изменение профессии' : 'Новая профессия') + '</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">';
+    html += '<div class="fld"><label>Наименование профессии</label><input id="pm-name" value="' + (p ? esc(p.name) : '') + '" placeholder="Например: Слесарь газоиспользующего оборудования"></div>';
+    html += '<div class="fld"><label>Разряд</label><select id="pm-grade">';
+    html += '<option value="">— выберите разряд —</option>';
+    (window.SP_PROFS ? SP_PROFS.GRADES : [3, 4, 5, 6]).forEach(function (g) {
+      html += '<option value="' + g + '"' + (p && p.grade === g ? ' selected' : '') + '>' + g + ' разряд</option>';
+    });
+    html += '</select></div>';
+    html += '<div class="calc">ℹ️ Профессии применяются в составе исполнителей работ участка ГРП (выбор — только из этого справочника).</div>';
+    html += '</div><div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="save-prof">' + (mode === 'edit' ? 'Сохранить' : 'Добавить профессию') + '</button></div>';
+    modal.style.maxWidth = ''; // сброс автоширины карточки задачи
+    modal.innerHTML = html; overlay.classList.add('show');
+    var inp = document.getElementById('pm-name');
+    if (inp) { inp.focus(); inp.select(); }
+  }
+  function saveProf() {
+    if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
+    var nEl = document.getElementById('pm-name');
+    var gEl = document.getElementById('pm-grade');
+    var res = (S.profModalMode === 'edit')
+      ? SP_PROFS.updateProf(S.profModalPid, nEl ? nEl.value : '', gEl ? gEl.value : '')
+      : SP_PROFS.addProf(nEl ? nEl.value : '', gEl ? gEl.value : '');
+    if (!res.ok) { toast('err', res.error); return; }
+    logAction(S.profModalMode === 'edit' ? 'Изменение профессии' : 'Добавление профессии', SP_PROFS.label(res.prof));
+    toast('ok', S.profModalMode === 'edit' ? 'Профессия изменена' : 'Профессия «' + SP_PROFS.label(res.prof) + '» добавлена');
+    overlay.classList.remove('show');
+    refresh();
+  }
+  function delProfAction(pid) {
+    if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
+    if (!window.SP_PROFS) return;
+    var p = SP_PROFS.getById(pid);
+    if (!p) return;
+    // Сколько работ ГРП ссылаются на профессию (по наименованию + разряду)
+    var used = 0;
+    try {
+      (WORK.getWorks('ГРП') || []).forEach(function (w) {
+        (w.crew || []).forEach(function (e) {
+          if (e && e.prof === p.name && String(e.grade || '') === String(p.grade)) used++;
+        });
+      });
+    } catch (e) {}
+    var msg = 'Удалить профессию «' + SP_PROFS.label(p) + '» из справочника?';
+    if (used) msg += '\n\n⚠️ Она указана в составе исполнителей ' + used + (used === 1 ? ' работы' : ' работ') + ' ГРП — там останется пометка «⚠ нет в справочнике».';
+    if (!window.confirm(msg)) return;
+    SP_PROFS.deleteProf(pid);
+    logAction('Удаление профессии', SP_PROFS.label(p));
+    toast('ok', 'Профессия удалена');
+    refresh();
+  }
 
   /* =====================================================================
      СПРАВОЧНИК: УЧАСТКИ
@@ -11980,26 +12197,28 @@
   /* ---------- МОДАЛ: ВИД РАБОТЫ (с атрибутами УБиРОГС) ---------- */
   // === Исполнители ГРП: общее количество + состав бригады (Сборка 22.09-85) ===
   // Хранится в виде работы: crew_size (число) и crew [{prof, grade, count}].
-  var CREW_PROF_DEFAULTS = ['Слесарь газоиспользующего оборудования', 'Электрогазосварщик', 'Наладчик КИПиА', 'Машинист экскаватора', 'Водитель автомобиля'];
-  function crewProfSuggestions() {
-    var out = CREW_PROF_DEFAULTS.slice();
-    try {
-      if (window.WORK && WORK.getWorks) {
-        WORK.getWorks('ГРП').forEach(function (w2) {
-          (w2.crew || []).forEach(function (e) { if (e && e.prof && out.indexOf(e.prof) < 0) out.push(e.prof); });
-        });
-      }
-    } catch (e) {}
-    return out;
+  // Профессия + разряд упакованы в value через \u0001 (Сборка 22.09-86: выбор СТРОГО из справочника «Профессии»)
+  function crewProfOptions(cur) {
+    var list = [];
+    try { if (window.SP_PROFS && SP_PROFS.getAll) list = SP_PROFS.getAll(); } catch (e) {}
+    list = list.slice().sort(function (a, b) { return String(a.name || '').localeCompare(String(b.name || ''), 'ru') || ((a.grade || 0) - (b.grade || 0)); });
+    var h = '', found = false;
+    list.forEach(function (p) {
+      var v = p.name + '\u0001' + p.grade;
+      var on = cur && cur.prof === p.name && String(cur.grade || '') === String(p.grade);
+      if (on) found = true;
+      h += '<option value="' + esc(v) + '"' + (on ? ' selected' : '') + '>' + esc(p.name) + ' — ' + p.grade + ' разряд</option>';
+    });
+    // Значение из старых данных, которого уже нет в справочнике — показываем с пометкой
+    if (cur && cur.prof && !found) {
+      h += '<option value="' + esc(cur.prof + '\u0001' + (cur.grade || '')) + '" selected>⚠ ' + esc(cur.prof) + (cur.grade ? ' — ' + esc(String(cur.grade)) + ' разряд' : '') + ' (нет в справочнике)</option>';
+    }
+    return h;
   }
   function crewRowHtml(it) {
     it = it || {};
     var h = '<div data-crew-row style="display:flex;gap:6px;align-items:center;margin-bottom:5px">';
-    h += '<input data-crew-prof list="wm-prof-dl" value="' + esc(it.prof || '') + '" placeholder="Профессия…" style="flex:1;min-width:140px">';
-    h += '<select data-crew-grade style="width:112px">';
-    h += '<option value="">без разряда</option>';
-    ['2', '3', '4', '5', '6', '7', '8'].forEach(function (g) { h += '<option value="' + g + '"' + (String(it.grade || '') === g ? ' selected' : '') + '>' + g + ' разряд</option>'; });
-    h += '</select>';
+    h += '<select data-crew-prof style="flex:1;min-width:200px"><option value="">— выберите профессию —</option>' + crewProfOptions(it.prof ? it : null) + '</select>';
     h += '<input data-crew-count type="number" min="0" step="1" value="' + (it.count != null ? it.count : 1) + '" style="width:60px" title="Количество работников этой профессии">';
     h += '<button type="button" data-crew-rm class="btn sm" style="color:var(--red);padding:2px 9px" title="Убрать строку">✕</button>';
     h += '</div>';
@@ -12049,15 +12268,21 @@
   }
   function crewCollect() {
     var out = [];
+    var skipped = 0;
     document.querySelectorAll('#wm-crew-rows [data-crew-row]').forEach(function (row) {
       var pEl = row.querySelector('[data-crew-prof]');
-      var gEl = row.querySelector('[data-crew-grade]');
       var cEl = row.querySelector('[data-crew-count]');
       var cnt = cEl ? parseInt(cEl.value, 10) : 0;
       if (!isFinite(cnt) || cnt < 0) cnt = 0;
-      var it = { prof: pEl ? pEl.value.trim() : '', grade: gEl ? gEl.value : '', count: cnt };
-      if (it.prof || it.count) out.push(it);
+      var raw = pEl ? String(pEl.value || '') : '';
+      var sepAt = raw.indexOf('\u0001');
+      var it = sepAt >= 0
+        ? { prof: raw.slice(0, sepAt), grade: raw.slice(sepAt + 1), count: cnt }
+        : { prof: raw, grade: '', count: cnt };
+      if (!it.prof && it.count > 0) skipped++;
+      if (it.prof) out.push(it);
     });
+    out.skipped = skipped; // строки с количеством, но без профессии — не сохраняются, предупредим
     return out;
   }
 
@@ -12167,18 +12392,23 @@
     h += '<b style="color:#0f2740">📊 Нормы времени</b> — связаны со справочником «Нормы времени». Поле «Норма времени, ч» (выше) — значение по умолчанию.';
     h += '</div>';
 
+    // 8.2. Количество линий редуцирования (Сборка 22.09-87)
+    h += '<div class="fld" style="max-width:280px"><label>Кол-во линий редуцирования (шт)</label><input id="wm-lines" type="number" min="0" step="1" value="' + ((w && w.lines_count) || 0) + '" placeholder="0 — не задано"></div>';
+
     // 8.5. Исполнители: общее количество + состав бригады по профессиям (Сборка 22.09-85)
     h += '<div class="fld" style="background:#fff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 12px">';
     h += '<label style="font-size:12px;font-weight:700;color:#1e3a8a;margin-bottom:8px;display:block">👷 Количество исполнителей и состав бригады</label>';
     h += '<label style="font-size:11.5px;font-weight:600;color:#475569">Количество исполнителей (общее)</label>';
     h += '<input id="wm-crew-size" type="number" min="0" step="1" value="' + ((w && w.crew_size) || 0) + '" placeholder="напр.: 3" style="width:120px;margin:2px 0 8px">';
-    h += '<div style="font-size:11.5px;font-weight:600;color:#475569;margin-bottom:5px">Работники будут: <span style="color:#94a3b8;font-weight:500">(профессия — разряд — количество)</span></div>';
+    h += '<div style="font-size:11.5px;font-weight:600;color:#475569;margin-bottom:5px">Работники будут: <span style="color:#94a3b8;font-weight:500">(профессия из справочника «Профессии» — количество)</span></div>';
     h += '<div id="wm-crew-rows"></div>';
+    var crewProfsCount = 0;
+    try { if (window.SP_PROFS && SP_PROFS.getAll) crewProfsCount = SP_PROFS.getAll().length; } catch (e) {}
+    if (!crewProfsCount) h += '<div style="font-size:11.5px;color:#92400e;background:#fef9c3;border:1px solid #fde68a;border-radius:6px;padding:6px 9px;margin:2px 0 6px">⚠️ Справочник «Профессии» пока пуст — сначала добавьте профессии: «Справочники» → «Профессии».</div>';
     h += '<div style="display:flex;gap:12px;align-items:center;margin-top:4px;flex-wrap:wrap">';
     h += '<button type="button" id="wm-crew-add" class="btn sm" style="border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;font-weight:600">＋ Добавить профессию</button>';
     h += '<span id="wm-crew-hint" style="font-size:11.5px;font-weight:600"></span>';
     h += '</div>';
-    h += '<datalist id="wm-prof-dl">' + crewProfSuggestions().map(function (p) { return '<option value="' + esc(p) + '">'; }).join('') + '</datalist>';
     h += '</div>';
 
     // 9. Показатели эксплуатации
@@ -12255,8 +12485,12 @@
       data.op_journal = chk('wm-opjournal');
       data.passport_entry = chk('wm-passport');
       data.scan_attach = chk('wm-scanattach');
+      // Сборка 22.09-87: количество линий редуцирования
+      data.lines_count = parseInt(val('wm-lines'), 10);
+      if (!isFinite(data.lines_count) || data.lines_count < 0) data.lines_count = 0;
       // Сборка 22.09-85: исполнители — общее количество + состав по профессиям
       data.crew = crewCollect();
+      if (data.crew.skipped) toast('warn', '⚠️ Строк с количеством, но без профессии не сохранено: ' + data.crew.skipped);
       data.crew_size = parseInt(val('wm-crew-size'), 10);
       if (!isFinite(data.crew_size) || data.crew_size < 0) data.crew_size = 0;
       var crewSum = data.crew.reduce(function (a, e) { return a + (e.count || 0); }, 0);
@@ -12268,7 +12502,7 @@
       ['object_categories', 'departments', 'periodicity_value', 'periodicity_unit',
         'periodicity_depends_on', 'periodicity_basis', 'joint_with', 'operations',
         'indicators', 'print_forms', 'op_journal', 'passport_entry', 'scan_attach',
-        'crew_size', 'crew']
+        'crew_size', 'crew', 'lines_count']
         .forEach(function (k) { if (oldW[k] !== undefined) data[k] = oldW[k]; });
     } // при создании на прочих участках — пропуск: work_db сам поставит дефолты
     if (mode === 'edit') { WORK.updateWork(area, wid, data); logAction('Изменение вида работы', data.name);
@@ -15435,6 +15669,11 @@
     else if (a === 'edit-area') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } openAreaModal('edit', el.dataset.aid); }
     else if (a === 'del-area') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } delAreaAction(el.dataset.aid); }
     else if (a === 'save-area') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } saveArea(); }
+    // --- Справочник: профессии (Сборка 22.09-86) ---
+    else if (a === 'new-prof') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } openProfModal('new'); }
+    else if (a === 'edit-prof') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } openProfModal('edit', el.dataset.pid); }
+    else if (a === 'del-prof') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } delProfAction(el.dataset.pid); }
+    else if (a === 'save-prof') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } saveProf(); }
     else if (a === 'dl-areas-excel') { exportAreasExcel(); }
     else if (a === 'ul-areas-excel') { S.excelImportMode = 'areas'; var fiA = document.getElementById('ref-excel-file'); if (fiA) fiA.click(); }
     else if (a === 'dl-objects-excel') { exportObjectsExcel(); }

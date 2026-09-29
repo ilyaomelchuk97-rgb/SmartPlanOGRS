@@ -15,7 +15,8 @@ const SECTIONS = [
   { name: 'areas',        schema: 1, label: 'участки' },
   { name: 'workers',      schema: 1, label: 'работники' },
   { name: 'work_catalog', schema: 5, label: 'виды работ' },
-  { name: 'graphs',       schema: 1, label: 'графики' }
+  { name: 'graphs',       schema: 1, label: 'графики' },
+  { name: 'professions',  schema: 1, label: 'профессии' }
 ];
 
 async function initSchema(pool) {
