@@ -119,7 +119,9 @@ window.SP_WORK = (function () {
       print_forms:          [],          // печатные формы
       op_journal:           false,       // запись в оперативном журнале
       passport_entry:       false,       // запись в эксплуатационном паспорте
-      scan_attach:          false        // присоединение сканов
+      scan_attach:          false,       // присоединение сканов
+      crew_size:            0,           // количество исполнителей (общее) — Сборка 22.09-85
+      crew:                 []           // состав: [{prof:'...', grade:'3', count:2}]
     };
   }
   // Безопасно парсит массивы/enum-поля/числа из HTML-формы (строки → массив/число/bool)
@@ -132,6 +134,25 @@ window.SP_WORK = (function () {
     }
     function toBool(v) { return v === true || v === 'true' || v === 'on' || v === '1' || v === 1; }
     function toNum(v, dflt) { var n = parseFloat(v); return isFinite(n) ? n : (dflt != null ? dflt : 0); }
+    // Сборка 22.09-85: состав исполнителей [{prof, grade, count}]
+    function toCrew(v) {
+      var arr = [];
+      if (v == null || v === '') return arr;
+      if (typeof v === 'string') { try { v = JSON.parse(v); } catch (e) { return arr; } }
+      if (!Array.isArray(v)) return arr;
+      v.forEach(function (e) {
+        if (!e) return;
+        if (typeof e === 'string') e = { prof: e, grade: '', count: 1 };
+        var cnt = parseInt(e.count, 10);
+        var it = {
+          prof: String(e.prof != null ? e.prof : '').trim(),
+          grade: String(e.grade != null ? e.grade : '').replace(/[^0-9]/g, ''),
+          count: isFinite(cnt) && cnt > 0 ? cnt : 0
+        };
+        if (it.prof || it.count) arr.push(it);
+      });
+      return arr;
+    }
     return {
       object_categories:       toArr(d.object_categories),
       departments:             toArr(d.departments),
@@ -145,7 +166,9 @@ window.SP_WORK = (function () {
       print_forms:             toArr(d.print_forms),
       op_journal:              toBool(d.op_journal),
       passport_entry:          toBool(d.passport_entry),
-      scan_attach:             toBool(d.scan_attach)
+      scan_attach:             toBool(d.scan_attach),
+      crew_size:               Math.max(0, Math.round(toNum(d.crew_size, 0))),
+      crew:                    toCrew(d.crew)
     };
   }
 

@@ -781,7 +781,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-84 · атрибуты карточки работы только у своего участка: УБиРОГС — свой блок, ГРП — «Атрибуты ГРП», у остальных без атрибутов'],
+    objmap: ['Карта объектов', 'Сборка 22.09-85 · атрибуты ГРП: количество исполнителей + состав бригады по профессиям (разряд, кол-во), подсказка «распределено X из N»'],
     testmap: ['Тест проезда', 'Полигон: карта маршрутов + оптимизация + пробки + Google Maps (копия «Карты маршрутов» для экспериментов)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -10864,6 +10864,12 @@
             attr += ' <span class="permit-badge" title="Периодичность">🔁 ' + w.periodicity_value + ' ' + esc(w.periodicity_unit || 'мес') + '</span>';
           }
           if (w.joint_with) attr += ' <span class="snow-badge" title="Проводится совместно">🤝 совместно</span>';
+          // Сборка 22.09-85: бейдж исполнителей (общее число + состав в подсказке)
+          if (w.crew_size) {
+            var crewDesc = (w.crew || []).filter(function (e) { return e && e.prof; })
+              .map(function (e) { return e.prof + (e.grade ? ' · ' + e.grade + ' разряд' : '') + ' × ' + e.count; }).join('; ');
+            attr += ' <span class="permit-badge" title="Исполнители — ' + w.crew_size + ' чел.' + (crewDesc ? ': ' + esc(crewDesc) : '') + '">👥 ' + w.crew_size + '</span>';
+          }
           if (w.op_journal) attr += ' <span class="weather-badge" title="Запись в оперативном журнале">📓 журнал</span>';
           if (w.passport_entry) attr += ' <span class="weather-badge" title="Запись в эксплуатационном паспорте">📋 паспорт</span>';
           if (w.scan_attach) attr += ' <span class="equipment-badge" title="Присоединение сканов">📎 сканы</span>';
@@ -11972,6 +11978,89 @@
 
 
   /* ---------- МОДАЛ: ВИД РАБОТЫ (с атрибутами УБиРОГС) ---------- */
+  // === Исполнители ГРП: общее количество + состав бригады (Сборка 22.09-85) ===
+  // Хранится в виде работы: crew_size (число) и crew [{prof, grade, count}].
+  var CREW_PROF_DEFAULTS = ['Слесарь газоиспользующего оборудования', 'Электрогазосварщик', 'Наладчик КИПиА', 'Машинист экскаватора', 'Водитель автомобиля'];
+  function crewProfSuggestions() {
+    var out = CREW_PROF_DEFAULTS.slice();
+    try {
+      if (window.WORK && WORK.getWorks) {
+        WORK.getWorks('ГРП').forEach(function (w2) {
+          (w2.crew || []).forEach(function (e) { if (e && e.prof && out.indexOf(e.prof) < 0) out.push(e.prof); });
+        });
+      }
+    } catch (e) {}
+    return out;
+  }
+  function crewRowHtml(it) {
+    it = it || {};
+    var h = '<div data-crew-row style="display:flex;gap:6px;align-items:center;margin-bottom:5px">';
+    h += '<input data-crew-prof list="wm-prof-dl" value="' + esc(it.prof || '') + '" placeholder="Профессия…" style="flex:1;min-width:140px">';
+    h += '<select data-crew-grade style="width:112px">';
+    h += '<option value="">без разряда</option>';
+    ['2', '3', '4', '5', '6', '7', '8'].forEach(function (g) { h += '<option value="' + g + '"' + (String(it.grade || '') === g ? ' selected' : '') + '>' + g + ' разряд</option>'; });
+    h += '</select>';
+    h += '<input data-crew-count type="number" min="0" step="1" value="' + (it.count != null ? it.count : 1) + '" style="width:60px" title="Количество работников этой профессии">';
+    h += '<button type="button" data-crew-rm class="btn sm" style="color:var(--red);padding:2px 9px" title="Убрать строку">✕</button>';
+    h += '</div>';
+    return h;
+  }
+  function crewRefreshHint() {
+    var sizeEl = document.getElementById('wm-crew-size');
+    var hintEl = document.getElementById('wm-crew-hint');
+    if (!sizeEl || !hintEl) return;
+    var size = parseInt(sizeEl.value, 10); if (!isFinite(size) || size < 0) size = 0;
+    var sum = 0;
+    document.querySelectorAll('#wm-crew-rows [data-crew-count]').forEach(function (el) {
+      var n = parseInt(el.value, 10); if (isFinite(n) && n > 0) sum += n;
+    });
+    hintEl.textContent = 'Распределено: ' + sum + ' из ' + size;
+    hintEl.style.color = (sum === size) ? (size > 0 ? '#15803d' : '#94a3b8') : (sum > size ? '#b91c1c' : '#b45309');
+  }
+  function initCrewEditor(crew, size) {
+    var box = document.getElementById('wm-crew-rows');
+    if (!box) return;
+    var rows = (crew && crew.length) ? crew : [];
+    if (!rows.length && size > 0) rows = [{ prof: '', grade: '', count: size }];
+    box.innerHTML = rows.map(function (it) { return crewRowHtml(it); }).join('');
+    var addBtn = document.getElementById('wm-crew-add');
+    if (addBtn) addBtn.addEventListener('click', function () {
+      box.insertAdjacentHTML('beforeend', crewRowHtml({ prof: '', grade: '', count: 1 }));
+      crewRefreshHint();
+    });
+    box.addEventListener('click', function (ev) {
+      var b = ev.target && ev.target.closest ? ev.target.closest('[data-crew-rm]') : null;
+      if (!b) return;
+      var row = b.parentNode;
+      if (row && row.parentNode) row.parentNode.removeChild(row);
+      crewRefreshHint();
+    });
+    box.addEventListener('input', function () { crewRefreshHint(); });
+    box.addEventListener('change', function () { crewRefreshHint(); });
+    var sizeEl = document.getElementById('wm-crew-size');
+    if (sizeEl) sizeEl.addEventListener('input', function () {
+      var n = parseInt(sizeEl.value, 10);
+      if (isFinite(n) && n > 0 && !box.querySelector('[data-crew-row]')) {
+        box.innerHTML = crewRowHtml({ prof: '', grade: '', count: n });
+      }
+      crewRefreshHint();
+    });
+    crewRefreshHint();
+  }
+  function crewCollect() {
+    var out = [];
+    document.querySelectorAll('#wm-crew-rows [data-crew-row]').forEach(function (row) {
+      var pEl = row.querySelector('[data-crew-prof]');
+      var gEl = row.querySelector('[data-crew-grade]');
+      var cEl = row.querySelector('[data-crew-count]');
+      var cnt = cEl ? parseInt(cEl.value, 10) : 0;
+      if (!isFinite(cnt) || cnt < 0) cnt = 0;
+      var it = { prof: pEl ? pEl.value.trim() : '', grade: gEl ? gEl.value : '', count: cnt };
+      if (it.prof || it.count) out.push(it);
+    });
+    return out;
+  }
+
   function openWorkModal(mode, wid) {
     var area = S.workArea;
     var w = mode === 'edit' ? WORK.getWork(area, wid) : null;
@@ -12078,6 +12167,20 @@
     h += '<b style="color:#0f2740">📊 Нормы времени</b> — связаны со справочником «Нормы времени». Поле «Норма времени, ч» (выше) — значение по умолчанию.';
     h += '</div>';
 
+    // 8.5. Исполнители: общее количество + состав бригады по профессиям (Сборка 22.09-85)
+    h += '<div class="fld" style="background:#fff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 12px">';
+    h += '<label style="font-size:12px;font-weight:700;color:#1e3a8a;margin-bottom:8px;display:block">👷 Количество исполнителей и состав бригады</label>';
+    h += '<label style="font-size:11.5px;font-weight:600;color:#475569">Количество исполнителей (общее)</label>';
+    h += '<input id="wm-crew-size" type="number" min="0" step="1" value="' + ((w && w.crew_size) || 0) + '" placeholder="напр.: 3" style="width:120px;margin:2px 0 8px">';
+    h += '<div style="font-size:11.5px;font-weight:600;color:#475569;margin-bottom:5px">Работники будут: <span style="color:#94a3b8;font-weight:500">(профессия — разряд — количество)</span></div>';
+    h += '<div id="wm-crew-rows"></div>';
+    h += '<div style="display:flex;gap:12px;align-items:center;margin-top:4px;flex-wrap:wrap">';
+    h += '<button type="button" id="wm-crew-add" class="btn sm" style="border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;font-weight:600">＋ Добавить профессию</button>';
+    h += '<span id="wm-crew-hint" style="font-size:11.5px;font-weight:600"></span>';
+    h += '</div>';
+    h += '<datalist id="wm-prof-dl">' + crewProfSuggestions().map(function (p) { return '<option value="' + esc(p) + '">'; }).join('') + '</datalist>';
+    h += '</div>';
+
     // 9. Показатели эксплуатации
     h += '<div class="fld"><label>Показатели эксплуатации (контролируемые) <span style="color:#94a3b8;font-weight:500">(список значений)</span></label>';
     h += '<input id="wm-indicators" value="' + esc(((w && w.indicators) || []).join(', ')) + '" placeholder="напр.: Давление, Температура, Расход"></div>';
@@ -12099,6 +12202,7 @@
     modal.style.maxWidth = ''; // сброс автоширины карточки задачи
     modal.innerHTML = h; overlay.classList.add('show');
     S.workModalMode = mode; S.workModalWid = wid;
+    if (area === 'ГРП') initCrewEditor(w && w.crew, (w && w.crew_size) || 0);
   }
   function saveWork() {
     if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
@@ -12151,10 +12255,20 @@
       data.op_journal = chk('wm-opjournal');
       data.passport_entry = chk('wm-passport');
       data.scan_attach = chk('wm-scanattach');
+      // Сборка 22.09-85: исполнители — общее количество + состав по профессиям
+      data.crew = crewCollect();
+      data.crew_size = parseInt(val('wm-crew-size'), 10);
+      if (!isFinite(data.crew_size) || data.crew_size < 0) data.crew_size = 0;
+      var crewSum = data.crew.reduce(function (a, e) { return a + (e.count || 0); }, 0);
+      if (data.crew_size > 0) { data.min_workers = data.crew_size; data.opt_workers = data.crew_size; }
+      if (data.crew_size > 0 && crewSum !== data.crew_size) {
+        toast('warn', '⚠️ Состав исполнителей (' + crewSum + ') не совпадает с общим количеством (' + data.crew_size + ')');
+      }
     } else if (oldW) {
       ['object_categories', 'departments', 'periodicity_value', 'periodicity_unit',
         'periodicity_depends_on', 'periodicity_basis', 'joint_with', 'operations',
-        'indicators', 'print_forms', 'op_journal', 'passport_entry', 'scan_attach']
+        'indicators', 'print_forms', 'op_journal', 'passport_entry', 'scan_attach',
+        'crew_size', 'crew']
         .forEach(function (k) { if (oldW[k] !== undefined) data[k] = oldW[k]; });
     } // при создании на прочих участках — пропуск: work_db сам поставит дефолты
     if (mode === 'edit') { WORK.updateWork(area, wid, data); logAction('Изменение вида работы', data.name);
