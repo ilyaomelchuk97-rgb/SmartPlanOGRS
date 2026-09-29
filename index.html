@@ -237,7 +237,7 @@
 
   /* ---------- ВИДЖЕТ МАРШРУТА (iframe Яндекс.Карт по ссылке) ---------- */
   .route-frame{position:absolute;inset:0;width:100%;height:100%;border:0;display:block;background:#e8eef3}
-  .route-link-panel{position:absolute;left:12px;right:12px;top:12px;z-index:1000;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;border:1px solid var(--line);background:rgba(15,39,64,.92);backdrop-filter:blur(10px);border-radius:12px;padding:10px 14px;color:#e2e8f0;box-shadow:0 4px 16px rgba(0,0,0,.25)}
+  .route-link-panel{position:absolute;left:12px;right:12px;top:12px;z-index:100000;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;border:1px solid var(--line);background:rgba(15,39,64,.92);backdrop-filter:blur(10px);border-radius:12px;padding:10px 14px;color:#e2e8f0;box-shadow:0 4px 16px rgba(0,0,0,.25)}
   .route-link-panel span{font-size:12.5px;flex:1;min-width:200px}
   .route-actions{display:flex;gap:8px;align-items:center;margin-left:auto}
 
@@ -783,7 +783,7 @@
   .weather-dropdown .wd-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
   .weather-dropdown .wd-title{font-size:14px;font-weight:700}
   .weather-dropdown .wd-sub{font-size:11px;color:#93c5fd}
-  .weather-dropdown .wd-close{background:rgba(255,255,255,.15);border:none;color:#fff;font-size:16px;width:28px;height:28px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .weather-dropdown .wd-close{background:rgba(255,255,255,.15);border:none;color:#fff;font-size:16px;width:28px;height:28px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;margin-left:auto;order:2}
   .weather-dropdown .wd-close:hover{background:rgba(255,255,255,.3)}
   .weather-dropdown .wd-grid{display:flex;gap:8px;overflow-x:auto;padding:5px 4px 8px 4px}
   .weather-dropdown .wd-day{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:10px 10px;text-align:center;min-width:95px;transition:.3s;animation:wpDayIn .4s ease backwards;cursor:pointer;display:flex;flex-direction:column;align-items:center}
@@ -1076,7 +1076,7 @@
           <div style="margin-top:6px;font-size:11px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-71 · графики смен: убран селектор «Месяц/Год» из шапки. Год теперь — отдельный блок «📊 График за год» под месяцем с отступом 30px сверху. В нём — заголовок, селектор года (±3 года от текущего), легенда, годовая таблица 12 месяцев × N работников с колонками раб/вых/отс и кнопки 🖨 Печать / 📥 Excel для годового режима. Карточки по бригадам (ФИО + профессия) тоже выводятся для годового блока.</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-74 · мелкие UI-фиксы. (1) В попапе погоды крестик закрытия теперь справа сверху (margin-left:auto + order:2). (2) В карте маршрутов в блоке class="card-h" — сначала «Задания на / дата» сверху, под ним выпадающий список с выбором мастеров (display:flex; flex-direction:column). (3) z-index .route-link-panel поднят до 100000 чтобы панель всегда была поверх любых затемнений/модалок. (4) На странице «Работники» убраны подсказки «⇩ перетащите сюда карточку слесаря» и «⇩ перетащите сюда, чтобы убрать из бригады», добавлена кнопка «📆 Полный график» справа от заголовка «Бригада мастера X» — открывает полноэкранный оверлей графика (месяц/год, печать, Excel).</div>
     </div>
   </div>
   </div>

@@ -781,7 +781,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-72-revert · откат 0acc637 (сайт зависал) — Excel/печать фиксы возвращены в 0acc637 будут применены заново'],
+    objmap: ['Карта объектов', 'Сборка 22.09-74 · мелкие фиксы UI: крестик погоды, шапка карты маршрутов, z-index панели, кнопка «Полный график» в работниках'],
     testmap: ['Тест проезда', 'Полигон: карта маршрутов + оптимизация + пробки + Google Maps (копия «Карты маршрутов» для экспериментов)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -4039,7 +4039,7 @@
 
     var curD = offToDate(off);
     var shortDateStr = curD.getDate() + ' ' + MON[curD.getMonth()].slice(0, 3) + '. ' + String(curD.getFullYear()).slice(-2);
-    html += '<div class="map-wrap"><div><div class="card"><div class="card-h"><div style="display:flex;flex-direction:column;line-height:1.15;gap:2px;"><span style="font-size:13px;font-weight:700;color:var(--ink);">Задания на</span><span style="font-size:12px;font-weight:700;color:var(--blue);">' + shortDateStr + '</span></div><div class="spacer"></div>' + masterSelHTML + '</div><div class="card-b mlist" id="mlist">';
+    html += '<div class="map-wrap"><div><div class="card"><div class="card-h" style="display:flex;flex-direction:column;align-items:flex-start;gap:6px"><div style="display:flex;flex-direction:column;line-height:1.15;gap:2px;"><span style="font-size:13px;font-weight:700;color:var(--ink);">Задания на</span><span style="font-size:12px;font-weight:700;color:var(--blue);">' + shortDateStr + '</span></div>' + masterSelHTML + '</div><div class="card-b mlist" id="mlist">';
     if (!pts.length) html += '<div class="empty">На этот день заданий нет</div>';
     pts.forEach(function (p, i) {
       html += '<div class="mtask sel" data-mid="' + p.id + '" draggable="true"><div class="mtask-grip">' + IC.grip + '</div><div class="pin" style="background:' + p.mcol + '">' + (i + 1) + '</div><div style="flex:1;min-width:0"><div style="font-weight:700;color:var(--ink);font-size:12.5px;margin-bottom:3px">📍 ' + esc(p.addr) + '</div><div style="font-size:11.5px;color:var(--txt);margin-bottom:2px">🔧 ' + esc(p.work) + '</div><div style="font-size:11.5px;color:var(--muted);">⏱ Норма времени: <b>' + fmtH(p.norm) + ' ч</b></div></div></div>';
@@ -8976,7 +8976,8 @@
       var members = slesars.filter(function (s) { return wkData(s.id).brigade === m.id; });
       html += '<div data-wk-drop="' + esc(m.id) + '" style="margin-bottom:16px;border:1px dashed var(--line);border-radius:14px;padding:10px;transition:outline-color .15s">';
       html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap"><span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">👷 Бригада мастера ' + esc(m.full_name) + (members.length ? ' · ' + (members.length + 1) + ' чел.' : '') + '</span>';
-      html += '<span style="font-size:10.5px;color:#94a3b8">⇩ перетащите сюда карточку слесаря</span>';
+      // Кнопка «📆 Полный график» — открывает полноэкранный график бригады (месяц/год, печать, Excel)
+      html += '<button type="button" class="btn sm" data-action="brig-full-schedule" data-uid="' + esc(m.id) + '" title="Открыть полный график бригады (месяц/год, печать, Excel)" style="margin-left:auto;padding:3px 8px;font-size:11px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;border-color:#0284c7">📆 Полный график</button>';
       // Быстрая замена времени, графика и цикла ВСЕЙ бригаде (мастер + его работники)
       if (members.length) {
         var _wdm = wkData(m.id);
@@ -9007,8 +9008,7 @@
         return !b || !masters.some(function (m) { return m.id === b; });
       });
       html += '<div data-wk-drop="" style="border:1px dashed var(--line);border-radius:14px;padding:10px;transition:outline-color .15s">';
-      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap"><span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Слесари без бригады</span>';
-      html += '<span style="font-size:10.5px;color:#94a3b8">⇩ перетащите сюда, чтобы убрать из бригады</span></div>';
+      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap"><span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Слесари без бригады</span></div>';
       html += '<div style="display:flex;flex-wrap:wrap;gap:10px">';
       if (free.length) free.forEach(function (s) { html += wkCardHtml(s, masters); });
       else html += '<span style="font-size:11.5px;color:var(--muted);padding:14px">— все слесари распределены по бригадам —</span>';
@@ -9758,7 +9758,13 @@
     data.rows.forEach(function (r) {
       html += '<tr><td class="stick">' + esc(r.name) + '</td>';
       r.yearData.forEach(function (m) {
-        html += '<td class="w">' + m.w + '</td><td class="o">' + m.o + '</td><td class="a">' + m.a + '</td>';
+        // Закрашиваем ячейку только если значение > 0 — пустые остаются белыми.
+        var wBg = m.w > 0 ? 'background-color:#dcfce7;color:#15803d;' : '';
+        var oBg = m.o > 0 ? 'background-color:#f1f5f9;color:#64748b;' : '';
+        var aBg = m.a > 0 ? 'background-color:#fee2e2;color:#dc2626;' : '';
+        html += '<td style="' + wBg + 'font-weight:700">' + (m.w || '') + '</td>';
+        html += '<td style="' + oBg + 'font-weight:700">' + (m.o || '') + '</td>';
+        html += '<td style="' + aBg + 'font-weight:700">' + (m.a || '') + '</td>';
       });
       html += '</tr>';
     });
@@ -9814,6 +9820,18 @@
     });
     ensureXlsxStyle().then(function (ok) {
       if (!ok || !window.XLSX_STYLE) { toast('err', 'Библиотека Excel со стилями не загрузилась'); return; }
+      // FALLBACK: если states из DOM пустые (старый кэш браузера) — пересчитываем программно.
+      var allOff = data.rows.every(function (r) { return !r.states || !r.states.length || r.states.every(function (s) { return s === 'off'; }); });
+      if (allOff) {
+        for (var rIdx = 0; rIdx < data.rows.length; rIdx++) {
+          var rr = data.rows[rIdx];
+          rr.states = [];
+          for (var d2 = 1; d2 <= data.dim; d2++) {
+            var ds2 = data.y + '-' + String(data.m + 1).padStart(2, '0') + '-' + String(d2).padStart(2, '0');
+            rr.states.push(wkDayState(rr.uid, ds2));
+          }
+        }
+      }
       var ws = window.XLSX_STYLE.utils.aoa_to_sheet(aoa);
       for (var R = 0; R < styles.length; R++) {
         for (var C = 0; C < styles[R].length; C++) {
@@ -9844,9 +9862,10 @@
     var styles = [];
     aoa.push([{ v: 'Графики смен — ' + data.y + ' год', t: 's' }]); styles.push([{ font: { bold: true, sz: 12 } }]);
     aoa.push([]); styles.push([]);
-    // Шапка: ФИО + 12 месяцев × 3 ячейки
+    // Шапка: ФИО + 12 названий месяцев. Имя месяца — в ПЕРВОЙ ячейке из 3,
+    // остальные две пустые (потом объединим через ws['!merges']).
     var headRow1 = [{ v: 'Сотрудник', t: 's' }];
-    for (var mm = 0; mm < 12; mm++) headRow1.push({ v: MON_NOM[mm], t: 's' });
+    for (var mm0 = 0; mm0 < 12; mm0++) headRow1.push({ v: MON_NOM[mm0], t: 's' }, '', '');
     aoa.push(headRow1);
     var s1 = [headStyle()];
     for (var mm2 = 0; mm2 < 12; mm2++) { s1.push(headStyle()); s1.push(headStyle()); s1.push(headStyle()); }
@@ -9863,11 +9882,27 @@
       s2.push(a1, a2, a3);
     }
     styles.push(s2);
+    // FALLBACK: если у всех строк yearData нулевые — пересчитываем программно.
+    var allZero = data.rows.every(function (r) { return !r.yearData || !r.yearData.length || r.yearData.every(function (m) { return !m.w && !m.o && !m.a; }); });
     // Строки
     data.rows.forEach(function (r) {
       var row = [{ v: r.name, t: 's' }];
       var rowStyles = [nameStyle()];
-      r.yearData.forEach(function (m) {
+      var yd = r.yearData;
+      if (allZero) {
+        yd = [];
+        for (var m5 = 0; m5 < 12; m5++) {
+          var dim2 = new Date(data.y, m5 + 1, 0).getDate();
+          var ww = 0, oo = 0, aa = 0;
+          for (var d3 = 1; d3 <= dim2; d3++) {
+            var ds3 = data.y + '-' + String(m5 + 1).padStart(2, '0') + '-' + String(d3).padStart(2, '0');
+            var st3 = wkDayState(r.uid, ds3);
+            if (st3 === 'work') ww++; else if (st3 === 'abs') aa++; else oo++;
+          }
+          yd.push({ m: m5 + 1, w: ww, o: oo, a: aa });
+        }
+      }
+      yd.forEach(function (m) {
         row.push({ v: m.w, t: 'n' }); rowStyles.push(wStyle());
         row.push({ v: m.o, t: 'n' }); rowStyles.push(oStyle());
         row.push({ v: m.a, t: 'n' }); rowStyles.push(aStyle());
@@ -9884,6 +9919,13 @@
           if (ws[addr]) ws[addr].s = styles[R][C];
         }
       }
+      // Объединяем названия месяцев (строка 2, колонки 1, 4, 7, ...) — по 3 ячейки
+      var mergesY = [];
+      for (var my = 0; my < 12; my++) {
+        var startCY = 1 + my * 3;
+        mergesY.push({ s: { r: 2, c: startCY }, e: { r: 2, c: startCY + 2 } });
+      }
+      ws['!merges'] = mergesY;
       ws['!cols'] = [{ wch: 30 }];
       for (var c2 = 0; c2 < 36; c2++) ws['!cols'].push({ wch: 5 });
       var wb = window.XLSX_STYLE.utils.book_new();
