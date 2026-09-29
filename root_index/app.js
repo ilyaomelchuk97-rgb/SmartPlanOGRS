@@ -9609,62 +9609,147 @@
     return schCollectMonth();
   }
   function schCollectMonth() {
-    var table = document.querySelector('#view table');
-    if (!table) return null;
+    var tables = document.querySelectorAll('#view table');
+    var table = tables.length > 0 ? tables[0] : null;
     var wm = wkMonth();
     var dim = new Date(wm.y, wm.m + 1, 0).getDate();
     var rows = [];
-    table.querySelectorAll('tbody tr').forEach(function (tr) {
-      var firstTd = tr.querySelector('td');
-      if (!firstTd) return;
-      var uid = firstTd.getAttribute('data-uid') || '';
-      if (!uid) return;
-      var name = firstTd.textContent.trim().replace(/\s+/g, ' ');
-      var states = [];
-      var dayTds = tr.querySelectorAll('td:not([data-uid])');
-      dayTds.forEach(function (td) {
-        var bg = td.style.backgroundColor || '';
-        var hex = bgToHex(bg);
-        if (hex === '#dcfce7') states.push('work');
-        else if (hex === '#fee2e2') states.push('abs');
-        else states.push('off');
+
+    // Сначала пробуем DOM (быстрее и видим цвета)
+    if (table) {
+      table.querySelectorAll('tbody tr').forEach(function (tr) {
+        var firstTd = tr.querySelector('td');
+        if (!firstTd) return;
+        var uid = firstTd.getAttribute('data-uid') || '';
+        if (!uid) return;
+        var name = firstTd.textContent.trim().replace(/\s+/g, ' ');
+        var states = [];
+        tr.querySelectorAll('td:not([data-uid])').forEach(function (td) {
+          var bg = td.style.backgroundColor || '';
+          if (!bg && window.getComputedStyle) {
+            try { bg = window.getComputedStyle(td).backgroundColor || ''; } catch (e) {}
+          }
+          var hex = bgToHex(bg);
+          if (hex === '#dcfce7') states.push('work');
+          else if (hex === '#fee2e2') states.push('abs');
+          else states.push('off');
+        });
+        rows.push({ uid: uid, name: name, states: states });
       });
-      rows.push({ uid: uid, name: name, states: states });
-    });
+    }
+
+    // Если DOM-парсинг ничего не дал (старый кэш, кэш браузера) — генерируем программно.
+    if (!rows.length) {
+      var users = wkVisibleUsers();
+      var masters = users.filter(function (u) { return u.role === 'master'; });
+      var slesars = users.filter(function (u) { return u.role === 'slesar'; });
+      var curMode = S.schMode || 'all';
+      var showRows = buildBrigadeRows(masters, slesars, curMode);
+      showRows.forEach(function (row) {
+        if (row.kind === 'brigade') {
+          addMonthRow(rows, row.master, wm, dim);
+          row.members.forEach(function (s) { addMonthRow(rows, s, wm, dim); });
+        } else {
+          row.members.forEach(function (s) { addMonthRow(rows, s, wm, dim); });
+        }
+      });
+    }
+
     return { kind: 'month', y: wm.y, m: wm.m, dim: dim, label: MON_NOM[wm.m] + ' ' + wm.y, rows: rows };
+  }
+  // Добавить одну строку пользователя в данные месяца (программный расчёт)
+  function addMonthRow(rows, u, wm, dim) {
+    var states = [];
+    for (var dd = 1; dd <= dim; dd++) {
+      var ds = wm.y + '-' + String(wm.m + 1).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
+      var st = wkDayState(u.id, ds);
+      if (st === 'work') states.push('work');
+      else if (st === 'abs') states.push('abs');
+      else states.push('off');
+    }
+    rows.push({ uid: u.id, name: u.full_name, states: states });
   }
   function schCollectYear() {
     var y = S.schYear != null ? S.schYear : new Date().getFullYear();
     // На странице «Графики смен» теперь две таблицы: первая = месяц, вторая = год.
     var tables = document.querySelectorAll('#view table');
     var table = tables.length > 1 ? tables[1] : tables[0];
-    if (!table) return null;
-    var rows = [];
-    table.querySelectorAll('tbody tr').forEach(function (tr) {
-      var firstTd = tr.querySelector('td');
-      if (!firstTd) return;
-      var uid = firstTd.getAttribute('data-uid') || '';
-      if (!uid) return;
-      var name = firstTd.textContent.trim().replace(/\s+/g, ' ');
-      var yearData = [];
-      // В schYearTable ячейки имеют data-month="N", внутри идут блоки по 3 (раб/вых/отс).
-      var monthCells = tr.querySelectorAll('td[data-month]');
-      // group by month
-      var byMonth = {};
-      monthCells.forEach(function (td) {
-        var m = parseInt(td.getAttribute('data-month'), 10);
-        if (!byMonth[m]) byMonth[m] = {};
-        var label = (td.textContent || '').trim();
-        if (td.style.color === 'rgb(22, 163, 74)') byMonth[m].w = parseInt(label, 10) || 0;
-        else if (td.style.color === 'rgb(100, 116, 139)' || td.style.color === 'rgb(148, 163, 184)') byMonth[m].o = parseInt(label, 10) || 0;
-        else if (td.style.color === 'rgb(220, 38, 38)') byMonth[m].a = parseInt(label, 10) || 0;
-      });
-      for (var mm = 1; mm <= 12; mm++) {
-        yearData.push({ m: mm, w: (byMonth[mm] && byMonth[mm].w) || 0, o: (byMonth[mm] && byMonth[mm].o) || 0, a: (byMonth[mm] && byMonth[mm].a) || 0 });
+    var users = wkVisibleUsers();
+    var masters = users.filter(function (u) { return u.role === 'master'; });
+    var slesars = users.filter(function (u) { return u.role === 'slesar'; });
+    var curMode = S.schMode || 'all';
+    var showRows = buildBrigadeRows(masters, slesars, curMode);
+    var usersList = [];
+    showRows.forEach(function (row) {
+      if (row.kind === 'brigade') {
+        usersList.push(row.master);
+        row.members.forEach(function (s) { usersList.push(s); });
+      } else {
+        row.members.forEach(function (s) { usersList.push(s); });
       }
-      rows.push({ uid: uid, name: name, yearData: yearData });
     });
-    return { kind: 'year', y: y, label: String(y), rows: rows };
+
+    // Сначала пробуем прочитать из DOM (быстрее, если есть)
+    var domRows = [];
+    if (table) {
+      table.querySelectorAll('tbody tr').forEach(function (tr) {
+        var firstTd = tr.querySelector('td');
+        if (!firstTd) return;
+        var uid = firstTd.getAttribute('data-uid') || '';
+        if (!uid) return;
+        var name = firstTd.textContent.trim().replace(/\s+/g, ' ');
+        var yearData = [];
+        var byMonth = {};
+        tr.querySelectorAll('td[data-month]').forEach(function (td) {
+          var m = parseInt(td.getAttribute('data-month'), 10);
+          if (!byMonth[m]) byMonth[m] = {};
+          var label = (td.textContent || '').trim();
+          var bg2 = td.style.backgroundColor || '';
+          if (!bg2 && window.getComputedStyle) {
+            try { bg2 = window.getComputedStyle(td).backgroundColor || ''; } catch (e) {}
+          }
+          var hex2 = bgToHex(bg2);
+          var num = parseInt(label, 10) || 0;
+          // Цвет ячейки даёт тип значения: зелёный = раб, серый = вых, красный = отс
+          if (hex2 === '#dcfce7' || label === '') byMonth[m].w = num;
+          else if (hex2 === '#f1f5f9') byMonth[m].o = num;
+          else if (hex2 === '#fee2e2') byMonth[m].a = num;
+          else {
+            // Fallback по цвету текста
+            var color = td.style.color || '';
+            if (!color && window.getComputedStyle) {
+              try { color = window.getComputedStyle(td).color || ''; } catch (e) {}
+            }
+            if (color === 'rgb(22, 163, 74)') byMonth[m].w = num;
+            else if (color === 'rgb(100, 116, 139)' || color === 'rgb(148, 163, 184)') byMonth[m].o = num;
+            else if (color === 'rgb(220, 38, 38)') byMonth[m].a = num;
+          }
+        });
+        for (var mm = 1; mm <= 12; mm++) {
+          yearData.push({ m: mm, w: (byMonth[mm] && byMonth[mm].w) || 0, o: (byMonth[mm] && byMonth[mm].o) || 0, a: (byMonth[mm] && byMonth[mm].a) || 0 });
+        }
+        domRows.push({ uid: uid, name: name, yearData: yearData });
+      });
+    }
+
+    // Если из DOM ничего не получили (или старый кэш) — генерируем программно через wkDayState.
+    if (!domRows.length && usersList.length) {
+      usersList.forEach(function (u) {
+        var yearData = [];
+        for (var m2 = 0; m2 < 12; m2++) {
+          var dim = new Date(y, m2 + 1, 0).getDate();
+          var w = 0, o = 0, a = 0;
+          for (var d = 1; d <= dim; d++) {
+            var ds = y + '-' + String(m2 + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+            var st = wkDayState(u.id, ds);
+            if (st === 'work') w++; else if (st === 'abs') a++; else o++;
+          }
+          yearData.push({ m: m2 + 1, w: w, o: o, a: a });
+        }
+        domRows.push({ uid: u.id, name: u.full_name, yearData: yearData });
+      });
+    }
+    return { kind: 'year', y: y, label: String(y), rows: domRows };
   }
   // Конвертация rgb(r,g,b) / rgba(r,g,b,a) → #rrggbb. Пусто или прозрачный → null.
   function bgToHex(s) {
@@ -9717,8 +9802,9 @@
     data.rows.forEach(function (r) {
       html += '<tr><td class="stick">' + esc(r.name) + '</td>';
       for (var i = 0; i < data.dim; i++) {
-        var cls = r.states[i] || 'off';
-        html += '<td class="' + cls + '"></td>';
+        var st = r.states[i] || 'off';
+        var bgColor = st === 'work' ? '#dcfce7' : (st === 'abs' ? '#fee2e2' : '#ffffff');
+        html += '<td style="background-color:' + bgColor + '"></td>';
       }
       html += '</tr>';
     });
