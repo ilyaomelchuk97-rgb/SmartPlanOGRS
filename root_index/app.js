@@ -781,7 +781,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-74 · мелкие фиксы UI: крестик погоды, шапка карты маршрутов, z-index панели, кнопка «Полный график» в работниках'],
+    objmap: ['Карта объектов', 'Сборка 22.09-76 · графики смен: исправлен schCollectYear (fallback + парсинг цветов) и schCellHtml (без !important)'],
     testmap: ['Тест проезда', 'Полигон: карта маршрутов + оптимизация + пробки + Google Maps (копия «Карты маршрутов» для экспериментов)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -4028,7 +4028,7 @@
       provSelHTML +
       '</div>';
 
-    var masterSelHTML = '<select id="map-master-sel" style="padding:4px 8px;border:1px solid var(--line);border-radius:6px;font-size:12px;background:var(--card);color:var(--ink);max-width:200px;font-weight:600;">';
+    var masterSelHTML = '<select id="map-master-sel" style="padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:var(--card);color:var(--ink);font-weight:600;width:100%;max-width:none;margin-top:8px;">';
     if (masters.length > 1) {
       masterSelHTML += '<option value="all"' + (S.mapMaster === 'all' ? ' selected' : '') + '>Все мастера (' + masters.length + ')</option>';
     }
@@ -4039,7 +4039,7 @@
 
     var curD = offToDate(off);
     var shortDateStr = curD.getDate() + ' ' + MON[curD.getMonth()].slice(0, 3) + '. ' + String(curD.getFullYear()).slice(-2);
-    html += '<div class="map-wrap"><div><div class="card"><div class="card-h" style="display:flex;flex-direction:column;align-items:flex-start;gap:6px"><div style="display:flex;flex-direction:column;line-height:1.15;gap:2px;"><span style="font-size:13px;font-weight:700;color:var(--ink);">Задания на</span><span style="font-size:12px;font-weight:700;color:var(--blue);">' + shortDateStr + '</span></div>' + masterSelHTML + '</div><div class="card-b mlist" id="mlist">';
+    html += '<div class="map-wrap"><div><div class="card"><div class="card-h" style="display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center"><div style="display:flex;align-items:baseline;justify-content:center;gap:8px;width:100%"><span style="font-size:13px;font-weight:700;color:var(--ink);">Задания на</span><span style="font-size:12px;font-weight:700;color:var(--blue);">' + shortDateStr + '</span></div><div style="width:100%">' + masterSelHTML + '</div></div><div class="card-b mlist" id="mlist">';
     if (!pts.length) html += '<div class="empty">На этот день заданий нет</div>';
     pts.forEach(function (p, i) {
       html += '<div class="mtask sel" data-mid="' + p.id + '" draggable="true"><div class="mtask-grip">' + IC.grip + '</div><div class="pin" style="background:' + p.mcol + '">' + (i + 1) + '</div><div style="flex:1;min-width:0"><div style="font-weight:700;color:var(--ink);font-size:12.5px;margin-bottom:3px">📍 ' + esc(p.addr) + '</div><div style="font-size:11.5px;color:var(--txt);margin-bottom:2px">🔧 ' + esc(p.work) + '</div><div style="font-size:11.5px;color:var(--muted);">⏱ Норма времени: <b>' + fmtH(p.norm) + ' ч</b></div></div></div>';
@@ -8976,8 +8976,6 @@
       var members = slesars.filter(function (s) { return wkData(s.id).brigade === m.id; });
       html += '<div data-wk-drop="' + esc(m.id) + '" style="margin-bottom:16px;border:1px dashed var(--line);border-radius:14px;padding:10px;transition:outline-color .15s">';
       html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap"><span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">👷 Бригада мастера ' + esc(m.full_name) + (members.length ? ' · ' + (members.length + 1) + ' чел.' : '') + '</span>';
-      // Кнопка «📆 Полный график» — открывает полноэкранный график бригады (месяц/год, печать, Excel)
-      html += '<button type="button" class="btn sm" data-action="brig-full-schedule" data-uid="' + esc(m.id) + '" title="Открыть полный график бригады (месяц/год, печать, Excel)" style="margin-left:auto;padding:3px 8px;font-size:11px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;border-color:#0284c7">📆 Полный график</button>';
       // Быстрая замена времени, графика и цикла ВСЕЙ бригаде (мастер + его работники)
       if (members.length) {
         var _wdm = wkData(m.id);
@@ -9268,7 +9266,7 @@
     // на стыке двух одинаковых ячеек получается 2px (1px бордюр одной + 1px другой).
     return '<td data-action="' + (can ? act : '') + '" data-uid="' + esc(user.id) + '" data-ds="' + ds + '"' +
       (can ? ' role="button"' : '') +
-      ' title="' + title + '" style="width:' + colW + 'px;height:22px;padding:0;background-color:' + bg + ';border:1px solid ' + bd + ';cursor:' + (can ? 'pointer' : 'default') + ring + '"></td>';
+      ' title="' + title + '" style="width:' + colW + 'px;height:22px;padding:0;background:' + bg + ';background-color:' + bg + ';border:1px solid ' + bd + ';cursor:' + (can ? 'pointer' : 'default') + ring + '"></td>';
   }
   // Под каждой бригадой — итог: рабочих / выходных / отсутствий за месяц
   function schMonthSummary(rows, wm) {
@@ -9639,7 +9637,23 @@
     var tables = document.querySelectorAll('#view table');
     var table = tables.length > 1 ? tables[1] : tables[0];
     if (!table) return null;
-    var rows = [];
+    var users = wkVisibleUsers();
+    var masters = users.filter(function (u) { return u.role === 'master'; });
+    var slesars = users.filter(function (u) { return u.role === 'slesar'; });
+    var curMode = S.schMode || 'all';
+    var showRows = buildBrigadeRows(masters, slesars, curMode);
+    var usersList = [];
+    showRows.forEach(function (row) {
+      if (row.kind === 'brigade') {
+        usersList.push(row.master);
+        row.members.forEach(function (s) { usersList.push(s); });
+      } else {
+        row.members.forEach(function (s) { usersList.push(s); });
+      }
+    });
+
+    // Сначала пробуем прочитать из DOM
+    var domRows = [];
     table.querySelectorAll('tbody tr').forEach(function (tr) {
       var firstTd = tr.querySelector('td');
       if (!firstTd) return;
@@ -9647,24 +9661,104 @@
       if (!uid) return;
       var name = firstTd.textContent.trim().replace(/\s+/g, ' ');
       var yearData = [];
-      // В schYearTable ячейки имеют data-month="N", внутри идут блоки по 3 (раб/вых/отс).
-      var monthCells = tr.querySelectorAll('td[data-month]');
-      // group by month
       var byMonth = {};
-      monthCells.forEach(function (td) {
+      tr.querySelectorAll('td[data-month]').forEach(function (td) {
         var m = parseInt(td.getAttribute('data-month'), 10);
         if (!byMonth[m]) byMonth[m] = {};
         var label = (td.textContent || '').trim();
-        if (td.style.color === 'rgb(22, 163, 74)') byMonth[m].w = parseInt(label, 10) || 0;
-        else if (td.style.color === 'rgb(100, 116, 139)' || td.style.color === 'rgb(148, 163, 184)') byMonth[m].o = parseInt(label, 10) || 0;
-        else if (td.style.color === 'rgb(220, 38, 38)') byMonth[m].a = parseInt(label, 10) || 0;
+        var num = parseInt(label, 10) || 0;
+        var color = td.style.color || '';
+        if (!color && window.getComputedStyle) {
+          try { color = window.getComputedStyle(td).color || ''; } catch (e) {}
+        }
+        // rgb(22,163,74)=зелёный, rgb(100,116,139)=серый, rgb(220,38,38)=красный. Также принимаем hex.
+        if (color === 'rgb(22, 163, 74)' || color === '#16a34a') byMonth[m].w = num;
+        else if (color === 'rgb(100, 116, 139)' || color === '#64748b' || color === 'rgb(148, 163, 184)' || color === '#94a3b8') byMonth[m].o = num;
+        else if (color === 'rgb(220, 38, 38)' || color === '#dc2626') byMonth[m].a = num;
+        else {
+          // Fallback по фону ячейки
+          var bg2 = td.style.backgroundColor || '';
+          if (!bg2 && window.getComputedStyle) {
+            try { bg2 = window.getComputedStyle(td).backgroundColor || ''; } catch (e) {}
+          }
+          var hex = bgToHex(bg2);
+          if (hex === '#dcfce7') byMonth[m].w = num;
+          else if (hex === '#f1f5f9') byMonth[m].o = num;
+          else if (hex === '#fee2e2') byMonth[m].a = num;
+        }
       });
       for (var mm = 1; mm <= 12; mm++) {
         yearData.push({ m: mm, w: (byMonth[mm] && byMonth[mm].w) || 0, o: (byMonth[mm] && byMonth[mm].o) || 0, a: (byMonth[mm] && byMonth[mm].a) || 0 });
       }
-      rows.push({ uid: uid, name: name, yearData: yearData });
+      domRows.push({ uid: uid, name: name, yearData: yearData });
     });
-    return { kind: 'year', y: y, label: String(y), rows: rows };
+
+    // Если DOM пустой или у всех нули — генерируем программно через wkDayState.
+    var needProg = !domRows.length || domRows.every(function (r) { return r.yearData.every(function (m) { return !m.w && !m.o && !m.a; }); });
+    if (needProg && usersList.length) {
+      domRows = [];
+      usersList.forEach(function (u) {
+        var yearData = [];
+        for (var m2 = 0; m2 < 12; m2++) {
+          var dim = new Date(y, m2 + 1, 0).getDate();
+          var w = 0, o = 0, a = 0;
+          for (var d = 1; d <= dim; d++) {
+            var ds = y + '-' + String(m2 + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+            var st = wkDayState(u.id, ds);
+            if (st === 'work') w++; else if (st === 'abs') a++; else o++;
+          }
+          yearData.push({ m: m2 + 1, w: w, o: o, a: a });
+        }
+        domRows.push({ uid: u.id, name: u.full_name, yearData: yearData });
+      });
+    }
+    return { kind: 'year', y: y, label: String(y), rows: domRows };
+  }
+  // Конвертация rgb(r,g,b) / rgba(r,g,b,a) → #rrggbb. Пусто или прозрачный → null.
+  function bgToHex(s) {
+    if (!s) return null;
+    var m = s.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+    if (!m) {
+      // может уже прийти как #hex
+      if (s.charAt(0) === '#') return s.toLowerCase();
+      return null;
+    }
+    function pad(n) { var h = parseInt(n, 10).toString(16); return h.length === 1 ? '0' + h : h; }
+    return '#' + pad(m[1]) + pad(m[2]) + pad(m[3]);
+  }
+
+  // Собрать данные текущего режима (месяц или год).
+  // month: { y, m, dim, label, rows: [{uid, name, states:[]}] }
+  // year:  { y, kind:'year', rows: [{uid, name, yearData:[{m, w, o, a}]}] }
+  // kind: 'month' (по умолчанию) или 'year' (из годового блока)
+  function schCollectFor(kind) {
+    if (kind === 'year') return schCollectYear();
+    return schCollectMonth();
+  }
+  function schCollectMonth() {
+    var table = document.querySelector('#view table');
+    if (!table) return null;
+    var wm = wkMonth();
+    var dim = new Date(wm.y, wm.m + 1, 0).getDate();
+    var rows = [];
+    table.querySelectorAll('tbody tr').forEach(function (tr) {
+      var firstTd = tr.querySelector('td');
+      if (!firstTd) return;
+      var uid = firstTd.getAttribute('data-uid') || '';
+      if (!uid) return;
+      var name = firstTd.textContent.trim().replace(/\s+/g, ' ');
+      var states = [];
+      var dayTds = tr.querySelectorAll('td:not([data-uid])');
+      dayTds.forEach(function (td) {
+        var bg = td.style.backgroundColor || '';
+        var hex = bgToHex(bg);
+        if (hex === '#dcfce7') states.push('work');
+        else if (hex === '#fee2e2') states.push('abs');
+        else states.push('off');
+      });
+      rows.push({ uid: uid, name: name, states: states });
+    });
+    return { kind: 'month', y: wm.y, m: wm.m, dim: dim, label: MON_NOM[wm.m] + ' ' + wm.y, rows: rows };
   }
   // Конвертация rgb(r,g,b) / rgba(r,g,b,a) → #rrggbb. Пусто или прозрачный → null.
   function bgToHex(s) {
