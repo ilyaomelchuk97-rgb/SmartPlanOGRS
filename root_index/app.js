@@ -781,7 +781,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-76 · графики смен: исправлен schCollectYear (fallback + парсинг цветов) и schCellHtml (без !important)'],
+    objmap: ['Карта объектов', 'Сборка 22.09-81 · график работ уважает график смен мастера (только новые/изменённые серии переносятся на рабочие дни; старые не трогаем)'],
     testmap: ['Тест проезда', 'Полигон: карта маршрутов + оптимизация + пробки + Google Maps (копия «Карты маршрутов» для экспериментов)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -3542,7 +3542,12 @@
     });
     masters.forEach(function (m, ri) {
       var rn = ri + 2;
-      html += '<div class="mname" style="grid-column:1;grid-row:' + rn + '"><span class="dot" style="background:' + m.color + '"></span><div><div class="nm">' + esc(m.name) + '</div><div class="ar">' + esc(m.area) + '</div></div></div>';
+      // Состояние смены «на сегодня» — цветной текст под участком (данные из workers_db).
+      var _tSt = wkDayState(m.id, key(TODAY));
+      var _tStClr = _tSt === 'work' ? '#16a34a' : (_tSt === 'abs' ? '#dc2626' : '#94a3b8');
+      var _tStIco = _tSt === 'work' ? '●' : (_tSt === 'abs' ? '⛔' : '○');
+      var _tStLbl = _tSt === 'work' ? 'сегодня — рабочий' : (_tSt === 'abs' ? 'сегодня — отсутствие' : 'сегодня — выходной');
+      html += '<div class="mname" data-action="master-sch-popup" data-uid="' + esc(m.id) + '" title="Открыть график смен — ' + esc(m.name) + '" style="grid-column:1;grid-row:' + rn + ';cursor:pointer"><span class="dot" style="background:' + m.color + '"></span><div><div class="nm">' + esc(m.name) + '</div><div class="ar">' + esc(m.area) + '</div><div class="sh-today" style="font-size:9.5px;font-weight:800;color:' + _tStClr + ';margin-top:1px;line-height:1.2">' + _tStIco + ' ' + _tStLbl + '</div></div></div>';
       days.forEach(function (d, ci) {
         var off = dateToOff(d);
         var acKey = m.id + '_' + off;
@@ -3559,6 +3564,13 @@
         var cls = 'cell' + (sameDay(d, TODAY) ? ' today' : '') + (we ? ' we' : '') + (over ? ' overload' : '');
         html += '<div class="' + cls + '" style="grid-column:' + (ci + 2) + ';grid-row:' + rn + '" data-master="' + m.id + '" data-off="' + off + '"' + (over ? ' title="Перегрузка: ' + fmtH(load) + ' ч"' : '') + '>';
         if (over) html += '<span class="ov-warn">' + fmtH(load) + 'ч</span>';
+        // Компактная полоска состояния смены в левом верхнем углу ячейки:
+        // зелёная — рабочий, серая — выходной, красная — отсутствие по графику (workers_db).
+        var _cSt = wkDayState(m.id, key(d));
+        var _cTip = _cSt === 'work' ? fmt(d) + ' · рабочий день'
+                  : _cSt === 'abs'  ? fmt(d) + ' · отсутствие' + (wkData(m.id).abs[key(d)] ? ' (' + esc(wkData(m.id).abs[key(d)]) + ')' : '')
+                  : fmt(d) + ' · выходной';
+        html += '<span class="cell-sh ' + _cSt + '" data-action="master-sch-popup" data-uid="' + esc(m.id) + '" title="' + esc(_cTip) + ' — открыть график"></span>';
         S.tasks.forEach(function (t) {
           if (t.m === m.id && t.d === off) {
             var col = taskColor(t);
@@ -3618,6 +3630,66 @@
     return MON_NOM[days[0].getMonth()] + ' ' + days[0].getFullYear();
   }
 
+  /* =====================================================================
+     БЫСТРОЕ ОКНО ГРАФИКА РАБОТНИКА (из «Планирование / Календарь»)
+     Поверх текущего экрана показывает месячную сетку со сменами из
+     workers_db: работает / выходной / отсутствие. Односторонняя связь —
+     задачи графика работ сюда не подтягиваются.
+     ===================================================================== */
+  function openMasterSchPopup(uid, baseDate) {
+    var u = DB.getUser(uid);
+    if (!u) return;
+    var wkd = wkData(uid);
+    var base = baseDate || TODAY;
+    var pY = base.getFullYear(), pM = base.getMonth();
+    var dim = new Date(pY, pM + 1, 0).getDate();
+    var lead = (new Date(pY, pM, 1).getDay() + 6) % 7; // Пн=0 … Вс=6
+    var stWork = 0, stOff = 0, stAbs = 0;
+    var cells = '';
+    for (var li = 0; li < lead; li++) cells += '<div style="min-height:46px"></div>';
+    for (var dd = 1; dd <= dim; dd++) {
+      var dt = new Date(pY, pM, dd);
+      var ds = key(dt);
+      var st = wkDayState(uid, ds);
+      if (st === 'work') stWork++; else if (st === 'abs') stAbs++; else stOff++;
+      var bg2 = st === 'work' ? '#dcfce7' : (st === 'abs' ? '#fee2e2' : '#f1f5f9');
+      var bd2 = st === 'work' ? '#16a34a' : (st === 'abs' ? '#dc2626' : '#cbd5e1');
+      var isT = sameDay(dt, TODAY);
+      var tip = ds + (st === 'work' ? ' · рабочий' : (st === 'abs' ? ' · отсутствие' + (wkd.abs[ds] ? ' (' + esc(wkd.abs[ds]) + ')' : '') : ' · выходной'));
+      cells += '<div title="' + esc(tip) + '" style="min-height:46px;border-radius:8px;background:' + bg2 + ';border:1px solid ' + bd2 + ';display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:var(--ink);padding:2px' + (isT ? ';box-shadow:inset 0 0 0 2px rgba(37,99,235,.55)' : '') + '">' + dd + '<span style="font-size:9.5px;font-weight:700;color:var(--muted);line-height:1.1">' + WD[dt.getDay()] + '</span></div>';
+    }
+    var roles = ROLE_INFO[u.role] ? ROLE_INFO[u.role].label : (u.role || '');
+    var h = '<div class="modal-h"><h3>📅 ' + esc(u.full_name) + ' — ' + MON_NOM[pM] + ' ' + pY + '</h3><button class="x" data-action="close-modal">×</button></div>';
+    h += '<div class="modal-b">';
+    h += '<div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:12px;font-size:12px;color:var(--muted)">' +
+      '<span class="chip" style="background:#eff6ff;color:#1d4ed8">' + wkd.hours + ' ч</span>' +
+      '<span class="chip" style="background:#f0fdf4;color:#15803d">' + esc(wkd.sched) + '</span>' +
+      (wkd.sched === '2/2' ? '<span class="chip" style="background:#fef9c3;color:#854d0e">цикл с ' + esc(wkd.cycle) + '</span>' : '') +
+      (roles ? '<span class="chip" style="background:#f3f4f6;color:#374151">' + esc(roles) + '</span>' : '') +
+      '<span style="flex:1"></span>' +
+      '<span style="font-weight:700;white-space:nowrap"><span style="color:#16a34a">' + stWork + ' раб</span> · <span style="color:#94a3b8">' + stOff + ' вых</span> · <span style="color:#dc2626">' + stAbs + ' отс</span></span>' +
+      '</div>';
+    h += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-bottom:6px">' +
+      ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(function (wdName, i) {
+        return '<div style="text-align:center;font-size:11px;font-weight:800;color:' + (i >= 5 ? '#94a3b8' : 'var(--muted)') + '">' + wdName + '</div>';
+      }).join('') + '</div>';
+    h += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px">' + cells + '</div>';
+    h += '<div style="margin-top:14px;display:flex;gap:14px;align-items:center;font-size:11px;color:var(--muted);flex-wrap:wrap;font-weight:700">' +
+      '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#dcfce7;border:1px solid #16a34a"></span>рабочий</span>' +
+      '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#f1f5f9;border:1px solid #cbd5e1"></span>выходной</span>' +
+      '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#fee2e2;border:1px solid #dc2626"></span>отсутствие</span>' +
+      '<span style="color:#94a3b8">· нажмите на имя мастера в календаре, чтобы открыть это окно</span>' +
+      '</div>';
+    h += '</div>';
+    h += '<div class="modal-f">' +
+      '<button type="button" class="btn" data-action="master-sch-goto" data-uid="' + esc(uid) + '" title="Перейти к полной таблице в разделе «Графики смен»">↗ В «Графики смен»</button>' +
+      '<button type="button" class="btn danger" data-action="close-modal">Закрыть</button>' +
+      '</div>';
+    modal.innerHTML = h;
+    modal.style.maxWidth = '560px';
+    overlay.classList.add('show');
+  }
+
   /* ---------- DRAG & DROP ---------- */
   var dragId = null;
   /* === Общие функции переноса задач (используются DnD и touch) === */
@@ -3628,6 +3700,9 @@
     var oldM = t.m, oldOff = t.d;
     if (!canDropOn(newMaster)) { toast('err', 'Этот мастер вне вашего доступа'); return; }
     var target = masterById(newMaster);
+    // 22.09-80: мастер в этот день не работает (график смен) — НЕ запрещаем
+    // (бывают аварийные вызовы), но предупреждаем после переноса.
+    var _wkOffWarn = wkOffDayWarn(newMaster, newOff);
     var moved = [];
     if (t.m !== newMaster) { t.m = newMaster; moved.push('мастер → ' + (target ? target.name : '?')); }
     if (t.d !== newOff) { t.d = newOff; moved.push('дата → ' + fmtShort(newOff)); }
@@ -3640,8 +3715,10 @@
       invalidateRouteCache(newMaster, newOff);
       logAction('Перемещение задачи', (target ? target.name : '?') + ': ' + moved.join(', '));
       drawCalendarGrid();
+      if (_wkOffWarn) toast('warn', _wkOffWarn);
       var load = loadForDay(newMaster, newOff);
-      if (load > masterCapacity(newMaster, newOff)) {
+      if (_wkOffWarn) { /* день нерабочий — перегрузочный тост не дублируем */ }
+      else if (load > masterCapacity(newMaster, newOff)) {
         toast('warn', '🛑 Аналитика помощника : Внимание! Перегрузка мастера ' + (target ? target.name : '') + ' до ' + fmtH(load) + ' ч (при норме ' + fmtH(masterCapacity(newMaster, newOff)) + ' ч). Предлагаем перенести задачу на другой день или заменить мастера!');
       } else {
         toast('ok', '💡 Аналитика помощника : Перенос успешно выполнен. Текущая загрузка мастера ' + (target ? target.name : '') + ' на этот день составляет ' + fmtH(load) + ' ч / ' + fmtH(masterCapacity(newMaster, newOff)) + ' ч.');
@@ -4382,7 +4459,6 @@
       canvas.style.position = "relative";
       var panelActions = dirUrl ? "<div class='route-actions'><a class='btn sm primary' target='_blank' rel='noopener' href='" + dirUrl + "' style='background:#10b981;border-color:#10b981;'>↗ Открыть в " + provName + "</a></div>" : "";
       canvas.innerHTML = "<iframe class='route-frame' src='" + url + "' allowfullscreen loading='lazy' title='Маршрут на день (" + provName + ")'></iframe>" +
-        "<div class='route-link-panel'>" +
           "<span>🚩 <b>База</b> → " + sel.length + " объектов (<b>сервис: " + provName + "</b>) → <b>База</b></span>" + panelActions +
         "</div>";
 
@@ -4755,7 +4831,6 @@
 
           var provName = provider === 'valhalla' ? 'Valhalla' : provider === 'osrm' ? 'OpenStreetMap' : provider === 'graphhopper' ? 'GraphHopper' : 'OpenRouteService';
           var lp = document.createElement('div');
-          lp.className = 'route-link-panel';
           lp.innerHTML = '<span>🚩 <b>База (' + esc(base.name) + ')</b> → ' + allMarkers.length + ' объектов (<b>' + provName + '</b>) → <b>База</b></span><span style="color:#94a3b8;font-size:11px">Нажмите «Оптимизация маршрутов» для расчёта</span>';
           canvas.appendChild(lp);
         }
@@ -5712,7 +5787,6 @@
             toast("ok", "✓ Маршрут оптимизирован для Google Maps! Нумерация и карточки обновлены.");
             var dirUrl = buildGoogleDirUrl(routeItems);
             var lp = document.createElement('div');
-            lp.className = 'route-link-panel';
             lp.innerHTML = '<span>🚩 <b>База</b> → ' + ordered.length + ' объектов (<b>Google Maps</b>) → <b>База</b></span><div class="route-actions"><a class="btn sm primary" target="_blank" rel="noopener" href="' + dirUrl + '" style="background:#10b981;border-color:#10b981;">↗ Открыть в Google Maps</a></div>';
             canvas.appendChild(lp);
           } else {
@@ -5857,10 +5931,7 @@
             ymState.leafletRouteLayer = window.L.polyline(latlngs, { color: '#2563eb', weight: 5, opacity: 0.8 }).addTo(ymState.leafletMap);
             ymState.leafletMap.fitBounds(ymState.leafletRouteLayer.getBounds(), { padding: [40, 40] });
             addDirectionArrows(ymState.leafletMap, latlngs);
-            var oldPanel = canvas2.querySelector('.route-link-panel');
-            if (oldPanel) oldPanel.remove();
             var lp = document.createElement('div');
-            lp.className = 'route-link-panel';
             var yaRouteUrl = buildYandexDirUrl([base].concat(ordered).concat([base]), false);
             lp.innerHTML = '<span>🚩 <b>База</b> → ' + ordered.length + ' объектов (<b>' + provName + '</b>) → <b>База</b></span><div class="route-actions"><label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#e2e8f0;cursor:pointer"><input type="checkbox" id="cb-car-anim" style="width:15px;height:15px;cursor:pointer"> 🚗 Авто</label><a class="btn sm primary" target="_blank" rel="noopener" href="' + yaRouteUrl + '" style="background:#c8102e;border-color:#c8102e;" title="Открыть этот маршрут (база → объекты → база) в Яндекс.Картах">↗ Яндекс.Карты</a><button id="btn-fullscreen-route" class="btn sm primary" style="background:#10b981;border-color:#10b981;">↗ Открыть на весь экран</button></div>';
             canvas2.appendChild(lp);
@@ -5993,7 +6064,7 @@
       else { url = buildYandexWidgetUrl(items, nj); dirUrl = buildYandexDirUrl(items, nj); name = "Яндекс.Карты"; }
       var panelActions = dirUrl ? "<div class='route-actions'><a class='btn sm primary' target='_blank' rel='noopener' href='" + dirUrl + "' style='background:#10b981;border-color:#10b981;'>↗ Открыть в " + name + "</a></div>" : "";
       canvas.style.position = "relative";
-      canvas.innerHTML = "<iframe class='route-frame' src='" + url + "' allowfullscreen loading='lazy' title='Маршрут (" + name + ")'></iframe><div class='route-link-panel'><span>🚩 <b>База</b> → " + (items.length - 2) + " объектов (<b>" + name + "</b>) → <b>База</b></span>" + panelActions + "</div>";
+      canvas.innerHTML = "<iframe class='route-frame' src='" + url + "' allowfullscreen loading='lazy' title='Маршрут (" + name + ")'></iframe>";
     }
   }
 
@@ -9608,28 +9679,66 @@
   }
   function schCollectMonth() {
     var table = document.querySelector('#view table');
-    if (!table) return null;
     var wm = wkMonth();
     var dim = new Date(wm.y, wm.m + 1, 0).getDate();
     var rows = [];
-    table.querySelectorAll('tbody tr').forEach(function (tr) {
-      var firstTd = tr.querySelector('td');
-      if (!firstTd) return;
-      var uid = firstTd.getAttribute('data-uid') || '';
-      if (!uid) return;
-      var name = firstTd.textContent.trim().replace(/\s+/g, ' ');
-      var states = [];
-      var dayTds = tr.querySelectorAll('td:not([data-uid])');
-      dayTds.forEach(function (td) {
-        var bg = td.style.backgroundColor || '';
-        var hex = bgToHex(bg);
-        if (hex === '#dcfce7') states.push('work');
-        else if (hex === '#fee2e2') states.push('abs');
-        else states.push('off');
+
+    // Сначала пробуем DOM (быстрее и видим цвета)
+    if (table) {
+      table.querySelectorAll('tbody tr').forEach(function (tr) {
+        var firstTd = tr.querySelector('td');
+        if (!firstTd) return;
+        var uid = firstTd.getAttribute('data-uid') || '';
+        if (!uid) return;
+        var name = firstTd.textContent.trim().replace(/\s+/g, ' ');
+        var states = [];
+        var dayTds = tr.querySelectorAll('td:not([data-uid])');
+        dayTds.forEach(function (td) {
+          var bg = td.style.backgroundColor || '';
+          if (!bg && window.getComputedStyle) {
+            try { bg = window.getComputedStyle(td).backgroundColor || ''; } catch (e) {}
+          }
+          var hex = bgToHex(bg);
+          if (hex === '#dcfce7') states.push('work');
+          else if (hex === '#fee2e2') states.push('abs');
+          else states.push('off');
+        });
+        rows.push({ uid: uid, name: name, states: states });
       });
-      rows.push({ uid: uid, name: name, states: states });
-    });
+    }
+
+    // Если DOM-парсинг ничего не дал (или все off) — генерируем программно через wkDayState.
+    var allOff = !rows.length || rows.every(function (r) { return !r.states || !r.states.length || r.states.every(function (s) { return s === 'off'; }); });
+    if (allOff) {
+      var users = wkVisibleUsers();
+      var masters = users.filter(function (u) { return u.role === 'master'; });
+      var slesars = users.filter(function (u) { return u.role === 'slesar'; });
+      var curMode = S.schMode || 'all';
+      var showRows = buildBrigadeRows(masters, slesars, curMode);
+      rows = [];
+      showRows.forEach(function (row) {
+        if (row.kind === 'brigade') {
+          addMonthRow(rows, row.master, wm, dim);
+          row.members.forEach(function (s) { addMonthRow(rows, s, wm, dim); });
+        } else {
+          row.members.forEach(function (s) { addMonthRow(rows, s, wm, dim); });
+        }
+      });
+    }
+
     return { kind: 'month', y: wm.y, m: wm.m, dim: dim, label: MON_NOM[wm.m] + ' ' + wm.y, rows: rows };
+  }
+  // Вспомогательная функция для программного расчёта строки месяца
+  function addMonthRow(rows, u, wm, dim) {
+    var states = [];
+    for (var dd = 1; dd <= dim; dd++) {
+      var ds = wm.y + '-' + String(wm.m + 1).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
+      var st = wkDayState(u.id, ds);
+      if (st === 'work') states.push('work');
+      else if (st === 'abs') states.push('abs');
+      else states.push('off');
+    }
+    rows.push({ uid: u.id, name: u.full_name, states: states });
   }
   function schCollectYear() {
     var y = S.schYear != null ? S.schYear : new Date().getFullYear();
@@ -9715,62 +9824,6 @@
     return { kind: 'year', y: y, label: String(y), rows: domRows };
   }
   // Конвертация rgb(r,g,b) / rgba(r,g,b,a) → #rrggbb. Пусто или прозрачный → null.
-  function bgToHex(s) {
-    if (!s) return null;
-    var m = s.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
-    if (!m) {
-      // может уже прийти как #hex
-      if (s.charAt(0) === '#') return s.toLowerCase();
-      return null;
-    }
-    function pad(n) { var h = parseInt(n, 10).toString(16); return h.length === 1 ? '0' + h : h; }
-    return '#' + pad(m[1]) + pad(m[2]) + pad(m[3]);
-  }
-
-  // Собрать данные текущего режима (месяц или год).
-  // month: { y, m, dim, label, rows: [{uid, name, states:[]}] }
-  // year:  { y, kind:'year', rows: [{uid, name, yearData:[{m, w, o, a}]}] }
-  // kind: 'month' (по умолчанию) или 'year' (из годового блока)
-  function schCollectFor(kind) {
-    if (kind === 'year') return schCollectYear();
-    return schCollectMonth();
-  }
-  function schCollectMonth() {
-    var table = document.querySelector('#view table');
-    if (!table) return null;
-    var wm = wkMonth();
-    var dim = new Date(wm.y, wm.m + 1, 0).getDate();
-    var rows = [];
-    table.querySelectorAll('tbody tr').forEach(function (tr) {
-      var firstTd = tr.querySelector('td');
-      if (!firstTd) return;
-      var uid = firstTd.getAttribute('data-uid') || '';
-      if (!uid) return;
-      var name = firstTd.textContent.trim().replace(/\s+/g, ' ');
-      var states = [];
-      var dayTds = tr.querySelectorAll('td:not([data-uid])');
-      dayTds.forEach(function (td) {
-        var bg = td.style.backgroundColor || '';
-        var hex = bgToHex(bg);
-        if (hex === '#dcfce7') states.push('work');
-        else if (hex === '#fee2e2') states.push('abs');
-        else states.push('off');
-      });
-      rows.push({ uid: uid, name: name, states: states });
-    });
-    return { kind: 'month', y: wm.y, m: wm.m, dim: dim, label: MON_NOM[wm.m] + ' ' + wm.y, rows: rows };
-  }
-  // Конвертация rgb(r,g,b) / rgba(r,g,b,a) → #rrggbb. Пусто или прозрачный → null.
-  function bgToHex(s) {
-    if (!s) return null;
-    var m = s.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
-    if (!m) {
-      if (s.charAt(0) === '#') return s.toLowerCase();
-      return null;
-    }
-    function pad(n) { var h = parseInt(n, 10).toString(16); return h.length === 1 ? '0' + h : h; }
-    return '#' + pad(m[1]) + pad(m[2]) + pad(m[3]);
-  }
 
   // Печать текущего вида «Графики смен» — таблица всегда в ширину страницы (A4 landscape).
   // mode: 'month' (по умолчанию) или 'year' (из годового блока).
@@ -14529,7 +14582,10 @@
             invalidateRouteCache(ex.m, ex.d);
             logAction('Редактирование задачи', ex.addr || addr);
             closeTaskObjectPickers();
-            overlay.classList.remove('show'); toast('ok', '✓ Задача обновлена'); refresh(); return;
+            overlay.classList.remove('show');
+            var _wEdit = wkOffDayWarn(ex.m, ex.d);
+            if (_wEdit) toast('warn', _wEdit);
+            toast('ok', '✓ Задача обновлена'); refresh(); return;
           }
         }
         var offplanEl = document.getElementById('f-offplan');
@@ -14551,6 +14607,8 @@
         closeTaskObjectPickers();
         overlay.classList.remove('show');
         logAction('Создание задачи', addr + ' (' + fmtH(taskHours(t)) + ' ч)');
+        var _wNew = wkOffDayWarn(t.m, t.d);
+        if (_wNew) toast('warn', _wNew);
         toast('ok', 'Заявка добавлена: ' + addr + ' (' + fmtH(taskHours(t)) + ' ч)');
         refresh();
       }
@@ -15046,6 +15104,23 @@
     else if (a === 'open-yandex') { window.open('https://yandex.ru/pogoda/minsk', '_blank'); }
     else if (a === 'open-hourly') { openHourlyWeather(parseInt(el.dataset.off, 10)); }
     else if (a === 'close-hourly') { closeHourlyWeather(); }
+    // Клик по имени мастера / полоске состояния в календаре —
+    // всплывающий месячный график работника (данные из «Графиков смен»).
+    else if (a === 'master-sch-popup') {
+      var _msUid = el.dataset.uid;
+      var _msBase = (buildDayWindow() || [TODAY])[0];
+      openMasterSchPopup(_msUid, _msBase);
+    }
+    // Кнопка «↗ В “Графики смен”» из popup — открыть раздел и переключить
+    // фильтр на бригаду этого мастера (если слесарь — на бригаду его мастера).
+    else if (a === 'master-sch-goto') {
+      var _gtUid = el.dataset.uid;
+      overlay.classList.remove('show');
+      modal.style.maxWidth = '';
+      var _gtB = wkData(_gtUid).brigade;
+      S.schMode = 'b:' + (_gtB || _gtUid);
+      setScreen('schedules');
+    }
     else if (a === 'kpi-today') { kpiToday(); }
     else if (a === 'kpi-overloads') { kpiOverloads(); }
     else if (a === 'kpi-month') { kpiMonth(); }
@@ -15906,6 +15981,50 @@
     return h;
   }
   function gwAddDaysISO(iso, n) { var d = gwFromISO(iso); d.setDate(d.getDate() + n); return gwToISO(d); }
+  /* ===== ГРАФИК СМЕН МАСТЕРА В ГРАФИКЕ РАБОТ (22.09-80) =====
+     «Рабочий день» мастера = wkDayState === 'work' (график смен «Работники»):
+     выходные 5/2 (сб/вс) и 2/2 (цикл бригады), отсутствия. ТА ЖЕ ЛОГИКА, что и
+     в таблицах «Графиков смен» и в цветных метках календаря — пользователь видит
+     одну и ту же картину везде. (masterCapacity не подходит: она не знает про
+     сб/вс у 5/2 и по-особому трактует одиночного мастера 2/2.) Без мастера — нет ограничений. */
+  function gwIsWorkDay(masterId, iso) {
+    if (!masterId) return true;
+    try { return wkDayState(masterId, iso) === 'work'; } catch (e) { return true; }
+  }
+  // Дата выполнения: якорь серии, сдвинутый НАЗАД до ближайшего рабочего дня
+  // (суббота → пятница). Максимум 31 день назад — страховка от вечного цикла
+  // (например, месячный отпуск мастера — тогда оставляем исходную дату).
+  function gwBackToWorkDay(masterId, iso) {
+    if (gwIsWorkDay(masterId, iso)) return iso;
+    var d = gwFromISO(iso);
+    for (var i = 0; i < 31; i++) {
+      d.setDate(d.getDate() - 1);
+      var t = gwToISO(d);
+      if (gwIsWorkDay(masterId, t)) return t;
+    }
+    return iso;
+  }
+  // Дата вхождения серии: сдвиг назад до рабочего дня, но НЕ уходя за левую
+  // границу года графика (треугольник в прошлом году этому графику не нужен).
+  function gwOccDate(masterId, anchorIso, gYear) {
+    var shifted = gwBackToWorkDay(masterId, anchorIso);
+    if (shifted < String(gYear) + '-01-01') shifted = anchorIso;
+    return shifted;
+  }
+  // Текст предупреждения для ручного планирования: мастер в этот день не работает
+  // (выходной по графику смен / отсутствие). '' — день рабочий, предупреждать нечего.
+  // НЕ блокируем (аварийные работы бывают).
+  function wkOffDayWarn(masterId, off) {
+    if (!masterId) return '';
+    var ds = gwToISO(offToDate(off));
+    var st;
+    try { st = wkDayState(masterId, ds); } catch (e) { return ''; }
+    if (st === 'work') return '';
+    var m = masterById(masterId);
+    var wd = wkData(masterId);
+    var reason = st === 'abs' ? ('отсутствие' + (wd.abs[ds] ? ': ' + wd.abs[ds] : '')) : 'выходной по графику смен';
+    return '⚠ ' + (m ? m.name : 'Мастер') + ' · ' + fmt(offToDate(off)) + ' — ' + reason + '. Задача поставлена на нерабочий день мастера.';
+  }
   /* Шаг серии: периодичность в месяцах МИНУС отклонение в днях.
      Пример: периодичность 1 мес + отклонение 2 дн → работа 18 числа,
      следующая — 16 число следующего месяца. */
@@ -15963,7 +16082,7 @@
     h += '<div class="fld" style="max-width:320px"><label>Участок (виды работ из справочника)</label><select id="gpr-area">' + areaOpts + '</select></div>';
     h += '<div class="gpr-cols"><span>Вид работы</span><span>Период., мес</span><span>Откл., дн</span><span>Дата первого проведения</span><span></span></div>';
     h += '<div id="gpr-list" style="display:flex;flex-direction:column;gap:10px;padding:2px"></div>';
-    h += '<div class="calc" style="align-items:flex-start;font-size:11.5px;line-height:1.5">Шаг серии = периодичность МИНУС отклонение (1 мес и отклонение 2 дн: работа 18 числа → следующая 16 числа следующего месяца). У каждого объекта может быть несколько работ — «+ работа». Работы появляются в «Планировании»; перемещение задачи там переносит её и последующие по шагу серии.</div>';
+    h += '<div class="calc" style="align-items:flex-start;font-size:11.5px;line-height:1.5">Шаг серии = периодичность МИНУС отклонение (1 мес и отклонение 2 дн: работа 18 числа → следующая 16 числа следующего месяца). У каждого объекта может быть несколько работ — «+ работа». Работы появляются в «Планировании»; перемещение задачи там переносит её и последующие по шагу серии. <b>Даты, попавшие на день, когда мастер графика не работает (выходные 5/2 и 2/2, отсутствия — график смен на вкладке «Работники»), автоматически переносятся на ближайший предыдущий рабочий день; шаг серии считается от своих исходных дат.</b></div>';
     h += '</div>';
     h += '<div class="modal-f"><button type="button" class="btn ok" data-action="graphs-period-save">Сохранить</button><button type="button" class="btn danger" data-action="close-modal">Отменить</button></div>';
     modal.innerHTML = h;
@@ -16054,7 +16173,7 @@
     if (!g || !g.objs || !g.objs.length) { overlay.classList.remove('show'); modal.style.maxWidth = ''; return; }
     var areaSel = document.getElementById('gpr-area');
     var area = areaSel ? areaSel.value : graphAreaDefault(g);
-    var created = 0, removed = 0, yearWarn = 0, taskFail = 0;
+    var created = 0, removed = 0, yearWarn = 0, taskFail = 0, shiftedCnt = 0;
     g.objs.forEach(function (ob, ri) {
       // «Добавлять задачи на прошедшие дни» — чекбокс объекта
       var pastEl = document.querySelector('[data-gpr-past="' + ri + '"]');
@@ -16088,6 +16207,9 @@
         var unchanged = old && old.wid === r.wid && (old.period || 0) === r.period && (old.dev || 0) === r.dev && (old.first || '') === r.first && oldPast === pastOn && old.occs && old.occs.length;
         if (unchanged) {
           usedSids[r.sid] = 1;
+          // 22.09-81: серия не изменилась — её даты НЕ трогаем (в т.ч. ручные переносы
+          // и уже расставленные задачи). Правило «только рабочие дни мастера»
+          // применяется только к новым и изменённым сериям ниже.
           // незакрытые задачи серии с прошедшей датой — убираем (они «горят
           // красным» как просрочка), НО только если прошедшие дни не добавляются
           if (!pastOn) {
@@ -16107,17 +16229,22 @@
           // слесаря бригады мастера (вкладка «Работники») — исполнители задачи
           var brigIds = wkBrigadeOf(g.respId).map(function (u) { return u.id; });
           while (iso <= endISO && guard < 400) {
+            // Дата выполнения = якорь серии, сдвинутый НАЗАД до рабочего дня
+            // мастера графика (график смен «Работники»). Шаг серии при этом
+            // считается ОТ ЯКОРЯ — периодичность (минус отклонение) не плывёт.
+            var occIso = gwOccDate(g.respId, iso, g.year);
+            if (occIso !== iso) shiftedCnt++;
             // ПРОШЕДШИЕ даты: в графике остаются треугольниками. Задачи в
             // планировании создаются, только если у объекта включено
             // «Добавлять задачи на прошедшие дни»
-            var isPast = gwFromISO(iso) < TODAY;
+            var isPast = gwFromISO(occIso) < TODAY;
             var tk = null;
             if (!isPast || pastOn) {
-              // дедлайн = дата по графику + дни из отклонения
-              var dlIso = gwAddDaysISO(iso, r.dev || 0);
+              // дедлайн = (сдвинутая) дата выполнения + дни из отклонения
+              var dlIso = gwAddDaysISO(occIso, r.dev || 0);
               try {
                 tk = TASKS_DB.addTask({
-                  m: g.respId, d: dateToOff(gwFromISO(iso)), o: ob.oid, w: r.wid, garea: area,
+                  m: g.respId, d: dateToOff(gwFromISO(occIso)), o: ob.oid, w: r.wid, garea: area,
                   s: 'plan', status: 'plan', volume: 1,
                   slesari: brigIds, // слесаря, указанные у мастера во вкладке «Работники»
                   dl_date: dlIso, dl: dateToOff(gwFromISO(dlIso)),
@@ -16131,7 +16258,7 @@
                 taskFail++;
               }
             }
-            w.occs.push({ date: iso, tid: tk ? tk.id : null, wid: r.wid });
+            w.occs.push({ date: occIso, tid: tk ? tk.id : null, wid: r.wid });
             iso = gwNextISO(iso, r.period, r.dev); // шаг = периодичность − отклонение
             guard++;
           }
@@ -16154,6 +16281,7 @@
     if (!respIsMaster) toast('warn', '⚠ Ответственный графика — не мастер: работы СОЗДАЮТСЯ, но не отображаются в планировании. Измените ответственного на мастера («Список графиков» → правка).');
     if (yearWarn) toast('warn', '⚠ У ' + yearWarn + ' работ дата первого проведения позже ' + g.year + ' года — они не попадут в график.');
     if (created || removed) toast('ok', 'Работы в планировании: создано ' + created + (removed ? ', удалено старых ' + removed : '') + '. Треугольники выставлены в графике.');
+    if (shiftedCnt) toast('ok', '⏮ По графику смен мастера: ' + shiftedCnt + ' вхождений перенесено на ближайший предыдущий рабочий день.');
     if (taskFail) toast('warn', '⚠ Не удалось создать задач: ' + taskFail + ' (возможно, память браузера переполнена). Треугольники в графике выставлены.');
     else if (!yearWarn) toast('ok', 'Периодичность сохранена');
     if (S.screen === 'graphs') renderGraphs();
@@ -16187,12 +16315,13 @@
     var idx = 0;
     while (idx < wrk.occs.length && wrk.occs[idx].date <= iso) idx++;
     wrk.occs.splice(idx, 0, { date: iso, tid: t.id, wid: (t.w || wrk.wid || '') });
-    var prev = iso;
+    var prevA = iso; // якорь — дата включённой задачи
     for (var k = idx + 1; k < wrk.occs.length; k++) {
-      prev = gwNextISO(prev, wrk.period, wrk.dev || 0);
-      wrk.occs[k].date = prev;
+      prevA = gwNextISO(prevA, wrk.period, wrk.dev || 0);
+      var occIso3 = gwOccDate(g.respId, prevA, g.year); // 22.09-80: пред. рабочий день
+      wrk.occs[k].date = occIso3;
       var tk = wrk.occs[k].tid ? TASKS_DB.getTask(wrk.occs[k].tid) : null; // из БД
-      if (tk) { tk.d = dateToOff(gwFromISO(prev)); if (TASKS_DB) TASKS_DB.updateTask(tk.id, { d: tk.d }); }
+      if (tk) { tk.d = dateToOff(gwFromISO(occIso3)); if (TASKS_DB) TASKS_DB.updateTask(tk.id, { d: tk.d }); }
     }
     graphsSaveList(list);
     if (S.screen === 'graphs') renderGraphs();
@@ -16213,12 +16342,15 @@
     for (var i = 0; i < wrk.occs.length; i++) if (wrk.occs[i].tid === t.id) { idx = i; break; }
     if (idx === -1) return;
     wrk.occs[idx].date = gwToISO(offToDate(t.d));
-    var prev = wrk.occs[idx].date;
+    // Последующие: якорь = шаг от поставленной вручную даты, а дата выполнения —
+    // якорь, сдвинутый назад до рабочего дня мастера графика (22.09-80).
+    var prevA = wrk.occs[idx].date;
     for (var k = idx + 1; k < wrk.occs.length; k++) {
-      prev = gwNextISO(prev, wrk.period, wrk.dev || 0);
-      wrk.occs[k].date = prev;
+      prevA = gwNextISO(prevA, wrk.period, wrk.dev || 0);
+      var occIso3 = gwOccDate(g.respId, prevA, g.year);
+      wrk.occs[k].date = occIso3;
       var tk = wrk.occs[k].tid ? TASKS_DB.getTask(wrk.occs[k].tid) : null; // из БД
-      if (tk) { tk.d = dateToOff(gwFromISO(prev)); if (TASKS_DB) TASKS_DB.updateTask(tk.id, { d: tk.d }); }
+      if (tk) { tk.d = dateToOff(gwFromISO(occIso3)); if (TASKS_DB) TASKS_DB.updateTask(tk.id, { d: tk.d }); }
     }
     graphsSaveList(list);
     if (S.screen === 'graphs') renderGraphs();
@@ -17968,7 +18100,6 @@
 
           var provName = provider === 'valhalla' ? 'Valhalla' : provider === 'osrm' ? 'OpenStreetMap' : provider === 'graphhopper' ? 'GraphHopper' : 'OpenRouteService';
           var lp = document.createElement('div');
-          lp.className = 'route-link-panel';
           lp.innerHTML = '<span>🚩 <b>База (' + esc(base.name) + ')</b> → ' + allMarkers.length + ' объектов (<b>' + provName + '</b>) → <b>База</b></span><span style="color:#94a3b8;font-size:11px">Нажмите «Оптимизация маршрутов» для расчёта</span>';
           canvas.appendChild(lp);
         }

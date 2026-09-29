@@ -179,6 +179,13 @@
   .cell.drop-on{background:#dbeafe!important;outline:2px dashed var(--blue);outline-offset:-3px}
   .cell.overload{box-shadow:inset 0 0 0 2px var(--red)}
   .cell .ov-warn{position:absolute;top:2px;right:3px;font-size:9px;font-weight:800;color:#fff;background:var(--red);border-radius:5px;padding:0 4px}
+  /* Сборка 22.09-79: компактная метка смены из «Графиков смен» в углу ячейки */
+  .cell .cell-sh{position:absolute;top:0;left:0;width:24px;height:4px;border-radius:0 0 4px 0;z-index:2;cursor:pointer}
+  .cell .cell-sh.work{background:#16a34a}
+  .cell .cell-sh.off{background:#cbd5e1}
+  .cell .cell-sh.abs{background:#dc2626}
+  .mname .sh-today{transition:opacity .15s}
+  .mname[data-action="master-sch-popup"]:hover .nm{text-decoration:underline;text-underline-offset:2px}
   .tile{border-radius:6px;padding:4px 6px;font-size:10.5px;line-height:1.2;cursor:grab;background:#eef2f6;border-left:3px solid #94a3b8;position:relative;user-select:none}
   .tile:active{cursor:grabbing}
   .tile.dragging{opacity:.4}
@@ -237,8 +244,6 @@
 
   /* ---------- ВИДЖЕТ МАРШРУТА (iframe Яндекс.Карт по ссылке) ---------- */
   .route-frame{position:absolute;inset:0;width:100%;height:100%;border:0;display:block;background:#e8eef3}
-  .route-link-panel{position:fixed;left:12px;right:12px;top:12px;z-index:99999;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;border:1px solid var(--line);background:rgba(15,39,64,.92);backdrop-filter:blur(10px);border-radius:12px;padding:10px 14px;color:#e2e8f0;box-shadow:0 4px 16px rgba(0,0,0,.25)}
-  .route-link-panel span{font-size:12.5px;flex:1;min-width:200px}
   .route-actions{display:flex;gap:8px;align-items:center;margin-left:auto}
 
   /* ---------- REFERENCES ---------- */
@@ -536,8 +541,6 @@
     #toasts{bottom:70px;right:10px;left:10px}
     .toast{max-width:100%}
     /* Панель маршрута */
-    .route-link-panel{border-radius:8px;padding:8px 10px}
-    .route-link-panel span{font-size:11px;min-width:140px}
     /* Сегментные кнопки крупнее */
     .seg button{padding:7px 12px;font-size:12px}
     .btn{padding:7px 11px;font-size:12px}
@@ -1076,7 +1079,7 @@
           <div style="margin-top:6px;font-size:11px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-76 · графики смен. (1) schCellHtml — убрал !important (мог ломать inline-приоритеты). Теперь background + background-color без !important. (2) schCollectYear — полностью переписан: fallback на программный расчёт через wkDayState если DOM-парсинг вернул пусто/нули; поддержка и rgb-формата и hex-формата цвета; getComputedStyle если inline пустой. Дубликат старой функции удалён. (3) schExcelYear/PrintYear теперь получают корректные данные даже если DOM не парсится. Проблема «Нет данных для печати» в году должна уйти.</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-81 · правило рабочих дней мастера: только новые/изменённые серии графика; старые серии и задачи не меняются</div>
     </div>
   </div>
   </div>
