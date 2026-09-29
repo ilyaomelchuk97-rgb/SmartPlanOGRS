@@ -98,6 +98,46 @@ window.SP_WORK = (function () {
         });
       }
     });
+    // Сборка 22.09-88: встроенная библиотека норм ГРП — 112 видов работ из файла
+    // «Сопоставление видов работ и норма времени» (grp_norms_seed.js).
+    // Посев ОДИН РАЗ на устройстве (флаг smartplan_grp_norms_v1); работы,
+    // уже существующие по названию (напр., после импорта из Excel), не дублируются.
+    try {
+      if (window.SP_GRP_NORMS_SEED && !localStorage.getItem('smartplan_grp_norms_v1')) {
+        var SG = window.SP_GRP_NORMS_SEED;
+        var PS = SG.profs || [], TT = SG.types || [''];
+        if (!db.areas['ГРП']) db.areas['ГРП'] = [];
+        var have = {};
+        db.areas['ГРП'].forEach(function (w) { if (w && w.name) have[String(w.name).trim()] = 1; });
+        (SG.rows || []).forEach(function (r, idx) {
+          var name = String(r[1] || '').trim();
+          if (!name || have[name]) return;
+          have[name] = 1;
+          var crew = (r[5] || []).map(function (c) {
+            var p = PS[c[0]] || { name: '?', grade: 0 };
+            return { prof: p.name, grade: String(p.grade), count: c[1] };
+          });
+          var crewSize = crew.reduce(function (a, e) { return a + e.count; }, 0);
+          var typ = TT[r[4]] || '';
+          db.areas['ГРП'].push(Object.assign({
+            id: 'w_grp_norm_' + (idx + 1),
+            group: (SG.groups && SG.groups[r[0]]) || 'Без группы',
+            name: name,
+            norm: r[2] / 1000,
+            unit: 'объект',
+            needs_permit: false, depends_on_snow: false, min_temp: -50,
+            season: 'Круглый год', equipment: '—',
+            min_workers: crewSize || 1, opt_workers: crewSize || 1
+          }, _newAttrDefaults(), {
+            object_categories: typ ? [typ] : [],
+            lines_count: r[3] || 0,
+            crew_size: crewSize,
+            crew: crew
+          }));
+        });
+        try { localStorage.setItem('smartplan_grp_norms_v1', '1'); } catch (e2) {}
+      }
+    } catch (e) {}
     save(db);
     return Promise.resolve(db);
   }

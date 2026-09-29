@@ -209,19 +209,22 @@ window.SP_SYNC_POLL = (function () {
     }
 
     if (sec === 'professions') {
-      // { schema: 1, professions: [{id, name, grade, ...}, ...] } — как участки (Сборка 22.09-86)
+      // { schema: 1, professions: [...], profNames: [...] } (Сборка 22.09-86/89)
+      // kind:'prof_name' → названия списка-подсказки; иначе → записи справочника.
       var curP = lsRead(lsKey);
-      if (!curP || typeof curP !== 'object') curP = { schema: 1, professions: [] };
+      if (!curP || typeof curP !== 'object') curP = { schema: 1, professions: [], profNames: [] };
       if (!Array.isArray(curP.professions)) curP.professions = [];
+      if (!Array.isArray(curP.profNames)) curP.profNames = [];
+      var arrP = (data.kind === 'prof_name') ? curP.profNames : curP.professions;
       var idxP = -1;
-      for (var kp = 0; kp < curP.professions.length; kp++) {
-        if (curP.professions[kp] && curP.professions[kp].id === rec.id) { idxP = kp; break; }
+      for (var kp = 0; kp < arrP.length; kp++) {
+        if (arrP[kp] && arrP[kp].id === rec.id) { idxP = kp; break; }
       }
       if (rec._deleted) {
-        if (idxP >= 0) curP.professions.splice(idxP, 1);
+        if (idxP >= 0) arrP.splice(idxP, 1);
       } else {
-        if (idxP >= 0) curP.professions[idxP] = data;
-        else curP.professions.push(data);
+        if (idxP >= 0) arrP[idxP] = data;
+        else arrP.push(data);
       }
       curP.schema = 1;
       curP.updated_at = Date.now();

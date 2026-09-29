@@ -781,7 +781,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-87 · импорт норм ГРП из Excel (работы + профессии + исполнители) и новый атрибут «Кол-во линий редуцирования» у атрибутов ГРП'],
+    objmap: ['Карта объектов', 'Сборка 22.09-89 · профессии: название из выпадающего списка (стандартные + свои, с удалением) или вручную; разряд необязателен («без разряда»)'],
     testmap: ['Тест проезда', 'Полигон: карта маршрутов + оптимизация + пробки + Google Maps (копия «Карты маршрутов» для экспериментов)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -11056,7 +11056,7 @@
     html += '<div class="card"><table class="dt"><thead><tr><th>Наименование профессии</th><th>Разряд</th>' + (admin ? '<th style="text-align:right">Действия</th>' : '') + '</tr></thead><tbody>';
     if (!profs.length) html += '<tr><td colspan="' + (admin ? 3 : 2) + '" class="empty">Справочник профессий пуст. ' + (admin ? 'Нажмите «Добавить профессию».' : '') + '</td></tr>';
     profs.forEach(function (p) {
-      html += '<tr><td><b>' + esc(p.name) + '</b></td><td>' + esc(String(p.grade)) + ' разряд</td>';
+      html += '<tr><td><b>' + esc(p.name) + '</b></td><td>' + (p.grade ? esc(String(p.grade)) + ' разряд' : '<span style="color:#94a3b8">без разряда</span>') + '</td>';
       if (admin) html += '<td style="text-align:right;white-space:nowrap"><button class="btn sm" data-action="edit-prof" data-pid="' + esc(p.id) + '">Изменить</button> <button class="btn sm" data-action="del-prof" data-pid="' + esc(p.id) + '" style="color:var(--red)">Удалить</button></td>';
       html += '</tr>';
     });
@@ -11065,23 +11065,74 @@
   }
 
   // Модал добавления/изменения профессии: наименование + разряд (3–6)
+  // Список названий для выпадающего списка карточки профессии (Сборка 22.09-89)
+  function profNameListOptionsHtml() {
+    var names = [];
+    try { if (window.SP_PROFS && SP_PROFS.getNameList) names = SP_PROFS.getNameList(); } catch (e) {}
+    return names.map(function (n) { return '<option value="' + esc(n) + '">' + esc(n) + '</option>'; }).join('');
+  }
   function openProfModal(mode, pid) {
     S.profModalMode = mode; S.profModalPid = pid || null;
     var p = (mode === 'edit' && window.SP_PROFS) ? SP_PROFS.getById(pid) : null;
     var html = '<div class="modal-h"><h3>' + (mode === 'edit' ? 'Изменение профессии' : 'Новая профессия') + '</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">';
-    html += '<div class="fld"><label>Наименование профессии</label><input id="pm-name" value="' + (p ? esc(p.name) : '') + '" placeholder="Например: Слесарь газоиспользующего оборудования"></div>';
-    html += '<div class="fld"><label>Разряд</label><select id="pm-grade">';
-    html += '<option value="">— выберите разряд —</option>';
+    html += '<div class="fld"><label>Наименование профессии</label>';
+    html += '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">';
+    html += '<select id="pm-name-list" style="flex:1"><option value="">— выбрать из списка —</option>' + profNameListOptionsHtml() + '</select>';
+    if (mode !== 'edit') html += '<button type="button" id="pm-namedel" class="btn sm" style="color:var(--red);padding:5px 10px;white-space:nowrap" title="Удалить выбранное название из списка">🗑 Удалить</button>';
+    html += '</div>';
+    html += '<input id="pm-name" value="' + (p ? esc(p.name) : '') + '" placeholder="…или впишите вручную, напр.: Слесарь газоиспользующего оборудования"></div>';
+    html += '<div class="fld"><label>Разряд <span style="color:#94a3b8;font-weight:500">(необязательно)</span></label><select id="pm-grade">';
+    html += '<option value=""' + (p && !p.grade ? ' selected' : '') + '>без разряда</option>';
     (window.SP_PROFS ? SP_PROFS.GRADES : [3, 4, 5, 6]).forEach(function (g) {
       html += '<option value="' + g + '"' + (p && p.grade === g ? ' selected' : '') + '>' + g + ' разряд</option>';
     });
     html += '</select></div>';
-    html += '<div class="calc">ℹ️ Профессии применяются в составе исполнителей работ участка ГРП (выбор — только из этого справочника).</div>';
+    html += '<div class="calc">ℹ️ Профессии применяются в составе исполнителей работ участка ГРП. Название можно выбрать из списка или вписать вручную — вписанное запомнится в списке.</div>';
     html += '</div><div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="save-prof">' + (mode === 'edit' ? 'Сохранить' : 'Добавить профессию') + '</button></div>';
     modal.style.maxWidth = ''; // сброс автоширины карточки задачи
     modal.innerHTML = html; overlay.classList.add('show');
-    var inp = document.getElementById('pm-name');
-    if (inp) { inp.focus(); inp.select(); }
+    var listEl = document.getElementById('pm-name-list');
+    var nameEl = document.getElementById('pm-name');
+    if (listEl && nameEl) listEl.addEventListener('change', function () {
+      if (listEl.value) nameEl.value = listEl.value;
+      nameEl.focus(); nameEl.select();
+    });
+    var delNameBtn = document.getElementById('pm-namedel');
+    if (delNameBtn) delNameBtn.addEventListener('click', function () { delProfNameFromModal(); });
+    if (nameEl) { nameEl.focus(); nameEl.select(); }
+  }
+  // Удалить выбранное название из выпадающего списка (Сборка 22.09-89).
+  // Если в справочнике есть записи с этим названием — удаляются и они (с подтверждением),
+  // иначе название всё равно осталось бы видно через них.
+  function delProfNameFromModal() {
+    if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
+    var listEl = document.getElementById('pm-name-list');
+    var name = listEl ? listEl.value : '';
+    if (!name) { toast('warn', 'Сначала выберите название в списке'); return; }
+    if (!window.SP_PROFS) return;
+    var entries = SP_PROFS.getAll().filter(function (p) { return p.name === name; });
+    var msg;
+    if (entries.length) {
+      // есть записи справочника — предупреждаем и считаем использование в работах ГРП
+      var used = 0;
+      try {
+        (WORK.getWorks('ГРП') || []).forEach(function (w) {
+          (w.crew || []).forEach(function (e) { if (e && e.prof === name) used++; });
+        });
+      } catch (e) {}
+      msg = 'Удалить название «' + name + '» из списка вместе с ' + entries.length +
+        (entries.length === 1 ? ' записью' : ' записями') + ' справочника?';
+      if (used) msg += '\n\n⚠️ Оно указано в составе исполнителей ' + used + (used === 1 ? ' работы' : ' работ') + ' ГРП — там останется пометка «⚠ нет в справочнике».';
+    } else {
+      msg = 'Убрать название «' + name + '» из списка?';
+    }
+    if (!window.confirm(msg)) return;
+    SP_PROFS.deleteProfNameByName(name);
+    entries.forEach(function (e2) { SP_PROFS.deleteProf(e2.id); });
+    logAction('Удаление названия профессии из списка', name);
+    toast('ok', entries.length ? 'Название и записи справочника удалены' : 'Название убрано из списка');
+    // перерисовать сам выпадающий список (оставаясь в карточке)
+    if (listEl) listEl.innerHTML = '<option value="">— выбрать из списка —</option>' + profNameListOptionsHtml();
   }
   function saveProf() {
     if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
@@ -11091,6 +11142,7 @@
       ? SP_PROFS.updateProf(S.profModalPid, nEl ? nEl.value : '', gEl ? gEl.value : '')
       : SP_PROFS.addProf(nEl ? nEl.value : '', gEl ? gEl.value : '');
     if (!res.ok) { toast('err', res.error); return; }
+    try { if (res.prof && res.prof.name && SP_PROFS.addProfName) SP_PROFS.addProfName(res.prof.name); } catch (e) {}
     logAction(S.profModalMode === 'edit' ? 'Изменение профессии' : 'Добавление профессии', SP_PROFS.label(res.prof));
     toast('ok', S.profModalMode === 'edit' ? 'Профессия изменена' : 'Профессия «' + SP_PROFS.label(res.prof) + '» добавлена');
     overlay.classList.remove('show');
@@ -12207,7 +12259,7 @@
       var v = p.name + '\u0001' + p.grade;
       var on = cur && cur.prof === p.name && String(cur.grade || '') === String(p.grade);
       if (on) found = true;
-      h += '<option value="' + esc(v) + '"' + (on ? ' selected' : '') + '>' + esc(p.name) + ' — ' + p.grade + ' разряд</option>';
+      h += '<option value="' + esc(v) + '"' + (on ? ' selected' : '') + '>' + esc(p.name) + (p.grade ? ' — ' + p.grade + ' разряд' : '') + '</option>';
     });
     // Значение из старых данных, которого уже нет в справочнике — показываем с пометкой
     if (cur && cur.prof && !found) {
