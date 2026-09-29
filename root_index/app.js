@@ -9882,12 +9882,27 @@
     for (var dd = 1; dd <= data.dim; dd++) headRow.push(String(dd));
     headRow.push('раб', 'вых', 'отс');
     aoa.push(headRow); styles.push(headRow.map(function () { return headStyle(); }));
+    // FALLBACK: если из DOM states пришли пустые/нулевые — пересчитываем программно.
+    var needFallback = data.rows.every(function (r) {
+      return !r.states || !r.states.length || r.states.every(function (s) { return s === 'off'; });
+    });
+    if (needFallback) {
+      console.warn('[schExcelMonth] DOM states пустые, пересчитываем программно');
+    }
     data.rows.forEach(function (r) {
       var row = [{ v: r.name, t: 's' }];
       var rowStyles = [nameStyle()];
       var w = 0, o = 0, a = 0;
       for (var i = 0; i < data.dim; i++) {
-        var st = r.states[i] || 'off';
+        var st;
+        if (needFallback) {
+          // Программный расчёт по uid
+          var ds = data.y + '-' + String(data.m + 1).padStart(2, '0') + '-' + String(i + 1).padStart(2, '0');
+          var user = (window.DB && DB.getUser) ? DB.getUser(r.uid) : null;
+          st = user ? wkDayState(r.uid, ds) : 'off';
+        } else {
+          st = r.states[i] || 'off';
+        }
         if (st === 'work') { row.push(''); rowStyles.push(workStyle()); w++; }
         else if (st === 'abs') { row.push(''); rowStyles.push(absStyle()); a++; }
         else { row.push(''); rowStyles.push(offStyle()); o++; }
@@ -9918,7 +9933,7 @@
   }
   function schExcelYear(data) {
     function makeStyle() {
-      return { font: { name: 'Calibri', sz: 10 }, alignment: { horizontal: 'center', vertical: 'center' }, border: { top: { style: 'thin', color: { rgb: 'FFCBD5E1' } }, bottom: { style: 'thin', color: { rgb: 'FFCBD5E1' } }, left: { style: 'thin', color: { rgb: 'FFCBD5E1' } }, right: { style: 'thin', color: { rgb: 'FFCBD5E1' } } } };
+      return { font: { name: 'Calibri', sz: 10 }, alignment: { horizontal: 'center', vertical: 'center' }, border: { top: { style: 'thin', color: { rgb: 'FFCBD5E1' } }, bottom: { style: 'thin', color: { rgb: 'FFCBD5E1' } }, left: { style: 'thin', color: { rgb: 'FFCBD5E1' } }, right: { style: 'thin', color: { rgb: 'FFCBD5E1' } } } } };
     }
     function wStyle() { var s = makeStyle(); s.fill = { patternType: 'solid', fgColor: { rgb: 'FFD1FAE5' } }; s.font = { color: { rgb: 'FF16A34A' }, bold: true }; return s; }
     function oStyle() { var s = makeStyle(); s.fill = { patternType: 'solid', fgColor: { rgb: 'FFF1F5F9' } }; s.font = { color: { rgb: 'FF64748B' }, bold: true }; return s; }
@@ -9930,14 +9945,15 @@
     var styles = [];
     aoa.push([{ v: 'Графики смен — ' + data.y + ' год', t: 's' }]); styles.push([{ font: { bold: true, sz: 12 } }]);
     aoa.push([]); styles.push([]);
-    // Шапка: ФИО + 12 месяцев × 3 ячейки
+    // Шапка 1: ФИО + 12 названий месяцев (каждое занимает 3 ячейки — будем мержить).
+    // Положим название в ЛЕВУЮ ячейку каждой группы, остальные две — пустые.
     var headRow1 = [{ v: 'Сотрудник', t: 's' }];
-    for (var mm = 0; mm < 12; mm++) headRow1.push({ v: MON_NOM[mm], t: 's' });
+    for (var mm = 0; mm < 12; mm++) headRow1.push({ v: MON_NOM[mm], t: 's' }, '', '');
     aoa.push(headRow1);
     var s1 = [headStyle()];
     for (var mm2 = 0; mm2 < 12; mm2++) { s1.push(headStyle()); s1.push(headStyle()); s1.push(headStyle()); }
     styles.push(s1);
-    // Шапка: раб/вых/отс
+    // Шапка 2: раб/вых/отс под каждой группой
     var headRow2 = [''];
     for (var mm3 = 0; mm3 < 12; mm3++) headRow2.push('раб', 'вых', 'отс');
     aoa.push(headRow2);
@@ -9949,11 +9965,33 @@
       s2.push(a1, a2, a3);
     }
     styles.push(s2);
+    // FALLBACK: если у всех строк yearData нули — пересчитать программно
+    var needFallback = data.rows.every(function (r) {
+      return !r.yearData || !r.yearData.length || r.yearData.every(function (m) { return m.w === 0 && m.o === 0 && m.a === 0; });
+    });
+    if (needFallback) {
+      console.warn('[schExcelYear] DOM yearData пустые, пересчитываем программно');
+    }
     // Строки
     data.rows.forEach(function (r) {
       var row = [{ v: r.name, t: 's' }];
       var rowStyles = [nameStyle()];
-      r.yearData.forEach(function (m) {
+      var yearData = r.yearData;
+      if (needFallback) {
+        // Программный расчёт
+        yearData = [];
+        for (var m5 = 0; m5 < 12; m5++) {
+          var dim = new Date(data.y, m5 + 1, 0).getDate();
+          var w = 0, o = 0, a = 0;
+          for (var d = 1; d <= dim; d++) {
+            var ds = data.y + '-' + String(m5 + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+            var st = wkDayState(r.uid, ds);
+            if (st === 'work') w++; else if (st === 'abs') a++; else o++;
+          }
+          yearData.push({ m: m5 + 1, w: w, o: o, a: a });
+        }
+      }
+      yearData.forEach(function (m) {
         row.push({ v: m.w, t: 'n' }); rowStyles.push(wStyle());
         row.push({ v: m.o, t: 'n' }); rowStyles.push(oStyle());
         row.push({ v: m.a, t: 'n' }); rowStyles.push(aStyle());
@@ -9964,12 +10002,21 @@
     ensureXlsxStyle().then(function (ok) {
       if (!ok || !window.XLSX_STYLE) { toast('err', 'Библиотека Excel со стилями не загрузилась'); return; }
       var ws = window.XLSX_STYLE.utils.aoa_to_sheet(aoa);
+      // Применим стили
       for (var R = 0; R < styles.length; R++) {
         for (var C = 0; C < styles[R].length; C++) {
           var addr = window.XLSX_STYLE.utils.encode_cell({ r: R, c: C });
           if (ws[addr]) ws[addr].s = styles[R][C];
         }
       }
+      // Объединяем названия месяцев (строка 2, колонки 1, 4, 7, ...) — каждое на 3 ячейки
+      var merges = [];
+      for (var mm5 = 0; mm5 < 12; mm5++) {
+        var startC = 1 + mm5 * 3; // колонка B, E, H, ...
+        var endC = startC + 2;   // +2 = 3 ячейки
+        merges.push({ s: { r: 2, c: startC }, e: { r: 2, c: endC } });
+      }
+      ws['!merges'] = merges;
       ws['!cols'] = [{ wch: 30 }];
       for (var c2 = 0; c2 < 36; c2++) ws['!cols'].push({ wch: 5 });
       var wb = window.XLSX_STYLE.utils.book_new();
