@@ -178,12 +178,8 @@
   .cell.today{background:#f5f9ff}
   .cell.drop-on{background:#dbeafe!important;outline:2px dashed var(--blue);outline-offset:-3px}
   .cell.overload{box-shadow:inset 0 0 0 2px var(--red)}
-  .cell .ov-warn{position:absolute;top:2px;right:3px;font-size:9px;font-weight:800;color:#fff;background:var(--red);border-radius:5px;padding:0 4px}
-  /* Сборка 22.09-79: компактная метка смены из «Графиков смен» в углу ячейки */
-  .cell .cell-sh{position:absolute;top:0;left:0;width:24px;height:4px;border-radius:0 0 4px 0;z-index:2;cursor:pointer}
-  .cell .cell-sh.work{background:#16a34a}
-  .cell .cell-sh.off{background:#cbd5e1}
-  .cell .cell-sh.abs{background:#dc2626}
+  .cell.wday{background:rgba(22,163,74,.10)}
+  .cell.wday.today{background:rgba(22,163,74,.14)}
   .mname .sh-today{transition:opacity .15s}
   .mname[data-action="master-sch-popup"]:hover .nm{text-decoration:underline;text-underline-offset:2px}
   .tile{border-radius:6px;padding:4px 6px;font-size:10.5px;line-height:1.2;cursor:grab;background:#eef2f6;border-left:3px solid #94a3b8;position:relative;user-select:none}
@@ -273,7 +269,7 @@
   /* ---------- MODAL ---------- */
   .overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;align-items:flex-start;justify-content:center;z-index:100;padding:40px 16px;overflow:auto}
   .overlay.show{display:flex}
-  .modal{background:var(--card);border-radius:14px;width:100%;min-width:min(480px,100%);max-width:fit-content;margin:0 auto;box-shadow:var(--shadow-lg);overflow:hidden;display:flex;flex-direction:column;max-height:calc(100vh - 80px);transition:max-width .25s ease}
+  .modal{background:var(--card);border-radius:14px;width:486px;min-width:min(486px,100%);max-width:min(486px,100%);margin:0 auto;box-shadow:var(--shadow-lg);overflow:hidden;display:flex;flex-direction:column;max-height:calc(100vh - 80px);transition:max-width .25s ease}
   .modal-h{display:flex;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line);flex-shrink:0}
   .modal-h h3{margin:0;font-size:15px;color:var(--ink)}
   .modal-h .x{margin-left:auto;cursor:pointer;color:var(--muted);font-size:20px;background:none;border:none}
@@ -1079,7 +1075,7 @@
           <div style="margin-top:6px;font-size:11px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-90 · профессии: название из выпадающего списка или вручную, удаление из списка, «без разряда»</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-92 · профессии: название из выпадающего списка или вручную, удаление из списка, «без разряда»</div>
     </div>
   </div>
   </div>

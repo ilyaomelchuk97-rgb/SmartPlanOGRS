@@ -741,7 +741,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-90 · чистка: удалён неиспользуемый код (41 «мёртвая» функция, −60 КБ), ускорена загрузка'],
+    objmap: ['Карта объектов', 'Сборка 22.09-92 · карточка работника: выбор профессии из справочника (с разрядом) под ФИО; ширина модальных окон по умолчанию — 486px'],
     testmap: ['Тест проезда', 'Полигон: карта маршрутов + оптимизация + пробки + Google Maps (копия «Карты маршрутов» для экспериментов)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -3515,16 +3515,9 @@
         var load = loadForDay(m.id, off);
         var over = load > masterCapacity(m.id, off);
         var we = (d.getDay() === 0 || d.getDay() === 6);
-        var cls = 'cell' + (sameDay(d, TODAY) ? ' today' : '') + (we ? ' we' : '') + (over ? ' overload' : '');
-        html += '<div class="' + cls + '" style="grid-column:' + (ci + 2) + ';grid-row:' + rn + '" data-master="' + m.id + '" data-off="' + off + '"' + (over ? ' title="Перегрузка: ' + fmtH(load) + ' ч"' : '') + '>';
-        if (over) html += '<span class="ov-warn">' + fmtH(load) + 'ч</span>';
-        // Компактная полоска состояния смены в левом верхнем углу ячейки:
-        // зелёная — рабочий, серая — выходной, красная — отсутствие по графику (workers_db).
         var _cSt = wkDayState(m.id, key(d));
-        var _cTip = _cSt === 'work' ? fmt(d) + ' · рабочий день'
-                  : _cSt === 'abs'  ? fmt(d) + ' · отсутствие' + (wkData(m.id).abs[key(d)] ? ' (' + esc(wkData(m.id).abs[key(d)]) + ')' : '')
-                  : fmt(d) + ' · выходной';
-        html += '<span class="cell-sh ' + _cSt + '" data-action="master-sch-popup" data-uid="' + esc(m.id) + '" title="' + esc(_cTip) + ' — открыть график"></span>';
+        var cls = 'cell' + (_cSt === 'work' ? ' wday' : '') + (sameDay(d, TODAY) ? ' today' : '') + (we ? ' we' : '') + (over ? ' overload' : '');
+        html += '<div class="' + cls + '" style="grid-column:' + (ci + 2) + ';grid-row:' + rn + '" data-master="' + m.id + '" data-off="' + off + '"' + (over ? ' title="Перегрузка: ' + fmtH(load) + ' ч"' : '') + '>';
         S.tasks.forEach(function (t) {
           if (t.m === m.id && t.d === off) {
             var col = taskColor(t);
@@ -8412,6 +8405,26 @@
   }
 
   // ПОЛНАЯ карточка работника (в модалке): время, график, бригада, комментарий, календарь
+  // Выпадающий список профессий участка из справочника «Профессии» (Сборка 22.09-92):
+  // значение — текст «Название — N разряд» (SP_PROFS.label); записи без разряда — просто название.
+  // Старые карточки со свободным текстом профессии показываются legacy-опцией «⚠ …».
+  function wkProfOptionsHtml(cur) {
+    var profs = (window.SP_PROFS && SP_PROFS.getAll) ? SP_PROFS.getAll().slice() : [];
+    profs.sort(function (a, b) { var x = String(a.name || '').localeCompare(String(b.name || ''), 'ru'); return x || ((a.grade || 0) - (b.grade || 0)); });
+    var seen = {};
+    var s = '<option value="">— не указана —</option>';
+    profs.forEach(function (p) {
+      var lb = SP_PROFS.label(p);
+      if (!lb || seen[lb]) return;
+      seen[lb] = 1;
+      s += '<option value="' + esc(lb) + '"' + (cur === lb ? ' selected' : '') + '>' + esc(lb) + '</option>';
+    });
+    if (cur && !seen[cur]) {
+      s += '<option value="' + esc(cur) + '" selected>\u26a0 ' + esc(cur) + ' (нет в справочнике)</option>';
+    }
+    return s;
+  }
+
   function wkPanelHtml(u, masters) {
     var wd = wkData(u.id);
     var can = wkCanEdit(u);
@@ -8434,6 +8447,8 @@
     var wkFieldCss = 'display:block;width:100%;margin-top:3px;padding:6px 8px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:12px;background:var(--card);font-weight:700;box-sizing:border-box';
     var wkLblCss = 'display:block;font-size:11px;color:var(--muted);font-weight:700';
     s += '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px">';
+    var curProf = (u.prof || wd.prof || '');
+    s += '<label style="' + wkLblCss + '">Профессия<select data-wk="prof" data-uid="' + esc(u.id) + '"' + dis + ' style="' + wkFieldCss + '">' + wkProfOptionsHtml(curProf) + '</select></label>';
     s += '<label style="' + wkLblCss + '">Время<select data-wk="hours" data-uid="' + esc(u.id) + '"' + dis + ' style="' + wkFieldCss + '"><option value="8"' + (wd.hours !== 12 ? ' selected' : '') + '>8 часов</option><option value="12"' + (wd.hours === 12 ? ' selected' : '') + '>12 часов</option></select></label>';
     s += '<label style="' + wkLblCss + '">График<select data-wk="sched" data-uid="' + esc(u.id) + '"' + dis + ' style="' + wkFieldCss + '"><option value="5/2"' + (wd.sched !== '2/2' ? ' selected' : '') + '>5/2</option><option value="2/2"' + (wd.sched === '2/2' ? ' selected' : '') + '>2/2</option></select></label>';
     // Цикл 2/2 — общий на бригаду, меняется в шапке бригады на странице «Работники».
@@ -8472,6 +8487,13 @@
         }
         else if (f === 'sched') patch.sched = inp.value;
         else if (f === 'brigade') patch.brigade = inp.value || null;
+        else if (f === 'prof') {
+          patch.prof = inp.value;
+          // у части пользователей «профессия» лежит в users_db (служебные должности) —
+          // синхронизируем, чтобы карточка/список/печать показывали одно и то же (Сборка 22.09-92)
+          var _pu = DB.getUser(uid);
+          if (_pu && _pu.prof && inp.value !== _pu.prof && DB.updateUser) { try { DB.updateUser(uid, { prof: inp.value }); } catch (e) {} }
+        }
         if (window.SP_WORKERS) SP_WORKERS.setWorker(uid, patch);
         toast('ok', '✓ Сохранено');
         renderWorkers(); // страница позади модалки
