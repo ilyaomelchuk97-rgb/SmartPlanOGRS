@@ -264,7 +264,9 @@ window.SP_WORK = (function () {
       if (data.opt_workers !== undefined) arr[i].opt_workers = parseInt(data.opt_workers) || 2;
       // Новые атрибуты (по «4 Атрибуты видов работ.htm»)
       var na = _parseNewAttrs(data);
-      Object.keys(na).forEach(function (k) { arr[i][k] = na[k]; });
+      // Сборка 22.09-84: не переданные ключи атрибутов НЕ перезаписываем —
+      // у участков со скрытым блоком (openWorkModal) старые значения сохраняются.
+      Object.keys(na).forEach(function (k) { if (data[k] !== undefined) arr[i][k] = na[k]; });
       save(db);
       if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
         window.SP_API.upsert('work_catalog', arr[i]).catch(function (e) {

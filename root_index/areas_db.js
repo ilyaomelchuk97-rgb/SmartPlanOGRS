@@ -11,7 +11,7 @@ window.SP_AREAS = (function () {
   'use strict';
   var KEY = 'smartplan_areas_db';
   var SCHEMA = 1;
-  var DEFAULTS = [{ id: 'a_ubirogs', name: 'УБиРОГС' }];
+  var DEFAULTS = [{ id: 'a_ubirogs', name: 'УБиРОГС' }, { id: 'a_grp', name: 'ГРП' }];
 
   var memoryDB = null;
   function load() {
@@ -48,6 +48,21 @@ window.SP_AREAS = (function () {
   }
   function newId() { return 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
   function apiUrl(path) { return (window.SP_CONFIG && window.SP_CONFIG.serverUrl ? SP_CONFIG.serverUrl : '') + path; }
+  // Сборка 22.09-83: автосинхронизация участков с сервером.
+  // РАНЬШЕ: вызывалась из save(), но НЕ БЫЛА определена → ReferenceError,
+  // создание/переименование/удаление участка через интерфейс падало у всех
+  // залогиненных пользователей. Теперь как в workers_db.js — upsert каждой записи.
+  function syncWithServer(db) {
+    if (!window.SP_API || !window.SP_API.getToken || !window.SP_API.getToken()) return;
+    if (db && db.areas) {
+      db.areas.forEach(function (a) {
+        if (!a || !a.id) return;
+        window.SP_API.upsert('areas', Object.assign({}, a)).catch(function (e) {
+          if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log('warn', 'areas.sync', e && e.err || e);
+        });
+      });
+    }
+  }
 
   function ensureSeed() {
     var db = init();
@@ -55,6 +70,18 @@ window.SP_AREAS = (function () {
       db.areas = DEFAULTS.map(function (a) { return { id: a.id, name: a.name }; });
       save(db);
     }
+    // Сборка 22.09-83: обязательный участок «ГРП». Идемпотентно: если его нет —
+    // добавляем с ФИКСИРОВАННЫМ id 'a_grp' (все клиенты пишут одну и ту же
+    // серверную запись: upsert по id, дубликатов не возникает). Если участок
+    // с таким именем уже создан вручную (другой id) — ничего не делаем.
+    if (!db.areas.some(function (a) { return a && a.name === 'ГРП'; })) {
+      db.areas.push({ id: 'a_grp', name: 'ГРП', created: Date.now() });
+      save(db); // save() сама синхронизирует с сервером (syncWithServer выше)
+    }
+    // Пустой каталог видов работ под участок — как при создании через интерфейс
+    try {
+      if (window.SP_WORK && typeof SP_WORK.ensureArea === 'function') SP_WORK.ensureArea('ГРП');
+    } catch (e) {}
     return Promise.resolve(db);
   }
 

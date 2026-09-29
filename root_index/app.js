@@ -781,7 +781,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-81 · график работ уважает график смен мастера (только новые/изменённые серии переносятся на рабочие дни; старые не трогаем)'],
+    objmap: ['Карта объектов', 'Сборка 22.09-84 · атрибуты карточки работы только у своего участка: УБиРОГС — свой блок, ГРП — «Атрибуты ГРП», у остальных без атрибутов'],
     testmap: ['Тест проезда', 'Полигон: карта маршрутов + оптимизация + пробки + Google Maps (копия «Карты маршрутов» для экспериментов)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -11983,7 +11983,9 @@
     h += '<div class="fld"><label>Единица измерения</label><select id="wm-unit">';
     ['м2', 'объект', 'км', 'га', 'ЗУ'].forEach(function (u) { h += '<option value="' + u + '"' + (w && w.unit === u ? ' selected' : '') + '>' + u + '</option>'; });
     h += '</select></div></div>';
-    // Атрибуты УБиРОГС
+    // 22.09-84: блок «Атрибуты УБиРОГС» — ТОЛЬКО для участка УБиРОГС.
+    // Для ГРП ниже свой блок «Атрибуты ГРП», у остальных — пока нет атрибутов.
+    if (area === 'УБиРОГС') {
     h += '<div style="background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:14px;">';
     h += '<div style="font-size:12px;font-weight:700;color:var(--ink);margin-bottom:10px;">⚙️ Атрибуты УБиРОГС</div>';
     h += '<div class="attr-row"><div class="fld"><label class="cb"><input type="checkbox" id="wm-permit" ' + (w && w.needs_permit ? 'checked' : '') + '> Требуется ордер</label></div>';
@@ -11995,10 +11997,13 @@
     h += '<div class="attr-row"><div class="fld"><label>Требуемая техника</label><input id="wm-equip" value="' + (w ? esc(w.equipment || '—') : '—') + '" placeholder="Экскаватор, КДМ, ..."></div>';
     h += '<div class="fld"><label>Кол-во исполнителей (мин / оптим.)</label><div style="display:flex;gap:8px"><input id="wm-minw" type="number" min="1" value="' + (w ? (w.min_workers || 1) : 2) + '" style="flex:1" placeholder="мин"><input id="wm-optw" type="number" min="1" value="' + (w ? (w.opt_workers || 2) : 3) + '" style="flex:1" placeholder="опт"></div></div></div>';
     h += '</div>';
+    } // if (area === 'УБиРОГС')
 
     // === Атрибуты по «4 Атрибуты видов работ.htm» (Сборка 22.09-29) ===
+    // 22.09-84: этот блок — ТОЛЬКО для участка ГРП
+    if (area === 'ГРП') {
     h += '<div style="background:#eef6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px;margin-bottom:14px;">';
-    h += '<div style="font-size:12px;font-weight:700;color:#1d4ed8;margin-bottom:10px;">📋 Атрибуты (по справочнику УБиРОГС)</div>';
+    h += '<div style="font-size:12px;font-weight:700;color:#1d4ed8;margin-bottom:10px;">📋 Атрибуты ГРП</div>';
 
     // 1. Категория объекта обслуживания (мульти-чекбоксы)
     var curCats = (w && w.object_categories) || [];
@@ -12088,6 +12093,7 @@
     h += '<div class="fld"><label class="cb"><input type="checkbox" id="wm-scanattach" ' + (w && w.scan_attach ? 'checked' : '') + '> Присоединение отсканированных подписанных документов</label></div>';
 
     h += '</div>';
+    } // if (area === 'ГРП')
 
     h += '</div><div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="save-work">Сохранить</button></div>';
     modal.style.maxWidth = ''; // сброс автоширины карточки задачи
@@ -12110,25 +12116,47 @@
     var name = val('wm-name');
     if (!name) { toast('err', 'Введите название работы'); return; }
     var data = {
-      group: val('wm-group') || 'Без группы', name: name, norm: val('wm-norm'), unit: val('wm-unit'),
-      needs_permit: chk('wm-permit'), depends_on_snow: chk('wm-snow'),
-      min_temp: parseFloat(val('wm-temp')) || -50, season: val('wm-season'),
-      equipment: val('wm-equip') || '—', min_workers: parseInt(val('wm-minw')) || 1, opt_workers: parseInt(val('wm-optw')) || 2,
-      // === Атрибуты по «4 Атрибуты видов работ.htm» ===
-      object_categories:      arrFromAttr('cat'),
-      departments:            arrFromAttr('dep'),
-      periodicity_value:      parseInt(val('wm-period-value')) || 0,
-      periodicity_unit:       val('wm-period-unit') || 'мес',
-      periodicity_depends_on: arrFromAttr('perioddep'),
-      periodicity_basis:      val('wm-period-basis') || 'prev_date',
-      joint_with:             val('wm-joint'),
-      operations:             val('wm-operations').split(',').map(function (s) { return s.trim(); }).filter(Boolean),
-      indicators:             val('wm-indicators').split(',').map(function (s) { return s.trim(); }).filter(Boolean),
-      print_forms:            val('wm-printforms').split(',').map(function (s) { return s.trim(); }).filter(Boolean),
-      op_journal:             chk('wm-opjournal'),
-      passport_entry:         chk('wm-passport'),
-      scan_attach:            chk('wm-scanattach')
+      group: val('wm-group') || 'Без группы', name: name, norm: val('wm-norm'), unit: val('wm-unit')
     };
+    // 22.09-84: атрибутные блоки — только у своего участка. На чужих участках
+    // поля НЕ РЕНДЕРЯТСЯ, поэтому при ПРАВКЕ сохраняем старые значения (иначе
+    // бы затёрлись дефолтами), при СОЗДАНИИ — дефолтные.
+    var oldW = (mode === 'edit' && wid) ? WORK.getWork(area, wid) : null;
+    // Блок 1 («Атрибуты УБиРОГС»): ордер/снег/температура/сезон/техника/исполнители
+    if (area === 'УБиРОГС') {
+      data.needs_permit = chk('wm-permit'); data.depends_on_snow = chk('wm-snow');
+      data.min_temp = parseFloat(val('wm-temp')) || -50; data.season = val('wm-season');
+      data.equipment = val('wm-equip') || '—';
+      data.min_workers = parseInt(val('wm-minw')) || 1; data.opt_workers = parseInt(val('wm-optw')) || 2;
+    } else if (oldW) {
+      ['needs_permit', 'depends_on_snow', 'min_temp', 'season', 'equipment', 'min_workers', 'opt_workers']
+        .forEach(function (k) { if (oldW[k] !== undefined) data[k] = oldW[k]; });
+    } else {
+      data.needs_permit = false; data.depends_on_snow = false;
+      data.min_temp = -50; data.season = 'Круглый год'; data.equipment = '—';
+      data.min_workers = 1; data.opt_workers = 2;
+    }
+    // Блок 2 («Атрибуты ГРП», по «4 Атрибуты видов работ.htm»)
+    if (area === 'ГРП') {
+      data.object_categories = arrFromAttr('cat');
+      data.departments = arrFromAttr('dep');
+      data.periodicity_value = parseInt(val('wm-period-value')) || 0;
+      data.periodicity_unit = val('wm-period-unit') || 'мес';
+      data.periodicity_depends_on = arrFromAttr('perioddep');
+      data.periodicity_basis = val('wm-period-basis') || 'prev_date';
+      data.joint_with = val('wm-joint');
+      data.operations = val('wm-operations').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+      data.indicators = val('wm-indicators').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+      data.print_forms = val('wm-printforms').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+      data.op_journal = chk('wm-opjournal');
+      data.passport_entry = chk('wm-passport');
+      data.scan_attach = chk('wm-scanattach');
+    } else if (oldW) {
+      ['object_categories', 'departments', 'periodicity_value', 'periodicity_unit',
+        'periodicity_depends_on', 'periodicity_basis', 'joint_with', 'operations',
+        'indicators', 'print_forms', 'op_journal', 'passport_entry', 'scan_attach']
+        .forEach(function (k) { if (oldW[k] !== undefined) data[k] = oldW[k]; });
+    } // при создании на прочих участках — пропуск: work_db сам поставит дефолты
     if (mode === 'edit') { WORK.updateWork(area, wid, data); logAction('Изменение вида работы', data.name);
         toast('ok', 'Работа обновлена'); }
     else { WORK.addWork(area, data); logAction('Добавление вида работы', data.name);
@@ -15751,7 +15779,9 @@
     var g = graphsFind(GS.cur);
     if (!g) { toast('err', 'Сначала создайте или выберите график'); return; }
     GS.gaoDup = !!allowDup;
-    var users = (DB.getUsers() || []).filter(function (u) { return u && u.active !== false; });
+    // 22.09-82: в фильтре «Ответственный» — только мастера (ст. мастера, нач. участка),
+    // как в окне создания графика. Слесарей и прочие роли здесь быть не должно.
+    var users = getMasters().slice();
     users.sort(function (a, b) { return String(a.full_name || '').localeCompare(String(b.full_name || ''), 'ru'); });
     var respOpts = '<option value="">Все ответственные</option>';
     users.forEach(function (u) {
@@ -16764,10 +16794,21 @@
   function graphDaysTableHtml(g, rows, mi) {
     var year = g.year;
     var days = new Date(year, mi + 1, 0).getDate();
+    // 22.09-82: состояние каждого дня месяца для мастера графика по его графику
+    // смен («Работники»): зелёные ячейки — дни, когда он на работе; так видно,
+    // в какие дни реально можно ставить треугольники работ.
+    var dayStates = {}, workCnt = 0;
+    if (g.respId) {
+      for (var di = 1; di <= days; di++) {
+        var isoD = year + '-' + String(mi + 1).padStart(2, '0') + '-' + String(di).padStart(2, '0');
+        try { dayStates[di] = wkDayState(g.respId, isoD); } catch (e) { dayStates[di] = ''; }
+        if (dayStates[di] === 'work') workCnt++;
+      }
+    }
     var h = '<div class="gw-scroll"><div class="gw-grid" style="grid-template-columns:minmax(210px,1.3fr) repeat(' + days + ',minmax(54px,1fr))">';
     h += '<div class="gw-h gw-corner">Объект<span>' + MONTHS_RU[mi] + ' ' + year + '</span></div>';
     for (var d = 1; d <= days; d++) {
-      h += '<div class="gw-h gd-h"><b>' + d + '</b><span>' + WEEKDAYS_RU[new Date(year, mi, d).getDay()] + '</span></div>';
+      h += '<div class="gw-h gd-h"' + (dayStates[d] === 'work' ? ' style="background:#dcfce7"' : '') + '><b>' + d + '</b><span>' + WEEKDAYS_RU[new Date(year, mi, d).getDay()] + '</span></div>';
     }
     rows.forEach(function (ob) {
       h += '<div class="gw-obj"><span class="chip ' + esc(ob.type) + '">' + esc(ob.type) + '</span><span class="gw-obj-nm" title="' + esc(ob.title || ob.label) + '">' + esc(ob.label) + '</span></div>';
@@ -16781,10 +16822,18 @@
             });
           });
         }
-        h += '<div class="gd-c">' + (tri ? '<div class="gw-tris">' + tri + '</div>' : '') + '</div>';
+        h += '<div class="gd-c"' + (dayStates[c] === 'work' ? ' style="background:#dcfce7"' : '') + '>' + (tri ? '<div class="gw-tris">' + tri + '</div>' : '') + '</div>';
       }
     });
     h += '</div></div>';
+    // Легенда подсветки: чей график смен и сколько рабочих дней в месяце
+    if (g.respId) {
+      var mName = g.respName || '';
+      h += '<div style="display:flex;gap:8px;align-items:center;margin-top:10px;font-size:11.5px;color:var(--muted);font-weight:700;flex-wrap:wrap">' +
+        '<span style="width:14px;height:14px;border-radius:3px;background:#dcfce7;border:1px solid #16a34a;flex:0 0 auto"></span>' +
+        'мастер ' + (mName ? '«' + esc(mName) + '» ' : '') + 'на работе (график смен, вкладка «Работники») — ' + workCnt + ' дн. в этом месяце' +
+        '</div>';
+    }
     return h;
   }
 
