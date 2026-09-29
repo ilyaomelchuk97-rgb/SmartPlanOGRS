@@ -741,7 +741,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-92 · карточка работника: выбор профессии из справочника (с разрядом) под ФИО; ширина модальных окон по умолчанию — 486px'],
+    objmap: ['Карта объектов', 'Сборка 22.09-94 · клик по кружку-аватару открывает свою карточку работника в режиме «только просмотр»; исправлено «Слесарь · undefined» в шапке'],
     testmap: ['Тест проезда', 'Полигон: карта маршрутов + оптимизация + пробки + Google Maps (копия «Карты маршрутов» для экспериментов)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -8360,7 +8360,7 @@
     var wm = wkMonth();
     var dim = new Date(wm.y, wm.m + 1, 0).getDate();
     var lead = (new Date(wm.y, wm.m, 1).getDay() + 6) % 7; // Пн = 0
-    var can = wkCanEdit(u);
+    var can = wkCanEdit(u) && S.wkCardROUid !== u.id; // 22.09-94: режим «только просмотр»
     var s = '<div style="border:1px solid var(--line);border-radius:10px;padding:8px;background:var(--card)">';
     s += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">';
     s += '<button type="button" class="btn sm" data-action="wk-month-prev" title="Предыдущий месяц">‹</button>';
@@ -8427,7 +8427,7 @@
 
   function wkPanelHtml(u, masters) {
     var wd = wkData(u.id);
-    var can = wkCanEdit(u);
+    var can = wkCanEdit(u) && S.wkCardROUid !== u.id; // 22.09-94: режим «только просмотр»
     var dis = can ? '' : ' disabled';
     var isSlesar = u.role === 'slesar';
     var brigadeName = '';
@@ -8636,12 +8636,17 @@
   }
 
   // Полная карточка работника (модалка): клик по компактной карточке
-  function openWkCardModal(uid) {
+  // Открыть карточку работника. ro=true → режим «только просмотр» (Сборка 22.09-94):
+  // все настройки и календарь отсутствий видны, но менять ничего нельзя.
+  function openWkCardModal(uid, ro) {
     var u = DB.getUser(uid); if (!u) return;
+    if (ro !== undefined) S.wkCardROUid = ro ? uid : null;      // режим задан явно
+    else if (S.wkModalUid !== uid) S.wkCardROUid = null;        // другая карточка — сброс
     S.wkModalUid = uid;
+    var isRO = S.wkCardROUid === uid;
     var masters = wkVisibleUsers().filter(function (x) { return x.role === 'master'; });
     modal.style.maxWidth = '';
-    modal.innerHTML = '<div class="modal-h"><h3>' + esc(u.full_name) + ' · ' + wkRoleLabel(u.role) + '</h3><button class="x" data-action="close-modal">×</button></div>' +
+    modal.innerHTML = '<div class="modal-h"><h3>' + esc(u.full_name) + ' · ' + wkRoleLabel(u.role) + (isRO ? ' <span class="tag" style="background:#eff6ff;color:#1d4ed8;font-weight:800;font-size:10px;vertical-align:2px">просмотр</span>' : '') + '</h3><button class="x" data-action="close-modal">×</button></div>' +
       '<div class="modal-b">' + wkPanelHtml(u, masters) + '</div>';
     overlay.classList.add('show');
     wireWkControls(modal);
@@ -14650,7 +14655,7 @@
     var info = ROLE_INFO[u.role] || { label: u.role };
     document.getElementById('av').textContent = initials(u.full_name);
     document.getElementById('un').textContent = u.full_name;
-    document.getElementById('ur').textContent = (u.prof || info.label) + (u.role === 'admin' ? '' : ' · ' + u.area);
+    document.getElementById('ur').textContent = (u.prof || info.label) + (u.role === 'admin' || !u.area ? '' : ' · ' + u.area); // 22.09-94: без «· undefined»
     // Сегодняшняя дата в topbar
     var dateEl = document.getElementById('topbar-date');
     if (dateEl) dateEl.textContent = 'Сегодня ' + fmt(TODAY);
@@ -15060,7 +15065,8 @@
     // ===== Страница «Работники» =====
     else if (a === 'wk-month-prev') { wkShiftMonth(-1); }
     else if (a === 'wk-month-next') { wkShiftMonth(1); }
-    else if (a === 'wk-open-card') { openWkCardModal(el.dataset.uid); }
+    else if (a === 'wk-open-card') { openWkCardModal(el.dataset.uid, false); }
+    else if (a === 'open-my-card') { if (S.user && S.user.id) openWkCardModal(S.user.id, true); } // 22.09-94: кружок-аватар → своя карточка (просмотр)
     else if (a === 'wk-quick-abs') {
       // отсутствие одним кликом — без комментария (комментарий можно добавить повторным кликом по дню)
       if (window.SP_WORKERS) SP_WORKERS.setAbsence(el.dataset.uid, el.dataset.ds, '');
