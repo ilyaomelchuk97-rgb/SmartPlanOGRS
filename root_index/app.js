@@ -741,7 +741,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-115 · автоподбор: + телеметрия (наличие/тип), вид обслуживания (Region-gas → диагностика), отопление (ТО отопит. — только ГРП)'],
+    objmap: ['Карта объектов', 'Сборка 22.09-118 · автоподбор: режимы «📡 Только работы с ТМ» и «🚫📡 Только без ТМ» + подбор всем как раньше'],
     testmap: ['Тест проезда', 'Полигон: карта маршрутов + оптимизация + пробки + Google Maps (копия «Карты маршрутов» для экспериментов)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -16331,6 +16331,27 @@
              совпадать с параметром объекта (attrs.reduceLines, запасной —
              attrs.linesCount). Если у объекта параметр не заполнен — работа
              с ограничением по линиям не подбирается. */
+  /* 22.09-117: Эффективные связи работы с оборудованием объекта.
+     Приоритет — явные поля карточки (telemetry_req/telemetry_type/diag_equipment/
+     heating_req); если они пустые — распознаём по названию работы и её группе:
+     «ИНДЕЛ» → ТМ типа «Индел»; «не оборудованных системой телеметр…» → без ТМ;
+     «оборудованных системой телеметр…» → с ТМ; «оборудования ТМ и АСУТП» → с ТМ;
+     «приборного диагностического оборудования» → диагностика (Region-gas);
+     «отопительн…» → ТО отопительного (только ГРП с отоплением). */
+  function workEffAttrs(w) {
+    var tReq = w.telemetry_req || '', tType = w.telemetry_type || '';
+    var diag = !!w.diag_equipment, heat = !!w.heating_req;
+    var txt = (String(w.name || '') + ' § ' + String(w.group || '')).toLowerCase();
+    if (!tType && !tReq) {
+      if (txt.indexOf('индел') !== -1) { tReq = 'equipped'; tType = 'Индел'; }
+      else if (txt.indexOf('не оборудованных системой телеметр') !== -1) tReq = 'not_equipped';
+      else if (txt.indexOf('оборудованных системой телеметр') !== -1) tReq = 'equipped';
+      else if (txt.indexOf('тм и асутп') !== -1) tReq = 'equipped';
+    }
+    if (!diag && txt.indexOf('приборного диагностического оборудования') !== -1) diag = true;
+    if (!heat && txt.indexOf('отопительн') !== -1) heat = true;
+    return { telemetry_req: tReq, telemetry_type: tType, diag_equipment: diag, heating_req: heat };
+  }
   function workMatchesObjectParams(w, attrs, objType, rules) {
     rules = rules || {};
     if (rules.type !== false) {
@@ -16344,26 +16365,28 @@
         if (have !== need) return false;
       }
     }
-    // 22.09-115: телеметрия. Выбран у работы тип — совпадение и по типу, и по
+    // 22.09-115/117: телеметрия. Тип у работы — совпадение и по типу, и по
     // наличию ТМ; «оборудован ТМ» — только объектам с ТМ (нет ТМ → нет работ ТМ);
-    // «без ТМ» — только объектам без телеметрии.
+    // «без ТМ» — только объектам без телеметрии. Если в карточке не задано —
+    // распознаём по названию работы/группы (workEffAttrs).
+    var eff = w._effAuto || (w._effAuto = workEffAttrs(w));
     if (rules.telemetry !== false) {
       var objTel = String(attrs && attrs.telemetry || '').trim();
-      var needTelType = String(w.telemetry_type || '').trim();
-      if (needTelType) { if (objTel !== needTelType) return false; }
-      else if (w.telemetry_req === 'equipped' && !objTel) return false;
-      else if (w.telemetry_req === 'not_equipped' && objTel) return false;
+      if (eff.telemetry_type) {
+        if (objTel.toLowerCase() !== eff.telemetry_type.toLowerCase()) return false;
+      } else if (eff.telemetry_req === 'equipped' && !objTel) return false;
+      else if (eff.telemetry_req === 'not_equipped' && objTel) return false;
     }
     // 22.09-115: приборное диагностическое оборудование — только вид обслуживания Region-gas
     if (rules.service !== false) {
-      if (w.diag_equipment) {
+      if (eff.diag_equipment) {
         var sk = String(attrs && attrs.serviceKind || '').trim().toLowerCase();
         if (sk !== 'region-gaz' && sk !== 'region-gas') return false;
       }
     }
     // 22.09-115: ТО отопительного оборудования — только объектам с отоплением (у ШРП его нет → только ГРП)
     if (rules.heating !== false) {
-      if (w.heating_req && !String(attrs && attrs.heating || '').trim()) return false;
+      if (eff.heating_req && !String(attrs && attrs.heating || '').trim()) return false;
     }
     return true;
   }
@@ -16386,7 +16409,7 @@
      Периодичность/отклонение — из карточки работы; дата первой — из даты ввода
      в эксплуатацию объекта (если у работы реквизит отсчёта «Дата ввода...»).
      Возвращает число добавленных строк. В график попадает по кнопке «Сохранить». */
-  function gprAutofill(area, ri, g) {
+  function gprAutofill(area, ri, g, mode) {
     if (!g || !g.objs || !g.objs[ri]) return 0;
     var ob = g.objs[ri];
     var attrs = {};
@@ -16406,6 +16429,13 @@
     var added = 0;
     works.forEach(function (w) {
       if (!w || !w.id || have[w.id]) return;
+      // 22.09-118: режимы подбора — 'tm' только работы с телеметрией, 'notm' только без ТМ
+      if (mode === 'tm' || mode === 'notm') {
+        var ef = workEffAttrs(w);
+        var isTm = ef.telemetry_req === 'equipped' || !!ef.telemetry_type;
+        if (mode === 'tm' && !isTm) return;
+        if (mode === 'notm' && isTm) return;
+      }
       if (!workMatchesObjectParams(w, attrs, ob.type, rules)) return;
       if (!added) { // первая добавленная — убираем пустые строки-заглушки
         box.querySelectorAll('.gpr-wrow').forEach(function (row) {
@@ -16437,18 +16467,22 @@
     h += '<div class="modal-b">';
     h += '<div class="fld" style="max-width:320px"><label>Участок (виды работ из справочника)</label><select id="gpr-area">' + areaOpts + '</select></div>';
     // 22.09-114: панель автоподбора работ по параметрам объектов
-    h += '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 10px">' +
+    h += '<div style="display:flex;flex-direction:column;align-items:flex-start;gap:10px;margin-bottom:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 10px">' +
       '<span style="font-size:12px;font-weight:700;color:#166534">⚡ Автоподбор работ:</span>' +
       '<label class="cb" style="font-size:12px;color:#166534"><input type="checkbox" id="gpr-crit-type" checked> по типу объекта ► «Категория объекта» в карточке работы</label>' +
       '<label class="cb" style="font-size:12px;color:#166534"><input type="checkbox" id="gpr-crit-lines" checked> по линиям редуцирования ► «Линий редуцирования» у работы = параметру объекта</label>' +
       '<label class="cb" style="font-size:12px;color:#166534"><input type="checkbox" id="gpr-crit-telemetry" checked> по телеметрии ► наличие/тип ТМ объекта и работы</label>' +
       '<label class="cb" style="font-size:12px;color:#166534"><input type="checkbox" id="gpr-crit-service" checked> по виду обслуживания ► приборная диагностика только при Region-gas</label>' +
       '<label class="cb" style="font-size:12px;color:#166534"><input type="checkbox" id="gpr-crit-heating" checked> по отоплению ► ТО отопит. оборудования только ГРП с отоплением</label>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
       '<button type="button" class="btn sm" id="gpr-auto-all" style="background:#16a34a;color:#fff;border-color:#15803d;font-weight:700">⚡ Подобрать всем объектам</button>' +
+      '<button type="button" class="btn sm" id="gpr-auto-tm" title="Добавляются только работы, связанные с телеметрией («с ТМ» по полю карточки или названию), и только объектам с телеметрией" style="background:#0369a1;color:#fff;border-color:#075985;font-weight:700">📡 Только работы с ТМ</button>' +
+      '<button type="button" class="btn sm" id="gpr-auto-notm" title="Добавляются все работы, НЕ связанные с телеметрией (включая «объекты без ТМ»)" style="background:#475569;color:#fff;border-color:#334155;font-weight:700">🚫📡 Только без ТМ</button>' +
+      '</div>' +
       '</div>';
     h += '<div class="gpr-cols"><span>Вид работы</span><span>Период., мес</span><span>Откл., дн</span><span>Дата первого проведения</span><span></span></div>';
     h += '<div id="gpr-list" style="display:flex;flex-direction:column;gap:10px;padding:2px"></div>';
-    h += '<div class="calc" style="align-items:flex-start;font-size:11.5px;line-height:1.5">Шаг серии = периодичность МИНУС отклонение (1 мес и отклонение 2 дн: работа 18 числа → следующая 16 числа следующего месяца). У каждого объекта может быть несколько работ — «+ работа». Работы появляются в «Планировании»; перемещение задачи там переносит её и последующие по шагу серии. <b>Даты, попавшие на день, когда мастер графика не работает (выходные 5/2 и 2/2, отсутствия — график смен на вкладке «Работники»), автоматически переносятся на ближайший предыдущий рабочий день; шаг серии считается от своих исходных дат.</b> <b>⚡ Автоподбор (кнопка сверху или «⚡» у объекта) добавляет объектам работы из справочника по их параметрам: тип объекта ↔ «Категория объекта обслуживания», линии редуцирования объекта ↔ «Кол-во линий редуцирования» в карточке работы. Периодичность и отклонение подставляются из справочника; дата первого проведения — из «Даты ввода в эксплуатацию» объекта, если у работы выбран реквизит отсчёта «Дата ввода в эксплуатацию». Критерии оборудования: телеметрия (работы «с ТМ» не попадут на объект без ТМ; выбран тип — совпадение по типу и наличию), приборная диагностика только при виде обслуживания «Region-gas», ТО отопительного оборудования только ГРП с отоплением.</b></div>';
+    h += '<div class="calc" style="align-items:flex-start;font-size:11.5px;line-height:1.5">Шаг серии = периодичность МИНУС отклонение (1 мес и отклонение 2 дн: работа 18 числа → следующая 16 числа следующего месяца). У каждого объекта может быть несколько работ — «+ работа». Работы появляются в «Планировании»; перемещение задачи там переносит её и последующие по шагу серии. <b>Даты, попавшие на день, когда мастер графика не работает (выходные 5/2 и 2/2, отсутствия — график смен на вкладке «Работники»), автоматически переносятся на ближайший предыдущий рабочий день; шаг серии считается от своих исходных дат.</b> <b>⚡ Автоподбор (кнопка сверху или «⚡» у объекта) добавляет объектам работы из справочника по их параметрам: тип объекта ↔ «Категория объекта обслуживания», линии редуцирования объекта ↔ «Кол-во линий редуцирования» в карточке работы. Периодичность и отклонение подставляются из справочника; дата первого проведения — из «Даты ввода в эксплуатацию» объекта, если у работы выбран реквизит отсчёта «Дата ввода в эксплуатацию». Критерии оборудования: телеметрия (работы «с ТМ» не попадут на объект без ТМ; выбран тип — совпадение по типу и наличию), приборная диагностика только при виде обслуживания «Region-gas», ТО отопительного оборудования только ГРП с отоплением. Если поля в карточке работы не заполнены, связь распознаётся по названию работы/группы («ИНДЕЛ», «оборудованных/не оборудованных системой телеметрии», «приборного диагностического оборудования», «отопительного»). Режимы: «📡 Только работы с ТМ» — одни телеметрические работы, «🚫📡 Только без ТМ» — одни работы без привязки к телеметрии.</b></div>';
     h += '</div>';
     h += '<div class="modal-f"><button type="button" class="btn ok" data-action="graphs-period-save">Сохранить</button><button type="button" class="btn danger" data-action="close-modal">Отменить</button></div>';
     modal.innerHTML = h;
@@ -16508,14 +16542,20 @@
         for (var j = 0; j < sels[i].options.length; j++) if (sels[i].options[j].value === v) { sels[i].value = v; break; }
       }
     });
-    // 22.09-114: кнопка «Подобрать всем объектам» — добавляет недостающие работы всем
-    var autoAll = document.getElementById('gpr-auto-all');
-    if (autoAll) autoAll.addEventListener('click', function () {
+    // 22.09-114: кнопки автоподбора — всем / 22.09-118: только с ТМ / только без ТМ
+    function gprAutoAllRun(mode) {
       var tot = 0, objs = 0;
-      g.objs.forEach(function (ob, ri) { var n = gprAutofill(area, ri, g); if (n > 0) objs++; tot += n; });
-      if (tot) toast('ok', '⚡ Подобрано работ: ' + tot + ' (объектов затронуто: ' + objs + ') — проверьте и нажмите «Сохранить»');
-      else toast('warn', '⚡ Новых работ не подобрано: либо всё уже назначено, либо работы не совпадают с параметрами объектов (проверьте у объектов тип и линии редуцирования, а в карточках работ — категорию объекта и линии)');
-    });
+      g.objs.forEach(function (ob, ri) { var n = gprAutofill(area, ri, g, mode); if (n > 0) objs++; tot += n; });
+      var what = mode === 'tm' ? 'работ с ТМ' : (mode === 'notm' ? 'работ без ТМ' : 'работ');
+      if (tot) toast('ok', '⚡ Подобрано ' + what + ': ' + tot + ' (объектов затронуто: ' + objs + ') — проверьте и нажмите «Сохранить»');
+      else toast('warn', '⚡ Новых ' + what + ' не подобрано: либо всё уже назначено, либо работы не совпадают с параметрами объектов (проверьте тип, линии, телеметрию, вид обслуживания и отопление)');
+    }
+    var autoAll = document.getElementById('gpr-auto-all');
+    if (autoAll) autoAll.addEventListener('click', function () { gprAutoAllRun(null); });
+    var autoTm = document.getElementById('gpr-auto-tm');
+    if (autoTm) autoTm.addEventListener('click', function () { gprAutoAllRun('tm'); });
+    var autoNotm = document.getElementById('gpr-auto-notm');
+    if (autoNotm) autoNotm.addEventListener('click', function () { gprAutoAllRun('notm'); });
     // 22.09-114: при открытии окна автоматически подбираем работы объектам без работ
     var autoOnOpen = 0;
     g.objs.forEach(function (ob, ri) { if (!gwObjWorks(ob).length) autoOnOpen += gprAutofill(area, ri, g); });
