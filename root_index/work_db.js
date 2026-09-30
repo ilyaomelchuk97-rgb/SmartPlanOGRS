@@ -344,6 +344,30 @@ window.SP_WORK = (function () {
     }
     return null;
   }
+  // 22.09-112: переименовать группу/подгруппу для всех работ участка сразу.
+  // Путь — «Группа / Подгруппа»; дочерние подгруппы переезжают вместе с родителем.
+  function renameGroup(area, oldPath, newPath) {
+    var db = init(); var arr = db.areas[area] || [];
+    var changed = [];
+    var op = String(oldPath || '').trim(), np = String(newPath || '').trim();
+    if (!op || !np || op === np) return 0;
+    arr.forEach(function (w) {
+      var g = String(w.group || 'Без группы').split(/\s+\/\s*|\s*\/\s+/).map(function (s) { return s.trim(); }).filter(Boolean).join(' / '); // как normGroupPath: «/» только с пробелом
+      if (g === op) { w.group = np; changed.push(w); }
+      else if (g.indexOf(op + ' / ') === 0) { w.group = np + ' / ' + g.slice(op.length + 3); changed.push(w); }
+    });
+    if (changed.length) {
+      save(db);
+      if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
+        changed.forEach(function (w) {
+          window.SP_API.upsert('work_catalog', w).catch(function (e) {
+              try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log("warn", "sync", "sync failed", { err: String(e && e.err || e), where: "work_db.js" }); } catch(_){ }
+          });
+        });
+      }
+    }
+    return changed.length;
+  }
   function deleteWork(area, id) {
     var db = init(); var arr = db.areas[area] || [];
     db.areas[area] = arr.filter(function (w) { return w.id !== id; });
@@ -357,7 +381,7 @@ window.SP_WORK = (function () {
 
   return {
     ensureSeed: ensureSeed, getAreas: getAreas, getWorks: getWorks, getWork: getWork,
-    getWorkById: getWorkById, getWorkTree: getWorkTree, addWork: addWork, updateWork: updateWork, deleteWork: deleteWork,
+    getWorkById: getWorkById, getWorkTree: getWorkTree, addWork: addWork, updateWork: updateWork, deleteWork: deleteWork, renameGroup: renameGroup,
     ensureArea: ensureArea, renameArea: renameArea, deleteArea: deleteArea,
     DEFAULTS: DEFAULTS, reloadFromCloud: reloadFromCloud, SCHEMA: SCHEMA
   };

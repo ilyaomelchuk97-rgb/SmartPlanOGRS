@@ -741,7 +741,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-109 · графики смен: кнопка «🎉 Праздники» (справа сверху) — список праздничных дней РБ с добавлением/удалением, в сетке подсвечиваются жёлтым; засеяны праздники 2026–2027 по календарю Минтруда'],
+    objmap: ['Карта объектов', 'Сборка 22.09-114 · графики работ: ⚡ автоподбор работ объектам по их параметрам (тип ГРП/ШРП/ПГРП, линии редуцирования) с периодичностью из справочника'],
     testmap: ['Тест проезда', 'Полигон: карта маршрутов + оптимизация + пробки + Google Maps (копия «Карты маршрутов» для экспериментов)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -8652,21 +8652,27 @@
   }
   function holidaysSaveLS(list) { try { localStorage.setItem('smartplan_holidays', JSON.stringify(list)); } catch (e) {} }
   function holidayOn(ds) {
+    // 22.09-110: праздник без года — сравниваем по «ММ-ДД»; старые записи «ГГГГ-ММ-ДД» тоже понимаем
+    var md = String(ds || '').slice(5);
     var l = holidaysLoad();
-    for (var i = 0; i < l.length; i++) if (l[i] && l[i].date === ds) return l[i].name || 'Праздник';
+    for (var i = 0; i < l.length; i++) {
+      var d = l[i] && l[i].date ? String(l[i].date) : '';
+      if (!d) continue;
+      if (d === md || d.slice(5) === md || d === ds) return l[i].name || 'Праздник';
+    }
     return '';
   }
-  function hdFmtDate(ds) { var p = String(ds || '').split('-'); return p.length === 3 ? p[2] + '.' + p[1] + '.' + p[0] : String(ds || '—'); }
+  function hdFmtDate(ds) { var p = String(ds || '').split('-'); if (p.length === 2) return p[1] + '.' + p[0]; if (p.length === 3) return p[2] + '.' + p[1]; return String(ds || '—'); } // 22.09-110: без года → ДД.ММ
   function openHolidaysModal() {
     var canEdit = S.role === 'admin';
     var list = holidaysLoad().slice().sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); });
     var h = '<div class="modal-h"><h3>🎉 Праздничные дни (РБ)</h3><button class="x" data-action="close-modal">×</button></div>';
     h += '<div class="modal-b">';
-    h += '<div class="calc" style="margin-bottom:10px;align-items:flex-start">Праздники подсвечиваются в «Графиках смен» жёлтым. Список общий для всех пользователей и синхронизируется через сервер.' + (canEdit ? '' : ' <b>Изменение доступно администратору.</b>') + '</div>';
+    h += '<div class="calc" style="margin-bottom:10px;align-items:flex-start">Праздники без года: одна дата (день.месяц) — повторяется каждый год; подсвечиваются в «Графиках смен» жёлтым. Радуница — переходящая, на будущие годы переносите вручную. Список общий для всех пользователей.' + (canEdit ? '' : ' <b>Изменение доступно администратору.</b>') + '</div>';
     if (canEdit) {
       h += '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px">' +
-        '<div class="fld" style="margin:0;flex:0 0 160px"><label>Дата</label><input id="hd-date" type="date"></div>' +
-        '<div class="fld" style="margin:0;flex:1;min-width:170px"><label>Наименование праздника</label><input id="hd-name" placeholder="напр.: День независимости"></div>' +
+        '<div class="fld" style="margin:0;flex:0 0 130px"><label>Дата (день.месяц)</label><input id="hd-md" placeholder="09.05" maxlength="5" inputmode="numeric" style="text-align:center;font-weight:700"></div>' +
+        '<div class="fld" style="margin:0;flex:1;min-width:170px"><label>Наименование праздника</label><input id="hd-name" placeholder="напр.: День Победы"></div>' +
         '<button type="button" class="btn primary" data-action="holiday-add">+ Добавить</button></div>';
     }
     h += '<div style="max-height:340px;overflow-y:auto;border:1px solid var(--line);border-radius:8px">';
@@ -8683,18 +8689,26 @@
     overlay.classList.add('show');
   }
   function holidayAddFromModal() {
-    var dEl = document.getElementById('hd-date'), nEl = document.getElementById('hd-name');
-    var date = dEl ? dEl.value : '';
+    var dEl = document.getElementById('hd-md'), nEl = document.getElementById('hd-name');
+    var raw = dEl ? dEl.value.trim() : '';
     var name = nEl ? nEl.value.trim() : '';
-    if (!date) { toast('err', 'Укажите дату праздника'); return; }
+    // 22.09-110: дата без года — «ДД.ММ» (или «Д.М»); храним «ММ-ДД»
+    var mm = raw.match(/^(\d{1,2})\.(\d{1,2})$/);
+    if (!mm) { toast('err', 'Дата без года, формат: ДД.ММ (напр.: 09.05)'); return; }
+    var ddN = parseInt(mm[1], 10), mmN = parseInt(mm[2], 10);
+    if (mmN < 1 || mmN > 12 || ddN < 1 || ddN > 31) { toast('err', 'Нет такой даты: проверьте день и месяц'); return; }
+    var md = String(mmN).padStart(2, '0') + '-' + String(ddN).padStart(2, '0');
     if (!name) { toast('err', 'Укажите наименование праздника'); return; }
     var list = holidaysLoad();
-    for (var i = 0; i < list.length; i++) if (list[i] && list[i].date === date) { toast('err', 'Эта дата уже есть в списке («' + (list[i].name || 'Праздник') + '»)'); return; }
-    var rec = { id: 'h_' + date + '_' + Date.now().toString(36), date: date, name: name };
+    for (var i = 0; i < list.length; i++) {
+      var ld = list[i] && list[i].date ? String(list[i].date) : '';
+      if (ld === md || ld.slice(5) === md) { toast('err', 'Эта дата уже есть в списке («' + (list[i].name || 'Праздник') + '»)'); return; }
+    }
+    var rec = { id: 'h_' + md, date: md, name: name }; // детерминированный id — дублей не будет и на сервере
     list.push(rec); holidaysSaveLS(list);
     if (window.SP_API && SP_API.upsert) SP_API.upsert('holidays', rec).then(function (r) { if (!r || !r.ok) toast('warn', '⚠ Не сохранилось на сервере (' + ((r && r.err) || 'сеть') + ') — попробуйте позже'); });
-    logAction('Добавление праздника', date + ' · ' + name);
-    toast('ok', '🎉 Добавлено: ' + name + ' (' + hdFmtDate(date) + ')');
+    logAction('Добавление праздника', md + ' · ' + name);
+    toast('ok', '🎉 Добавлено: ' + name + ' (' + hdFmtDate(md) + ')');
     if (S.screen === 'schedules') renderSchedules();
     openHolidaysModal();
   }
@@ -8709,6 +8723,82 @@
     toast('ok', 'Праздник удалён');
     if (S.screen === 'schedules') renderSchedules();
     openHolidaysModal();
+  }
+
+  /* ---------- ВИДЫ ТЕЛЕМЕТРИИ (22.09-111) ----------
+     Общий список раздела telemetry на сервере (LS-кэш 'smartplan_telemetry').
+     Выбирается в атрибутах объектов ГРП/ШРП/ПГРП — «Тип телеметрии». */
+  function telemetryLoad() {
+    try { var r = localStorage.getItem('smartplan_telemetry'); var a = r ? JSON.parse(r) : []; return Array.isArray(a) ? a : []; } catch (e) { return []; }
+  }
+  function telemetrySaveLS(list) { try { localStorage.setItem('smartplan_telemetry', JSON.stringify(list)); } catch (e) {} }
+  function telemetryNames() {
+    var out = [];
+    telemetryLoad().forEach(function (r) { if (r && r.name && !r._deleted && out.indexOf(r.name) < 0) out.push(r.name); });
+    out.sort(function (a, b) { return String(a).localeCompare(String(b), 'ru'); });
+    return out;
+  }
+  // Обновить открытый select «Тип телеметрии» в карточке объекта, не трогая остальные поля
+  function telemetrySyncSelects() {
+    var sels = document.querySelectorAll('select[data-oa-key="telemetry"]');
+    var names = telemetryNames();
+    for (var i = 0; i < sels.length; i++) {
+      var cur = sels[i].value;
+      var h = '<option value="">— нет телеметрии —</option>';
+      for (var j = 0; j < names.length; j++) h += '<option value="' + esc(names[j]) + '"' + (names[j] === cur ? ' selected' : '') + '>' + esc(names[j]) + '</option>';
+      if (cur && names.indexOf(cur) < 0) h += '<option value="' + esc(cur) + '" selected>⚠ ' + esc(cur) + ' (нет в списке)</option>';
+      sels[i].innerHTML = h;
+    }
+  }
+  function openTelemetryModal() {
+    var canEdit = S.role === 'admin';
+    var names = telemetryNames();
+    var h = '<div class="modal-h"><h3>📡 Виды телеметрии</h3><button class="x" data-action="close-modal">×</button></div>';
+    h += '<div class="modal-b">';
+    h += '<div class="calc" style="margin-bottom:10px;align-items:flex-start">Список общий для всех объектов (ГРП/ШРП/ПГРП): добавленный тип можно выбрать в атрибутах любого объекта — вкладка «Технические», поле «Тип телеметрии».' + (canEdit ? '' : ' <b>Изменение доступно администратору.</b>') + '</div>';
+    if (canEdit) {
+      h += '<div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:12px">' +
+        '<div class="fld" style="margin:0;flex:1"><label>Новый тип телеметрии</label><input id="tt-name" placeholder="напр.: Индел"></div>' +
+        '<button type="button" class="btn primary" data-action="telemetry-add">+ Добавить</button></div>';
+    }
+    h += '<div style="max-height:320px;overflow-y:auto;border:1px solid var(--line);border-radius:8px">';
+    if (!names.length) h += '<div style="padding:14px;color:var(--muted);font-size:12.5px">Список пуст' + (canEdit ? ' — добавьте первый тип выше' : '') + '</div>';
+    names.forEach(function (n) {
+      var rid = '';
+      telemetryLoad().forEach(function (r) { if (r && r.name === n) rid = r.id; });
+      h += '<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--line)">' +
+        '<span style="flex:1;font-size:12.5px;color:var(--ink);font-weight:600">📡 ' + esc(n) + '</span>' +
+        (canEdit ? '<button type="button" class="btn sm" data-action="telemetry-del" data-id="' + esc(rid) + '" style="color:var(--red)">Удалить</button>' : '') + '</div>';
+    });
+    h += '</div></div>';
+    h += '<div class="modal-f"><button type="button" class="btn" data-action="close-modal">Закрыть</button></div>';
+    modal.innerHTML = h;
+    overlay.classList.add('show');
+  }
+  function telemetryAddFromModal() {
+    var nEl = document.getElementById('tt-name');
+    var name = nEl ? nEl.value.trim() : '';
+    if (!name) { toast('err', 'Укажите наименование типа телеметрии'); return; }
+    if (telemetryNames().indexOf(name) >= 0) { toast('err', 'Такой тип уже есть в списке («' + name + '»)'); return; }
+    var rec = { id: 'tt_' + Date.now().toString(36), name: name };
+    var list = telemetryLoad(); list.push(rec); telemetrySaveLS(list);
+    if (window.SP_API && SP_API.upsert) SP_API.upsert('telemetry', rec).then(function (r) { if (!r || !r.ok) toast('warn', '⚠ Не сохранилось на сервере (' + ((r && r.err) || 'сеть') + ') — попробуйте позже'); });
+    logAction('Добавление вида телеметрии', name);
+    toast('ok', '📡 Тип «' + name + '» добавлен — доступен на всех объектах');
+    telemetrySyncSelects();
+    openTelemetryModal();
+  }
+  function telemetryDelete(id) {
+    if (!id) return;
+    var list = telemetryLoad(), n = list.length;
+    list = list.filter(function (x) { return x && x.id !== id; });
+    if (list.length === n) return;
+    telemetrySaveLS(list);
+    if (window.SP_API && SP_API.del) SP_API.del('telemetry', id).then(function (r) { if (!r || !r.ok) toast('warn', '⚠ Не удалилось на сервере (' + ((r && r.err) || 'сеть') + ') — попробуйте позже'); });
+    logAction('Удаление вида телеметрии', id);
+    toast('ok', 'Вид телеметрии удалён из списка');
+    telemetrySyncSelects();
+    openTelemetryModal();
   }
 
   function renderSchedules() {
@@ -8754,9 +8844,10 @@
     html += '<span style="width:1px;height:20px;background:var(--line);margin:0 4px"></span>';
     html += '<button type="button" class="btn sm" data-action="sch-print" title="Печать сводного графика (текущий период, выбранный режим)" style="background:#475569;color:#fff;border-color:#475569">🖨 Печать</button>';
     html += '<button type="button" class="btn sm" data-action="sch-excel" title="Скачать в Excel — текущий период, выбранный режим" style="background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border-color:#15803d">📥 Excel</button>';
-    html += '<button type="button" class="btn sm" data-action="sch-holidays" title="Праздничные дни РБ — список, добавление/удаление; подсвечиваются жёлтым" style="background:linear-gradient(135deg,#eab308,#ca8a04);color:#fff;border-color:#ca8a04">🎉 Праздники</button>'; // 22.09-109
     html += '</span></div>';
     html += '<div class="card-b">';
+    // 22.09-110: кнопка «🎉 Праздники» — отдельной строкой под шапкой карточки (не в ряду управления)
+    html += '<div style="display:flex;justify-content:flex-end;margin:0 0 10px"><button type="button" class="btn sm" data-action="sch-holidays" title="Праздничные дни — список (день и месяц, без года); подсвечиваются жёлтым" style="background:linear-gradient(135deg,#eab308,#ca8a04);color:#fff;border-color:#ca8a04">🎉 Праздники</button></div>';
 
     if (!rows.length) {
       html += '<div class="empty" style="padding:30px">Нет работников</div>';
@@ -10070,6 +10161,7 @@
       }
       // Добавляем строку-подсказку в конец для новых работ
       data.push(['Новая группа работ (пример)', 'Новый вид работы для загрузки в систему', 2.5, 'объект']);
+      data.push(['Новая группа работ (пример) / Зима', 'Пример работы в подгруппе — подгруппа пишется после «/»', 2.5, 'объект']);
     }
 
     var ws = XLSX.utils.aoa_to_sheet(data);
@@ -10382,7 +10474,7 @@
           var nameStr = String(row[idxName] != null ? row[idxName] : '').trim();
           if (!nameStr || nameStr === 'Вид работы' || nameStr === '—' || nameStr.indexOf('Итого') === 0 || nameStr === 'Новый вид работы для загрузки в систему') continue;
 
-          var groupStr = String(row[idxGroup] != null ? row[idxGroup] : 'Без группы').trim() || 'Без группы';
+          var groupStr = normGroupPath(String(row[idxGroup] != null ? row[idxGroup] : 'Без группы')) || 'Без группы'; // 22.09-112: «Группа/Подгруппа» в любом написании
           var normVal = parseFloat(String(row[idxNorm] != null ? row[idxNorm] : '0').replace(',', '.')) || 0;
           var unitStr = String(row[idxUnit] != null ? row[idxUnit] : 'объект').trim() || 'объект';
 
@@ -10429,6 +10521,59 @@
   }
 
   /* =====================================================================
+     22.09-112: ГРУППЫ РАБОТ — дерево с подгруппами.
+     Подгруппа хранится прямо в поле group через « / »: «Проверка ГРП / Зима».
+     ===================================================================== */
+  function normGroupPath(s) {
+    // Разделитель подгрупп — косая черта С ПРОБЕЛОМ хотя бы с одной стороны (« / »),
+    // чтобы «ГРП/ШРП» в существующих наименованиях НЕ превращалось в подгруппу.
+    var parts = String(s || '').split(/\s+\/\s*|\s*\/\s+/).map(function (p) { return p.trim(); }).filter(Boolean);
+    return parts.join(' / ');
+  }
+  function buildWorkTree(works) {
+    var root = { name: '', path: '', children: {}, order: [], works: [] };
+    works.forEach(function (w) {
+      var g = normGroupPath(w.group) || 'Без группы';
+      var parts = g.split(' / ');
+      var node = root, path = [];
+      parts.forEach(function (p) {
+        path.push(p);
+        if (!node.children[p]) { node.children[p] = { name: p, path: path.join(' / '), children: {}, order: [], works: [] }; node.order.push(p); }
+        node = node.children[p];
+      });
+      node.works.push(w);
+    });
+    return root;
+  }
+  // Сколько работ затронет переименование пути (сам узел + его подгруппы)
+  function groupPathAffected(works, path) {
+    var n = 0;
+    works.forEach(function (w) {
+      var g = normGroupPath(w.group) || 'Без группы';
+      if (g === path || g.indexOf(path + ' / ') === 0) n++;
+    });
+    return n;
+  }
+  // Существующие группы/подгруппы участка — для datalist-подсказок карточки работы
+  function groupSuggest(area) {
+    var tops = {}, subs = {};
+    WORK.getWorks(area).forEach(function (w) {
+      var g = normGroupPath(w.group) || 'Без группы';
+      var parts = g.split(' / ');
+      tops[parts[0]] = 1;
+      if (parts.length > 1) { var s = parts.slice(1).join(' / '); (subs[parts[0]] = subs[parts[0]] || {})[s] = 1; }
+    });
+    var ru = function (a, b) { return a.localeCompare(b, 'ru'); };
+    return {
+      tops: Object.keys(tops).sort(ru),
+      subsFor: function (top) {
+        var t = normGroupPath(top).split(' / ')[0];
+        return t ? Object.keys(subs[t] || {}).sort(ru) : [];
+      }
+    };
+  }
+
+  /* =====================================================================
      РЕНДЕР: СПРАВОЧНИКИ
      ===================================================================== */
   function renderRefs() {
@@ -10461,8 +10606,8 @@
     if (!S.workArea || areaOpts.indexOf(S.workArea) === -1) S.workArea = areaOpts[0];
     var area = S.workArea;
     var works = WORK.getWorks(area);
-    var groups = {};
-    works.forEach(function (w) { var g = w.group || 'Без группы'; (groups[g] = groups[g] || []).push(w); });
+    // 22.09-112: дерево «группа / подгруппа» вместо плоской карты групп
+    var workTree = buildWorkTree(works);
 
     html += '<div style="margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">';
     html += '<label style="font-size:12px;font-weight:600;color:var(--muted)">Участок:</label>';
@@ -10492,6 +10637,7 @@
       if (w.needs_permit) attr += ' <span class="permit-badge">📋 Ордер</span>';
       if (w.depends_on_snow) attr += ' <span class="snow-badge">❄️ Снег</span>';
       if (w.min_temp > -50) attr += ' <span class="weather-badge">🌡️ t≥' + w.min_temp + '°</span>';
+      if (w.season && w.season !== 'Круглый год') attr += ' <span class="weather-badge" title="Сезон проведения">' + (w.season === 'Зима' ? '❄️' : w.season === 'Лето' ? '☀️' : '🍂') + ' ' + esc(w.season) + '</span>'; // 22.09-113
       if (w.equipment && w.equipment !== '—') attr += ' <span class="equipment-badge">' + esc(w.equipment) + '</span>';
       if (w.object_categories && w.object_categories.length) {
         attr += ' <span class="equipment-badge" title="Категория объекта: ' + esc(w.object_categories.join(', ')) + '">' + esc(w.object_categories[0]) + (w.object_categories.length > 1 ? ' +' + (w.object_categories.length - 1) : '') + '</span>';
@@ -10512,41 +10658,57 @@
       return attr;
     }
 
-    if (S.refsTab === 'norms') {
-      // 22.09-97: раскрывающиеся группы остаются, внутри — таблица (вид как раньше)
-      html += '<div class="card"><div class="card-b"><div class="tree">';
-      if (!works.length) html += '<div class="empty">На участке пока нет работ</div>';
-      Object.keys(groups).forEach(function (g) {
-        var open = !!(S.refsOpen && S.refsOpen[g]);
-        html += '<ul style="padding-left:0"><li><div class="grp' + (open ? '' : ' closed') + '" data-action="toggle-tree" data-grp="' + esc(g) + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>' + esc(g) + '</div><ul' + (open ? '' : ' style="display:none"') + '>';
-        html += '<li><table class="dt" style="margin:4px 0 14px"><thead><tr><th>Работа</th><th>Норма, ч</th><th>Ед. изм.</th>' + (admin ? '<th style="text-align:right">Действия</th>' : '') + '</tr></thead><tbody>';
-        groups[g].forEach(function (w) {
-          // 22.09-99: свойства (🌡️, техника и т.д.) в нормах времени не показываем
-          html += '<tr><td><b>' + esc(w.name) + '</b></td><td>' + fmtH(w.norm) + '</td><td>' + esc(w.unit) + '</td>';
-          if (admin) html += '<td style="text-align:right;white-space:nowrap"><button class="btn sm" data-action="edit-work" data-wid="' + w.id + '">Изменить</button> <button class="btn sm" data-action="del-work" data-wid="' + w.id + '" style="color:var(--red)">Удалить</button></td>';
-          html += '</tr>';
-        });
-        html += '</tbody></table></li></ul></li></ul>';
-      });
-      html += '</div></div></div>';
-    } else {
-      html += '<div class="card"><div class="card-b"><div class="tree">';
-      if (!works.length) html += '<div class="empty">На участке «' + esc(area) + '» пока нет видов работ. ' + (admin ? 'Нажмите «Добавить работу».' : '') + '</div>';
-      Object.keys(groups).forEach(function (g) {
-        // 22.09-96: группы свёрнуты при входе; раскрытые запоминаются (S.refsOpen) до ухода со страницы
-        var open = !!(S.refsOpen && S.refsOpen[g]);
-        html += '<ul style="padding-left:0"><li><div class="grp' + (open ? '' : ' closed') + '" data-action="toggle-tree" data-grp="' + esc(g) + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>' + esc(g) + '</div><ul' + (open ? '' : ' style="display:none"') + '>';
-        groups[g].forEach(function (w) {
+    // 22.09-112: дерево групп/подгрупп (рекурсивно). У группы могут быть и свои
+    // работы, и подгруппы — собственные работы рисуются первыми, затем подгруппы.
+    // У админа у каждой группы: «＋» — новая работа прямо в эту группу,
+    // «✏️» — переименование сразу для всех работ группы.
+    function grpHeadHtml(ch, depth) {
+      var open = !!(S.refsOpen && S.refsOpen[ch.path]);
+      var g = '<div class="grp' + (open ? '' : ' closed') + '" data-action="toggle-tree" data-grp="' + esc(ch.path) + '"' + (depth ? ' style="font-weight:600;font-size:12.5px"' : '') + '><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>' + esc(ch.name);
+      if (admin) g += '<span style="margin-left:auto;display:inline-flex;gap:4px;flex-shrink:0">' +
+        '<button type="button" class="btn sm ghost" data-action="grp-newwork" data-path="' + esc(ch.path) + '" title="Добавить работу в эту группу (подгруппа задаётся в карточке работы)" style="padding:2px 8px;font-size:12px;line-height:1.4">＋</button>' +
+        '<button type="button" class="btn sm ghost" data-action="grp-rename" data-path="' + esc(ch.path) + '" title="Переименовать группу для всех работ сразу" style="padding:2px 8px;font-size:12px;line-height:1.4">✏️</button></span>';
+      return g + '</div>';
+    }
+    function workNodeLi(ch, depth) {
+      // 22.09-96: группы свёрнуты при входе; раскрытые запоминаются (S.refsOpen) до ухода со страницы
+      var open = !!(S.refsOpen && S.refsOpen[ch.path]);
+      var h = '<li>' + grpHeadHtml(ch, depth) + '<ul' + (open ? '' : ' style="display:none"') + '>';
+      if (isNorms) {
+        // 22.09-97: раскрывающиеся группы остаются, внутри — таблица (вид как раньше)
+        if (ch.works.length) {
+          h += '<li><table class="dt" style="margin:4px 0 14px"><thead><tr><th>Работа</th><th>Норма, ч</th><th>Ед. изм.</th>' + (admin ? '<th style="text-align:right">Действия</th>' : '') + '</tr></thead><tbody>';
+          ch.works.forEach(function (w) {
+            // 22.09-99: свойства (🌡️, техника и т.д.) в нормах времени не показываем
+            h += '<tr><td><b>' + esc(w.name) + '</b></td><td>' + fmtH(w.norm) + '</td><td>' + esc(w.unit) + '</td>';
+            if (admin) h += '<td style="text-align:right;white-space:nowrap"><button class="btn sm" data-action="edit-work" data-wid="' + w.id + '">Изменить</button> <button class="btn sm" data-action="del-work" data-wid="' + w.id + '" style="color:var(--red)">Удалить</button></td>';
+            h += '</tr>';
+          });
+          h += '</tbody></table></li>';
+        }
+      } else {
+        ch.works.forEach(function (w) {
           var attr = workRefBadgesHtml(w);
           // 22.09-98: название слева, свойства (вид объекта, линии и др.) и кнопки — по правому краю
-          html += '<li class="w"><span style="color:var(--blue)">▪</span><span>' + esc(w.name) + '</span><span style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end;text-align:right">' + attr + '</span>';
-          if (admin) html += '<span style="margin-left:10px;white-space:nowrap"><button class="btn sm" data-action="edit-work" data-wid="' + w.id + '">Изменить</button> <button class="btn sm" data-action="del-work" data-wid="' + w.id + '" style="color:var(--red)">Удалить</button></span>';
-          html += '</li>';
+          h += '<li class="w"><span style="color:var(--blue)">▪</span><span>' + esc(w.name) + '</span><span style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end;text-align:right">' + attr + '</span>';
+          if (admin) h += '<span style="margin-left:10px;white-space:nowrap"><button class="btn sm" data-action="edit-work" data-wid="' + w.id + '">Изменить</button> <button class="btn sm" data-action="del-work" data-wid="' + w.id + '" style="color:var(--red)">Удалить</button></span>';
+          h += '</li>';
         });
-        html += '</ul></li></ul>';
-      });
-      html += '</div></div></div>';
+      }
+      ch.order.forEach(function (k) { h += workNodeLi(ch.children[k], depth + 1); });
+      return h + '</ul></li>';
     }
+
+    html += '<div class="card"><div class="card-b"><div class="tree">';
+    if (!works.length) html += isNorms
+      ? '<div class="empty">На участке пока нет работ</div>'
+      : '<div class="empty">На участке «' + esc(area) + '» пока нет видов работ. ' + (admin ? 'Нажмите «Добавить работу».' : '') + '</div>';
+    if (workTree.order.length) {
+      html += '<ul style="padding-left:0">';
+      workTree.order.forEach(function (k) { html += workNodeLi(workTree.children[k], 0); });
+      html += '</ul>';
+    }
+    html += '</div></div></div>';
     html += '<input type="file" id="ref-excel-file" accept=".xlsx,.xls,.csv" style="display:none">';
     view.innerHTML = html;
 
@@ -11563,7 +11725,7 @@
     // сворачивания — пользователь должен видеть все свойства сразу.
     if (window.SP_OBJ_ATTRS && SP_OBJ_ATTRS.supportsAttrs(type)) {
       html += '<div id="oa-section" style="display:block;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">';
-      html += '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">📋 Атрибуты (по приказу УП «МИНГАЗ»)</div>';
+      html += '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">📋 Атрибуты объекта</div>';
       html += SP_OBJ_ATTRS.renderForm(o, type, null);
       html += '</div>';
     }
@@ -11631,7 +11793,7 @@
       // Атрибуты только для ГРП/ШРП/ПГРП — для остальных секцию скрываем
       if (SP_OBJ_ATTRS.supportsAttrs(cur)) {
         var html2 = SP_OBJ_ATTRS.renderForm(o, cur, null);
-        if (sec) { sec.innerHTML = '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">📋 Атрибуты (по приказу УП «МИНГАЗ»)</div>' + html2; sec.style.display = 'block'; }
+        if (sec) { sec.innerHTML = '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">📋 Атрибуты объекта</div>' + html2; sec.style.display = 'block'; }
       } else {
         if (sec) { sec.innerHTML = ''; sec.style.display = 'none'; }
       }
@@ -11865,12 +12027,54 @@
     return out;
   }
 
+  /* ===== 22.09-112: переименование группы работ — для всех работ группы сразу ===== */
+  function openGroupRenameModal(path) {
+    if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
+    var p = normGroupPath(path);
+    if (!p) return;
+    var affected = groupPathAffected(WORK.getWorks(S.workArea), p);
+    S.grpRenamePath = p;
+    var h = '<div class="modal-h"><h3>Переименование группы работ</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">';
+    h += '<div class="fld"><label>Текущее наименование</label><input value="' + esc(p) + '" disabled style="opacity:.65"></div>';
+    h += '<div class="fld"><label>Новое наименование</label><input id="grm-name" value="' + esc(p) + '" autocomplete="off"></div>';
+    h += '<div style="font-size:12px;color:var(--muted);line-height:1.55">Наименование изменится сразу у всех работ группы — затронуто работ: <b style="color:var(--ink)">' + affected + '</b> (включая подгруппы).<br>' +
+      'Подгруппа задаётся через « / » (косая черта с пробелом) — например, <b>Обслуживание ГРП / Зима</b> перенесёт эту группу в подгруппу «Зима» внутри «Обслуживание ГРП».<br>' +
+      'Если указать наименование уже существующей группы — группы объединятся.</div>';
+    h += '</div><div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="grp-rename-save">Переименовать</button></div>';
+    modal.innerHTML = h; overlay.classList.add('show');
+    var inp = document.getElementById('grm-name'); if (inp) { inp.focus(); inp.select(); }
+  }
+  function saveGroupRename() {
+    if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
+    var op = S.grpRenamePath; if (!op) return;
+    var el = document.getElementById('grm-name');
+    var np = normGroupPath(el ? el.value : '');
+    if (!np) { toast('err', 'Введите наименование группы'); return; }
+    if (np === op) { overlay.classList.remove('show'); return; }
+    var n = WORK.renameGroup(S.workArea, op, np);
+    if (!S.refsOpen) S.refsOpen = {};
+    delete S.refsOpen[op]; S.refsOpen[np] = true;
+    overlay.classList.remove('show');
+    if (n > 0) { toast('ok', 'Группа переименована · обновлено работ: ' + n); logAction('Переименование группы работ', op + ' → ' + np + ' (' + n + ' шт.)'); }
+    else toast('warn', 'Работы этой группы не найдены');
+    renderRefs();
+  }
+
   function openWorkModal(mode, wid) {
     var area = S.workArea;
     var w = mode === 'edit' ? WORK.getWork(area, wid) : null;
     var title = (mode === 'edit' ? 'Редактирование работы' : 'Новая работа') + ' · ' + area;
+    // 22.09-112: «Группа работ» — два поля (группа + необязательная подгруппа);
+    // в базе это по-прежнему одна строка group = «Группа / Подгруппа».
+    var grpPreset = S.workPresetGroup || ''; S.workPresetGroup = '';
+    var grpVal = '', subVal = '';
+    var grpSrc = normGroupPath(w && w.group ? w.group : grpPreset);
+    if (grpSrc) { var grpSegs = grpSrc.split(' / '); grpVal = grpSegs[0]; subVal = grpSegs.slice(1).join(' / '); }
+    var grpLists = groupSuggest(area);
+    function dlOptsHtml(arr) { return arr.map(function (v) { return '<option value="' + esc(v) + '">'; }).join(''); }
     var h = '<div class="modal-h"><h3>' + esc(title) + '</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">';
-    h += '<div class="fld"><label>Группа работ</label><input id="wm-group" value="' + (w ? esc(w.group || '') : '') + '" placeholder="Напр.: Благоустройство"></div>';
+    h += '<div class="attr-row"><div class="fld"><label>Группа работ</label><input id="wm-group" list="wm-grp-dl" autocomplete="off" value="' + esc(grpVal) + '" placeholder="Напр.: Благоустройство"><datalist id="wm-grp-dl">' + dlOptsHtml(grpLists.tops) + '</datalist></div>';
+    h += '<div class="fld"><label>Подгруппа <span style="color:#94a3b8;font-weight:500">(необязательно, напр.: Лето / Зима)</span></label><input id="wm-subgroup" list="wm-sub-dl" autocomplete="off" value="' + esc(subVal) + '" placeholder="Без подгруппы"><datalist id="wm-sub-dl">' + dlOptsHtml(grpLists.subsFor(grpVal)) + '</datalist></div></div>';
     h += '<div class="fld"><label>Название работы</label><input id="wm-name" value="' + (w ? esc(w.name) : '') + '" placeholder="Напр.: Укладка асфальта"></div>';
     // 22.09-95: «Норма времени, ч» и «Единица измерения» из карточки убраны —
     // нормы живут отдельно (загружаются импортом норм), здесь только вид работы.
@@ -11920,6 +12124,14 @@
       h += '<input type="checkbox" data-dep="' + esc(d) + '"' + (on ? ' checked' : '') + ' style="margin-right:5px;">' + esc(d) + '</label>';
     });
     h += '</div></div>';
+
+    // 2.5. Сезон проведения (Сборка 22.09-113): выбор сезона — зима / лето (круглый год — по умолчанию)
+    var seasonOpts = ['Круглый год', 'Зима', 'Лето'];
+    var curSeason = (w && w.season) || 'Круглый год';
+    if (seasonOpts.indexOf(curSeason) === -1) seasonOpts.push(curSeason); // значение вне списка (старое) — не теряем
+    h += '<div class="fld" style="max-width:280px"><label>Сезон проведения</label><select id="wm-season">' +
+      seasonOpts.map(function (s) { return '<option value="' + s + '"' + (curSeason === s ? ' selected' : '') + '>' + s + '</option>'; }).join('') +
+      '</select></div>';
 
     // 3. Периодичность (22.09-107: во всю ширину, реквизит отсчёта — отдельным блоком под ней)
     h += '<div class="fld"><label>Периодичность выполнения</label><div style="display:flex;gap:10px;max-width:520px">' +
@@ -12010,6 +12222,16 @@
     modal.innerHTML = h; overlay.classList.add('show');
     S.workModalMode = mode; S.workModalWid = wid;
     if (area === 'ГРП') initCrewEditor(w && w.crew, (w && w.crew_size) || 0);
+    // 22.09-112: подсказки подгрупп — для введённой группы; из «＋» у группы фокус — подгруппа/название
+    var wmGrpInp = document.getElementById('wm-group');
+    if (wmGrpInp) wmGrpInp.addEventListener('input', function () {
+      var dl = document.getElementById('wm-sub-dl');
+      if (dl) dl.innerHTML = dlOptsHtml(grpLists.subsFor(wmGrpInp.value));
+    });
+    if (mode === 'new' && grpPreset) {
+      var focEl = document.getElementById(subVal ? 'wm-name' : 'wm-subgroup');
+      if (focEl) focEl.focus();
+    }
   }
   function saveWork() {
     if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
@@ -12033,7 +12255,11 @@
     // 22.09-95: полей нормы в карточке больше нет — значения сохраняем из старой
     // записи (правка), для новой работы — дефолт 1 ч/объект (обновится импортом).
     var data = {
-      group: val('wm-group') || 'Без группы', name: name,
+      group: (function () { // 22.09-112: собираем «Группа / Подгруппа» с нормализацией разделителя
+        var gg = normGroupPath(val('wm-group'));
+        var ss = normGroupPath(val('wm-subgroup'));
+        return (gg && ss) ? gg + ' / ' + ss : (gg || ss || 'Без группы');
+      })(), name: name,
       norm: oldW ? oldW.norm : 1, unit: oldW ? oldW.unit : 'объект'
     };
     // Блок 1 («Атрибуты УБиРОГС»): ордер/снег/температура/сезон/техника/исполнители
@@ -12054,6 +12280,7 @@
     if (area === 'ГРП') {
       data.object_categories = arrFromAttr('cat');
       data.departments = arrFromAttr('dep');
+      data.season = val('wm-season') || 'Круглый год'; // 22.09-113: сезон в атрибутах ГРП
       data.periodicity_value = parseInt(val('wm-period-value')) || 0;
       data.periodicity_dev = parseInt(val('wm-period-dev'), 10);
       if (!isFinite(data.periodicity_dev) || data.periodicity_dev < 0) data.periodicity_dev = 0;
@@ -15239,6 +15466,9 @@
     else if (a === 'export-db') { exportDb(); }
     else if (a === 'import-db') { var fi = document.getElementById('import-file'); if (fi) fi.click(); }
     else if (a === 'how-transfer') { e.preventDefault(); toast('ok', 'ПЕРЕНОС БАЗЫ: 1) В браузере, где уже есть пользователи → «Экспорт базы» → скачается users_db.json. 2) В новом браузере → «Импорт базы» → выберите этот файл → нажмите ОК (замена). Готово!'); }
+    else if (a === 'telemetry-types') { openTelemetryModal(); } // 22.09-111
+    else if (a === 'telemetry-add') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } telemetryAddFromModal(); }
+    else if (a === 'telemetry-del') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } telemetryDelete(el.dataset.id); }
     else if (a === 'sch-holidays') { openHolidaysModal(); } // 22.09-109
     else if (a === 'holiday-add') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } holidayAddFromModal(); }
     else if (a === 'holiday-del') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } holidayDelete(el.dataset.id); }
@@ -15316,6 +15546,9 @@
     else if (a === 'new-work') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } openWorkModal('new'); }
     else if (a === 'edit-work') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } openWorkModal('edit', el.dataset.wid); }
     else if (a === 'del-work') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } delWork(el.dataset.wid); }
+    else if (a === 'grp-rename') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } openGroupRenameModal(el.dataset.path); }
+    else if (a === 'grp-rename-save') { saveGroupRename(); }
+    else if (a === 'grp-newwork') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } S.workPresetGroup = el.dataset.path || ''; openWorkModal('new'); }
     else if (a === 'save-work') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } saveWork(); }
     else if (a === 'print-report1') { printReport1(); }
     else if (a === 'print-report2') { printReport2(); }
@@ -16062,6 +16295,86 @@
      объекта — СВОЙ СПИСОК РАБОТ (сколько нужно, «+ работа»), для каждой работы:
      вид (справочник по участку), периодичность в месяцах, отклонение в днях
      (шаг = периодичность − отклонение) и дата первого проведения */
+  /* ===== 22.09-114: АВТОПОДБОР РАБОТ ПО ПАРАМЕТРАМ ОБЪЕКТА ===== */
+  /* Подходит ли работа объекту по включённым критериям:
+     type  — тип объекта (ГРП/ШРП/ПГРП) должен входить в «Категорию объекта
+             обслуживания» работы (пустые категории = работа подходит всем);
+     lines — «Кол-во линий редуцирования» у работы (если задано) должно
+             совпадать с параметром объекта (attrs.reduceLines, запасной —
+             attrs.linesCount). Если у объекта параметр не заполнен — работа
+             с ограничением по линиям не подбирается. */
+  function workMatchesObjectParams(w, attrs, objType, rules) {
+    rules = rules || {};
+    if (rules.type !== false) {
+      var cats = w.object_categories || [];
+      if (cats.length && objType && cats.indexOf(objType) === -1) return false;
+    }
+    if (rules.lines !== false) {
+      var need = parseInt(w.lines_count, 10) || 0;
+      if (need > 0) {
+        var have = parseInt(attrs && (attrs.reduceLines || attrs.linesCount), 10) || 0;
+        if (have !== need) return false;
+      }
+    }
+    return true;
+  }
+  // Дата первого проведения из «Даты ввода в эксплуатацию»: переносится в год графика
+  function gprFirstFromCommission(attrs, year) {
+    var cd = attrs && attrs.commissionDate;
+    if (!cd || !/^\d{4}-\d{2}-\d{2}$/.test(cd)) return '';
+    var mm = cd.slice(5, 7), dd = cd.slice(8, 10);
+    var maxDay = new Date(+year, +mm, 0).getDate(); // последний день месяца (29.02 в невисокосный → 28)
+    return year + '-' + mm + '-' + String(Math.min(+dd, maxDay)).padStart(2, '0');
+  }
+  function gprAutofillRules() {
+    var t = document.getElementById('gpr-crit-type');
+    var l = document.getElementById('gpr-crit-lines');
+    return { type: t ? !!t.checked : true, lines: l ? !!l.checked : true };
+  }
+  /* Автоподбор работ объекту графика ri (участок area, график g).
+     Дубли уже назначенных работ не добавляются; пустые строки-заглушки убираются.
+     Периодичность/отклонение — из карточки работы; дата первой — из даты ввода
+     в эксплуатацию объекта (если у работы реквизит отсчёта «Дата ввода...»).
+     Возвращает число добавленных строк. В график попадает по кнопке «Сохранить». */
+  function gprAutofill(area, ri, g) {
+    if (!g || !g.objs || !g.objs[ri]) return 0;
+    var ob = g.objs[ri];
+    var attrs = {};
+    try {
+      var rec = (window.SP_OBJECTS && ob.oid) ? SP_OBJECTS.getObject(ob.oid) : null;
+      if (rec && window.SP_OBJ_ATTRS) attrs = SP_OBJ_ATTRS.getAttrs(rec);
+    } catch (e) {}
+    var rules = gprAutofillRules();
+    var box = document.querySelector('.gpr-works[data-wl="' + ri + '"]');
+    if (!box) return 0;
+    var empty = box.querySelector('.gpr-empty');
+    if (empty) empty.parentNode.removeChild(empty);
+    var have = {};
+    box.querySelectorAll('select[data-gpr-w]').forEach(function (s) { if (s.value) have[s.value] = 1; });
+    var works = [];
+    try { works = WORK.getWorks(area) || []; } catch (e) {}
+    var added = 0;
+    works.forEach(function (w) {
+      if (!w || !w.id || have[w.id]) return;
+      if (!workMatchesObjectParams(w, attrs, ob.type, rules)) return;
+      if (!added) { // первая добавленная — убираем пустые строки-заглушки
+        box.querySelectorAll('.gpr-wrow').forEach(function (row) {
+          var sel = row.querySelector('select[data-gpr-w]');
+          if (sel && !sel.value && !row.getAttribute('data-sid')) row.parentNode.removeChild(row);
+        });
+      }
+      var per = (w.periodicity_unit === 'дней') ? 0 : (parseInt(w.periodicity_value, 10) || 0);
+      var dev = parseInt(w.periodicity_dev, 10) || 0;
+      var first = (w.periodicity_basis === 'commissioning_date') ? gprFirstFromCommission(attrs, g.year) : '';
+      var wi = box.querySelectorAll('.gpr-wrow').length;
+      var div = document.createElement('div');
+      div.innerHTML = gprRowHtml(area, ri, wi, { sid: '', wid: w.id, period: per, dev: dev, first: first }, true);
+      box.appendChild(div.firstChild);
+      have[w.id] = 1; added++;
+    });
+    return added;
+  }
+
   function openGraphPeriodModal() {
     var g = graphsFind(GS.cur);
     if (!g) { toast('err', 'Сначала создайте или выберите график'); return; }
@@ -16073,9 +16386,16 @@
     var h = '<div class="modal-h"><h3>Настроить периодичность</h3><button class="x" data-action="close-modal">×</button></div>';
     h += '<div class="modal-b">';
     h += '<div class="fld" style="max-width:320px"><label>Участок (виды работ из справочника)</label><select id="gpr-area">' + areaOpts + '</select></div>';
+    // 22.09-114: панель автоподбора работ по параметрам объектов
+    h += '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 10px">' +
+      '<span style="font-size:12px;font-weight:700;color:#166534">⚡ Автоподбор работ:</span>' +
+      '<label class="cb" style="font-size:12px;color:#166534"><input type="checkbox" id="gpr-crit-type" checked> по типу объекта ► «Категория объекта» в карточке работы</label>' +
+      '<label class="cb" style="font-size:12px;color:#166534"><input type="checkbox" id="gpr-crit-lines" checked> по линиям редуцирования ► «Линий редуцирования» у работы = параметру объекта</label>' +
+      '<button type="button" class="btn sm" id="gpr-auto-all" style="background:#16a34a;color:#fff;border-color:#15803d;font-weight:700">⚡ Подобрать всем объектам</button>' +
+      '</div>';
     h += '<div class="gpr-cols"><span>Вид работы</span><span>Период., мес</span><span>Откл., дн</span><span>Дата первого проведения</span><span></span></div>';
     h += '<div id="gpr-list" style="display:flex;flex-direction:column;gap:10px;padding:2px"></div>';
-    h += '<div class="calc" style="align-items:flex-start;font-size:11.5px;line-height:1.5">Шаг серии = периодичность МИНУС отклонение (1 мес и отклонение 2 дн: работа 18 числа → следующая 16 числа следующего месяца). У каждого объекта может быть несколько работ — «+ работа». Работы появляются в «Планировании»; перемещение задачи там переносит её и последующие по шагу серии. <b>Даты, попавшие на день, когда мастер графика не работает (выходные 5/2 и 2/2, отсутствия — график смен на вкладке «Работники»), автоматически переносятся на ближайший предыдущий рабочий день; шаг серии считается от своих исходных дат.</b></div>';
+    h += '<div class="calc" style="align-items:flex-start;font-size:11.5px;line-height:1.5">Шаг серии = периодичность МИНУС отклонение (1 мес и отклонение 2 дн: работа 18 числа → следующая 16 числа следующего месяца). У каждого объекта может быть несколько работ — «+ работа». Работы появляются в «Планировании»; перемещение задачи там переносит её и последующие по шагу серии. <b>Даты, попавшие на день, когда мастер графика не работает (выходные 5/2 и 2/2, отсутствия — график смен на вкладке «Работники»), автоматически переносятся на ближайший предыдущий рабочий день; шаг серии считается от своих исходных дат.</b> <b>⚡ Автоподбор (кнопка сверху или «⚡» у объекта) добавляет объектам работы из справочника по их параметрам: тип объекта ↔ «Категория объекта обслуживания», линии редуцирования объекта ↔ «Кол-во линий редуцирования» в карточке работы. Периодичность и отклонение подставляются из справочника; дата первого проведения — из «Даты ввода в эксплуатацию» объекта, если у работы выбран реквизит отсчёта «Дата ввода в эксплуатацию».</b></div>';
     h += '</div>';
     h += '<div class="modal-f"><button type="button" class="btn ok" data-action="graphs-period-save">Сохранить</button><button type="button" class="btn danger" data-action="close-modal">Отменить</button></div>';
     modal.innerHTML = h;
@@ -16085,6 +16405,13 @@
     var listEl = document.getElementById('gpr-list');
     if (listEl) {
       listEl.addEventListener('click', function (e) {
+        var auto1 = e.target.closest('[data-gpr-auto]'); // 22.09-114: автоподбор одному объекту
+        if (auto1) {
+          var nA = gprAutofill(area, parseInt(auto1.getAttribute('data-gpr-auto'), 10), g);
+          if (nA) toast('ok', '⚡ Подобрано работ: ' + nA + ' — проверьте и нажмите «Сохранить»');
+          else toast('warn', '⚡ Новых работ не подобрано: всё уже назначено или нет совпадений по параметрам объекта');
+          return;
+        }
         var add = e.target.closest('[data-gpr-add]');
         if (add) { gprAddRow(area, parseInt(add.getAttribute('data-gpr-add'), 10)); return; }
         var del = e.target.closest('[data-gpr-del]');
@@ -16128,6 +16455,18 @@
         for (var j = 0; j < sels[i].options.length; j++) if (sels[i].options[j].value === v) { sels[i].value = v; break; }
       }
     });
+    // 22.09-114: кнопка «Подобрать всем объектам» — добавляет недостающие работы всем
+    var autoAll = document.getElementById('gpr-auto-all');
+    if (autoAll) autoAll.addEventListener('click', function () {
+      var tot = 0, objs = 0;
+      g.objs.forEach(function (ob, ri) { var n = gprAutofill(area, ri, g); if (n > 0) objs++; tot += n; });
+      if (tot) toast('ok', '⚡ Подобрано работ: ' + tot + ' (объектов затронуто: ' + objs + ') — проверьте и нажмите «Сохранить»');
+      else toast('warn', '⚡ Новых работ не подобрано: либо всё уже назначено, либо работы не совпадают с параметрами объектов (проверьте у объектов тип и линии редуцирования, а в карточках работ — категорию объекта и линии)');
+    });
+    // 22.09-114: при открытии окна автоматически подбираем работы объектам без работ
+    var autoOnOpen = 0;
+    g.objs.forEach(function (ob, ri) { if (!gwObjWorks(ob).length) autoOnOpen += gprAutofill(area, ri, g); });
+    if (autoOnOpen) toast('ok', '⚡ Автоподбор: добавлено строк ' + autoOnOpen + ' — работы подобраны по параметрам объектов; проверьте и нажмите «Сохранить»');
   }
   function gprDrawList(g, area) {
     var box = document.getElementById('gpr-list');
@@ -16139,6 +16478,7 @@
         '<div class="gpr-obj-h"><span class="chip ' + esc(ob.type) + '">' + esc(ob.type) + '</span>' +
         '<span class="gpr-obj-nm" title="' + esc(ob.name) + '">' + esc(ob.name) + '</span>' +
         '<label class="gpr-past" title="Включено: задачи создаются и на прошедшие даты года (январь, февраль и т.д.). Выключено: только с сегодняшнего дня и дальше"><input type="checkbox" data-gpr-past="' + ri + '"' + (ob.pastTasks ? ' checked' : '') + '> Добавлять задачи на прошедшие дни</label>' +
+        '<button type="button" class="btn sm" data-gpr-auto="' + ri + '" title="⚡ Подобрать работы автоматически по параметрам объекта (тип, линии редуцирования)" style="flex:0 0 auto;background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;font-weight:700">⚡</button>' +
         '<button type="button" class="btn sm" data-gpr-add="' + ri + '" style="flex:0 0 auto">+ работа</button></div>';
       h += '<div class="gpr-works" data-wl="' + ri + '">';
       if (!works.length) h += gprRowHtml(area, ri, 0, { sid: '', wid: '', period: 0, dev: 0, first: '' }); // сразу одна пустая строка
@@ -16147,9 +16487,9 @@
     });
     box.innerHTML = h;
   }
-  function gprRowHtml(area, ri, wi, wrk) {
+  function gprRowHtml(area, ri, wi, wrk, auto) {
     var id = ri + '-' + wi;
-    return '<div class="gpr-wrow" data-sid="' + esc(wrk.sid || '') + '">' +
+    return '<div class="gpr-wrow" data-sid="' + esc(wrk.sid || '') + '"' + (auto ? ' style="background:#f0fdf4;outline:1px solid #bbf7d0;outline-offset:-1px;border-radius:6px" title="⚡ Работа подобрана автоматически по параметрам объекта"' : '') + '>' +
       '<select class="gpr-inp" data-gpr-w="' + id + '" data-idx="' + id + '">' + gprWorkOptions(area, wrk.wid) + '</select>' +
       '<input class="gpr-inp" type="number" min="0" step="1" placeholder="—" value="' + (wrk.period || '') + '" data-gpr-p="' + id + '" title="Периодичность, месяцев">' +
       '<input class="gpr-inp" type="number" min="0" step="1" placeholder="—" value="' + (wrk.dev || '') + '" data-gpr-d="' + id + '" title="Отклонение, дней (шаг = периодичность − отклонение)">' +

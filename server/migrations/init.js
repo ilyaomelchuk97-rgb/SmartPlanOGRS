@@ -17,35 +17,45 @@ const SECTIONS = [
   { name: 'work_catalog', schema: 5, label: 'виды работ' },
   { name: 'graphs',       schema: 1, label: 'графики' },
   { name: 'professions',  schema: 1, label: 'профессии' },
-  { name: 'holidays',     schema: 1, label: 'праздники' }
+  { name: 'holidays',     schema: 1, label: 'праздники' },
+  { name: 'telemetry',    schema: 1, label: 'виды телеметрии' }
 ];
 
-// Нерабочие праздничные дни Республики Беларусь (22.09-109).
-// Источник: производственный календарь Минтруда РБ на 2026 г. (Указ № 157):
-// 1–2.01 Новый год; 7.01 прав. Рождество; 8.03 День женщин; 21.04.2026 Радуница;
-// 1.05 Праздник труда; 9.05 День Победы; 3.07 День Независимости; 7.11 День
-// Октябрьской революции; 25.12 кат. Рождество.
-// Радуница переходящая: 2026 → 21 апреля, 2027 → 11 мая (Пасха 02.05.2027 + 9 дней).
+// Нерабочие праздничные дни Республики Беларусь (БЕЗ ГОДА — месяц-день, 22.09-110):
+// праздник ежегодный, год не хранится. Источник — календарь Минтруда РБ (Указ № 157).
+// Радуница — переходящая (нет фиксированной даты): храним 21.04 (верно для 2026),
+// на следующие годы её переносят вручную по постановлению Минтруда.
 const BY_HOLIDAYS = [
-  ['2026-01-01', 'Новый год'], ['2026-01-02', 'Новый год'],
-  ['2026-01-07', 'Рождество Христово (православное)'],
-  ['2026-03-08', 'День женщин'],
-  ['2026-04-21', 'Радуница'],
-  ['2026-05-01', 'Праздник труда'],
-  ['2026-05-09', 'День Победы'],
-  ['2026-07-03', 'День Независимости Республики Беларусь'],
-  ['2026-11-07', 'День Октябрьской революции'],
-  ['2026-12-25', 'Рождество Христово (католическое)'],
-  ['2027-01-01', 'Новый год'], ['2027-01-02', 'Новый год'],
-  ['2027-01-07', 'Рождество Христово (православное)'],
-  ['2027-03-08', 'День женщин'],
-  ['2027-05-01', 'Праздник труда'],
-  ['2027-05-09', 'День Победы'],
-  ['2027-05-11', 'Радуница'],
-  ['2027-07-03', 'День Независимости Республики Беларусь'],
-  ['2027-11-07', 'День Октябрьской революции'],
-  ['2027-12-25', 'Рождество Христово (католическое)']
+  ['01-01', 'Новый год'], ['01-02', 'Новый год'],
+  ['01-07', 'Рождество Христово (православное)'],
+  ['03-08', 'День женщин'],
+  ['04-21', 'Радуница'],
+  ['05-01', 'Праздник труда'],
+  ['05-09', 'День Победы'],
+  ['07-03', 'День Независимости Республики Беларусь'],
+  ['11-07', 'День Октябрьской революции'],
+  ['12-25', 'Рождество Христово (католическое)']
 ];
+
+// Канонизация записей праздников к виду «ММ-ДД» (без года) с дедупликацией.
+// rows — записи из таблицы [{id, data:{date,name}, deleted}] любого старого формата.
+// Живая запись для даты важнее удалённой (пользовательское удаление сохраняется).
+function canonicalHolidays(rows) {
+  const byMd = new Map();
+  for (const r of rows) {
+    const d = (r.data && r.data.date) || '';
+    const md = /^\d{4}-\d{2}-\d{2}$/.test(d) ? d.slice(5) : (/^\d{2}-\d{2}$/.test(d) ? d : null);
+    if (!md) continue; // мусор не переносим
+    const name = (r.data && r.data.name) || 'Праздник';
+    const cur = byMd.get(md);
+    if (!cur) byMd.set(md, { date: md, name, deleted: !!r.deleted });
+    else if (cur.deleted && !r.deleted) byMd.set(md, { date: md, name, deleted: false });
+  }
+  // Радуница: «11.05» был только про 2027-й — убираем, остаётся «21.04»
+  const r511 = byMd.get('05-11');
+  if (r511 && /Радуниц/i.test(r511.name) && byMd.get('04-21')) byMd.delete('05-11');
+  return [...byMd.values()].map((x) => ({ id: 'h_' + x.date, date: x.date, name: x.name, deleted: x.deleted }));
+}
 
 async function initSchema(pool) {
   const client = await pool.connect();
@@ -97,21 +107,48 @@ async function initSchema(pool) {
       await client.query(`CREATE INDEX IF NOT EXISTS idx_${s.name}_deleted ON ${s.name}(deleted, updated_at)`);
     }
 
-    // 2.1. Праздники РБ — сидим один раз, только если таблица пуста (22.09-109).
-    // Удалённые пользователем записи (deleted=true) считаются → повторно не засеиваем.
+    // 2.1. Праздники РБ — нормализация к «ММ-ДД» + дедупликация + досид (22.09-110).
+    // Полная перезапись ставит всем updated_at=NOW() → клиенты подтянут свежий список.
+    // Удалённые пользователем даты (deleted=true) НЕ воскрешаем.
     try {
-      const ch = await client.query(`SELECT COUNT(*)::int AS c FROM holidays`);
-      if (ch.rows[0].c === 0) {
-        for (const [date, name] of BY_HOLIDAYS) {
+      const all = await client.query(`SELECT id, data, deleted FROM holidays`);
+      if (all.rows.length) {
+        const canon = canonicalHolidays(all.rows);
+        await client.query(`DELETE FROM holidays`);
+        for (const rec of canon) {
           await client.query(
-            `INSERT INTO holidays (id, data) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING`,
-            ['h_' + date, JSON.stringify({ id: 'h_' + date, date, name })]
+            `INSERT INTO holidays (id, data, deleted) VALUES ($1, $2, $3)
+             ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, deleted = EXCLUDED.deleted`,
+            [rec.id, JSON.stringify({ id: rec.id, date: rec.date, name: rec.name }), rec.deleted]
           );
         }
-        console.log(`✅ Праздники РБ: засеяно ${BY_HOLIDAYS.length} дат (2026–2027)`);
+        console.log(`✅ Праздники нормализованы к «ММ-ДД»: ${canon.length} дат`);
+      }
+      const have = new Set((await client.query(`SELECT id FROM holidays`)).rows.map((r) => r.id));
+      let added = 0;
+      for (const [md, name] of BY_HOLIDAYS) {
+        if (have.has('h_' + md)) continue;
+        await client.query(
+          `INSERT INTO holidays (id, data) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING`,
+          ['h_' + md, JSON.stringify({ id: 'h_' + md, date: md, name })]
+        );
+        added++;
+      }
+      if (added) console.log(`✅ Праздники РБ: досеяно ${added} дат`);
+    } catch (e) {
+      console.error('Миграция праздников пропущена:', e.message);
+    }
+
+    // 2.2. Виды телеметрии — сид первого вида «Индел», если таблица пуста (22.09-111)
+    try {
+      const ct = await client.query(`SELECT COUNT(*)::int AS c FROM telemetry`);
+      if (ct.rows[0].c === 0) {
+        await client.query(`INSERT INTO telemetry (id, data) VALUES ('tt_indel', $1) ON CONFLICT (id) DO NOTHING`,
+          [JSON.stringify({ id: 'tt_indel', name: 'Индел' })]);
+        console.log('✅ Телеметрия: засеян вид «Индел»');
       }
     } catch (e) {
-      console.error('Сид праздников пропущен:', e.message);
+      console.error('Сид телеметрии пропущен:', e.message);
     }
 
     // 3. Audit log — журнал действий
@@ -148,4 +185,4 @@ async function initSchema(pool) {
   }
 }
 
-module.exports = { initSchema, SECTIONS, BY_HOLIDAYS };
+module.exports = { initSchema, SECTIONS, BY_HOLIDAYS, canonicalHolidays };

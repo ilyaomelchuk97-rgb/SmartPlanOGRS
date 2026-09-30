@@ -68,6 +68,8 @@ window.SP_OBJ_ATTRS = (function () {
     { key: 'distOut',          group: 'Технические', label: 'Расстояние до отключающего устройства на выходе', type: 'number', step: 1, unit: 'м', longLabel: true },
     { key: 'heating',          group: 'Технические', label: 'Вид отопления', type: 'select', options: ['Газовое','Электрическое'], hideFor: ['ШРП'], hint: 'Отсутствует у категории ШРП' },
     { key: 'telemetryKey',     group: 'Технические', label: 'Вид ключа шкафа телеметрии', type: 'select', options: ['1','2','3'] },
+    // 22.09-111: тип телеметрии — список общий, наполняется вручную («⚙ Список»), сид — «Индел»
+    { key: 'telemetry',        group: 'Технические', label: 'Тип телеметрии', type: 'telemetry' },
     // Группа 6: «Дополнительно»
     { key: 'candles',          group: 'Дополнительно', label: 'Свечи', type: 'number', step: 1, unit: 'шт' },
     { key: 'odorControl',      group: 'Дополнительно', label: 'Объект для контроля интенсивности запаха газа', type: 'checkbox' }
@@ -216,6 +218,26 @@ window.SP_OBJ_ATTRS = (function () {
   function renderField(f, val, users, o) {
     var id = 'oa-' + f.key;
     var cur = (val == null) ? '' : val;
+    if (f.type === 'telemetry') {
+      // Список видов телеметрии — из общего кэша 'smartplan_telemetry' (синхронизация сервера)
+      var tNames = [];
+      try {
+        var traw = localStorage.getItem('smartplan_telemetry');
+        var tarr = traw ? JSON.parse(traw) : [];
+        if (Array.isArray(tarr)) tarr.forEach(function (r) { if (r && r.name && !r._deleted) tNames.push(String(r.name)); });
+      } catch (e) {}
+      var tOpts = '';
+      tNames.forEach(function (n) {
+        tOpts += '<option value="' + esc(n) + '"' + (String(cur) === n ? ' selected' : '') + '>' + esc(n) + '</option>';
+      });
+      // значение вне списка не теряем — отдельная помеченная опция
+      if (cur && tNames.indexOf(String(cur)) < 0) {
+        tOpts += '<option value="' + esc(String(cur)) + '" selected>⚠ ' + esc(String(cur)) + ' (нет в списке)</option>';
+      }
+      return '<div style="display:flex;gap:6px;align-items:center">' +
+        '<select id="' + id + '" data-oa-key="' + esc(f.key) + '" style="flex:1"><option value="">— нет телеметрии —</option>' + tOpts + '</select>' +
+        '<button type="button" data-action="telemetry-types" title="Виды телеметрии — добавить/удалить тип для всех объектов" style="flex:0 0 auto;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);cursor:pointer;font-size:13px;line-height:1">⚙</button></div>';
+    }
     if (f.type === 'select') {
       var s = '<select id="' + id + '" data-oa-key="' + esc(f.key) + '"><option value="">— не указано —</option>';
       f.options.forEach(function (opt) {
