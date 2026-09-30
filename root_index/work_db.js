@@ -150,6 +150,7 @@ window.SP_WORK = (function () {
       object_categories:    [],          // ГРП, ШРП, ПГРП, Наружный газопровод и др.
       departments:          [],          // Справочник Подразделения
       periodicity_value:    0,           // Целое число (мес / дней)
+      periodicity_dev:      0,           // Отклонение, дней (шаг = периодичность − отклонение) — Сборка 22.09-100
       periodicity_unit:     'мес',       // 'мес' | 'дней'
       periodicity_depends_on: [],        // id работ из «Виды работ»
       periodicity_basis:    'prev_date', // 'prev_date' | 'commissioning_date'
@@ -198,6 +199,7 @@ window.SP_WORK = (function () {
       object_categories:       toArr(d.object_categories),
       departments:             toArr(d.departments),
       periodicity_value:       toNum(d.periodicity_value, 0),
+      periodicity_dev:           toNum(d.periodicity_dev, 0),
       periodicity_unit:        (d.periodicity_unit === 'дней' ? 'дней' : 'мес'),
       periodicity_depends_on:  toArr(d.periodicity_depends_on),
       periodicity_basis:       (d.periodicity_basis === 'commissioning_date' ? 'commissioning_date' : 'prev_date'),

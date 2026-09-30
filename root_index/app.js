@@ -741,7 +741,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-98 · атрибуты ГРП: из категорий объекта убраны газопроводы; «Виды работ»: свойства работы и кнопки — по правому краю'],
+    objmap: ['Карта объектов', 'Сборка 22.09-103 · планирование: рабочие дни мастеров вместо зелёного фона — зелёная линия у нижней кромки ячейки'],
     testmap: ['Тест проезда', 'Полигон: карта маршрутов + оптимизация + пробки + Google Maps (копия «Карты маршрутов» для экспериментов)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -4002,7 +4002,7 @@
         '<input type="date" id="map-date-sel" value="' + key(offToDate(off)) + '" style="padding:5px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;background:var(--card);color:var(--ink);font-weight:600;cursor:pointer;" title="Выбрать любую дату для просмотра маршрута">' +
       '</div>' +
       '' +  // Кнопки «🚧 Закрытие» и «🗑 Удалить выбранное» удалены — функционал закрытий убран
-      (S.role === 'viewer' ? '<span style="font-size:12px;color:var(--muted);font-weight:600;">👁 Режим просмотра</span>' : '<button class="btn primary" id="btn-build-route" data-action="build-route" disabled style="opacity:.5;cursor:not-allowed;">' + IC.route + ' Оптимизация маршрутов</button>' + '<button class="btn sm" id="btn-drive3d" style="background:#dc2626;color:#fff;border-color:#dc2626;display:none;" title="3D-вождение автомобиля по улицам Минска (открывается кодом ↑↓←→)">🏎 Дать газу</button>') +
+      (S.role === 'viewer' ? '<span style="font-size:12px;color:var(--muted);font-weight:600;">👁 Режим просмотра</span>' : '<button class="btn primary" id="btn-build-route" data-action="build-route" disabled style="opacity:.5;cursor:not-allowed;">' + IC.route + ' Оптимизация маршрутов</button>') +
       '<div class="spacer"></div>' +
       provSelHTML +
       '</div>';
@@ -4111,8 +4111,6 @@
     drawMap(pts);
     var mSel = document.getElementById('map-master-sel');
     if (mSel) mSel.addEventListener('change', function (e) { S.mapMaster = e.target.value; renderMap(); });
-    var drive3dBtn = document.getElementById('btn-drive3d');
-    if (drive3dBtn) drive3dBtn.onclick = function (e) { if (e) { e.preventDefault(); e.stopPropagation(); } openDrive3D(); };
     // 🚦 Пробки: переключаем слой Яндекс.Пробок на основной карте маршрутов
     var trafBtn = document.getElementById('btn-traffic-main');
     if (trafBtn && !trafBtn.__wired) {
@@ -6254,17 +6252,6 @@
 
   // Открывает маршрут в новой вкладке на весь экран (Leaflet + MapTiler, подписи на русском).
   // markers — [{lat,lng,addr,mcol,label}], routeLatLngs — [[lat,lng],...] геометрия маршрута.
-  // 🏎 «Дать газу»: 3D-вождение автомобиля по улицам Минска (MapLibre GL + MapTiler 3D + Three.js).
-  // Стиль максимально «под Яндекс», масштаб 1:1. GLB-модель авто встроена в drive3d.html (base64, без внешних файлов).
-  // 🏎 «Дать газу»: открывает статическую 3D-сцену drive3d.html (модель машины уже внутри файла — надёжно).
-  function openDrive3D() {
-    var base = currentBase();
-    var key = (window.SP_CONFIG && SP_CONFIG.maptilerApiKey) || '';
-    var url = 'drive3d.html?lat=' + encodeURIComponent(base.lat) + '&lng=' + encodeURIComponent(base.lng) + '&key=' + encodeURIComponent(key);
-    var w = window.open(url, '_blank');
-    if (!w) { toast('err', 'Разрешите всплывающие окна для «Дать газу»'); }
-  }
-
   function openRouteFullscreen(markers, routeLatLngs) {
     var key = (window.SP_CONFIG && SP_CONFIG.maptilerApiKey) || '';
     var mkData = markers.map(function(m) {
@@ -10459,12 +10446,8 @@
         html += '<ul style="padding-left:0"><li><div class="grp' + (open ? '' : ' closed') + '" data-action="toggle-tree" data-grp="' + esc(g) + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>' + esc(g) + '</div><ul' + (open ? '' : ' style="display:none"') + '>';
         html += '<li><table class="dt" style="margin:4px 0 14px"><thead><tr><th>Работа</th><th>Норма, ч</th><th>Ед. изм.</th>' + (admin ? '<th style="text-align:right">Действия</th>' : '') + '</tr></thead><tbody>';
         groups[g].forEach(function (w) {
-          var attr = '';
-          if (w.needs_permit) attr += ' <span class="permit-badge">📋</span>';
-          if (w.depends_on_snow) attr += ' <span class="snow-badge">❄️</span>';
-          if (w.min_temp > -50) attr += ' <span class="weather-badge">🌡️+' + w.min_temp + '°</span>';
-          if (w.equipment && w.equipment !== '—') attr += ' <span class="equipment-badge">' + esc(w.equipment) + '</span>';
-          html += '<tr><td><b>' + esc(w.name) + '</b>' + attr + '</td><td>' + fmtH(w.norm) + '</td><td>' + esc(w.unit) + '</td>';
+          // 22.09-99: свойства (🌡️, техника и т.д.) в нормах времени не показываем
+          html += '<tr><td><b>' + esc(w.name) + '</b></td><td>' + fmtH(w.norm) + '</td><td>' + esc(w.unit) + '</td>';
           if (admin) html += '<td style="text-align:right;white-space:nowrap"><button class="btn sm" data-action="edit-work" data-wid="' + w.id + '">Изменить</button> <button class="btn sm" data-action="del-work" data-wid="' + w.id + '" style="color:var(--red)">Удалить</button></td>';
           html += '</tr>';
         });
@@ -11865,7 +11848,13 @@
 
     // 3. Периодичность + 5. Реквизит отсчёта
     h += '<div class="attr-row">';
-    h += '<div class="fld"><label>Периодичность выполнения</label><div style="display:flex;gap:6px"><input id="wm-period-value" type="number" min="0" step="1" value="' + (w && w.periodicity_value ? w.periodicity_value : '') + '" style="flex:1" placeholder="напр.: 12"><select id="wm-period-unit" style="width:90px"><option value="мес"' + (w && w.periodicity_unit === 'мес' ? ' selected' : '') + '>мес.</option><option value="дней"' + (w && w.periodicity_unit === 'дней' ? ' selected' : '') + '>дней</option></select></div></div>';
+    h += '<div class="fld"><label>Периодичность выполнения</label><div style="display:flex;gap:10px">' +
+      '<label style="flex:1;font-size:11px;font-weight:700;color:var(--muted)">Периодичность, месяцев' +
+      '<input id="wm-period-value" type="number" min="0" step="1" value="' + (w && w.periodicity_value ? w.periodicity_value : '') + '" placeholder="напр.: 12" style="margin-top:3px"></label>' +
+      '<label style="flex:1;font-size:11px;font-weight:700;color:var(--muted)">Отклонение, дней' +
+      '<input id="wm-period-dev" type="number" min="0" step="1" value="' + ((w && w.periodicity_dev) || '') + '" placeholder="напр.: 2" style="margin-top:3px"></label>' +
+      '</div>' +
+      '<div style="font-size:10.5px;color:var(--muted);margin-top:4px">Шаг серии = периодичность − отклонение (как в настройке периодичности в графике работ)</div></div>';
     h += '<div class="fld"><label>Реквизит отсчёта для выполнения работ</label><select id="wm-period-basis"><option value="prev_date"' + (w && w.periodicity_basis === 'prev_date' ? ' selected' : '') + '>Дата предыдущего выполнения</option><option value="commissioning_date"' + (w && w.periodicity_basis === 'commissioning_date' ? ' selected' : '') + '>Дата ввода в эксплуатацию</option></select></div>';
     h += '</div>';
 
@@ -11944,7 +11933,7 @@
     } // if (area === 'ГРП')
 
     h += '</div><div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="save-work">Сохранить</button></div>';
-    modal.style.maxWidth = ''; // сброс автоширины карточки задачи
+    modal.style.width = '80%'; modal.style.maxWidth = '80%'; // 22.09-100: карточка редактирования работ — 80% ширины, по центру
     modal.innerHTML = h; overlay.classList.add('show');
     S.workModalMode = mode; S.workModalWid = wid;
     if (area === 'ГРП') initCrewEditor(w && w.crew, (w && w.crew_size) || 0);
@@ -11993,6 +11982,8 @@
       data.object_categories = arrFromAttr('cat');
       data.departments = arrFromAttr('dep');
       data.periodicity_value = parseInt(val('wm-period-value')) || 0;
+      data.periodicity_dev = parseInt(val('wm-period-dev'), 10);
+      if (!isFinite(data.periodicity_dev) || data.periodicity_dev < 0) data.periodicity_dev = 0;
       data.periodicity_unit = val('wm-period-unit') || 'мес';
       data.periodicity_depends_on = arrFromAttr('perioddep');
       data.periodicity_basis = val('wm-period-basis') || 'prev_date';
@@ -12018,7 +12009,7 @@
       }
     } else if (oldW) {
       ['object_categories', 'departments', 'periodicity_value', 'periodicity_unit',
-        'periodicity_depends_on', 'periodicity_basis', 'joint_with', 'operations',
+        'periodicity_depends_on', 'periodicity_basis', 'joint_with', 'operations', 'periodicity_dev',
         'indicators', 'print_forms', 'op_journal', 'passport_entry', 'scan_attach',
         'crew_size', 'crew', 'lines_count']
         .forEach(function (k) { if (oldW[k] !== undefined) data[k] = oldW[k]; });
@@ -12027,7 +12018,7 @@
         toast('ok', 'Работа обновлена'); }
     else { WORK.addWork(area, data); logAction('Добавление вида работы', data.name);
         toast('ok', 'Работа добавлена на участок ' + area); }
-    overlay.classList.remove('show'); renderRefs();
+    overlay.classList.remove('show'); modal.style.width = ''; modal.style.maxWidth = ''; renderRefs();
   }
   function delWork(wid) {
     if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
@@ -14778,6 +14769,16 @@
     var f = document.getElementById('login-form'); if (f) f.reset();
     var err = document.getElementById('li-err'); if (err) err.textContent = '';
   }
+  // 22.09-101: polling потерял токен (истёк/сброшен сервером) — не «висим» без
+  // синхронизации, а просим войти заново; после входа токен новый, всё подтянется.
+  window.SP_FORCE_RELOGIN = function () {
+    if (!S.user) return;
+    try { if (window.SP_SYNC_POLL && SP_SYNC_POLL.stop) SP_SYNC_POLL.stop(); } catch (e) {}
+    try { DB.clearSession(); } catch (e) {}
+    try { if (window.SP_API && SP_API.setToken) SP_API.setToken(null); } catch (e) {}
+    showLoginScreen();
+    toast('warn', '🔌 Связь с сервером потеряна (сессия устарела). Войдите ещё раз — данные подтянутся автоматически.');
+  };
 
   /* ---------- НАВИГАЦИЯ ---------- */
   function setScreen(name) {
@@ -15042,7 +15043,7 @@
       drawCalendarGrid();
       toast('ok', nowDone ? '✓ Отмечено выполненным' : 'Возвращено в план');
     }
-    else if (a === 'close-modal') { closeTaskObjectPickers(); overlay.classList.remove('show'); modal.style.maxWidth = ''; if (S.wkModalUid && S.screen === 'workers') renderWorkers(); S.wkModalUid = null; }
+    else if (a === 'close-modal') { closeTaskObjectPickers(); overlay.classList.remove('show'); modal.style.maxWidth = ''; modal.style.width = ''; if (S.wkModalUid && S.screen === 'workers') renderWorkers(); S.wkModalUid = null; }
     // ===== Страница «Графики» (Планирование / Графики) =====
     else if (a === 'graphs-new') { openGraphsNewModal(); }
     else if (a === 'graphs-list') { openGraphsListModal(); }
@@ -16094,11 +16095,17 @@
         var pInp = row.querySelector('input[data-gpr-p]');
         var dInp = row.querySelector('input[data-gpr-d]');
         var fInp = row.querySelector('input[data-gpr-f]');
+        var _devParsed = parseInt(dInp && dInp.value, 10) || 0;
+        // 22.09-101: отклонение не введено — подставляем из атрибутов работы (карточка ГРП)
+        if (!_devParsed) {
+          try { var _wDev = WORK.getWork(area, wSel ? wSel.value : '');
+            if (_wDev && _wDev.periodicity_dev > 0) _devParsed = _wDev.periodicity_dev; } catch (e) {}
+        }
         newRows.push({
           sid: row.getAttribute('data-sid') || '',
           wid: wSel ? wSel.value : '',
           period: parseInt(pInp && pInp.value, 10) || 0,
-          dev: parseInt(dInp && dInp.value, 10) || 0,
+          dev: _devParsed,
           first: fInp ? fInp.value : ''
         });
       });
@@ -16227,7 +16234,12 @@
       var occIso3 = gwOccDate(g.respId, prevA, g.year); // 22.09-80: пред. рабочий день
       wrk.occs[k].date = occIso3;
       var tk = wrk.occs[k].tid ? TASKS_DB.getTask(wrk.occs[k].tid) : null; // из БД
-      if (tk) { tk.d = dateToOff(gwFromISO(occIso3)); if (TASKS_DB) TASKS_DB.updateTask(tk.id, { d: tk.d }); }
+      if (tk) {
+        tk.d = dateToOff(gwFromISO(occIso3));
+        // 22.09-101: дедлайн = дата выполнения + «Отклонение, дней» из графика работ
+        var dlIso3 = gwAddDaysISO(occIso3, wrk.dev || 0);
+        if (TASKS_DB) TASKS_DB.updateTask(tk.id, { d: tk.d, dl: dateToOff(gwFromISO(dlIso3)), dl_date: dlIso3 });
+      }
     }
     graphsSaveList(list);
     if (S.screen === 'graphs') renderGraphs();
@@ -16256,7 +16268,12 @@
       var occIso3 = gwOccDate(g.respId, prevA, g.year);
       wrk.occs[k].date = occIso3;
       var tk = wrk.occs[k].tid ? TASKS_DB.getTask(wrk.occs[k].tid) : null; // из БД
-      if (tk) { tk.d = dateToOff(gwFromISO(occIso3)); if (TASKS_DB) TASKS_DB.updateTask(tk.id, { d: tk.d }); }
+      if (tk) {
+        tk.d = dateToOff(gwFromISO(occIso3));
+        // 22.09-101: дедлайн = дата выполнения + «Отклонение, дней» из графика работ
+        var dlIso3 = gwAddDaysISO(occIso3, wrk.dev || 0);
+        if (TASKS_DB) TASKS_DB.updateTask(tk.id, { d: tk.d, dl: dateToOff(gwFromISO(dlIso3)), dl_date: dlIso3 });
+      }
     }
     graphsSaveList(list);
     if (S.screen === 'graphs') renderGraphs();
@@ -17029,7 +17046,7 @@
           '<option value="brouter-trek" ' + (TS.router === 'brouter-trek' || !TS.router ? 'selected' : '') + '>🥾 BRouter trekking</option>' +
           '<option value="valhalla" ' + (TS.router === 'valhalla' ? 'selected' : '') + '>🟧 Valhalla</option>' +
         '</select>' +
-        '<button class="btn primary" id="t-btn-build-route" data-action="t-build-route" disabled style="opacity:.5;cursor:not-allowed;">' + IC.route + ' Оптимизация маршрутов</button>' + '<button class="btn sm" id="t-btn-compare" data-action="t-build-compare" style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;font-weight:700" title="Сравнить результаты 4 бесплатных роутеров (OSRM demo / FOSSGIS / Valhalla public / Прямая линия ×1.4)">🔀 Сравнить</button>' + '<button class="btn sm" id="t-btn-drive3d" style="background:#dc2626;color:#fff;border-color:#dc2626;display:none;" title="3D-вождение автомобиля по улицам Минска (открывается кодом ↑↓←→)">🏎 Дать газу</button>') +
+        '<button class="btn primary" id="t-btn-build-route" data-action="t-build-route" disabled style="opacity:.5;cursor:not-allowed;">' + IC.route + ' Оптимизация маршрутов</button>' + '<button class="btn sm" id="t-btn-compare" data-action="t-build-compare" style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;font-weight:700" title="Сравнить результаты 4 бесплатных роутеров (OSRM demo / FOSSGIS / Valhalla public / Прямая линия ×1.4)">🔀 Сравнить</button>') +
       '<div class="spacer"></div>' +
       provSelHTML +
       '</div>';
@@ -17264,8 +17281,6 @@
       // Селектор больше не отображается; этот код оставлен на случай,
       // если пользователь захочет вернуть переключатель.
     }
-    var drive3dBtn = document.getElementById('t-btn-drive3d');
-    if (drive3dBtn) drive3dBtn.onclick = function (e) { if (e) { e.preventDefault(); e.stopPropagation(); } openDrive3D(); };
     } catch (err) {
       console.error('renderTestMap error:', err);
       var viewEl = document.getElementById('view');
@@ -20093,25 +20108,6 @@
   // Touch drag&drop polyfill для планшетов
   setTimeout(function() { try { enableTouchDnD(); } catch(e) { console.error('TouchDnD init:', e); } }, 100);
 
-
-  // === Konami-код ↑ ↓ ← → : открывает скрытую кнопку «Дать газу» в карте маршрутов ===
-  (function () {
-    var seq = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
-    var pos = 0, resetTm = null;
-    document.addEventListener('keydown', function (e) {
-      var tag = (e.target && e.target.tagName) || '';
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return; // не мешаем вводу
-      if (e.key !== seq[pos]) { pos = (e.key === seq[0]) ? 1 : 0; if (resetTm) clearTimeout(resetTm); return; }
-      pos++;
-      if (resetTm) clearTimeout(resetTm);
-      resetTm = setTimeout(function () { pos = 0; }, 2500);
-      if (pos === seq.length) {
-        pos = 0;
-        var b = document.getElementById('btn-drive3d');
-        if (b) { b.style.display = 'inline-flex'; try { toast('ok', '🏎 Скрытая кнопка «Дать газу» открыта!'); } catch (err) {} }
-      }
-    });
-  })();
 
   // Восстанавливаем сессию НЕМЕДЛЕННО из localStorage — до серверных запросов
   Promise.all([DB.ensureSeed(), WORK.ensureSeed()]).then(function () {

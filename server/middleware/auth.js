@@ -42,8 +42,10 @@ async function requireAuth(req, res, next) {
     };
     req.token = token;
 
-    // Обновить last_seen (не блокируем ответ)
-    p.query(`UPDATE sessions SET last_seen = NOW() WHERE token = $1`, [token]).catch(() => {});
+    // Обновить last_seen + ПРОДЛИТЬ сессию ещё на 30 дней (не блокируем ответ).
+    // 22.09-102: раньше expires_at никогда не продлевался — через 30 дней после входа
+    // сессия умирала даже у активных пользователей («не подключает к серверу»).
+    p.query(`UPDATE sessions SET last_seen = NOW(), expires_at = NOW() + INTERVAL '30 days' WHERE token = $1`, [token]).catch(() => {});
 
     next();
   } catch (e) {

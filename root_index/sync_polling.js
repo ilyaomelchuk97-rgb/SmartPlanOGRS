@@ -91,7 +91,7 @@ window.SP_SYNC_POLL = (function () {
       if (box) box.title = 'Сервер Render недоступен';
     } else if (mode === 'offline') {
       dot.style.background = '#94a3b8';
-      txt.textContent = 'Сервер: выход';
+      txt.textContent = 'Сервер: не в сети'; // 22.09-101
       txt.style.color = '#64748b';
     }
   }
@@ -316,8 +316,16 @@ window.SP_SYNC_POLL = (function () {
     if (state.inFlight) return;
     if (!window.SP_API || !window.SP_API.getToken || !window.SP_API.getToken()) {
       updateIndicator('offline');
+      // 22.09-101: токен потерян навсегда (устарел/сброшен) — после 3 тактов
+      // просим войти заново, иначе приложение молча остаётся без синхронизации.
+      state.noTokenTicks = (state.noTokenTicks || 0) + 1;
+      if (state.noTokenTicks >= 3 && typeof window.SP_FORCE_RELOGIN === 'function') {
+        state.noTokenTicks = -1e9; // один раз — без цикла
+        try { window.SP_FORCE_RELOGIN(); } catch (e) {}
+      }
       return;
     }
+    state.noTokenTicks = 0;
     state.inFlight = true;
     window.SP_API.sync(state.lastTs)
       .then(function (r) {

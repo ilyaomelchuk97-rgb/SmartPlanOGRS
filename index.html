@@ -178,8 +178,8 @@
   .cell.today{background:#f5f9ff}
   .cell.drop-on{background:#dbeafe!important;outline:2px dashed var(--blue);outline-offset:-3px}
   .cell.overload{box-shadow:inset 0 0 0 2px var(--red)}
-  .cell.wday{background:rgba(22,163,74,.10)}
-  .cell.wday.today{background:rgba(22,163,74,.14)}
+  /* 22.09-103: рабочий день мастера — не фон, а зелёная линия у низа ячейки */
+  .cell.wday::after{content:'';position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--green)}
   .mname .sh-today{transition:opacity .15s}
   .mname[data-action="master-sch-popup"]:hover .nm{text-decoration:underline;text-underline-offset:2px}
   .tile{border-radius:6px;padding:4px 6px;font-size:10.5px;line-height:1.2;cursor:grab;background:#eef2f6;border-left:3px solid #94a3b8;position:relative;user-select:none}
@@ -1074,7 +1074,7 @@
           <div style="margin-top:6px;font-size:11px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-98 · профессии: название из выпадающего списка или вручную, удаление из списка, «без разряда»</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-103 · планирование: рабочие дни — зелёная линия снизу</div>
     </div>
   </div>
   </div>
