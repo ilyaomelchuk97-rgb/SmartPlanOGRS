@@ -741,7 +741,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-94 · клик по кружку-аватару открывает свою карточку работника в режиме «только просмотр»; исправлено «Слесарь · undefined» в шапке'],
+    objmap: ['Карта объектов', 'Сборка 22.09-96 · справочники: группы работ свёрнуты при входе (стрелка, раскрытые запоминаются до ухода); «Нормы времени» — аккордеон по группам как «Виды работ», внутри — нормы'],
     testmap: ['Тест проезда', 'Полигон: карта маршрутов + оптимизация + пробки + Google Maps (копия «Карты маршрутов» для экспериментов)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -10424,51 +10424,58 @@
 
     html += refsTabsHtml;
 
+    // 22.09-96: бейджи атрибутов работы — общий конструктор для вкладок «Виды работ» и «Нормы времени»
+    function workRefBadgesHtml(w) {
+      var attr = '';
+      if (w.needs_permit) attr += ' <span class="permit-badge">📋 Ордер</span>';
+      if (w.depends_on_snow) attr += ' <span class="snow-badge">❄️ Снег</span>';
+      if (w.min_temp > -50) attr += ' <span class="weather-badge">🌡️ t≥' + w.min_temp + '°</span>';
+      if (w.equipment && w.equipment !== '—') attr += ' <span class="equipment-badge">' + esc(w.equipment) + '</span>';
+      if (w.object_categories && w.object_categories.length) {
+        attr += ' <span class="equipment-badge" title="Категория объекта: ' + esc(w.object_categories.join(', ')) + '">' + esc(w.object_categories[0]) + (w.object_categories.length > 1 ? ' +' + (w.object_categories.length - 1) : '') + '</span>';
+      }
+      if (w.periodicity_value) {
+        attr += ' <span class="permit-badge" title="Периодичность">🔁 ' + w.periodicity_value + ' ' + esc(w.periodicity_unit || 'мес') + '</span>';
+      }
+      if (w.joint_with) attr += ' <span class="snow-badge" title="Проводится совместно">🤝 совместно</span>';
+      if (w.crew_size) {
+        var crewDesc = (w.crew || []).filter(function (e) { return e && e.prof; })
+          .map(function (e) { return e.prof + (e.grade ? ' · ' + e.grade + ' разряд' : '') + ' × ' + e.count; }).join('; ');
+        attr += ' <span class="permit-badge" title="Исполнители — ' + w.crew_size + ' чел.' + (crewDesc ? ': ' + esc(crewDesc) : '') + '">👥 ' + w.crew_size + '</span>';
+      }
+      if (w.op_journal) attr += ' <span class="weather-badge" title="Запись в оперативном журнале">📓 журнал</span>';
+      if (w.passport_entry) attr += ' <span class="weather-badge" title="Запись в эксплуатационном паспорте">📋 паспорт</span>';
+      if (w.scan_attach) attr += ' <span class="equipment-badge" title="Присоединение сканов">📎 сканы</span>';
+      if (w.lines_count) attr += ' <span class="equipment-badge" title="Кол-во линий редуцирования (шт)">Линий: ' + w.lines_count + '</span>';
+      return attr;
+    }
+
     if (S.refsTab === 'norms') {
-      html += '<div class="card"><table class="dt"><thead><tr><th>Группа</th><th>Работа</th><th>Норма, ч</th><th>Ед. изм.</th>' + (admin ? '<th style="text-align:right">Действия</th>' : '') + '</tr></thead><tbody>';
-      if (!works.length) html += '<tr><td colspan="' + (admin ? 5 : 4) + '" class="empty">На участке пока нет работ</td></tr>';
-      works.forEach(function (w) {
-        var attr = '';
-        if (w.needs_permit) attr += ' <span class="permit-badge">📋</span>';
-        if (w.depends_on_snow) attr += ' <span class="snow-badge">❄️</span>';
-        if (w.min_temp > -50) attr += ' <span class="weather-badge">🌡️+' + w.min_temp + '°</span>';
-        if (w.equipment && w.equipment !== '—') attr += ' <span class="equipment-badge">' + esc(w.equipment) + '</span>';
-        html += '<tr><td>' + esc(w.group || '—') + '</td><td><b>' + esc(w.name) + '</b>' + attr + '</td><td>' + fmtH(w.norm) + '</td><td>' + esc(w.unit) + '</td>';
-        if (admin) html += '<td style="text-align:right;white-space:nowrap"><button class="btn sm" data-action="edit-work" data-wid="' + w.id + '">Изменить</button> <button class="btn sm" data-action="del-work" data-wid="' + w.id + '" style="color:var(--red)">Удалить</button></td>';
-        html += '</tr>';
+      // 22.09-96: оформление как во «Видах работ» — группы раскрываются, внутри — работы с нормами
+      html += '<div class="card"><div class="card-b"><div class="tree">';
+      if (!works.length) html += '<div class="empty">На участке пока нет работ</div>';
+      Object.keys(groups).forEach(function (g) {
+        var open = !!(S.refsOpen && S.refsOpen[g]);
+        html += '<ul style="padding-left:0"><li><div class="grp' + (open ? '' : ' closed') + '" data-action="toggle-tree" data-grp="' + esc(g) + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>' + esc(g) + '</div><ul' + (open ? '' : ' style="display:none"') + '>';
+        groups[g].forEach(function (w) {
+          html += '<li class="w"><span style="color:var(--blue)">▪</span><span>' + esc(w.name) + '</span>' +
+            '<span class="permit-badge" title="Норма времени">⏱ ' + fmtH(w.norm) + ' ч / ' + esc(w.unit) + '</span>' + workRefBadgesHtml(w);
+          if (admin) html += '<span style="margin-left:10px;white-space:nowrap"><button class="btn sm" data-action="edit-work" data-wid="' + w.id + '">Изменить</button> <button class="btn sm" data-action="del-work" data-wid="' + w.id + '" style="color:var(--red)">Удалить</button></span>';
+          html += '</li>';
+        });
+        html += '</ul></li></ul>';
       });
-      html += '</tbody></table></div>';
+      html += '</div></div></div>';
     } else {
       html += '<div class="card"><div class="card-b"><div class="tree">';
       if (!works.length) html += '<div class="empty">На участке «' + esc(area) + '» пока нет видов работ. ' + (admin ? 'Нажмите «Добавить работу».' : '') + '</div>';
       Object.keys(groups).forEach(function (g) {
-        html += '<ul style="padding-left:0"><li><div class="grp" data-action="toggle-tree"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>' + esc(g) + '</div><ul>';
+        // 22.09-96: группы свёрнуты при входе; раскрытые запоминаются (S.refsOpen) до ухода со страницы
+        var open = !!(S.refsOpen && S.refsOpen[g]);
+        html += '<ul style="padding-left:0"><li><div class="grp' + (open ? '' : ' closed') + '" data-action="toggle-tree" data-grp="' + esc(g) + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>' + esc(g) + '</div><ul' + (open ? '' : ' style="display:none"') + '>';
         groups[g].forEach(function (w) {
-          var attr = '';
-          if (w.needs_permit) attr += ' <span class="permit-badge">📋 Ордер</span>';
-          if (w.depends_on_snow) attr += ' <span class="snow-badge">❄️ Снег</span>';
-          if (w.min_temp > -50) attr += ' <span class="weather-badge">🌡️ t≥' + w.min_temp + '°</span>';
-          if (w.equipment && w.equipment !== '—') attr += ' <span class="equipment-badge">' + esc(w.equipment) + '</span>';
-          // === Бейджи новых атрибутов (Сборка 22.09-29) ===
-          if (w.object_categories && w.object_categories.length) {
-            attr += ' <span class="equipment-badge" title="Категория объекта: ' + esc(w.object_categories.join(', ')) + '">' + esc(w.object_categories[0]) + (w.object_categories.length > 1 ? ' +' + (w.object_categories.length - 1) : '') + '</span>';
-          }
-          if (w.periodicity_value) {
-            attr += ' <span class="permit-badge" title="Периодичность">🔁 ' + w.periodicity_value + ' ' + esc(w.periodicity_unit || 'мес') + '</span>';
-          }
-          if (w.joint_with) attr += ' <span class="snow-badge" title="Проводится совместно">🤝 совместно</span>';
-          // Сборка 22.09-85: бейдж исполнителей (общее число + состав в подсказке)
-          if (w.crew_size) {
-            var crewDesc = (w.crew || []).filter(function (e) { return e && e.prof; })
-              .map(function (e) { return e.prof + (e.grade ? ' · ' + e.grade + ' разряд' : '') + ' × ' + e.count; }).join('; ');
-            attr += ' <span class="permit-badge" title="Исполнители — ' + w.crew_size + ' чел.' + (crewDesc ? ': ' + esc(crewDesc) : '') + '">👥 ' + w.crew_size + '</span>';
-          }
-          if (w.op_journal) attr += ' <span class="weather-badge" title="Запись в оперативном журнале">📓 журнал</span>';
-          if (w.passport_entry) attr += ' <span class="weather-badge" title="Запись в эксплуатационном паспорте">📋 паспорт</span>';
-          if (w.scan_attach) attr += ' <span class="equipment-badge" title="Присоединение сканов">📎 сканы</span>';
-          // Сборка 22.09-87: бейдж количества линий редуцирования
-          if (w.lines_count) attr += ' <span class="equipment-badge" title="Кол-во линий редуцирования (шт)">Линий: ' + w.lines_count + '</span>';
-          html += '<li class="w"><span style="color:var(--blue)">▪</span><span>' + esc(w.name) + '</span>' + attr + '<span class="norm">Норма: <b>' + fmtH(w.norm) + ' ч</b> / ' + esc(w.unit) + ' (мин ' + (w.min_workers || 1) + ' чел.)</span>';
+          var attr = workRefBadgesHtml(w);
+          html += '<li class="w"><span style="color:var(--blue)">▪</span><span>' + esc(w.name) + '</span>' + attr; // 22.09-95: нормы во вкладке «Виды работ» не показываем
           if (admin) html += '<span style="margin-left:10px;white-space:nowrap"><button class="btn sm" data-action="edit-work" data-wid="' + w.id + '">Изменить</button> <button class="btn sm" data-action="del-work" data-wid="' + w.id + '" style="color:var(--red)">Удалить</button></span>';
           html += '</li>';
         });
@@ -11801,10 +11808,8 @@
     var h = '<div class="modal-h"><h3>' + esc(title) + '</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">';
     h += '<div class="fld"><label>Группа работ</label><input id="wm-group" value="' + (w ? esc(w.group || '') : '') + '" placeholder="Напр.: Благоустройство"></div>';
     h += '<div class="fld"><label>Название работы</label><input id="wm-name" value="' + (w ? esc(w.name) : '') + '" placeholder="Напр.: Укладка асфальта"></div>';
-    h += '<div class="attr-row"><div class="fld"><label>Норма времени, ч</label><input id="wm-norm" type="number" step="0.01" min="0" value="' + (w ? w.norm : '1') + '"></div>';
-    h += '<div class="fld"><label>Единица измерения</label><select id="wm-unit">';
-    ['м2', 'объект', 'км', 'га', 'ЗУ'].forEach(function (u) { h += '<option value="' + u + '"' + (w && w.unit === u ? ' selected' : '') + '>' + u + '</option>'; });
-    h += '</select></div></div>';
+    // 22.09-95: «Норма времени, ч» и «Единица измерения» из карточки убраны —
+    // нормы живут отдельно (загружаются импортом норм), здесь только вид работы.
     // 22.09-84: блок «Атрибуты УБиРОГС» — ТОЛЬКО для участка УБиРОГС.
     // Для ГРП ниже свой блок «Атрибуты ГРП», у остальных — пока нет атрибутов.
     if (area === 'УБиРОГС') {
@@ -11895,10 +11900,6 @@
     h += '<div class="fld"><label>Операции <span style="color:#94a3b8;font-weight:500">(список значений, через запятую)</span></label>';
     h += '<input id="wm-operations" value="' + esc(((w && w.operations) || []).join(', ')) + '" placeholder="напр.: Подготовка, Монтаж, Проверка"></div>';
 
-    // 8. Нормы времени — уже есть «Норма времени, ч» выше; здесь пояснение
-    h += '<div class="fld" style="background:#f8fafc;border:1px dashed var(--line);border-radius:6px;padding:8px 10px;font-size:11.5px;color:#475569;">';
-    h += '<b style="color:#0f2740">📊 Нормы времени</b> — связаны со справочником «Нормы времени». Поле «Норма времени, ч» (выше) — значение по умолчанию.';
-    h += '</div>';
 
     // 8.2. Количество линий редуцирования (Сборка 22.09-87)
     h += '<div class="fld" style="max-width:280px"><label>Кол-во линий редуцирования (шт)</label><input id="wm-lines" type="number" min="0" step="1" value="' + ((w && w.lines_count) || 0) + '" placeholder="0 — не задано"></div>';
@@ -11957,13 +11958,16 @@
     }
     var name = val('wm-name');
     if (!name) { toast('err', 'Введите название работы'); return; }
-    var data = {
-      group: val('wm-group') || 'Без группы', name: name, norm: val('wm-norm'), unit: val('wm-unit')
-    };
     // 22.09-84: атрибутные блоки — только у своего участка. На чужих участках
     // поля НЕ РЕНДЕРЯТСЯ, поэтому при ПРАВКЕ сохраняем старые значения (иначе
     // бы затёрлись дефолтами), при СОЗДАНИИ — дефолтные.
     var oldW = (mode === 'edit' && wid) ? WORK.getWork(area, wid) : null;
+    // 22.09-95: полей нормы в карточке больше нет — значения сохраняем из старой
+    // записи (правка), для новой работы — дефолт 1 ч/объект (обновится импортом).
+    var data = {
+      group: val('wm-group') || 'Без группы', name: name,
+      norm: oldW ? oldW.norm : 1, unit: oldW ? oldW.unit : 'объект'
+    };
     // Блок 1 («Атрибуты УБиРОГС»): ордер/снег/температура/сезон/техника/исполнители
     if (area === 'УБиРОГС') {
       data.needs_permit = chk('wm-permit'); data.depends_on_snow = chk('wm-snow');
@@ -14799,6 +14803,7 @@
     try { wxtPopHide(); } catch (e) {}
     try { closeHourlyWeather(); } catch (e) {}
     S.screen = name;
+    if (name === 'refs') S.refsOpen = {}; // 22.09-96: вход в «Справочники» — группы работ свёрнуты
     document.querySelectorAll('#nav a').forEach(function (a) { a.classList.toggle('active', a.dataset.screen === name); });
     // Подменю «Графики»: держать раскрытым, пока активна его страница
     document.querySelectorAll('#nav .nav-acc').forEach(function (w) {
@@ -15205,7 +15210,16 @@
     else if (a === 'edit-object') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } openObjectModal('edit', el.dataset.oid); }
     else if (a === 'del-object') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } delObjectAction(el.dataset.oid); }
     else if (a === 'save-object') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } saveObject(); }
-    else if (a === 'toggle-tree') { var ul = el.nextElementSibling; if (ul) ul.style.display = (ul.style.display === 'none' ? '' : 'none'); }
+    else if (a === 'toggle-tree') {
+      var ul = el.nextElementSibling;
+      if (ul) {
+        ul.style.display = (ul.style.display === 'none' ? '' : 'none');
+        var isClosed = ul.style.display === 'none';
+        el.classList.toggle('closed', isClosed);
+        if (!S.refsOpen) S.refsOpen = {};
+        if (el.dataset.grp) { if (isClosed) delete S.refsOpen[el.dataset.grp]; else S.refsOpen[el.dataset.grp] = true; } // 22.09-96: запоминаем раскрытые группы
+      }
+    }
     else if (a === 'new-work') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } openWorkModal('new'); }
     else if (a === 'edit-work') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } openWorkModal('edit', el.dataset.wid); }
     else if (a === 'del-work') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } delWork(el.dataset.wid); }
