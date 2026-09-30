@@ -163,7 +163,11 @@ window.SP_WORK = (function () {
       scan_attach:          false,       // присоединение сканов
       lines_count:          0,           // кол-во линий редуцирования (шт) — Сборка 22.09-87
       crew_size:            0,           // количество исполнителей (общее) — Сборка 22.09-85
-      crew:                 []           // состав: [{prof:'...', grade:'3', count:2}]
+      crew:                 [],          // состав: [{prof:'...', grade:'3', count:2}]
+      telemetry_req:        '',          // 22.09-115: '' | 'equipped' (объект с ТМ) | 'not_equipped' (без ТМ)
+      telemetry_type:       '',          // 22.09-115: конкретный тип телеметрии (из списка видов ТМ)
+      diag_equipment:       false,       // 22.09-115: с приборным диагност. оборудованием (нужен вид обслуживания Region-gas)
+      heating_req:          false        // 22.09-115: ТО отопительного оборудования (объект с отоплением — ГРП)
     };
   }
   // Безопасно парсит массивы/enum-поля/числа из HTML-формы (строки → массив/число/bool)
@@ -212,7 +216,11 @@ window.SP_WORK = (function () {
       scan_attach:             toBool(d.scan_attach),
       lines_count:             Math.max(0, Math.round(toNum(d.lines_count, 0))),
       crew_size:               Math.max(0, Math.round(toNum(d.crew_size, 0))),
-      crew:                    toCrew(d.crew)
+      crew:                    toCrew(d.crew),
+      telemetry_req:           (d.telemetry_req === 'equipped' ? 'equipped' : (d.telemetry_req === 'not_equipped' ? 'not_equipped' : '')),
+      telemetry_type:          String(d.telemetry_type || '').trim(),
+      diag_equipment:          toBool(d.diag_equipment),
+      heating_req:             toBool(d.heating_req)
     };
   }
 
