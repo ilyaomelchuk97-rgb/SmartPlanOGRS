@@ -741,7 +741,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-96 · справочники: группы работ свёрнуты при входе (стрелка, раскрытые запоминаются до ухода); «Нормы времени» — аккордеон по группам как «Виды работ», внутри — нормы'],
+    objmap: ['Карта объектов', 'Сборка 22.09-98 · атрибуты ГРП: из категорий объекта убраны газопроводы; «Виды работ»: свойства работы и кнопки — по правому краю'],
     testmap: ['Тест проезда', 'Полигон: карта маршрутов + оптимизация + пробки + Google Maps (копия «Карты маршрутов» для экспериментов)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -10451,19 +10451,24 @@
     }
 
     if (S.refsTab === 'norms') {
-      // 22.09-96: оформление как во «Видах работ» — группы раскрываются, внутри — работы с нормами
+      // 22.09-97: раскрывающиеся группы остаются, внутри — таблица (вид как раньше)
       html += '<div class="card"><div class="card-b"><div class="tree">';
       if (!works.length) html += '<div class="empty">На участке пока нет работ</div>';
       Object.keys(groups).forEach(function (g) {
         var open = !!(S.refsOpen && S.refsOpen[g]);
         html += '<ul style="padding-left:0"><li><div class="grp' + (open ? '' : ' closed') + '" data-action="toggle-tree" data-grp="' + esc(g) + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>' + esc(g) + '</div><ul' + (open ? '' : ' style="display:none"') + '>';
+        html += '<li><table class="dt" style="margin:4px 0 14px"><thead><tr><th>Работа</th><th>Норма, ч</th><th>Ед. изм.</th>' + (admin ? '<th style="text-align:right">Действия</th>' : '') + '</tr></thead><tbody>';
         groups[g].forEach(function (w) {
-          html += '<li class="w"><span style="color:var(--blue)">▪</span><span>' + esc(w.name) + '</span>' +
-            '<span class="permit-badge" title="Норма времени">⏱ ' + fmtH(w.norm) + ' ч / ' + esc(w.unit) + '</span>' + workRefBadgesHtml(w);
-          if (admin) html += '<span style="margin-left:10px;white-space:nowrap"><button class="btn sm" data-action="edit-work" data-wid="' + w.id + '">Изменить</button> <button class="btn sm" data-action="del-work" data-wid="' + w.id + '" style="color:var(--red)">Удалить</button></span>';
-          html += '</li>';
+          var attr = '';
+          if (w.needs_permit) attr += ' <span class="permit-badge">📋</span>';
+          if (w.depends_on_snow) attr += ' <span class="snow-badge">❄️</span>';
+          if (w.min_temp > -50) attr += ' <span class="weather-badge">🌡️+' + w.min_temp + '°</span>';
+          if (w.equipment && w.equipment !== '—') attr += ' <span class="equipment-badge">' + esc(w.equipment) + '</span>';
+          html += '<tr><td><b>' + esc(w.name) + '</b>' + attr + '</td><td>' + fmtH(w.norm) + '</td><td>' + esc(w.unit) + '</td>';
+          if (admin) html += '<td style="text-align:right;white-space:nowrap"><button class="btn sm" data-action="edit-work" data-wid="' + w.id + '">Изменить</button> <button class="btn sm" data-action="del-work" data-wid="' + w.id + '" style="color:var(--red)">Удалить</button></td>';
+          html += '</tr>';
         });
-        html += '</ul></li></ul>';
+        html += '</tbody></table></li></ul></li></ul>';
       });
       html += '</div></div></div>';
     } else {
@@ -10475,7 +10480,8 @@
         html += '<ul style="padding-left:0"><li><div class="grp' + (open ? '' : ' closed') + '" data-action="toggle-tree" data-grp="' + esc(g) + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>' + esc(g) + '</div><ul' + (open ? '' : ' style="display:none"') + '>';
         groups[g].forEach(function (w) {
           var attr = workRefBadgesHtml(w);
-          html += '<li class="w"><span style="color:var(--blue)">▪</span><span>' + esc(w.name) + '</span>' + attr; // 22.09-95: нормы во вкладке «Виды работ» не показываем
+          // 22.09-98: название слева, свойства (вид объекта, линии и др.) и кнопки — по правому краю
+          html += '<li class="w"><span style="color:var(--blue)">▪</span><span>' + esc(w.name) + '</span><span style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end;text-align:right">' + attr + '</span>';
           if (admin) html += '<span style="margin-left:10px;white-space:nowrap"><button class="btn sm" data-action="edit-work" data-wid="' + w.id + '">Изменить</button> <button class="btn sm" data-action="del-work" data-wid="' + w.id + '" style="color:var(--red)">Удалить</button></span>';
           html += '</li>';
         });
@@ -11834,7 +11840,7 @@
 
     // 1. Категория объекта обслуживания (мульти-чекбоксы)
     var curCats = (w && w.object_categories) || [];
-    var cats = ['ГРП', 'ШРП', 'ПГРП', 'ГРС', 'Наружный газопровод', 'Внутренний газопровод', 'Газопровод высокого давления', 'Газопровод среднего давления', 'Газопровод низкого давления', 'Узел учёта газа', 'Иное'];
+    var cats = ['ГРП', 'ШРП', 'ПГРП', 'ГРС', 'Узел учёта газа', 'Иное']; // 22.09-98: газопроводы убраны из категорий объекта обслуживания
     h += '<div class="fld"><label>Категория объекта обслуживания <span style="color:#94a3b8;font-weight:500">(можно выбрать несколько)</span></label>';
     h += '<div id="wm-cats" style="display:flex;flex-wrap:wrap;gap:6px;padding:4px 0;">';
     cats.forEach(function (c) {
