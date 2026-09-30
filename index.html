@@ -37,7 +37,7 @@
     font-family:'Segoe UI',Roboto,-apple-system,BlinkMacSystemFont,Arial,sans-serif;
     background:var(--bg);color:var(--txt);font-size:14px;line-height:1.4;
   }
-  .app{display:flex;height:100vh;overflow:hidden}
+  .app{display:flex;height:100vh;height:100dvh;overflow:hidden} /* 22.09-108: dvh — мобильные браузеры без среза низа */
 
   /* ---------- SIDEBAR ---------- */
   .sidebar{
@@ -78,7 +78,7 @@
   .base-sel select:focus{outline:none;border-color:rgba(96,165,250,.5)}
 
   /* ---------- MAIN ---------- */
-  .main{flex:1;min-width:0;display:flex;flex-direction:column}
+  .main{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column} /* 22.09-108: min-height:0 — иначе при скрытом сайдбаре (колонка ≤1080px) #view не сжимается и скролл пропадает */
   .topbar{
     background:var(--card);border-bottom:1px solid var(--line);padding:0 22px;height:62px;
     display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:20;
@@ -109,9 +109,21 @@
   .usr .usr-dd-in{background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(15,39,64,.18);padding:8px;min-width:150px}
   @media (hover:hover){.usr:hover .usr-dd{display:block}}
   .usr .usr-dd.show{display:block}
+  /* 22.09-108: подготовка к сенсорным экранам */
+  *{-webkit-tap-highlight-color:transparent} /* без серой вспышки при тапе */
+  /* без задержки/зума двойным тапом на элементах управления */
+  .btn, .nav a, .burger, .tile, .chip, label.cb, .modal button, .modal select, .modal input,
+  #usr-caret, .usr [data-action], .card-h [data-action]{touch-action:manipulation}
+  /* сенсор (нет hover): стрелочка меню пользователя видна и без JS */
+  @media (hover:none){#usr-caret{display:inline-block}}
+  /* iOS/Android не делают авто-зум при фокусе в поля модалок (нужен шрифт ≥16px) */
+  @media (hover:none) and (pointer:coarse){
+    .modal input, .modal select, .modal textarea{font-size:16px}
+    .btn{min-height:40px}
+  }
 
   /* ---------- VIEW ---------- */
-  #view{padding:22px;flex:1;overflow-y:auto;overscroll-behavior:contain}
+  #view{padding:22px;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain} /* 22.09-108 */
   /* Яндекс-карты: высота внутренних панелей карты — 96% (правка пользователя
      по замеру в DevTools: панели выше видимой области — области срезались) */
   ymaps-2-1-79-inner-panes,
@@ -1079,7 +1091,7 @@
           <div style="margin-top:6px;font-size:11px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-106 · «Выйти» — в меню пользователя; роли в карточке без «Слесарь»</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-109 · графики смен: праздники РБ жёлтым, редактор списка</div>
     </div>
   </div>
   </div>
@@ -1156,7 +1168,7 @@
       </div>
       <div class="usr" id="usr-box">
         <div class="av" id="av" data-action="open-my-card" title="Моя карточка — открыть" style="cursor:pointer">—</div>
-        <div><div class="un" id="un">—</div><div class="ur" id="ur">—</div></div>
+        <div data-action="usr-menu" style="cursor:pointer" title="Меню — выход из системы"><div class="un" id="un">—</div><div class="ur" id="ur">—</div></div>
         <span id="usr-caret" data-action="usr-menu" title="Меню — выход из системы">▾</span>
         <div class="usr-dd" id="usr-dd"><div class="usr-dd-in">
           <button class="btn ghost" data-action="logout" title="Выйти из системы" style="width:100%;justify-content:flex-start"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg> Выйти</button>

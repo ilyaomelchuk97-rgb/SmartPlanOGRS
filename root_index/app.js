@@ -741,7 +741,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-106 · кнопка «Выйти» спрятана: desktop — hover на имя справа сверху, сенсор — стрелочка ▾; в карточке работника роль без ошибочного «Слесарь» (админ → Администратор)'],
+    objmap: ['Карта объектов', 'Сборка 22.09-109 · графики смен: кнопка «🎉 Праздники» (справа сверху) — список праздничных дней РБ с добавлением/удалением, в сетке подсвечиваются жёлтым; засеяны праздники 2026–2027 по календарю Минтруда'],
     testmap: ['Тест проезда', 'Полигон: карта маршрутов + оптимизация + пробки + Google Maps (копия «Карты маршрутов» для экспериментов)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -8644,6 +8644,73 @@
   // Сводный календарь по бригадам: вид «бригада → строка, дни → столбцы».
   // Цвета ячейки: 🟢 рабочий, ⚪ выходной, 🔴 отсутствие.
   // Клик по ячейке — отмечает/снимает отсутствие (если есть права на этого работника).
+  /* ---------- ПРАЗДНИЧНЫЕ ДНИ РБ (22.09-109) ----------
+     Список синхронизируется через раздел holidays на сервере
+     (LS-кэш 'smartplan_holidays'). Жёлтая подсветка — в «Графиках смен». */
+  function holidaysLoad() {
+    try { var r = localStorage.getItem('smartplan_holidays'); var a = r ? JSON.parse(r) : []; return Array.isArray(a) ? a : []; } catch (e) { return []; }
+  }
+  function holidaysSaveLS(list) { try { localStorage.setItem('smartplan_holidays', JSON.stringify(list)); } catch (e) {} }
+  function holidayOn(ds) {
+    var l = holidaysLoad();
+    for (var i = 0; i < l.length; i++) if (l[i] && l[i].date === ds) return l[i].name || 'Праздник';
+    return '';
+  }
+  function hdFmtDate(ds) { var p = String(ds || '').split('-'); return p.length === 3 ? p[2] + '.' + p[1] + '.' + p[0] : String(ds || '—'); }
+  function openHolidaysModal() {
+    var canEdit = S.role === 'admin';
+    var list = holidaysLoad().slice().sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); });
+    var h = '<div class="modal-h"><h3>🎉 Праздничные дни (РБ)</h3><button class="x" data-action="close-modal">×</button></div>';
+    h += '<div class="modal-b">';
+    h += '<div class="calc" style="margin-bottom:10px;align-items:flex-start">Праздники подсвечиваются в «Графиках смен» жёлтым. Список общий для всех пользователей и синхронизируется через сервер.' + (canEdit ? '' : ' <b>Изменение доступно администратору.</b>') + '</div>';
+    if (canEdit) {
+      h += '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px">' +
+        '<div class="fld" style="margin:0;flex:0 0 160px"><label>Дата</label><input id="hd-date" type="date"></div>' +
+        '<div class="fld" style="margin:0;flex:1;min-width:170px"><label>Наименование праздника</label><input id="hd-name" placeholder="напр.: День независимости"></div>' +
+        '<button type="button" class="btn primary" data-action="holiday-add">+ Добавить</button></div>';
+    }
+    h += '<div style="max-height:340px;overflow-y:auto;border:1px solid var(--line);border-radius:8px">';
+    if (!list.length) h += '<div style="padding:14px;color:var(--muted);font-size:12.5px">Праздников нет' + (canEdit ? ' — добавьте первую дату выше' : '') + '</div>';
+    list.forEach(function (it) {
+      h += '<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--line)">' +
+        '<b style="flex:0 0 92px;font-size:12px;color:var(--ink)">' + esc(hdFmtDate(it.date)) + '</b>' +
+        '<span style="flex:1;font-size:12.5px;color:var(--ink)">' + esc(it.name || 'Праздник') + '</span>' +
+        (canEdit ? '<button type="button" class="btn sm" data-action="holiday-del" data-id="' + esc(it.id) + '" style="color:var(--red)">Удалить</button>' : '') + '</div>';
+    });
+    h += '</div></div>';
+    h += '<div class="modal-f"><button type="button" class="btn" data-action="close-modal">Закрыть</button></div>';
+    modal.innerHTML = h;
+    overlay.classList.add('show');
+  }
+  function holidayAddFromModal() {
+    var dEl = document.getElementById('hd-date'), nEl = document.getElementById('hd-name');
+    var date = dEl ? dEl.value : '';
+    var name = nEl ? nEl.value.trim() : '';
+    if (!date) { toast('err', 'Укажите дату праздника'); return; }
+    if (!name) { toast('err', 'Укажите наименование праздника'); return; }
+    var list = holidaysLoad();
+    for (var i = 0; i < list.length; i++) if (list[i] && list[i].date === date) { toast('err', 'Эта дата уже есть в списке («' + (list[i].name || 'Праздник') + '»)'); return; }
+    var rec = { id: 'h_' + date + '_' + Date.now().toString(36), date: date, name: name };
+    list.push(rec); holidaysSaveLS(list);
+    if (window.SP_API && SP_API.upsert) SP_API.upsert('holidays', rec).then(function (r) { if (!r || !r.ok) toast('warn', '⚠ Не сохранилось на сервере (' + ((r && r.err) || 'сеть') + ') — попробуйте позже'); });
+    logAction('Добавление праздника', date + ' · ' + name);
+    toast('ok', '🎉 Добавлено: ' + name + ' (' + hdFmtDate(date) + ')');
+    if (S.screen === 'schedules') renderSchedules();
+    openHolidaysModal();
+  }
+  function holidayDelete(id) {
+    if (!id) return;
+    var list = holidaysLoad(), n = list.length;
+    list = list.filter(function (x) { return x && x.id !== id; });
+    if (list.length === n) return;
+    holidaysSaveLS(list);
+    if (window.SP_API && SP_API.del) SP_API.del('holidays', id).then(function (r) { if (!r || !r.ok) toast('warn', '⚠ Не удалилось на сервере (' + ((r && r.err) || 'сеть') + ') — попробуйте позже'); });
+    logAction('Удаление праздника', id);
+    toast('ok', 'Праздник удалён');
+    if (S.screen === 'schedules') renderSchedules();
+    openHolidaysModal();
+  }
+
   function renderSchedules() {
     var v = document.getElementById('view');
     var users = wkVisibleUsers();
@@ -8687,6 +8754,7 @@
     html += '<span style="width:1px;height:20px;background:var(--line);margin:0 4px"></span>';
     html += '<button type="button" class="btn sm" data-action="sch-print" title="Печать сводного графика (текущий период, выбранный режим)" style="background:#475569;color:#fff;border-color:#475569">🖨 Печать</button>';
     html += '<button type="button" class="btn sm" data-action="sch-excel" title="Скачать в Excel — текущий период, выбранный режим" style="background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border-color:#15803d">📥 Excel</button>';
+    html += '<button type="button" class="btn sm" data-action="sch-holidays" title="Праздничные дни РБ — список, добавление/удаление; подсвечиваются жёлтым" style="background:linear-gradient(135deg,#eab308,#ca8a04);color:#fff;border-color:#ca8a04">🎉 Праздники</button>'; // 22.09-109
     html += '</span></div>';
     html += '<div class="card-b">';
 
@@ -8743,7 +8811,9 @@
       var dowH = dtH.getDay();
       var isWeH = dowH === 0 || dowH === 6;
       var isTodayH = sameDay(dtH, TODAY);
-      html2 += '<th title="' + dd + ' ' + MON_NOM[wm.m] + '" style="width:' + colW + 'px;padding:3px 0;font-size:10px;font-weight:700;color:' + (isWeH ? '#94a3b8' : 'var(--muted)') + ';border-bottom:1px solid var(--line);text-align:center;' + (isTodayH ? 'background:rgba(37,99,235,.1);' : '') + '">' + dd + '</th>';
+      var dsH = wm.y + '-' + String(wm.m + 1).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
+      var _holH = holidayOn(dsH); // 22.09-109
+      html2 += '<th title="' + dd + ' ' + MON_NOM[wm.m] + (_holH ? ' · 🎉 ' + esc(_holH) : '') + '" style="width:' + colW + 'px;padding:3px 0;font-size:10px;font-weight:700;color:' + (isWeH ? '#94a3b8' : 'var(--muted)') + ';border-bottom:1px solid var(--line);text-align:center;' + (isTodayH ? 'background:rgba(37,99,235,.1);' : (_holH ? 'background:#fef9c3;' : '')) + '">' + dd + '</th>';
     }
     html2 += '</tr></thead><tbody>';
 
@@ -8773,6 +8843,7 @@
       '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#dcfce7;border:1px solid #16a34a"></span>рабочий по графику</span>' +
       '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#f1f5f9;border:1px solid #cbd5e1"></span>выходной по графику</span>' +
       '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#fee2e2;border:1px solid #dc2626"></span>отсутствие (отпуск/больничный)</span>' +
+      '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#fef9c3;border:1px solid #eab308"></span>праздник</span>' + // 22.09-109
       '<span style="color:#94a3b8">· клик по ячейке — отметить/снять отсутствие</span>' +
       '</div>';
     // Карточки работников по бригадам внизу — ФИО + профессия, мастер и слесари рядом,
@@ -8831,9 +8902,12 @@
     var can = wkCanEdit(user);
     var dt = new Date(wm.y, wm.m, dd);
     var isToday = sameDay(dt, TODAY);
+    var _hol = holidayOn(ds); // 22.09-109: праздник — жёлтый поверх любого состояния
+    if (_hol) { bg = '#fef9c3'; bd = '#eab308'; }
     var title = state === 'work' ? (esc(ds) + ' · рабочий')
               : state === 'abs'  ? (esc(ds) + ' · отсутствие' + (wkData(user.id).abs[ds] ? ' (' + esc(wkData(user.id).abs[ds]) + ')' : ''))
               : (esc(ds) + ' · выходной');
+    if (_hol) title += ' · 🎉 ' + esc(_hol) + ' (праздник)';
     // Подсветка «сегодня» — только снизу и слева (inset 0/2px), чтобы не ломать общую сетку.
     var ring = isToday ? ';box-shadow:inset 2px 0 0 0 rgba(37,99,235,.4),inset 0 2px 0 0 rgba(37,99,235,.4)' : '';
     var act = state === 'abs' ? 'wk-open-day' : 'wk-quick-abs';
@@ -10542,7 +10616,7 @@
     html += '</select></div>';
     html += '<div class="calc">ℹ️ Профессии применяются в составе исполнителей работ участка ГРП. Название можно выбрать из списка или вписать вручную — вписанное запомнится в списке.</div>';
     html += '</div><div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="save-prof">' + (mode === 'edit' ? 'Сохранить' : 'Добавить профессию') + '</button></div>';
-    modal.style.maxWidth = ''; // сброс автоширины карточки задачи
+    modal.style.width = '80%'; modal.style.maxWidth = '80%'; // 22.09-107: карточки справочников — 80% по центру
     modal.innerHTML = html; overlay.classList.add('show');
     var listEl = document.getElementById('pm-name-list');
     var nameEl = document.getElementById('pm-name');
@@ -10598,7 +10672,7 @@
     try { if (res.prof && res.prof.name && SP_PROFS.addProfName) SP_PROFS.addProfName(res.prof.name); } catch (e) {}
     logAction(S.profModalMode === 'edit' ? 'Изменение профессии' : 'Добавление профессии', SP_PROFS.label(res.prof));
     toast('ok', S.profModalMode === 'edit' ? 'Профессия изменена' : 'Профессия «' + SP_PROFS.label(res.prof) + '» добавлена');
-    overlay.classList.remove('show');
+    overlay.classList.remove('show'); modal.style.width = ''; modal.style.maxWidth = ''; // 22.09-107
     refresh();
   }
   function delProfAction(pid) {
@@ -10665,7 +10739,7 @@
     if (mode === 'edit') html += '<div class="calc">ℹ️ При переименовании автоматически обновляются виды работ и пользователи этого участка.</div>';
     else html += '<div class="calc">ℹ️ После создания участка добавьте для него виды работ (вкладка «Виды работ») или загрузите их из Excel.</div>';
     html += '</div><div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="save-area">' + (mode === 'edit' ? 'Сохранить' : 'Добавить участок') + '</button></div>';
-    modal.style.maxWidth = ''; // сброс автоширины карточки задачи
+    modal.style.width = '80%'; modal.style.maxWidth = '80%'; // 22.09-107: карточки справочников — 80% по центру
     modal.innerHTML = html; overlay.classList.add('show');
     var inp = document.getElementById('am-name');
     if (inp) { inp.focus(); inp.select(); }
@@ -10696,7 +10770,7 @@
       logAction('Добавление участка', r.area.name);
       toast('ok', 'Участок «' + r.area.name + '» добавлен');
     }
-    overlay.classList.remove('show');
+    overlay.classList.remove('show'); modal.style.width = ''; modal.style.maxWidth = ''; // 22.09-107
     refresh();
   }
   function delAreaAction(aid) {
@@ -11123,7 +11197,7 @@
     html += '<textarea id="am-poly" rows="6" style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-family:monospace;font-size:11.5px;box-sizing:border-box" placeholder="53.90228, 27.56190&#10;53.90431, 27.56512&#10;53.90011, 27.56788&#10;(минимум 3 точки)">' + esc(polyTxt) + '</textarea></div>';
     html += '<div class="calc">🗺 Нажмите «✏️ Нарисовать на карте» и кликайте по карте — каждая точка станет вершиной контура. Можно ввести координаты вручную или импортировать готовые контуры из KML/KMZ на вкладке «Области».</div>';
     html += '</div><div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="save-zone">' + (mode === 'edit' ? 'Сохранить' : 'Добавить область') + '</button></div>';
-    modal.style.maxWidth = '620px';
+    modal.style.width = '80%'; modal.style.maxWidth = '80%'; // 22.09-107: карточки справочников — 80% по центру
     modal.innerHTML = html; overlay.classList.add('show');
     wireZoneColors(modal);
     var polyTa = document.getElementById('am-poly');
@@ -11168,7 +11242,7 @@
       toast('ok', '✓ Область добавлена (' + poly.length + ' точек)');
     }
     refreshObjects();
-    overlay.classList.remove('show');
+    overlay.classList.remove('show'); modal.style.width = ''; modal.style.maxWidth = ''; // 22.09-107
     renderRefs();
   }
 
@@ -11515,7 +11589,7 @@
     html += '</div><div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="save-object">' + (mode === 'edit' ? 'Сохранить' : 'Добавить объект') + '</button></div>';
     // Ширина модалки: для ГРП/ШРП/ПГРП — 880px (вмещает 2-колоночные атрибуты),
     // для остальных типов — 620px (как было).
-    modal.style.maxWidth = (window.SP_OBJ_ATTRS && SP_OBJ_ATTRS.supportsAttrs(type)) ? '880px' : '620px';
+    modal.style.width = '80%'; modal.style.maxWidth = '80%'; // 22.09-107: карточки справочников — 80% по центру
     modal.innerHTML = html; overlay.classList.add('show');
     // переключение формы: точка/область по типу объекта
     var typeSel = document.getElementById('om-type'), numLabel = document.getElementById('om-num-label');
@@ -11562,7 +11636,7 @@
         if (sec) { sec.innerHTML = ''; sec.style.display = 'none'; }
       }
       // Ширина модалки зависит от типа
-      modal.style.maxWidth = SP_OBJ_ATTRS.supportsAttrs(cur) ? '880px' : '620px';
+      modal.style.width = '80%'; modal.style.maxWidth = '80%'; // 22.09-107: ширина не зависит от секций
     }
     var polyTa = document.getElementById('om-poly');
     if (polyTa) polyTa.addEventListener('input', function () { zonePolyCnt('om-poly'); });
@@ -11676,7 +11750,7 @@
       logAction('Добавление объекта', objFullAddr(o));
       toast('ok', 'Объект «' + esc(objFullAddr(o)) + '» добавлен');
     }
-    overlay.classList.remove('show');
+    overlay.classList.remove('show'); modal.style.width = ''; modal.style.maxWidth = ''; // 22.09-107
     // вкладка после сохранения — по ТИПУ объекта (нарисованная во «вкладке
     // прочих» область остаётся в «Прочих», тип «Область» — на вкладке «Области»)
     if (type === 'Область') S.objTab = 'areas';
@@ -11847,17 +11921,15 @@
     });
     h += '</div></div>';
 
-    // 3. Периодичность + 5. Реквизит отсчёта
-    h += '<div class="attr-row">';
-    h += '<div class="fld"><label>Периодичность выполнения</label><div style="display:flex;gap:10px">' +
+    // 3. Периодичность (22.09-107: во всю ширину, реквизит отсчёта — отдельным блоком под ней)
+    h += '<div class="fld"><label>Периодичность выполнения</label><div style="display:flex;gap:10px;max-width:520px">' +
       '<label style="flex:1;font-size:11px;font-weight:700;color:var(--muted)">Периодичность, месяцев' +
       '<input id="wm-period-value" type="number" min="0" step="1" value="' + (w && w.periodicity_value ? w.periodicity_value : '') + '" placeholder="напр.: 12" style="margin-top:3px"></label>' +
       '<label style="flex:1;font-size:11px;font-weight:700;color:var(--muted)">Отклонение, дней' +
       '<input id="wm-period-dev" type="number" min="0" step="1" value="' + ((w && w.periodicity_dev) || '') + '" placeholder="напр.: 2" style="margin-top:3px"></label>' +
       '</div>' +
       '<div style="font-size:10.5px;color:var(--muted);margin-top:4px">Шаг серии = периодичность − отклонение (как в настройке периодичности в графике работ)</div></div>';
-    h += '<div class="fld"><label>Реквизит отсчёта для выполнения работ</label><select id="wm-period-basis"><option value="prev_date"' + (w && w.periodicity_basis === 'prev_date' ? ' selected' : '') + '>Дата предыдущего выполнения</option><option value="commissioning_date"' + (w && w.periodicity_basis === 'commissioning_date' ? ' selected' : '') + '>Дата ввода в эксплуатацию</option></select></div>';
-    h += '</div>';
+    h += '<div class="fld" style="max-width:520px"><label>Реквизит отсчёта для выполнения работ</label><select id="wm-period-basis"><option value="prev_date"' + (w && w.periodicity_basis === 'prev_date' ? ' selected' : '') + '>Дата предыдущего выполнения</option><option value="commissioning_date"' + (w && w.periodicity_basis === 'commissioning_date' ? ' selected' : '') + '>Дата ввода в эксплуатацию</option></select></div>';
 
     // 4. Виды работ, от которых отсчёт периодичности (мульти-чекбоксы)
     var curDepends = (w && w.periodicity_depends_on) || [];
@@ -15167,6 +15239,9 @@
     else if (a === 'export-db') { exportDb(); }
     else if (a === 'import-db') { var fi = document.getElementById('import-file'); if (fi) fi.click(); }
     else if (a === 'how-transfer') { e.preventDefault(); toast('ok', 'ПЕРЕНОС БАЗЫ: 1) В браузере, где уже есть пользователи → «Экспорт базы» → скачается users_db.json. 2) В новом браузере → «Импорт базы» → выберите этот файл → нажмите ОК (замена). Готово!'); }
+    else if (a === 'sch-holidays') { openHolidaysModal(); } // 22.09-109
+    else if (a === 'holiday-add') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } holidayAddFromModal(); }
+    else if (a === 'holiday-del') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } holidayDelete(el.dataset.id); }
     else if (a === 'usr-menu') { // 22.09-106: стрелочка на сенсоре — открыть/закрыть меню пользователя
       var umDd = document.getElementById('usr-dd'); if (umDd) umDd.classList.toggle('show');
     }

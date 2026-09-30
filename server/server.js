@@ -146,7 +146,7 @@ app.use('/api/audit', requireAuth, auditRoutes(pool));
 // Специальный роут для users (специальная таблица с фиксированными колонками)
 app.use('/api/users', requireAuth, usersRoutes(pool));
 // Универсальный роутинг для остальных разделов
-const SECTIONS = ['objects', 'tasks', 'areas', 'workers', 'work_catalog', 'graphs', 'professions'];
+const SECTIONS = ['objects', 'tasks', 'areas', 'workers', 'work_catalog', 'graphs', 'professions', 'holidays']; // 22.09-109: + праздники
 SECTIONS.forEach((s) => {
   app.use(`/api/${s}`, requireAuth, sectionRoutes(pool, s));
 });

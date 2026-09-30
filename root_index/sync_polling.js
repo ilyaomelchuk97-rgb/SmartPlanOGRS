@@ -37,7 +37,8 @@ window.SP_SYNC_POLL = (function () {
     professions: 'smartplan_professions_db',
     workers: 'smartplan_workers_db',
     work_catalog: 'smartplan_work_catalog',
-    graphs: 'smartplan_graphs'
+    graphs: 'smartplan_graphs',
+    holidays: 'smartplan_holidays' // 22.09-109
   };
 
   var state = {
@@ -117,8 +118,8 @@ window.SP_SYNC_POLL = (function () {
     delete data._deleted;
     delete data._updated_at;
 
-    if (sec === 'graphs') {
-      // graphs — массив в localStorage
+    if (sec === 'graphs' || sec === 'holidays') {
+      // graphs / holidays — массив записей в localStorage
       var list = lsRead(lsKey);
       if (!Array.isArray(list)) list = [];
       var idx = -1;
