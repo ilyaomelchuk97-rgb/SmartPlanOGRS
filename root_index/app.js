@@ -741,7 +741,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-103 · планирование: рабочие дни мастеров вместо зелёного фона — зелёная линия у нижней кромки ячейки'],
+    objmap: ['Карта объектов', 'Сборка 22.09-106 · кнопка «Выйти» спрятана: desktop — hover на имя справа сверху, сенсор — стрелочка ▾; в карточке работника роль без ошибочного «Слесарь» (админ → Администратор)'],
     testmap: ['Тест проезда', 'Полигон: карта маршрутов + оптимизация + пробки + Google Maps (копия «Карты маршрутов» для экспериментов)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -3515,8 +3515,7 @@
         var load = loadForDay(m.id, off);
         var over = load > masterCapacity(m.id, off);
         var we = (d.getDay() === 0 || d.getDay() === 6);
-        var _cSt = wkDayState(m.id, key(d));
-        var cls = 'cell' + (_cSt === 'work' ? ' wday' : '') + (sameDay(d, TODAY) ? ' today' : '') + (we ? ' we' : '') + (over ? ' overload' : '');
+        var cls = 'cell' + (sameDay(d, TODAY) ? ' today' : '') + (we ? ' we' : '') + (over ? ' overload' : ''); // 22.09-104: подсветка рабочих дней убрана
         html += '<div class="' + cls + '" style="grid-column:' + (ci + 2) + ';grid-row:' + rn + '" data-master="' + m.id + '" data-off="' + off + '"' + (over ? ' title="Перегрузка: ' + fmtH(load) + ' ч"' : '') + '>';
         S.tasks.forEach(function (t) {
           if (t.m === m.id && t.d === off) {
@@ -8218,7 +8217,9 @@
      мастер — только свой участок. Данные: workers_db.js (SP_WORKERS).
      ===================================================================== */
   function wkRoleLabel(r) {
-    return r === 'nach' ? 'Начальник участка' : r === 'smaster' ? 'Старший мастер' : r === 'master' ? 'Мастер' : 'Слесарь';
+    // 22.09-106: неизвестная рабочая роль — берём подпись из ROLE_INFO (admin → Администратор,
+    // engineer → Инженер, viewer → Начальник СЭОГС); «Слесарь» — только как последний фолбэк.
+    return r === 'nach' ? 'Начальник участка' : r === 'smaster' ? 'Старший мастер' : r === 'master' ? 'Мастер' : (ROLE_INFO[r] ? ROLE_INFO[r].label : 'Слесарь');
   }
   // Работники, видимые на странице:
   //  · админ и СЭОГС (нач. СЭОГС / зам) — ВСЕ участки (с фильтром дашборда);
@@ -14657,6 +14658,8 @@
     document.getElementById('av').textContent = initials(u.full_name);
     document.getElementById('un').textContent = u.full_name;
     document.getElementById('ur').textContent = (u.prof || info.label) + (u.role === 'admin' || !u.area ? '' : ' · ' + u.area); // 22.09-94: без «· undefined»
+    // 22.09-106: сенсорное устройство — показываем стрелочку ▾ для меню пользователя (выход)
+    try { if (('ontouchstart' in window) || (navigator.maxTouchPoints > 0)) document.body.classList.add('usr-touch'); } catch (e) {}
     // Сегодняшняя дата в topbar
     var dateEl = document.getElementById('topbar-date');
     if (dateEl) dateEl.textContent = 'Сегодня ' + fmt(TODAY);
@@ -14766,6 +14769,7 @@
   }
   function showLoginScreen() {
     document.body.classList.remove('logged-in');
+    var _udd = document.getElementById('usr-dd'); if (_udd) _udd.classList.remove('show'); // 22.09-106
     var f = document.getElementById('login-form'); if (f) f.reset();
     var err = document.getElementById('li-err'); if (err) err.textContent = '';
   }
@@ -14978,6 +14982,10 @@
     if (dmDd && dmDd.classList.contains('open') && !dmDd.contains(e.target) && !e.target.closest('[data-action="dash-month-toggle"]')) {
       dmDd.classList.remove('open');
     }
+    var usDd = document.getElementById('usr-dd'); // 22.09-106
+    if (usDd && usDd.classList.contains('show') && !usDd.contains(e.target) && !e.target.closest('[data-action="usr-menu"]')) {
+      usDd.classList.remove('show');
+    }
     var el = e.target.closest('[data-action]'); if (!el) return;
     var a = el.dataset.action;
     if (a === 'cal-mode') { S.calMode = el.dataset.mode; renderCalendar(); }
@@ -15159,6 +15167,9 @@
     else if (a === 'export-db') { exportDb(); }
     else if (a === 'import-db') { var fi = document.getElementById('import-file'); if (fi) fi.click(); }
     else if (a === 'how-transfer') { e.preventDefault(); toast('ok', 'ПЕРЕНОС БАЗЫ: 1) В браузере, где уже есть пользователи → «Экспорт базы» → скачается users_db.json. 2) В новом браузере → «Импорт базы» → выберите этот файл → нажмите ОК (замена). Готово!'); }
+    else if (a === 'usr-menu') { // 22.09-106: стрелочка на сенсоре — открыть/закрыть меню пользователя
+      var umDd = document.getElementById('usr-dd'); if (umDd) umDd.classList.toggle('show');
+    }
     else if (a === 'logout') {
       // Сборка 22.09-25: при выходе останавливаем polling и чистим токен
       try { if (window.SP_SYNC_POLL && SP_SYNC_POLL.stop) SP_SYNC_POLL.stop(); } catch (e) {}
@@ -15993,7 +16004,7 @@
     h += '</div>';
     h += '<div class="modal-f"><button type="button" class="btn ok" data-action="graphs-period-save">Сохранить</button><button type="button" class="btn danger" data-action="close-modal">Отменить</button></div>';
     modal.innerHTML = h;
-    modal.style.maxWidth = '880px';
+    modal.style.width = '80%'; modal.style.maxWidth = '80%'; // 22.09-105: настройка периодичности — 80% ширины, по центру (сброс: close-modal и graphsPeriodSave)
     overlay.classList.add('show');
     gprDrawList(g, area);
     var listEl = document.getElementById('gpr-list');
@@ -16015,6 +16026,21 @@
         }
       });
     }
+    // 22.09-105: выбрали работу в строке — подставляем периодичность (мес) и
+    // отклонение (дн) из её атрибутов в справочнике (карточка ГРП), если заданы.
+    listEl.addEventListener('change', function (e) {
+      var sel = e.target && e.target.closest ? e.target.closest('select[data-gpr-w]') : null;
+      if (!sel || !sel.value) return;
+      var w = null;
+      try { w = WORK.getWork(area, sel.value); } catch (err) {}
+      if (!w) return;
+      var id = sel.getAttribute('data-idx');
+      // В графике шаг задаётся в месяцах: значение «в днях» не конвертируем
+      var per = (w.periodicity_unit === 'дней') ? 0 : (parseInt(w.periodicity_value, 10) || 0);
+      var dev = parseInt(w.periodicity_dev, 10) || 0;
+      if (per > 0) { var pInp = listEl.querySelector('[data-gpr-p="' + id + '"]'); if (pInp) pInp.value = per; }
+      if (dev > 0) { var dInp = listEl.querySelector('[data-gpr-d="' + id + '"]'); if (dInp) dInp.value = dev; }
+    });
     var areaSel = document.getElementById('gpr-area');
     if (areaSel) areaSel.addEventListener('change', function () {
       area = areaSel.value;
@@ -16077,7 +16103,7 @@
     var list = graphsLoad();
     var g = null;
     list.forEach(function (x, i) { if (x.id === GS.cur) g = x; });
-    if (!g || !g.objs || !g.objs.length) { overlay.classList.remove('show'); modal.style.maxWidth = ''; return; }
+    if (!g || !g.objs || !g.objs.length) { overlay.classList.remove('show'); modal.style.maxWidth = ''; modal.style.width = ''; return; }
     var areaSel = document.getElementById('gpr-area');
     var area = areaSel ? areaSel.value : graphAreaDefault(g);
     var created = 0, removed = 0, yearWarn = 0, taskFail = 0, shiftedCnt = 0;
@@ -16189,6 +16215,7 @@
     if (TASKS_DB) S.tasks = TASKS_DB.getTasks();
     overlay.classList.remove('show');
     modal.style.maxWidth = '';
+    modal.style.width = '';
     logAction('Периодичность графика', g.name + ' (' + area + '): создано работ ' + created + ', удалено старых ' + removed);
     var respIsMaster = getMasters().some(function (m) { return m.id === g.respId; });
     if (!respIsMaster) toast('warn', '⚠ Ответственный графика — не мастер: работы СОЗДАЮТСЯ, но не отображаются в планировании. Измените ответственного на мастера («Список графиков» → правка).');
