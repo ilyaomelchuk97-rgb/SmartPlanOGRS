@@ -741,7 +741,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-120 · график: на один день один треугольник, разделён цветами всех работ дня'],
+    objmap: ['Карта объектов', 'Сборка 22.09-122 · настройка периодов: работы с сезонами меняются на зимние/обычные версии по датам графика'],
     testmap: ['Тест проезда', 'Полигон: карта маршрутов + оптимизация + пробки + Google Maps (копия «Карты маршрутов» для экспериментов)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -15396,6 +15396,7 @@
       else if (el.dataset.tool === 'legend') { openGraphLegendModal(); }
       else if (el.dataset.tool === 'period') { openGraphPeriodModal(); }
       else if (el.dataset.tool === 'filter') { openGraphFilterModal(); }
+      else if (el.dataset.tool === 'winter') { openGraphWinterModal(); }
       else if (el.dataset.tool === 'delworks') { openGraphDelWorksModal(); }
       else if (el.dataset.tool === 'print') { openGraphPrintModal(); }
     }
@@ -15404,6 +15405,8 @@
     else if (a === 'graphs-month-view') { openGraphMonthModal(parseInt(el.dataset.mi, 10) || 0); }
     else if (a === 'graphs-print-view') { graphsPrintView(); }
     else if (a === 'graphs-filter-save') { graphsFilterSave(); }
+    else if (a === 'graphs-winter-save') { graphsWinterSave(); }
+    else if (a === 'graphs-winter-clear') { graphsWinterClear(); }
     else if (a === 'graphs-delworks-confirm') { graphsDeleteAllWorks(); }
     else if (a === 'graphs-print-go') { graphsPrintGo(); }
     else if (a === 'graphs-excel-go') { graphsExportExcel(graphPrintOpts()); }
@@ -15689,6 +15692,7 @@
     repeat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 014-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 01-4 4H3"/></svg>',
     legend: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="6" r="1.6" fill="currentColor" stroke="none"/><path d="M10 6h11"/><circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none"/><path d="M10 12h11"/><circle cx="5" cy="18" r="1.6" fill="currentColor" stroke="none"/><path d="M10 18h11"/></svg>',
     funnel: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 3H2l8 9.5V19l4 2v-8.5L22 3z"/></svg>',
+    snow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/><path d="m20 16-4-4 4-4"/><path d="m4 8 4 4-4 4"/><path d="m16 4-4 4-4-4"/><path d="m8 20 4-4 4 4"/></svg>',
     pencil: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>',
     copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>'
   };
@@ -15700,6 +15704,7 @@
     ];
     var right = [
       { tool: 'filter', tip: 'Фильтр', cls: 'gt-slate', icon: 'funnel' },
+      { tool: 'winter', tip: 'Настройка периодов', cls: 'gt-sky', icon: 'snow' },
       { tool: 'print', tip: 'Печать графика (в Excel)', cls: 'gt-amber', icon: 'printer' },
       { tool: 'delworks', tip: 'Удалить работы', cls: 'gt-red', icon: 'trash' }
     ];
@@ -15790,14 +15795,15 @@
       var h = (anyWork ? '' : '<div class="calc" style="margin-bottom:10px;align-items:flex-start;border-left:4px solid var(--yellow)">⚠ Работы не заданы ни у одного объекта — треугольников нет. Нажмите «Настроить периодичность» на панели слева, выберите вид работы, периодичность и дату первого проведения.</div>') +
         '<div class="gw-scroll"><div class="gw-grid">';
       h += '<div class="gw-h gw-corner">Объект<span>' + esc(String(g.year)) + ' год</span></div>';
+      var winterM = gwWinterMonths(g); // 22.09-121: столбцы месяцев с зимними днями — голубее
       for (var mi = 0; mi < 12; mi++) {
-        h += '<div class="gw-h gw-m" data-action="graphs-month-view" data-mi="' + mi + '" title="Открыть график всех объектов на ' + MONTHS_RU[mi] + '">' + MONTHS_RU[mi] + '</div>';
+        h += '<div class="gw-h gw-m"' + (winterM[mi] ? ' style="background:#e0f0fb"' : '') + ' data-action="graphs-month-view" data-mi="' + mi + '" title="Открыть график всех объектов на ' + MONTHS_RU[mi] + '">' + MONTHS_RU[mi] + '</div>';
       }
       g.objs.forEach(function (ob, ri) {
         if (ob.hide) return; // фильтр графика: скрытые объекты не показываются
         h += '<div class="gw-obj"><span class="chip ' + esc(ob.type) + '">' + esc(ob.type) + '</span><span class="gw-obj-nm" title="' + esc(ob.name) + '">' + esc(ob.name) + '</span></div>';
         for (var ci = 0; ci < 12; ci++) {
-          h += '<div class="gw-c" data-action="graphs-obj-month" data-ri="' + ri + '" data-mi="' + ci + '" title="График объекта · ' + MONTHS_RU[ci] + '">' + gwMonthTriangles(g, ob, ci) + '</div>';
+          h += '<div class="gw-c"' + (winterM[ci] ? ' style="background:#e0f0fb"' : '') + ' data-action="graphs-obj-month" data-ri="' + ri + '" data-mi="' + ci + '" title="График объекта · ' + MONTHS_RU[ci] + '">' + gwMonthTriangles(g, ob, ci) + '</div>';
         }
       });
       h += '</div></div>';
@@ -16443,6 +16449,8 @@
     var added = 0;
     works.forEach(function (w) {
       if (!w || !w.id || have[w.id]) return;
+      // 22.09-121: зимние работы (сезон «Зима» в карточке работы) автоподбором не добавляются
+      if (String(w.season || '').toLowerCase() === 'зима') return;
       // 22.09-118: режимы подбора — 'tm' только работы с телеметрией, 'notm' только без ТМ
       if (mode === 'tm' || mode === 'notm') {
         var ef = workEffAttrs(w);
@@ -16496,7 +16504,7 @@
       '</div>';
     h += '<div class="gpr-cols"><span>Вид работы</span><span>Период., мес</span><span>Откл., дн</span><span>Дата первого проведения</span><span></span></div>';
     h += '<div id="gpr-list" style="display:flex;flex-direction:column;gap:10px;padding:2px"></div>';
-    h += '<div class="calc" style="align-items:flex-start;font-size:11.5px;line-height:1.5">Шаг серии = периодичность МИНУС отклонение (1 мес и отклонение 2 дн: работа 18 числа → следующая 16 числа следующего месяца). У каждого объекта может быть несколько работ — «+ работа». Работы появляются в «Планировании»; перемещение задачи там переносит её и последующие по шагу серии. <b>Даты, попавшие на день, когда мастер графика не работает (выходные 5/2 и 2/2, отсутствия — график смен на вкладке «Работники»), автоматически переносятся на ближайший предыдущий рабочий день; шаг серии считается от своих исходных дат.</b> <b>⚡ Автоподбор (кнопка сверху или «⚡» у объекта) добавляет объектам работы из справочника по их параметрам: тип объекта ↔ «Категория объекта обслуживания», линии редуцирования объекта ↔ «Кол-во линий редуцирования» в карточке работы. Периодичность и отклонение подставляются из справочника; дата первого проведения — из «Даты ввода в эксплуатацию» объекта, если у работы выбран реквизит отсчёта «Дата ввода в эксплуатацию». Критерии оборудования: телеметрия (работы «с ТМ» не попадут на объект без ТМ; выбран тип — совпадение по типу и наличию), приборная диагностика только при виде обслуживания «Region-gas», ТО отопительного оборудования только ГРП с отоплением. Если поля в карточке работы не заполнены, связь распознаётся по названию работы/группы («ИНДЕЛ», «оборудованных/не оборудованных системой телеметрии», «приборного диагностического оборудования», «отопительного»). Режимы: «📡 Только работы с ТМ» — одни телеметрические работы, «🚫📡 Только без ТМ» — одни работы без привязки к телеметрии.</b></div>';
+    h += '<div class="calc" style="align-items:flex-start;font-size:11.5px;line-height:1.5">Шаг серии = периодичность МИНУС отклонение (1 мес и отклонение 2 дн: работа 18 числа → следующая 16 числа следующего месяца). У каждого объекта может быть несколько работ — «+ работа». Работы появляются в «Планировании»; перемещение задачи там переносит её и последующие по шагу серии. <b>Даты, попавшие на день, когда мастер графика не работает (выходные 5/2 и 2/2, отсутствия — график смен на вкладке «Работники»), автоматически переносятся на ближайший предыдущий рабочий день; шаг серии считается от своих исходных дат.</b> <b>⚡ Автоподбор (кнопка сверху или «⚡» у объекта) добавляет объектам работы из справочника по их параметрам: тип объекта ↔ «Категория объекта обслуживания», линии редуцирования объекта ↔ «Кол-во линий редуцирования» в карточке работы. Периодичность и отклонение подставляются из справочника; дата первого проведения — из «Даты ввода в эксплуатацию» объекта, если у работы выбран реквизит отсчёта «Дата ввода в эксплуатацию». Критерии оборудования: телеметрия (работы «с ТМ» не попадут на объект без ТМ; выбран тип — совпадение по типу и наличию), приборная диагностика только при виде обслуживания «Region-gas», ТО отопительного оборудования только ГРП с отоплением. Если поля в карточке работы не заполнены, связь распознаётся по названию работы/группы («ИНДЕЛ», «оборудованных/не оборудованных системой телеметрии», «приборного диагностического оборудования», «отопительного»). Режимы: «📡 Только работы с ТМ» — одни телеметрические работы, «🚫📡 Только без ТМ» — одни работы без привязки к телеметрии. Зимние работы (сезон «Зима» в карточке работы) автоподбором не добавляются — назначьте их вручную кнопкой «+ работа».</b></div>';
     h += '</div>';
     h += '<div class="modal-f"><button type="button" class="btn ok" data-action="graphs-period-save">Сохранить</button><button type="button" class="btn danger" data-action="close-modal">Отменить</button></div>';
     modal.innerHTML = h;
@@ -16915,6 +16923,74 @@
     if (S.screen === 'graphs') renderGraphs();
   }
 
+  /* ===== НАСТРОЙКА ПЕРИОДОВ графика (22.09-121): зимний период «с даты по
+     дату». Хранится в графике как g.winter = { from:'MM-DD', to:'MM-DD' } —
+     год не важен, период ежегодный, можно через Новый год (с 15.10 по 15.04).
+     Зимние дни подсвечиваются голубым в таблицах графика. */
+  function openGraphWinterModal() {
+    var g = graphsFind(GS.cur);
+    if (!g) { toast('err', 'Сначала создайте или выберите график'); return; }
+    var y = g.year || new Date().getFullYear();
+    var wf = g.winter && g.winter.from ? y + '-' + g.winter.from : '';
+    var wt = g.winter && g.winter.to ? y + '-' + g.winter.to : '';
+    var h = '<div class="modal-h"><h3>Настройка периодов</h3><button class="x" data-action="close-modal">×</button></div>';
+    h += '<div class="modal-b">';
+    h += '<div style="font-size:13.5px;font-weight:800;color:#0369a1;margin-bottom:10px">❄️ Зимний период</div>';
+    h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">';
+    h += '<div class="fld"><label>Дата с</label><input type="date" id="gw-winter-from"' + (wf ? ' value="' + wf + '"' : '') + '></div>';
+    h += '<div class="fld"><label>Дата по</label><input type="date" id="gw-winter-to"' + (wt ? ' value="' + wt + '"' : '') + '></div>';
+    h += '</div>';
+    h += '<label class="cb" style="font-size:12.5px;color:#0369a1;margin-top:4px;align-items:flex-start"><input type="checkbox" id="gw-season-sync" checked style="margin-top:2px"> Привести сезон работ графика к периоду: на зимние даты — зимние версии работ (то же название и сезон «Зима» в справочнике), на остальные даты — обычные версии. Уже выполненные работы не затрагиваются.</label>';
+    h += '<div class="calc" style="font-size:11px;align-items:flex-start">Учитываются только день и месяц — период повторяется каждый год. Допускается переход через Новый год: например, с 15.10 по 15.04 — это 15.10–31.12 и 01.01–15.04. Дни периода подсвечиваются голубым в таблице графика и в таблице по дням месяца. Зимние работы (сезон «Зима» в карточке работы) в автоподбор не попадают — их можно назначить вручную кнопкой «+ работа».</div>';
+    h += '</div>';
+    h += '<div class="modal-f"><button type="button" class="btn ok" data-action="graphs-winter-save">Сохранить</button><button type="button" class="btn" data-action="graphs-winter-clear">Очистить период</button><button type="button" class="btn danger" data-action="close-modal">Отмена</button></div>';
+    modal.innerHTML = h;
+    modal.style.maxWidth = '560px';
+    overlay.classList.add('show');
+  }
+  function graphsWinterSave() {
+    var list = graphsLoad();
+    var g = null;
+    list.forEach(function (x) { if (x.id === GS.cur) g = x; });
+    if (!g) { overlay.classList.remove('show'); modal.style.maxWidth = ''; return; }
+    var fi = document.getElementById('gw-winter-from');
+    var ti = document.getElementById('gw-winter-to');
+    var fv = fi && fi.value ? fi.value : '';
+    var tv = ti && ti.value ? ti.value : '';
+    if (!fv || !tv) { toast('err', 'Укажите обе даты — или нажмите «Очистить период»'); return; }
+    g.winter = { from: fv.slice(5), to: tv.slice(5) };
+    // 22.09-122: сезонные версии одинаковых работ — зимние даты = зимние версии
+    var seasonMsg = '';
+    var syncEl = document.getElementById('gw-season-sync');
+    if (!syncEl || syncEl.checked) {
+      var syncRes = null;
+      try { syncRes = gwSeasonSync(g, g.area || graphAreaDefault(g)); } catch (eSync) {}
+      if (syncRes && (syncRes.toWinter || syncRes.toSummer)) {
+        seasonMsg = ' · сезон: на зимние версии — ' + syncRes.toWinter + ', на обычные — ' + syncRes.toSummer + (syncRes.tasks ? ' (задач в планировании обновлено: ' + syncRes.tasks + ')' : '');
+      }
+    }
+    graphsSaveList(list);
+    if (TASKS_DB) S.tasks = TASKS_DB.getTasks();
+    overlay.classList.remove('show');
+    modal.style.maxWidth = '';
+    logAction('Настройка периодов графика', (g.name || '') + ': зима с ' + gwMdRu(g.winter.from) + ' по ' + gwMdRu(g.winter.to) + seasonMsg);
+    toast('ok', '❄️ Зимний период: с ' + gwMdRu(g.winter.from) + ' по ' + gwMdRu(g.winter.to) + ' — зимние дни подсвечены голубым' + seasonMsg);
+    if (S.screen === 'graphs') renderGraphs();
+  }
+  function graphsWinterClear() {
+    var list = graphsLoad();
+    var g = null;
+    list.forEach(function (x) { if (x.id === GS.cur) g = x; });
+    if (!g) { overlay.classList.remove('show'); modal.style.maxWidth = ''; return; }
+    delete g.winter;
+    graphsSaveList(list);
+    overlay.classList.remove('show');
+    modal.style.maxWidth = '';
+    logAction('Настройка периодов графика', (g.name || '') + ': зимний период очищен');
+    toast('ok', 'Зимний период очищен');
+    if (S.screen === 'graphs') renderGraphs();
+  }
+
   /* ===== УДАЛЕНИЕ ВСЕХ ЗАПЛАНИРОВАННЫХ РАБОТ ГРАФИКА ===== */
   function openGraphDelWorksModal() {
     var g = graphsFind(GS.cur);
@@ -17248,6 +17324,97 @@
     return out ? '<div class="gw-tris">' + out + '</div>' : '';
   }
 
+  /* 22.09-121: зимний период графика. Хранится как g.winter={from:'MM-DD',to:'MM-DD'},
+     год не важен — период повторяется ежегодно; допускается переход через
+     Новый год (например, с 15.10 по 15.04). */
+  function gwIsWinter(g, iso) {
+    if (!g || !g.winter || !g.winter.from || !g.winter.to) return false;
+    function md(x) { var q = String(x).split('-'); return (+q[0]) * 100 + (+q[1]); }
+    var cur = md(String(iso).slice(5, 10)), from = md(g.winter.from), to = md(g.winter.to);
+    return from <= to ? (cur >= from && cur <= to) : (cur >= from || cur <= to);
+  }
+  /* 'MM-DD' -> 'DD.MM' для подписей */
+  function gwMdRu(md) {
+    var p = String(md || '').split('-');
+    return p.length === 2 ? p[1] + '.' + p[0] : String(md || '');
+  }
+  /* Флаги по 12 месяцам года графика: есть ли в месяце зимние дни */
+  function gwWinterMonths(g) {
+    var out = [], mi, d, days;
+    for (mi = 0; mi < 12; mi++) out.push(false);
+    if (!g || !g.winter || !g.winter.from || !g.winter.to) return out;
+    var y = g.year || new Date().getFullYear();
+    for (mi = 0; mi < 12; mi++) {
+      days = new Date(y, mi + 1, 0).getDate();
+      for (d = 1; d <= days; d++) {
+        if (gwIsWinter(g, y + '-' + String(mi + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0'))) { out[mi] = true; break; }
+      }
+    }
+    return out;
+  }
+
+  /* 22.09-122: сезонная замена работ по датам графика. У одинаковых по
+     названию работ в справочнике бывают сезонные версии («Зима»/«Лето»/
+     «Круглый год» — например, техосмотр летом и зимой). После задания
+     зимнего периода каждое вхождение в графике переводится на нужную версию:
+     зимняя дата — зимняя версия, остальные — обычная; выполненные вхождения
+     не трогаем. У связанной задачи планирования меняется вид работы (w). */
+  function gwSeasonSync(g, area) {
+    var res = { toWinter: 0, toSummer: 0, tasks: 0 };
+    if (!g || !g.objs || !area) return res;
+    if (!g.winter || !g.winter.from || !g.winter.to) return res;
+    var works = [];
+    try { works = WORK.getWorks(area) || []; } catch (e) {}
+    function nrm(n) { return String(n || '').replace(/\s+/g, ' ').trim().toLowerCase(); }
+    function isWinterW(w) { return String(w && w.season || '').toLowerCase() === 'зима'; }
+    var byName = {};
+    works.forEach(function (w) {
+      if (!w || !w.id) return;
+      var k = nrm(w.name);
+      (byName[k] = byName[k] || []).push(w);
+    });
+    function getW(id) { var x = null; try { x = WORK.getWork(area, id); } catch (e) {} return x; }
+    function winterTwin(w) {
+      var arr = byName[nrm(w.name)] || [];
+      for (var i = 0; i < arr.length; i++) if (arr[i].id !== w.id && isWinterW(arr[i])) return arr[i];
+      return null;
+    }
+    function usualTwin(w) {
+      var arr = byName[nrm(w.name)] || [];
+      var best = null;
+      for (var i = 0; i < arr.length; i++) {
+        if (arr[i].id === w.id || isWinterW(arr[i])) continue;
+        if (String(arr[i].season || '') === 'Лето') return arr[i];
+        if (!best) best = arr[i];
+      }
+      return best;
+    }
+    g.objs.forEach(function (ob) {
+      gwObjWorks(ob).forEach(function (wrk) {
+        var baseW = getW(wrk.wid);
+        if (!baseW) return;
+        (wrk.occs || []).forEach(function (oc) {
+          var curId = oc.wid || wrk.wid;
+          var curW = (curId === wrk.wid) ? baseW : (getW(curId) || baseW);
+          var curWinter = isWinterW(curW);
+          var target = null;
+          if (gwIsWinter(g, oc.date)) { if (!curWinter) target = winterTwin(curW); }
+          else if (curWinter) target = usualTwin(curW);
+          if (!target || target.id === curId) return;
+          if (oc.tid && typeof TASKS_DB !== 'undefined' && TASKS_DB) {
+            var tk = null;
+            try { tk = TASKS_DB.getTask(oc.tid); } catch (e) {}
+            if (tk && typeof isDone === 'function' && isDone(tk)) return; // выполненные не трогаем — история
+            if (tk) { try { TASKS_DB.updateTask(tk.id, { w: target.id }); res.tasks++; } catch (e) {} }
+          }
+          oc.wid = target.id;
+          if (curWinter) res.toSummer++; else res.toWinter++;
+        });
+      });
+    });
+    return res;
+  }
+
   /* Дни недели для таблицы дней месяца */
   var WEEKDAYS_RU = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
 
@@ -17268,10 +17435,18 @@
         if (dayStates[di] === 'work') workCnt++;
       }
     }
+    // 22.09-121: зимний период — столбцы зимних дней чуть голубее
+    var winD = {};
+    if (g.winter && g.winter.from && g.winter.to) {
+      for (var wdi = 1; wdi <= days; wdi++) {
+        winD[wdi] = gwIsWinter(g, year + '-' + String(mi + 1).padStart(2, '0') + '-' + String(wdi).padStart(2, '0'));
+      }
+    }
     var h = '<div class="gw-scroll"><div class="gw-grid" style="grid-template-columns:minmax(210px,1.3fr) repeat(' + days + ',minmax(54px,1fr))">';
     h += '<div class="gw-h gw-corner">Объект<span>' + MONTHS_RU[mi] + ' ' + year + '</span></div>';
     for (var d = 1; d <= days; d++) {
-      h += '<div class="gw-h gd-h"' + (dayStates[d] === 'work' ? ' style="background:#dcfce7"' : '') + '><b>' + d + '</b><span>' + WEEKDAYS_RU[new Date(year, mi, d).getDay()] + '</span></div>';
+      var bgH = dayStates[d] === 'work' ? (winD[d] ? '#d6f0e7' : '#dcfce7') : (winD[d] ? '#e0f0fb' : '');
+      h += '<div class="gw-h gd-h"' + (bgH ? ' style="background:' + bgH + '"' : '') + '><b>' + d + '</b><span>' + WEEKDAYS_RU[new Date(year, mi, d).getDay()] + '</span></div>';
     }
     rows.forEach(function (ob) {
       h += '<div class="gw-obj"><span class="chip ' + esc(ob.type) + '">' + esc(ob.type) + '</span><span class="gw-obj-nm" title="' + esc(ob.title || ob.label) + '">' + esc(ob.label) + '</span></div>';
@@ -17291,7 +17466,8 @@
             tri += '<span class="gw-tri-w" data-gw-tip="' + esc(gwWorkTipHtml(g, ob.src, p.wrk, p.oc)) + '">' + gwDoneMark(16, gwColorOf(g, p.oc.wid || p.wrk.wid)) + '</span>';
           });
         }
-        h += '<div class="gd-c"' + (dayStates[c] === 'work' ? ' style="background:#dcfce7"' : '') + '>' + (tri ? '<div class="gw-tris">' + tri + '</div>' : '') + '</div>';
+        var bgC = dayStates[c] === 'work' ? (winD[c] ? '#d6f0e7' : '#dcfce7') : (winD[c] ? '#e0f0fb' : '');
+        h += '<div class="gd-c"' + (bgC ? ' style="background:' + bgC + '"' : '') + '>' + (tri ? '<div class="gw-tris">' + tri + '</div>' : '') + '</div>';
       }
     });
     h += '</div></div>';
@@ -17301,6 +17477,13 @@
       h += '<div style="display:flex;gap:8px;align-items:center;margin-top:10px;font-size:11.5px;color:var(--muted);font-weight:700;flex-wrap:wrap">' +
         '<span style="width:14px;height:14px;border-radius:3px;background:#dcfce7;border:1px solid #16a34a;flex:0 0 auto"></span>' +
         'мастер ' + (mName ? '«' + esc(mName) + '» ' : '') + 'на работе (график смен, вкладка «Работники») — ' + workCnt + ' дн. в этом месяце' +
+        '</div>';
+    }
+    // 22.09-121: легенда зимнего периода
+    if (g.winter && g.winter.from && g.winter.to) {
+      h += '<div style="display:flex;gap:8px;align-items:center;margin-top:8px;font-size:11.5px;color:var(--muted);font-weight:700;flex-wrap:wrap">' +
+        '<span style="width:14px;height:14px;border-radius:3px;background:#e0f0fb;border:1px solid #0284c7;flex:0 0 auto"></span>' +
+        '❄️ Зимний период: с ' + gwMdRu(g.winter.from) + ' по ' + gwMdRu(g.winter.to) + ' (ежегодно)' +
         '</div>';
     }
     return h;
