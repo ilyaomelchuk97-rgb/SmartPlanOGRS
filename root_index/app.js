@@ -741,7 +741,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-118 · автоподбор: режимы «📡 Только работы с ТМ» и «🚫📡 Только без ТМ» + подбор всем как раньше'],
+    objmap: ['Карта объектов', 'Сборка 22.09-120 · график: на один день один треугольник, разделён цветами всех работ дня'],
     testmap: ['Тест проезда', 'Полигон: карта маршрутов + оптимизация + пробки + Google Maps (копия «Карты маршрутов» для экспериментов)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -16131,6 +16131,20 @@
     size = size || 16;
     return '<svg viewBox="0 0 20 24" width="' + size + '" height="' + Math.round(size * 1.2) + '" style="flex:0 0 auto;display:block"><polygon points="20,0 20,24 0,24" fill="' + color + '"/></svg>';
   }
+  /* ОДИН треугольник, разделённый на N цветных сегментов: сектора из вершины
+     прямого угла (20,24) к точкам, делящим гипотенузу (20,0)→(0,24) на n равных
+     частей. Используется, когда на один день попадает несколько работ. */
+  function gwMultiTriangle(colors, size) {
+    size = size || 16;
+    if (!colors || !colors.length) return '';
+    if (colors.length === 1) return gwTriangle(colors[0], size);
+    function r2(x) { return Math.round(x * 100) / 100; }
+    var n = colors.length, parts = [];
+    for (var i = 0; i < n; i++) {
+      parts.push('<path d="M20 24 L' + r2(20 - 20 * i / n) + ' ' + r2(24 * i / n) + ' L' + r2(20 - 20 * (i + 1) / n) + ' ' + r2(24 * (i + 1) / n) + ' Z" fill="' + colors[i] + '"/>');
+    }
+    return '<svg viewBox="0 0 20 24" width="' + size + '" height="' + Math.round(size * 1.2) + '" style="flex:0 0 auto;display:block">' + parts.join('') + '</svg>';
+  }
   /* Цвет работы: назначенный в графике → иначе из палитры по порядку в участке */
   function gwColorOf(g, wid) {
     if (g && g.workColors && g.workColors[wid]) return g.workColors[wid];
@@ -17199,15 +17213,36 @@
       (gwOccDone(oc) ? '<br>✔ Выполнена' : '');
   }
 
-  /* Треугольники всех работ объекта в ячейке объект×месяц годовой таблицы */
+  /* Подсказка для общего (разделённого по цветам) треугольника дня:
+     блок по каждой работе, разделённые горизонтальной чертой. */
+  function gwDayTipHtml(g, ob, items) {
+    return items.map(function (p) { return gwWorkTipHtml(g, ob, p.wrk, p.oc); })
+      .join('<hr style="border:none;border-top:1px solid rgba(255,255,255,.25);margin:6px 0">');
+  }
+
+  /* Треугольники всех работ объекта в ячейке объект×месяц годовой таблицы.
+     22.09-120: на один день — ОДИН треугольник, разделённый на цвета всех
+     работ этого дня (выполненные работы остаются отдельными квадратами). */
   function gwMonthTriangles(g, ob, mi) {
-    var out = '';
+    var byDate = {}, order = [];
     gwObjWorks(ob).forEach(function (wrk) {
       (wrk.occs || []).forEach(function (oc) {
         var d = gwFromISO(oc.date);
-        if (d.getFullYear() === g.year && d.getMonth() === mi) {
-          out += '<span class="gw-tri-w" data-gw-tip="' + esc(gwWorkTipHtml(g, ob, wrk, oc)) + '">' + (gwOccDone(oc) ? gwDoneMark(17, gwColorOf(g, oc.wid || wrk.wid)) : gwTriangle(gwColorOf(g, oc.wid || wrk.wid), 15)) + '</span>';
-        }
+        if (d.getFullYear() !== g.year || d.getMonth() !== mi) return;
+        if (!byDate[oc.date]) { byDate[oc.date] = { pend: [], done: [] }; order.push(oc.date); }
+        (gwOccDone(oc) ? byDate[oc.date].done : byDate[oc.date].pend).push({ wrk: wrk, oc: oc });
+      });
+    });
+    order.sort();
+    var out = '';
+    order.forEach(function (dt) {
+      var grp = byDate[dt];
+      if (grp.pend.length) {
+        var colors = grp.pend.map(function (p) { return gwColorOf(g, p.oc.wid || p.wrk.wid); });
+        out += '<span class="gw-tri-w" data-gw-tip="' + esc(gwDayTipHtml(g, ob, grp.pend)) + '">' + gwMultiTriangle(colors, 15) + '</span>';
+      }
+      grp.done.forEach(function (p) {
+        out += '<span class="gw-tri-w" data-gw-tip="' + esc(gwWorkTipHtml(g, ob, p.wrk, p.oc)) + '">' + gwDoneMark(17, gwColorOf(g, p.oc.wid || p.wrk.wid)) + '</span>';
       });
     });
     return out ? '<div class="gw-tris">' + out + '</div>' : '';
@@ -17244,10 +17279,16 @@
         var iso = year + '-' + String(mi + 1).padStart(2, '0') + '-' + String(c).padStart(2, '0');
         var tri = '';
         if (ob.src) {
+          // 22.09-120: все работы дня — ОДИН треугольник, разделённый на цвета
+          var pend = [], dn = [];
           gwObjWorks(ob.src).forEach(function (wrk) {
             (wrk.occs || []).forEach(function (oc) {
-              if (oc.date === iso) tri += '<span class="gw-tri-w" data-gw-tip="' + esc(gwWorkTipHtml(g, ob.src, wrk, oc)) + '">' + (gwOccDone(oc) ? gwDoneMark(16, gwColorOf(g, oc.wid || wrk.wid)) : gwTriangle(gwColorOf(g, oc.wid || wrk.wid), 14)) + '</span>';
+              if (oc.date === iso) (gwOccDone(oc) ? dn : pend).push({ wrk: wrk, oc: oc });
             });
+          });
+          if (pend.length) tri += '<span class="gw-tri-w" data-gw-tip="' + esc(gwDayTipHtml(g, ob.src, pend)) + '">' + gwMultiTriangle(pend.map(function (p) { return gwColorOf(g, p.oc.wid || p.wrk.wid); }), 14) + '</span>';
+          dn.forEach(function (p) {
+            tri += '<span class="gw-tri-w" data-gw-tip="' + esc(gwWorkTipHtml(g, ob.src, p.wrk, p.oc)) + '">' + gwDoneMark(16, gwColorOf(g, p.oc.wid || p.wrk.wid)) + '</span>';
           });
         }
         h += '<div class="gd-c"' + (dayStates[c] === 'work' ? ' style="background:#dcfce7"' : '') + '>' + (tri ? '<div class="gw-tris">' + tri + '</div>' : '') + '</div>';
