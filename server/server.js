@@ -145,6 +145,9 @@ app.use('/api/sync', requireAuth, syncRoutes(pool));
 app.use('/api/audit', requireAuth, auditRoutes(pool));
 // Специальный роут для users (специальная таблица с фиксированными колонками)
 app.use('/api/users', requireAuth, usersRoutes(pool));
+// OptMap — свой оптимизатор маршрутов (граф дорог Минска из OSM; страница
+// «Тест проезда», доступ только у admin). 22.09-128
+app.use('/api/optmap', requireAuth, require('./routes/optmap')());
 // Универсальный роутинг для остальных разделов
 const SECTIONS = ['objects', 'tasks', 'areas', 'workers', 'work_catalog', 'graphs', 'professions', 'holidays', 'telemetry']; // 22.09-111: + виды телеметрии
 SECTIONS.forEach((s) => {

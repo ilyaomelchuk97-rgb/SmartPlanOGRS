@@ -210,7 +210,7 @@
   // Восстанавливаем выбор роутера (дашборд) из localStorage
   try {
     var _savedProv = localStorage.getItem('smartplan_map_provider');
-    if (_savedProv && /^(osrm|brouter-car|brouter-trek|valhalla|google|2gis|osm)$/.test(_savedProv)) {
+    if (_savedProv && /^(osrm|brouter-car|brouter-trek|valhalla)$/.test(_savedProv)) {
       S.mapProvider = _savedProv;
     }
   } catch (e) {}
@@ -737,12 +737,12 @@
   }
 
   var TITLES = {
-    dashboard: ['Панель мониторинга', 'Рабочий стол'],
+    dashboard: ['Панель мониторинга', 'Сборка 22.09-129 · блок погоды: переход анимации в цвет фона слева, как раньше'],
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-125 · прогноз погоды: тонкий небесно-голубой скроллбар под карточками дней'],
-    testmap: ['Тест проезда', 'Полигон: карта маршрутов + оптимизация + пробки + Google Maps (копия «Карты маршрутов» для экспериментов)'],
+    objmap: ['Карта объектов', 'Сборка 22.09-127 · карта маршрутов: подложка всегда Яндекс, пробки слоем Яндекса, маршруты роутеров — точками поверх карты'],
+    testmap: ['Тест проезда', 'Сборка 22.09-128 · свой оптимизатор OptMap (граф дорог Минска из OSM) встроен в полигон'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
     perms: ['Разрешения', 'Система разрешений на производство работ'],
@@ -1009,13 +1009,20 @@
     else if (tod === 'morning') c = '#f6b89c';
     else if (tod === 'evening') c = '#f0a868';
     else c = '#42a5f5';
-    // Без белого фейда слева — вся сцена целиком залита цветом времени суток,
-    // плавный переход между состояниями через CSS transition
-    var sceneBg = 'linear-gradient(to right,' + c + ' 0%,' + c + ' 60%,' + c + ' 100%)';
+    // 22.09-129: два варианта сцены. Блок «погода сегодня» на главной
+    // (opt.leftFade) — как раньше: анимация справа, справа→влево плавный
+    // переход в цвет фона (слева цвета сцены нет) и эффекты растворяются
+    // маской к левому краю. Окно прогноза «по часам» — без фейда (как есть).
+    var _leftFade = !!(opt && opt.leftFade);
+    var sceneBg = _leftFade
+      ? 'linear-gradient(to right,transparent 28%,' + c + ' 58%,' + c + ' 100%)'
+      : 'linear-gradient(to right,' + c + ' 0%,' + c + ' 60%,' + c + ' 100%)';
     var windy = (wf.wind || 0) >= 5; // средний/сильный ветер → дождь под углом + линии ветра
     var scene = '<div class="wx-scene' + (windy ? ' wx-windy' : '') + '" style="background:' + sceneBg + ';transition:background 1.2s ease">';
-    // Без маски — облака/осадки/ветер летают по всему блоку (был фейд transparent 25%..black 55%)
-    var maskCss = 'position:absolute;inset:0;pointer-events:none';
+    // При левом фейде звёзды/ветер/снег уходят в ноль к ~25% ширины (как раньше);
+    // без фейда (прогноз) — эффекты летают по всему блоку
+    var maskCss = 'position:absolute;inset:0;pointer-events:none' +
+      (_leftFade ? ';-webkit-mask-image:linear-gradient(to right,transparent 25%,black 55%);mask-image:linear-gradient(to right,transparent 25%,black 55%)' : '');
     // Небесное тело (чистый CSS — без эмодзи)
     if (tod === 'night') {
       scene += '<div style="' + maskCss + '">';
@@ -1060,18 +1067,23 @@
       }
       scene += '</div>';
     }
-    // Капли дождя — по всей ширине блока (раньше было left:28%..100%, теперь 0..100%)
+    // Капли дождя: на главной — как раньше, полоса справа от 28% с фейдом;
+    // в прогнозе — по всей ширине блока
     if (hasRain || hasStorm) {
       var ri = rainIntensity(wf);
-      scene += '<div style="position:absolute;left:0;top:0;right:0;bottom:0;overflow:hidden;pointer-events:none">';
+      scene += '<div style="position:absolute;' + (_leftFade ? 'left:28%;' : 'left:0;') +
+        'top:0;right:0;bottom:0;overflow:hidden;pointer-events:none' +
+        (_leftFade ? ';-webkit-mask:linear-gradient(to right,transparent,#000 14%);mask:linear-gradient(to right,transparent,#000 14%)' : '') + '">';
       for (var r = 0; r < ri.count; r++) scene += '<span class="wx-drop" style="left:' + (Math.random()*100).toFixed(1) + '%;top:0;animation-delay:-' + (Math.random()*ri.dur).toFixed(2) + 's;animation-duration:' + (ri.dur+Math.random()*0.3).toFixed(2) + 's"></span>';
       scene += '</div>';
     }
-    // Снежинки (чистый CSS) — по всей ширине блока. При ветре — анимация wxFlakeFallWind.
+    // Снежинки (чистый CSS): на главной — справа от 28% (как раньше), в прогнозе —
+    // по всей ширине. При ветре — анимация wxFlakeFallWind.
     if (hasSnow) {
       var _flakeAnim = windy ? 'wxFlakeFallWind' : 'wxFlakeFall';
+      var _flakeLeft = function () { return _leftFade ? (28 + Math.random() * 70) : (Math.random() * 100); };
       scene += '<div style="' + maskCss + ';z-index:3">';
-      for (var sf = 0; sf < 14; sf++) scene += '<span class="wx-flake" style="left:' + (Math.random()*100).toFixed(1) + '%;top:0;animation-name:' + _flakeAnim + ';animation-delay:' + (Math.random()*3.5).toFixed(2) + 's;animation-duration:' + (2.5+Math.random()*2).toFixed(2) + 's"></span>';
+      for (var sf = 0; sf < 14; sf++) scene += '<span class="wx-flake" style="left:' + _flakeLeft().toFixed(1) + '%;top:0;animation-name:' + _flakeAnim + ';animation-delay:' + (Math.random()*3.5).toFixed(2) + 's;animation-duration:' + (2.5+Math.random()*2).toFixed(2) + 's"></span>';
       scene += '</div>';
     }
     // Грозовые облака: контейнер для маленьких молний, бьющих из облаков
@@ -2797,7 +2809,7 @@
       }
     }
     var wIcon = todayWeather.snow ? '❄️' : todayWeather.desc.indexOf('Дождь') !== -1 || todayWeather.desc.indexOf('Морось') !== -1 ? '🌧️' : todayWeather.desc === 'Ясно' ? '☀️' : '⛅';
-    var _wx = weatherSceneHTML(todayWeather, { hour: new Date().getHours() });
+    var _wx = weatherSceneHTML(todayWeather, { hour: new Date().getHours(), leftFade: true });
     html += '<div data-action="open-weather" style="margin-bottom:0;padding:14px 18px;min-height:68px;background:linear-gradient(to right,#1e3a5f 0%,#2563eb 30%,rgba(37,99,235,0) 62%);color:#fff;border-radius:10px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:transform .2s,box-shadow .2s;position:relative;overflow:hidden;" onmouseover="this.style.transform=\'translateY(-2px)\';this.style.boxShadow=\'0 8px 24px rgba(0,0,0,.3)\';" onmouseout="this.style.transform=\'\';this.style.boxShadow=\'\';" title="Нажмите для просмотра прогноза на 15 дней">';
     html += _wx.html;
     html += '<span style="font-size:28px;position:relative;z-index:1;text-shadow:0 1px 5px rgba(0,0,0,.35);">' + wIcon + '</span>';
@@ -3986,7 +3998,6 @@
         '<option value="brouter-trek" ' + (prov === 'brouter-trek' || !prov ? 'selected' : '') + '>🥾 BRouter trekking</option>' +
         '<option value="brouter-car" ' + (prov === 'brouter-car' ? 'selected' : '') + '>🚗 BRouter car-fast</option>' +
         '<option value="osrm" ' + (prov === 'osrm' ? 'selected' : '') + '>OSRM (авто)</option>' +
-        '<option value="google" ' + (prov === 'google' ? 'selected' : '') + '>Google Maps</option>' +
         '<option value="valhalla" ' + (prov === 'valhalla' ? 'selected' : '') + '>Valhalla</option>' +
       '</select>' +
       '<button class="btn sm" id="btn-traffic-main" title="Слой Яндекс.Пробок: цвета загруженности и события (аварии, ремонт) на карте" style="background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;border-color:#16a34a;font-weight:700">🚦 Пробки</button>' +
@@ -4111,6 +4122,7 @@
     var mSel = document.getElementById('map-master-sel');
     if (mSel) mSel.addEventListener('change', function (e) { S.mapMaster = e.target.value; renderMap(); });
     // 🚦 Пробки: переключаем слой Яндекс.Пробок на основной карте маршрутов
+    // 22.09-127: «🚦 Пробки» переключает слой Яндекс.Пробок на подложке Яндекс.Карты
     var trafBtn = document.getElementById('btn-traffic-main');
     if (trafBtn && !trafBtn.__wired) {
       trafBtn.__wired = true;
@@ -4119,19 +4131,14 @@
         var _savedTr = localStorage.getItem('smartplan_map_traffic');
         if (_savedTr === '1') S.mapTraffic = true;
       } catch (e) {}
-      if (S.mapTraffic) trafBtn.style.background = 'linear-gradient(135deg,#0f7d36,#16a34a)';
+      ymSyncTrafficBtn();
       trafBtn.onclick = function (e) {
         if (e) { e.preventDefault(); e.stopPropagation(); }
         S.mapTraffic = !S.mapTraffic;
         try { localStorage.setItem('smartplan_map_traffic', S.mapTraffic ? '1' : '0'); } catch (er) {}
-        // Перерисовываем карту через renderMap, чтобы пробочный слой подхватил флаг
-        if (typeof renderMap === 'function') {
-          renderMap();
-        }
-        trafBtn.style.background = S.mapTraffic
-          ? 'linear-gradient(135deg,#0f7d36,#16a34a)'
-          : 'linear-gradient(135deg,#16a34a,#22c55e)';
-        try { toast('ok', S.mapTraffic ? '🚦 Слой пробок включён' : '🚦 Слой пробок выключен'); } catch (er) {}
+        ymSetRoutesTraffic(S.mapTraffic);
+        ymSyncTrafficBtn();
+        try { toast('ok', S.mapTraffic ? '🚦 Слой пробок включён (Яндекс.Карта)' : '🚦 Слой пробок выключен'); } catch (er) {}
       };
     }
     } catch (err) {
@@ -4319,92 +4326,42 @@
     var base = currentBase();
     var prov = S.mapProvider || "osrm";
 
-    // Для не-Leaflet карт (Яндекс/iframe) — кнопка сразу активна (геокодирование не нужно)
-    if (prov !== "osrm" && prov !== "graphhopper" && prov !== "ors" && prov !== "valhalla") {
-      var brBtn = document.getElementById('btn-build-route');
-      if (brBtn) { brBtn.disabled = false; brBtn.style.opacity = ''; brBtn.style.cursor = ''; }
-    }
-
-    // === OSM-движки: сразу рендерим Leaflet, без iframe ===
-    if ((prov === "osrm" || prov === "graphhopper" || prov === "ors" || prov === "valhalla") && sel.length >= 1) {
-      renderLeafletMap(canvas, sel, base, prov, inactive);
-      return;
-    }
+    // 22.09-127: подложка — ВСЕГДА Яндекс.Карта; конопка оптимизации активна сразу
+    var brBtn = document.getElementById('btn-build-route');
+    if (brBtn) { brBtn.disabled = false; brBtn.style.opacity = ''; brBtn.style.cursor = ''; }
 
     if (sel.length >= 1) {
-      var items = [base];
-      sel.forEach(function (p) { items.push(p); });
-      items.push(base); // Возврат на базу
-
-      var url = "", dirUrl = "", provName = "Яндекс.Карты";
-      if (prov === "google") {
-        url = buildGoogleWidgetUrl(items);
-        dirUrl = buildGoogleDirUrl(items);
-        provName = "Google Maps";
-      } else if (prov === "osm") {
-        url = buildOsmWidgetUrl(items);
-        dirUrl = buildOsmDirUrl(items);
-        provName = "OpenStreetMap";
-      } else if (prov === "2gis") {
-        url = build2GisWidgetUrl(items);
-        dirUrl = build2GisDirUrl(items);
-        provName = "2ГИС";
-      } else {
-        url = buildYandexWidgetUrl(items);
-        dirUrl = buildYandexDirUrl(items);
-        provName = "Яндекс.Карты";
-      }
-
-      canvas.style.position = "relative";
-      var panelActions = dirUrl ? "<div class='route-actions'><a class='btn sm primary' target='_blank' rel='noopener' href='" + dirUrl + "' style='background:#10b981;border-color:#10b981;'>↗ Открыть в " + provName + "</a></div>" : "";
-      canvas.innerHTML = "<iframe class='route-frame' src='" + url + "' allowfullscreen loading='lazy' title='Маршрут на день (" + provName + ")'></iframe>" +
-          "<span>🚩 <b>База</b> → " + sel.length + " объектов (<b>сервис: " + provName + "</b>) → <b>База</b></span>" + panelActions +
-        "</div>";
-
-      if (prov === "google") {
-        applyGoogleRouteStats(sel, base, function(success, totalKm, totalMin) {
-          refreshMapCards(sel);
-          if (totalKm > 0) {
-            var el = document.getElementById("route-info");
-            if (el) {
-              el.innerHTML = '<b style="color:var(--ink);font-size:13.5px;">' + totalKm.toFixed(1).replace(".", ",") + ' км</b> · в пути: <b style="color:#2563eb;">' + (totalMin ? fmtDuration(totalMin) : '') + '</b>';
-              el.style.color = "var(--ink)";
-            }
-          }
+      // Яндекс.Карта + оверлей-маркеры; недостающие координаты доопределяет Яндекс
+      ymRoutesMapEnsure(canvas, function () {
+        geocodePointsViaYandex(sel.concat(inactive || [])).then(function () {
+          if (!ymState.ymap) return;
+          ymDrawRouteMarkers(sel);
         });
-      } else if (prov === "osm" || prov === "2gis") {
-        applyOsmRouteStats(sel, base, function(success, totalKm) {
-          refreshMapCards(sel); if (totalKm > 0) setRouteInfo({ km: totalKm, count: sel.length });
-        });
-      } else {
-          // Статистика маршрута через OSRM (бесплатно, без ключа Яндекс.Карт)
-          fetchOSMRouteGeometry('osrm', sel, base, function(result) {
-            if (result.ok && result.geometry.length > 0) {
-              var jamsMin = result.min;
-              var freeMin = Math.round(result.min * 0.85);
-              setRouteInfo({ km: result.km, jamsMin: jamsMin, freeMin: freeMin, count: sel.length });
-              if (result.legs && result.legs.length > 0) {
-                sel.forEach(function(p, idx) {
-                  if (idx < result.legs.length) {
-                    var leg = result.legs[idx];
-                    var legKm = (leg.distance || 0) / 1000;
-                    p.travelKm = legKm; p.travelKmText = legKm.toFixed(1).replace('.', ',') + ' км';
-                    p.travelMin = Math.max(1, Math.round((leg.duration || 0) / 60)); p.travelText = fmtDuration(p.travelMin);
-                  }
-                });
-                refreshMapCards(sel);
+      });
+      // Статистика маршрута через OSRM (бесплатно, без ключа) — подставляем в карточки заданий
+      fetchOSMRouteGeometry('osrm', sel, base, function(result) {
+        if (result.ok && result.geometry.length > 0) {
+          var jamsMin = result.min;
+          var freeMin = Math.round(result.min * 0.85);
+          setRouteInfo({ km: result.km, jamsMin: jamsMin, freeMin: freeMin, count: sel.length });
+          if (result.legs && result.legs.length > 0) {
+            sel.forEach(function(p, idx) {
+              if (idx < result.legs.length) {
+                var leg = result.legs[idx];
+                var legKm = (leg.distance || 0) / 1000;
+                p.travelKm = legKm; p.travelKmText = legKm.toFixed(1).replace('.', ',') + ' км';
+                p.travelMin = Math.max(1, Math.round((leg.duration || 0) / 60)); p.travelText = fmtDuration(p.travelMin);
               }
-            }
-          });
+            });
+            refreshMapCards(sel);
+          }
         }
+      });
     } else {
-      var baseMapUrl = "https://yandex.ru/map-widget/v1/?ll=" + base.lng + "," + base.lat + "&z=14&pt=" + base.lat + "," + base.lng + ",pm2rdm&l=map";
-      if (prov === "google") baseMapUrl = "https://www.google.com/maps?q=" + encodeURIComponent("Минск, " + base.name) + "&output=embed";
-      else if (prov === "osm" || prov === "osrm" || prov === "graphhopper" || prov === "ors" || prov === "valhalla") baseMapUrl = "https://www.openstreetmap.org/export/embed.html?bbox=" + (base.lng - 0.05) + "," + (base.lat - 0.03) + "," + (base.lng + 0.05) + "," + (base.lat + 0.03) + "&layer=mapnik&marker=" + base.lat + "," + base.lng;
-      else if (prov === "2gis") baseMapUrl = "https://2gis.by/minsk?m=" + base.lng + "%2C" + base.lat + "%2F14";
-      canvas.style.position = "relative";
-      canvas.innerHTML = "<iframe class='route-frame' src='" + baseMapUrl + "' allowfullscreen loading='lazy' title='База (" + prov + ")'></iframe>";
+      // Только база — тоже на карте Яндекс
+      ymRoutesMapEnsure(canvas, function () { ymDrawRouteMarkers([]); });
     }
+
   }
 
   // 3. Главная функция оптимизации при клике на кнопку «Оптимизация маршрутов» (для всех 4 карт: Яндекс, Google, OSM, 2ГИС)
@@ -4631,6 +4588,126 @@
         ymState.leafletMarkers.push(mk);
       });
     }
+  }
+
+
+  /* 22.09-127: «Карта маршрутов» — подложка ВСЕГДА Яндекс.Карта. Точки и
+     линия маршрута, построенные роутерами (OSRM/Valhalla/BRouter), рисуются
+     НЕ на самой карте, а отдельным слоем поверх неё (ymaps.geoObjects,
+     нумерованные кружки lmSvgIcon + ymaps.Polyline) — как в Тесте проезда. */
+  function ymRoutesMapEnsure(canvas, done) {
+    ensureYandex(function () {
+      if (!document.getElementById('map-canvas')) return; // страницу уже сменили
+      try {
+        // контейнер оторвался от DOM (переход по страницам) — карту пересоздаём
+        if (ymState.ymap) {
+          var ce = null;
+          try { ce = ymState.ymap.container.getElement(); } catch (e) {}
+          if (!ce || !document.body.contains(ce)) {
+            try { ymState.ymap.destroy(); } catch (e2) {}
+            ymState.ymap = null; ymState.route = null; ymState.ymMarkers = null;
+          }
+        }
+        if (!ymState.ymap) {
+          canvas.style.position = 'relative';
+          canvas.innerHTML = '';
+          var mapDiv = document.createElement('div');
+          mapDiv.style.cssText = 'position:absolute;inset:0';
+          canvas.appendChild(mapDiv);
+          // подложка всегда Яндекс (стандартная схема)
+          ymState.ymap = new ymaps.Map(mapDiv, { center: [53.9023, 27.5619], zoom: 11, controls: ['zoomControl'] }, { suppressMapOpenBlock: true });
+          // слой Яндекс.Пробок (включается кнопкой «🚦 Пробки»)
+          try {
+            ymState.traffic = new ymaps.traffic.provider.Actual({}, { infoLayerShown: true });
+            if (S.mapTraffic) ymState.traffic.setMap(ymState.ymap);
+          } catch (eTr) { ymState.traffic = null; }
+        }
+        ymSyncTrafficBtn();
+        if (done) done(ymState.ymap);
+      } catch (e) { /* карта не может ломать страницу */ }
+    }, function () {
+      canvas.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--red);font-weight:700">Карта недоступна — проверьте интернет</div>';
+    });
+  }
+  function ymSetRoutesTraffic(on) {
+    try {
+      if (!ymState.ymap) return;
+      if (!ymState.traffic) ymState.traffic = new ymaps.traffic.provider.Actual({}, { infoLayerShown: true });
+      ymState.traffic.setMap(on ? ymState.ymap : null);
+    } catch (e) {}
+  }
+  function ymSyncTrafficBtn() {
+    var b = document.getElementById('btn-traffic-main');
+    if (!b) return;
+    b.style.background = S.mapTraffic ? 'linear-gradient(135deg,#0f7d36,#16a34a)' : 'linear-gradient(135deg,#16a34a,#22c55e)';
+  }
+  /* Точки маршрута — нумерованные кружки ПОВЕРХ подложки Яндекса: база «Б»,
+     активные с номерами в цвет мастера, выключенные — серые. ordered —
+     порядок объезда (после оптимизации номера переназначаются). */
+  function ymDrawRouteMarkers(ordered) {
+    var map = ymState.ymap;
+    if (!map) return;
+    (ymState.ymMarkers || []).forEach(function (m) { try { map.geoObjects.remove(m); } catch (e) {} });
+    ymState.ymMarkers = [];
+    var base = currentBase();
+    var colors = ['#2563eb', '#dc2626', '#16a34a', '#ca8a04', '#7c3aed', '#0891b2', '#db2777'];
+    function addDot(lat, lng, label, bg, size, hint) {
+      try {
+        var pm = new ymaps.Placemark([+lat, +lng], { hintContent: hint || '' }, {
+          iconLayout: 'default#image',
+          iconImageHref: lmSvgIcon(label, bg, size || 30),
+          iconImageSize: [size || 30, size || 30], iconImageOffset: [-((size || 30) / 2), -((size || 30) / 2)],
+          hasBalloon: false, hasHint: !!hint
+        });
+        map.geoObjects.add(pm);
+        ymState.ymMarkers.push(pm);
+      } catch (e) {}
+    }
+    if (base && base.lat != null && base.lng != null) addDot(base.lat, base.lng, 'Б', '#0f2740', 30, 'База — ' + (base.name || ''));
+    (ordered || []).forEach(function (p, i) {
+      if (p.lat == null || p.lng == null) return;
+      addDot(p.lat, p.lng, String(i + 1), p.mcol || colors[i % colors.length], 30, (p.addr || '?') + (p.work ? ' · ' + p.work : ''));
+    });
+    (ymState.inactivePts || []).forEach(function (p) {
+      if (p.lat == null || p.lng == null) return;
+      addDot(p.lat, p.lng, '○', '#94a3b8', 22, (p.addr || '') + ' (выключено)');
+    });
+    try {
+      if (ymState.ymMarkers.length) {
+        var coll = new ymaps.GeoObjectCollection(ymState.ymMarkers);
+        map.setBounds(coll.getBounds(), { checkZoomRange: true, zoomMargin: 44 });
+      }
+    } catch (e) {}
+  }
+  /* Линия маршрута поверх подложки Яндекса. latlngs — [ [lat,lng], … ];
+     dashed=true — приблизительный вариант (роутер не ответил), пунктир. */
+  function ymDrawRouteLine(latlngs, dashed) {
+    var map = ymState.ymap;
+    if (!map || !latlngs || latlngs.length < 2) return;
+    try {
+      if (ymState.route) { try { map.geoObjects.remove(ymState.route); } catch (e) {} ymState.route = null; }
+      var line = new ymaps.Polyline(latlngs, {}, {
+        strokeColor: dashed ? '#94a3b8' : '#2563eb',
+        strokeWidth: dashed ? 4 : 5,
+        strokeOpacity: dashed ? 0.75 : 0.9,
+        strokeStyle: dashed ? 'dash' : 'solid',
+        hasBalloon: false, hasHint: false,
+        interactivityModel: 'default#transparent'
+      });
+      map.geoObjects.add(line);
+      ymState.route = line;
+      try { map.setBounds(line.geometry.getBounds(), { checkZoomRange: true, zoomMargin: 40 }); } catch (eb) {}
+    } catch (e) {}
+  }
+  /* Прямая ломаная «база → точки → база» — когда роутер недоступен */
+  function ymDrawFallbackLine(items) {
+    var pts = [];
+    (items || []).forEach(function (p) { if (p && p.lat != null && p.lng != null) pts.push([p.lat, p.lng]); });
+    if (pts.length >= 2) { ymDrawRouteLine(pts, true); return; }
+    try {
+      if (ymState.ymap && ymState.route) { ymState.ymap.geoObjects.remove(ymState.route); }
+    } catch (e) {}
+    ymState.route = null;
   }
 
   function renderLeafletMap(canvas, points, base, provider, inactive) {
@@ -5481,6 +5558,7 @@
     if (!tasks.length) { toast("warn", "В заданиях не указаны адреса."); return; }
 
     var prov = S.mapProvider || "brouter-trek";
+    if (!/^(osrm|brouter-car|brouter-trek|valhalla)$/.test(prov)) prov = "osrm"; // 22.09-127: только авто-роутеры со слоем поверх Яндекс.Карты
     var provName = prov === "google" ? "Google Maps" : prov === "valhalla" ? "Valhalla" : prov === "osrm" ? "OSRM (авто)" : prov === "brouter-trek" ? "BRouter trekking" : prov === "brouter-car" ? "BRouter car-fast" : prov === "graphhopper" ? "GraphHopper" : prov === "ors" ? "OpenRouteService" : prov === "osm" ? "OpenStreetMap" : prov === "2gis" ? "2ГИС" : "Яндекс.Карт";
 
     setRouteInfo({ km: 0, count: tasks.length, building: true });
@@ -5514,112 +5592,7 @@
       updateFallbackRouteInfo(ordered);
     }, 2800);
 
-    if (prov === "google") {
-      // === Google Maps: реальная карта через JS API + DirectionsRenderer ===
-      canvas.style.position = 'relative';
-      canvas.innerHTML = '<div id="gmap-canvas" style="position:absolute;inset:0;"></div>';
-
-      // Загружаем Google Maps API если ещё не загружен
-      function gmapsCallback() {
-        var map = new window.google.maps.Map(document.getElementById('gmap-canvas'), {
-          center: { lat: 53.9023, lng: 27.5619 },
-          zoom: 12,
-          mapTypeControl: false,
-          streetViewControl: false
-        });
-
-        var directionsService = new window.google.maps.DirectionsService();
-        var directionsRenderer = new window.google.maps.DirectionsRenderer({
-          draggable: false,
-          suppressMarkers: false,
-          suppressInfoWindows: false
-        });
-        directionsRenderer.setMap(map);
-
-        var originStr = base.name.indexOf("Минск") !== -1 ? base.name : "Минск, " + base.name;
-        var wps = [];
-        for (var i = 0; i < ordered.length; i++) {
-          var a = ordered[i].addr;
-          wps.push({ location: a.indexOf("Минск") !== -1 ? a : "Минск, " + a, stopover: true });
-        }
-
-        directionsService.route({
-          origin: originStr,
-          destination: originStr,
-          waypoints: wps,
-          optimizeWaypoints: false,
-          travelMode: window.google.maps.TravelMode.DRIVING,
-          drivingOptions: { departureTime: new Date(), trafficModel: window.google.maps.TrafficModel.BEST_GUESS }
-        }, function(res, status) {
-          if (status === 'OK' && res) {
-            directionsRenderer.setDirections(res);
-
-            // Вычисляем суммарные показатели из API ответа
-            var legs = res.routes[0].legs;
-            var totalMeters = 0, totalSec = 0, totalSecTraffic = 0;
-            for (var li = 0; li < legs.length; li++) {
-              totalMeters += legs[li].distance ? legs[li].distance.value : 0;
-              totalSec += legs[li].duration ? legs[li].duration.value : 0;
-              if (legs[li].duration_in_traffic) totalSecTraffic += legs[li].duration_in_traffic.value;
-            }
-            var totalKm = totalMeters / 1000;
-            var freeMin = Math.max(1, Math.round(totalSec / 60));
-            var jamsMin = totalSecTraffic > 0 ? Math.max(1, Math.round(totalSecTraffic / 60)) : freeMin;
-
-            // Применяем данные к карточкам задач
-            ordered.forEach(function(p, pi) {
-              if (legs[pi]) {
-                var km = legs[pi].distance ? legs[pi].distance.value / 1000 : 0;
-                var sec = legs[pi].duration_in_traffic ? legs[pi].duration_in_traffic.value : (legs[pi].duration ? legs[pi].duration.value : 0);
-                var min = Math.max(1, Math.round(sec / 60));
-                p.travelKm = km;
-                p.travelKmText = km.toFixed(1).replace('.', ',') + ' км';
-                p.travelMin = min;
-                p.travelText = fmtDuration(min);
-                var st = findTask(p.id);
-                if (st) {
-                  st.travelKm = km; st.travelKmText = p.travelKmText; st.travelMin = min; st.travelText = p.travelText;
-                  if (TASKS_DB) TASKS_DB.updateTask(st.id, st);
-                }
-              }
-            });
-
-            clearTimeout(fallbackTimeoutId);
-            updateDayListCards(ordered);
-            refreshMapCards(ordered);
-
-            // Данные маршрута — из Directions API
-            setRouteInfo({ km: totalKm, jamsMin: jamsMin, freeMin: freeMin, count: ordered.length });
-            toast("ok", "✓ Маршрут оптимизирован для Google Maps! Нумерация и карточки обновлены.");
-            var dirUrl = buildGoogleDirUrl(routeItems);
-            var lp = document.createElement('div');
-            lp.innerHTML = '<span>🚩 <b>База</b> → ' + ordered.length + ' объектов (<b>Google Maps</b>) → <b>База</b></span><div class="route-actions"><a class="btn sm primary" target="_blank" rel="noopener" href="' + dirUrl + '" style="background:#10b981;border-color:#10b981;">↗ Открыть в Google Maps</a></div>';
-            canvas.appendChild(lp);
-          } else {
-            clearTimeout(fallbackTimeoutId);
-            updateFallbackRouteInfo(ordered);
-            renderProviderFrame("google", routeItems);
-            toast("warn", "⚠ Google Maps не смог построить маршрут. Использованы приблизительные данные.");
-          }
-        });
-      }
-
-      // Динамическая загрузка Google Maps JS API
-      if (window.google && window.google.maps) {
-        gmapsCallback();
-      } else {
-        var s = document.createElement('script');
-        s.src = 'https://maps.googleapis.com/maps/api/js?libraries=places&callback=__gmapsInit';
-        window.__gmapsInit = function() { gmapsCallback(); };
-        s.onerror = function() {
-          clearTimeout(fallbackTimeoutId);
-          updateFallbackRouteInfo(ordered);
-          renderProviderFrame("google", routeItems);
-          toast("err", "⚠ Не удалось загрузить Google Maps API. Проверьте API-ключ.");
-        };
-        document.head.appendChild(s);
-      }
-    } else if (prov === 'brouter-trek' || prov === 'brouter-car') {
+    if (prov === 'brouter-trek' || prov === 'brouter-car') {
       // === BRouter trekking / car-fast для основной карты маршрутов ===
       var brProfile = prov === 'brouter-car' ? 'car-fast' : 'trekking';
       var brLabel = prov === 'brouter-car' ? 'BRouter car-fast' : 'BRouter trekking';
@@ -5632,14 +5605,14 @@
         if (!matrixRes) {
           toast('err', '⚠ OSRM Table не ответил — пробую обычную оптимизацию');
           updateFallbackRouteInfo(ordered);
-          renderProviderFrame('yandex', routeItems, noJam);
+          ymDrawFallbackLine([base].concat(ordered).concat([base])); // 22.09-127: роутер не ответил — прямая пунктирная ломаная поверх Яндекс.Карты
           return;
         }
         var solved = tSolveMatrixFromBase(matrixRes.distances, 0, allCoords.length - 1);
         if (!solved || !solved.order || !solved.order.length) {
           toast('err', '⚠ Не удалось построить оптимальный порядок');
           updateFallbackRouteInfo(ordered);
-          renderProviderFrame('yandex', routeItems, noJam);
+          ymDrawFallbackLine([base].concat(ordered).concat([base])); // 22.09-127: роутер не ответил — прямая пунктирная ломаная поверх Яндекс.Карты
           return;
         }
         var brOrdered = solved.order.map(function (i) { return ordered[i - 1]; });
@@ -5656,7 +5629,7 @@
         if (lonlatsBR.length < 2) {
           toast('err', '⚠ BRouter: недостаточно валидных координат');
           updateFallbackRouteInfo(ordered);
-          renderProviderFrame('yandex', routeItems, noJam);
+          ymDrawFallbackLine([base].concat(ordered).concat([base])); // 22.09-127: роутер не ответил — прямая пунктирная ломаная поверх Яндекс.Карты
           return;
         }
         var brUrl = 'https://brouter.de/brouter?lonlats=' + encodeURIComponent(lonlatsBR.join('|')) +
@@ -5674,7 +5647,7 @@
           .then(function (res) {
             if (!res || !res.features || !res.features[0] || !res.features[0].properties) {
               toast('err', '⚠ BRouter: пустой ответ');
-              renderProviderFrame('yandex', routeItems, noJam);
+              ymDrawFallbackLine([base].concat(ordered).concat([base])); // 22.09-127: роутер не ответил — прямая пунктирная ломаная поверх Яндекс.Карты
               return;
             }
             var pp = res.features[0].properties;
@@ -5682,7 +5655,7 @@
             var brMin = Math.round((parseFloat(pp['total-time']) || 0) / 60);
             if (!(brKm > 0)) {
               toast('err', '⚠ BRouter: точки недостижимы');
-              renderProviderFrame('yandex', routeItems, noJam);
+              ymDrawFallbackLine([base].concat(ordered).concat([base])); // 22.09-127: роутер не ответил — прямая пунктирная ломаная поверх Яндекс.Карты
               return;
             }
             // Обновим карточки с временем и км
@@ -5703,15 +5676,23 @@
             var gBtnD = document.getElementById('btn-route-google');
             if (yaBtnD) yaBtnD.style.display = 'none';
             if (gBtnD) gBtnD.style.display = 'none';
-            // Финальный маршрут через Яндекс-виджет
-            renderProviderFrame('yandex', [base].concat(brOrdered).concat([base]), noJam);
+            // 22.09-127: линия BRouter — слоем поверх подложки Яндекс.Карты, точки — нумерованные кружки
+            (function () {
+              var brGeom = (res.features[0].geometry && res.features[0].geometry.coordinates) || null;
+              if (brGeom && brGeom.length >= 2) {
+                ymDrawRouteLine(brGeom.map(function (c) { return [c[1], c[0]]; }));
+              } else {
+                ymDrawFallbackLine([base].concat(brOrdered).concat([base]));
+              }
+              ymDrawRouteMarkers(brOrdered);
+            })();
             toast('ok', '✓ ' + brLabel + ': ' + brKm.toFixed(1).replace('.', ',') + ' км · ' + fmtDuration(brMin) + ' (с пробками ~' + fmtDuration(mnJammed) + ')');
           })
           .catch(function (e) {
             clearTimeout(brTimer);
             console.error('BRouter error:', e);
             toast('err', '⚠ ' + brLabel + ' недоступен: ' + (e.message || 'ошибка сети'));
-            renderProviderFrame('yandex', routeItems, noJam);
+            ymDrawFallbackLine([base].concat(ordered).concat([base])); // 22.09-127: роутер не ответил — прямая пунктирная ломаная поверх Яндекс.Карты
           });
       });
     } else if (prov === "osrm" || prov === "graphhopper" || prov === "ors" || prov === "valhalla") {
@@ -5729,15 +5710,16 @@
       fetchOSMRouteGeometry(prov, ordered, base, function(result) {
         clearTimeout(fallbackTimeoutId);
         if (result.ok && result.geometry.length > 0) {
-          ensureLeaflet(function() {
-            var canvas2 = document.getElementById("map-canvas");
-            if (!canvas2 || !ymState.leafletMap) return;
-            if (ymState.leafletRouteLayer) { try { ymState.leafletRouteLayer.remove(); } catch(e) {} }
+          (function() {
+            // 22.09-127: маршрут роутера — отдельным слоем поверх подложки Яндекс.Карты
             var latlngs = result.geometry.map(function(c) { return [c[1], c[0]]; });
-            ymState.leafletRouteLayer = window.L.polyline(latlngs, { color: '#2563eb', weight: 5, opacity: 0.8 }).addTo(ymState.leafletMap);
-            ymState.leafletMap.fitBounds(ymState.leafletRouteLayer.getBounds(), { padding: [40, 40] });
-            addDirectionArrows(ymState.leafletMap, latlngs);
+            ymDrawRouteLine(latlngs);
+            var canvas2 = document.getElementById("map-canvas");
+            if (!canvas2) return;
+            var oldLp = canvas2.querySelector('.route-overlay-label'); if (oldLp) oldLp.remove();
             var lp = document.createElement('div');
+            lp.className = 'route-overlay-label';
+            lp.style.cssText = 'position:absolute;left:10px;bottom:10px;z-index:5;background:rgba(15,39,64,.88);border-radius:10px;padding:7px 12px;display:flex;gap:12px;align-items:center;color:#e2e8f0;font-size:12px;max-width:calc(100% - 20px);flex-wrap:wrap';
             var yaRouteUrl = buildYandexDirUrl([base].concat(ordered).concat([base]), false);
             lp.innerHTML = '<span>🚩 <b>База</b> → ' + ordered.length + ' объектов (<b>' + provName + '</b>) → <b>База</b></span><div class="route-actions"><label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#e2e8f0;cursor:pointer"><input type="checkbox" id="cb-car-anim" style="width:15px;height:15px;cursor:pointer"> 🚗 Авто</label><a class="btn sm primary" target="_blank" rel="noopener" href="' + yaRouteUrl + '" style="background:#c8102e;border-color:#c8102e;" title="Открыть этот маршрут (база → объекты → база) в Яндекс.Картах">↗ Яндекс.Карты</a><button id="btn-fullscreen-route" class="btn sm primary" style="background:#10b981;border-color:#10b981;">↗ Открыть на весь экран</button></div>';
             canvas2.appendChild(lp);
@@ -5746,7 +5728,7 @@
             fsMarkers.push({ lat: base.lat, lng: base.lng, addr: base.name, mcol: '#0f2740', label: 'Б' });
             var btnFs = document.getElementById('btn-fullscreen-route');
             if (btnFs) btnFs.addEventListener('click', function() { openRouteFullscreen(fsMarkers, latlngs); });
-          });
+          })();
           if ((prov === 'osrm' || prov === 'valhalla') && result.waypoints && result.waypoints.length >= ordered.length + 1) {
             var wpOrder = [];
             for (var wi = 1; wi <= ordered.length; wi++) {
@@ -5794,7 +5776,7 @@
           }
           updateDayListCards(ordered);
           refreshMapCards(ordered);
-          redrawOptimizedMarkers(ordered);
+          ymDrawRouteMarkers(ordered); // 22.09-127: номера точек — слоем поверх Яндекс.Карты
           var rawMin = result.min;
           // время — как даёт маршрутизатор (OSRM), без добавок: одинаково
           // с картой местоположения и планированием при том же километраже
@@ -5852,25 +5834,16 @@
           var freeMin = Math.round(result.min * 0.85);
           setRouteInfo({ km: result.km, jamsMin: jamsMin, freeMin: freeMin, count: ordered.length });
           saveRouteTime(S.mapMaster, S.mapOff, jamsMin, result.km);
-          renderProviderFrame("yandex", routeItems, noJam);
+          // 22.09-127: линия и точки — слоем поверх подложки Яндекс.Карты
+          ymDrawRouteLine(result.geometry.map(function (c) { return [c[1], c[0]]; }));
+          ymDrawRouteMarkers(ordered);
           toast("ok", "✓ Яндекс.Карты: " + result.km.toFixed(1).replace('.', ',') + " км, " + jamsMin + " мин. (расчёт OSRM)");
         } else {
           updateFallbackRouteInfo(ordered);
-          renderProviderFrame("yandex", routeItems, noJam);
+          ymDrawFallbackLine([base].concat(ordered).concat([base]));
           toast("warn", "⚠ " + (result.msg || "ошибка") + ". Использованы приблизительные данные.");
         }
       });
-    }
-
-    function renderProviderFrame(pr, items, nj) {
-      var url = "", dirUrl = "", name = "";
-      if (pr === "google") { url = buildGoogleWidgetUrl(items); dirUrl = buildGoogleDirUrl(items); name = "Google Maps"; }
-      else if (pr === "osm") { url = buildOsmWidgetUrl(items); dirUrl = buildOsmDirUrl(items); name = "OpenStreetMap"; }
-      else if (pr === "2gis") { url = build2GisWidgetUrl(items); dirUrl = build2GisDirUrl(items); name = "2ГИС"; }
-      else { url = buildYandexWidgetUrl(items, nj); dirUrl = buildYandexDirUrl(items, nj); name = "Яндекс.Карты"; }
-      var panelActions = dirUrl ? "<div class='route-actions'><a class='btn sm primary' target='_blank' rel='noopener' href='" + dirUrl + "' style='background:#10b981;border-color:#10b981;'>↗ Открыть в " + name + "</a></div>" : "";
-      canvas.style.position = "relative";
-      canvas.innerHTML = "<iframe class='route-frame' src='" + url + "' allowfullscreen loading='lazy' title='Маршрут (" + name + ")'></iframe>";
     }
   }
 
@@ -17694,11 +17667,11 @@
          время маршрутов (saveRouteTime), кэш планирования — tFindTask
          всегда возвращает null, поэтому блоки записи не срабатывают.
      Рабочие страницы («Карта маршрутов» и остальные) работают как раньше. */
-  var TS = { off: 0, master: null, provider: 'yandex', sel: {}, traffic: false, router: 'brouter-trek', mapEngine: 'yandex' }; // mapEngine: 'yandex' | 'osm' — выбор карты в Тесте проезда
+  var TS = { off: 0, master: null, provider: 'yandex', sel: {}, traffic: false, router: 'osrm', mapEngine: 'yandex' }; // 22.09-126: роутеры теста проезда — только автомобильные // mapEngine: 'yandex' | 'osm' — выбор карты в Тесте проезда
   // Восстанавливаем выбор роутера из localStorage, чтобы между сессиями работал.
   try {
     var _savedRouter = localStorage.getItem('smartplan_test_router');
-    if (_savedRouter && /^(osrm|brouter-car|brouter-trek|valhalla)$/.test(_savedRouter)) {
+    if (_savedRouter && /^(osrm|brouter-car|valhalla|optmap)$/.test(_savedRouter)) {
       TS.router = _savedRouter;
     }
     var _savedMap = localStorage.getItem('smartplan_test_map_engine');
@@ -17806,10 +17779,10 @@
         '<select id="t-route-router-sel" title="Роутер для построения основного маршрута" style="padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;background:var(--card);color:var(--ink);font-weight:700;cursor:pointer;height:32px">' +
           '<option value="osrm" ' + (TS.router === 'osrm' ? 'selected' : '') + '>🚗 OSRM</option>' +
           '<option value="brouter-car" ' + (TS.router === 'brouter-car' ? 'selected' : '') + '>🚗 BRouter car-fast</option>' +
-          '<option value="brouter-trek" ' + (TS.router === 'brouter-trek' || !TS.router ? 'selected' : '') + '>🥾 BRouter trekking</option>' +
           '<option value="valhalla" ' + (TS.router === 'valhalla' ? 'selected' : '') + '>🟧 Valhalla</option>' +
+          '<option value="optmap" ' + (TS.router === 'optmap' ? 'selected' : '') + '>🛰 OptMap — свой движок</option>' +
         '</select>' +
-        '<button class="btn primary" id="t-btn-build-route" data-action="t-build-route" disabled style="opacity:.5;cursor:not-allowed;">' + IC.route + ' Оптимизация маршрутов</button>' + '<button class="btn sm" id="t-btn-compare" data-action="t-build-compare" style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;font-weight:700" title="Сравнить результаты 4 бесплатных роутеров (OSRM demo / FOSSGIS / Valhalla public / Прямая линия ×1.4)">🔀 Сравнить</button>') +
+        '<button class="btn primary" id="t-btn-build-route" data-action="t-build-route" disabled style="opacity:.5;cursor:not-allowed;">' + IC.route + ' Оптимизация маршрутов</button>' + '<button class="btn sm" id="t-btn-compare" data-action="t-build-compare" style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;font-weight:700" title="Сравнить автомобильные роутеры (OSRM demo / FOSSGIS car / Valhalla public / osm.ch / BRouter car / OptMap — свой серверный движок / Прямая линия ×1.4)">🔀 Сравнить</button>') +
       '<div class="spacer"></div>' +
       provSelHTML +
       '</div>';
@@ -18019,7 +17992,7 @@
     drawTestMap(pts);
     var mSel = document.getElementById('t-master-sel');
     if (mSel) mSel.addEventListener('change', function (e) { TS.master = e.target.value; renderTestMap(); });
-    // Выбор роутера для основного маршрута (OSRM / BRouter trekking / Valhalla)
+    // Выбор роутера для основного маршрута — только автомобильные (OSRM / BRouter car / Valhalla)
     var rSel = document.getElementById('t-route-router-sel');
     if (rSel && !rSel.__wired) {
       rSel.__wired = true;
@@ -18031,8 +18004,8 @@
         var labels = {
           'osrm': 'OSRM (автомобильный, дорожная сеть OSM)',
           'brouter-car': 'BRouter car-fast (авто, энергоэффективный)',
-          'brouter-trek': 'BRouter trekking (пеший/городской, избегает автомагистралей)',
-          'valhalla': 'Valhalla public (авто, с проверкой закрытий)'
+          'valhalla': 'Valhalla public (авто, с проверкой закрытий)',
+          'optmap': 'OptMap — свой движок: граф ОСМ Минска + пробки по часу выезда'
         };
         try { toast('info', '🚦 Роутер: ' + (labels[TS.router] || TS.router)); } catch (er) {}
       });
@@ -19849,8 +19822,8 @@
 
   /* ТЕСТ: оптимизация маршрута — «ближайший сосед» → OSRM Trip с многостартовой
      оптимизацией (или официальный роутер Яндекса при ключе), затем пробки. */
-  // === СРАВНЕНИЕ 4 БЕСПЛАТНЫХ РОУТЕРОВ (тест проезда) ===
-  // Параллельный опрос 4 источников и показ результатов в панели под картой.
+  // === СРАВНЕНИЕ АВТОМОБИЛЬНЫХ РОУТЕРОВ (тест проезда), 22.09-126 ===
+  // Параллельный опрос автомобильных источников и показ результатов в панели под картой.
   // Не конфликтует с основной кнопкой «Оптимизация маршрутов» — отдельная панель.
   function buildTestRouteCompare() {
     var sel = (tState.pts || []).filter(function (p) { return p.lat != null; });
@@ -19905,11 +19878,11 @@
         '<div style="background:linear-gradient(135deg,#7c3aed 0%,#a855f7 60%,#c084fc 100%);color:#fff;padding:18px 22px;display:flex;align-items:center;gap:12px;flex-shrink:0">' +
           '<div style="font-size:24px">🔀</div>' +
           '<div style="flex:1;min-width:0">' +
-            '<div style="font-size:16px;font-weight:800;letter-spacing:.2px">Сравнение бесплатных роутеров</div>' +
+            '<div style="font-size:16px;font-weight:800;letter-spacing:.2px">Сравнение автомобильных роутеров</div>' +
             '<div style="font-size:12px;opacity:.92;margin-top:2px">' + ptsCount + ' задани' + (ptsCount===1?'е':ptsCount<5?'я':'й') + ' · база «' + esc(base.name) + '» · ⭐ рекомендация (самый короткий) или выберите роутер радио-кнопкой</div>' +
           '</div>' +
           '<div style="display:flex;align-items:center;gap:8px">' +
-            '<span id="t-compare-progress" style="background:rgba(255,255,255,.18);padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.3px">⏳ 0 / 4</span>' +
+            '<span id="t-compare-progress" style="background:rgba(255,255,255,.18);padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.3px">⏳ 0 / 7</span>' +
             '<button id="t-compare-close" type="button" aria-label="Закрыть" title="Закрыть (Esc)"' +
             ' style="background:rgba(255,255,255,.18);border:none;color:#fff;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:20px;line-height:1;display:flex;align-items:center;justify-content:center;transition:background .2s"' +
             ' onmouseover="this.style.background=\'rgba(255,255,255,.32)\'" onmouseout="this.style.background=\'rgba(255,255,255,.18)\'">×</button>' +
@@ -19924,7 +19897,7 @@
         '</div>' +
         '<div style="padding:10px 22px;background:var(--panel-2);border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-shrink:0">' +
           '<div style="font-size:10.5px;color:var(--muted);line-height:1.5">' +
-            '<b>Цветной кружок</b> слева = движок (O=OSRM, F=FOSSGIS car, B=bike, W=foot, V=Valhalla, C=osm.ch, A=BRouter car, T=BRouter trek, 0=прямая).<br>' +
+            '<b>Цветной кружок</b> слева = движок (O=OSRM, F=FOSSGIS car, V=Valhalla, C=osm.ch, A=BRouter car, M=OptMap свой, 0=прямая).<br>' +
             '<b>⭐</b> слева вверху — рекомендация системы (минимальная дистанция). Справа в строке — радио-кнопка для вашего выбора.' +
           '</div>' +
           '<button class="btn sm" id="t-compare-retry" type="button" style="background:#f1f5f9;color:var(--ink);border:1px solid var(--line);font-weight:600">↻ Обновить</button>' +
@@ -19971,45 +19944,36 @@
     var BADGE = {
       'osrm-demo':      { letter: 'O', bg: '#1d4ed8', fg: '#fff', title: 'OSRM demo (project-osrm.org)' },
       'fossgis-car':    { letter: 'F', bg: '#15803d', fg: '#fff', title: 'FOSSGIS OSRM, профиль car' },
-      'fossgis-bike':   { letter: 'B', bg: '#0891b2', fg: '#fff', title: 'FOSSGIS OSRM, профиль bike' },
-      'fossgis-foot':   { letter: 'W', bg: '#7c3aed', fg: '#fff', title: 'FOSSGIS OSRM, профиль foot' },
       'valhalla-public':{ letter: 'V', bg: '#ea580c', fg: '#fff', title: 'Valhalla public' },
       'osm-ch':         { letter: 'C', bg: '#dc2626', fg: '#fff', title: 'routing.osm.ch (CH/EU)' },
       'brouter-car':    { letter: 'A', bg: '#0f172a', fg: '#fff', title: 'BRouter, car-fast' },
-      'brouter-trek':   { letter: 'T', bg: '#65a30d', fg: '#fff', title: 'BRouter, trekking' },
+      'optmap':         { letter: 'M', bg: '#0e7490', fg: '#fff', title: 'OptMap — свой сервер: граф ОСМ Минска + пробки по часу выезда' },
       'straight':       { letter: '0', bg: '#64748b', fg: '#fff', title: 'Прямая линия ×1.4 (без сети)' }
     };
     var ICONS = {
       'osrm-demo':     '🟦',
       'fossgis-car':   '🟩',
-      'fossgis-bike':  '🚲',
-      'fossgis-foot':  '🚶',
       'valhalla-public':'🟧',
       'osm-ch':        '🇨🇭',
       'brouter-car':   '🚗',
-      'brouter-trek':  '🥾',
+      'optmap':        '🛰',
       'straight':      '⬜'
     };
     var NAMES = {
       'osrm-demo':     'OSRM demo',
       'fossgis-car':   'FOSSGIS · car',
-      'fossgis-bike':  'FOSSGIS · bike',
-      'fossgis-foot':  'FOSSGIS · foot',
       'valhalla-public':'Valhalla public',
       'osm-ch':        'osm.ch (CH)',
       'brouter-car':   'BRouter · car',
-      'brouter-trek':  'BRouter · trek',
+      'optmap':        'OptMap · свой движок',
       'straight':      'Прямая ×1.4'
     };
     var URLS = {
       'osrm-demo':     'https://router.project-osrm.org',
       'fossgis-car':   'https://routing.openstreetmap.de/routed-car',
-      'fossgis-bike':  'https://routing.openstreetmap.de/routed-bike',
-      'fossgis-foot':  'https://routing.openstreetmap.de/routed-foot',
       'valhalla-public':'https://valhalla1.openstreetmap.de',
       'osm-ch':        'https://routing.osm.ch',
-      'brouter-car':   'https://brouter.de',
-      'brouter-trek':  'https://brouter.de'
+      'brouter-car':   'https://brouter.de'
     };
     // html строки-результата. Один шаблон для pending и для onResult.
     function rowHtml(r) {
@@ -20190,7 +20154,7 @@
     }
     fetchStraightLineRoute(pts, base, onResult);
     // ============================================================
-    // 8 РОУТЕРОВ для сравнения. Все бесплатные, без ключа.
+    // АВТОМОБИЛЬНЫЕ роутеры для сравнения (22.09-126). Все бесплатные, без ключа.
     // Каждый fetch обёрнут в try/catch и fetchWithTimeout — ничего
     // не «подвешивает» UI. Если сервер не ответил — показываем строку с ⚠.
     // ============================================================
@@ -20212,7 +20176,7 @@
 
     // Универсальная функция для OSRM-совместимых серверов.
     // kind: 'trip' (оптимизация порядка) или 'route' (как задано).
-    // profile: routed-car / routed-bike / routed-foot
+    // profile: routed-car (в тесте проезда — только автомобиль, 22.09-126)
     function callOsrmLike(profile, kind, byName, timeoutMs) {
       var coords = [[base.lng, base.lat]];
       pts.forEach(function (p) { coords.push([p.lng, p.lat]); });
@@ -20239,46 +20203,7 @@
       callOsrmLike('routed-car', 'trip', 'fossgis-car', 8000);
     }
 
-    // 3) FOSSGIS bike (велосипедные дорожки) — route, без roundtrip
-    function callFossgisBike() {
-      var coords = [[base.lng, base.lat]];
-      pts.forEach(function (p) { coords.push([p.lng, p.lat]); });
-      coords.push([base.lng, base.lat]);
-      var coordStr = coords.map(function (c) { return c.join(','); }).join(';');
-      // bike routing works best through route (not trip) on FOSSGIS
-      var url = 'https://routing.openstreetmap.de/routed-bike/route/v1/cycling/' + coordStr +
-        '?overview=simplified&geometries=geojson';
-      fetchWithTimeout(url, null, 8000)
-        .then(function (r) { return r.json(); })
-        .then(function (res) {
-          var routes = (res && res.routes);
-          if (routes && routes[0]) {
-            var t = routes[0];
-            onResult({ ok: true, by: 'fossgis-bike', km: t.distance / 1000, min: Math.round(t.duration / 60), geometry: t.geometry.coordinates || [] });
-          } else onResult({ ok: false, by: 'fossgis-bike', msg: 'FOSSGIS bike: нет routes' });
-        }).catch(function (e) { onResult({ ok: false, by: 'fossgis-bike', msg: 'FOSSGIS bike: ' + e.message }); });
-    }
-
-    // 4) FOSSGIS foot (пешеходные дорожки)
-    function callFossgisFoot() {
-      var coords = [[base.lng, base.lat]];
-      pts.forEach(function (p) { coords.push([p.lng, p.lat]); });
-      coords.push([base.lng, base.lat]);
-      var coordStr = coords.map(function (c) { return c.join(','); }).join(';');
-      var url = 'https://routing.openstreetmap.de/routed-foot/route/v1/foot/' + coordStr +
-        '?overview=simplified&geometries=geojson';
-      fetchWithTimeout(url, null, 8000)
-        .then(function (r) { return r.json(); })
-        .then(function (res) {
-          var routes = (res && res.routes);
-          if (routes && routes[0]) {
-            var t = routes[0];
-            onResult({ ok: true, by: 'fossgis-foot', km: t.distance / 1000, min: Math.round(t.duration / 60), geometry: t.geometry.coordinates || [] });
-          } else onResult({ ok: false, by: 'fossgis-foot', msg: 'FOSSGIS foot: нет routes' });
-        }).catch(function (e) { onResult({ ok: false, by: 'fossgis-foot', msg: 'FOSSGIS foot: ' + e.message }); });
-    }
-
-    // 5) Valhalla public. ИСПРАВЛЕНО: используем /route вместо /optimized_route
+    // 3) Valhalla public. ИСПРАВЛЕНО: используем /route вместо /optimized_route
     //    (была ошибка «Exceeded max locations: 100» при больших числах точек
     //    и при повторной базе в конце). Без оптимизации порядка,
     //    просто последовательность. Не зависит от «max_locations»
@@ -20318,7 +20243,7 @@
         }).catch(function (e) { onResult({ ok: false, by: 'valhalla-public', msg: 'Valhalla: ' + e.message }); });
     }
 
-    // 6) routing.osm.ch — независимый OSRM-сервер (Швейцария / частично Европа).
+    // 4) routing.osm.ch — независимый OSRM-сервер (Швейцария / частично Европа).
     //    Не работает для Беларуси (distance:0) — будет показан как «за пределами».
     //    Всё равно полезно для сравнения алгоритмов, если кто-то в Европе.
     function callOsmCh() {
@@ -20340,7 +20265,7 @@
         }).catch(function (e) { onResult({ ok: false, by: 'osm-ch', msg: 'osm.ch: ' + e.message }); });
     }
 
-    // 7) BRouter car-fast (car, оптимизированный под автомобиль,
+    // 5) BRouter car-fast (car, оптимизированный под автомобиль,
     //    учитывает энергию и подъёмы). BRouter — отдельный движок (Java).
     //    Поддерживает несколько точек через | в lonlats.
     function callBRouterCar() {
@@ -20367,32 +20292,30 @@
         }).catch(function (e) { onResult({ ok: false, by: 'brouter-car', msg: 'BRouter car: ' + e.message }); });
     }
 
-    // 8) BRouter trekking (универсальный велосипедный/городской)
-    function callBRouterTrek() {
-      if (pts.length > 50) {
-        onResult({ ok: false, by: 'brouter-trek', msg: 'BRouter trekking: ' + (pts.length + 2) + ' точек (>50, скип)' });
-        return;
-      }
-      var segs = [[base.lng, base.lat]];
-      pts.forEach(function (p) { segs.push([p.lng, p.lat]); });
-      segs.push([base.lng, base.lat]);
-      var lonlats = segs.map(function (s) { return s.join(','); }).join('|');
-      var url = 'https://brouter.de/brouter?lonlats=' + encodeURIComponent(lonlats) +
-        '&profile=trekking&alternativeidx=0&format=geojson';
-      fetchWithTimeout(url, null, 12000)
-        .then(function (r) { return r.json(); })
-        .then(function (res) {
-          if (res && res.features && res.features[0]) {
-            var p = res.features[0].properties || {};
-            var km = parseFloat(p['track-length']) / 1000 || 0;
-            var mn = Math.round((parseFloat(p['total-time']) || 0) / 60);
-            onResult({ ok: true, by: 'brouter-trek', km: km, min: mn, geometry: [] });
-          } else onResult({ ok: false, by: 'brouter-trek', msg: 'BRouter trekking: пустой ответ' });
-        }).catch(function (e) { onResult({ ok: false, by: 'brouter-trek', msg: 'BRouter trekking: ' + e.message }); });
+    // 6) OptMap — наш собственный серверный оптимизатор (22.09-128):
+    //    граф дорог Минска из OSM + модель пробок по часу выезда; считает
+    //    наш же сервер, без внешних API и лимитов.
+    function callOptMap() {
+      var reqPts = [{ lat: base.lat, lon: base.lng, name: base.name || 'База' }];
+      pts.forEach(function (p) { reqPts.push({ lat: p.lat, lon: p.lng, name: p.addr }); });
+      SP_API._request('POST', '/optmap/optimize', {
+        points: reqPts,
+        options: { roundTrip: true, mode: 'time', traffic: true, departHour: new Date().getHours(), returnGeometry: true, isWeekend: [0, 6].indexOf(new Date().getDay()) >= 0 }
+      }).then(function (r) {
+        if (r && r.ok && r.totals) {
+          var geom = [];
+          (r.legs || []).forEach(function (l, li) {
+            (l.coords || []).forEach(function (c, ci) { if (li > 0 && ci === 0) return; geom.push([c[0], c[1]]); });
+          });
+          onResult({ ok: true, by: 'optmap', km: (r.totals.distanceM || 0) / 1000, min: Math.round((r.totals.durationS || 0) / 60), geometry: geom });
+        } else {
+          onResult({ ok: false, by: 'optmap', msg: 'OptMap: ' + ((r && (r.err || (r.error && r.error.message))) || 'нет ответа') });
+        }
+      }).catch(function (e) { onResult({ ok: false, by: 'optmap', msg: 'OptMap: ' + e.message }); });
     }
 
-    // Запуск всех 8 параллельно (отказ одного — не блокирует остальные)
-    var callers = [callOsrmDemo, callFossgisCar, callFossgisBike, callFossgisFoot, callValhallaPublic, callOsmCh, callBRouterCar, callBRouterTrek];
+    // Запуск всех 6 параллельно (только автомобильные роутеры; отказ одного — не блокирует остальные)
+    var callers = [callOsrmDemo, callFossgisCar, callValhallaPublic, callOsmCh, callBRouterCar, callOptMap];
     callers.forEach(function (fn) {
       try { fn(); } catch (e) { /* если упало на старте — пусть onResult не вызывается */ }
     });
@@ -20400,7 +20323,7 @@
 
   function buildTestRoute(noJam) {
     TS.noJam = !!noJam;
-    var routerKey = TS.router || 'brouter-trek';
+    var routerKey = TS.router || 'osrm';
     var btn = document.getElementById('t-btn-build-route');
     var btnHtml = btn ? btn.innerHTML : '';
     if (btn) { btn.disabled = true; btn.style.opacity = '.5'; btn.style.cursor = 'not-allowed'; btn.innerHTML = '⏳ Расчёт…'; }
@@ -20412,9 +20335,15 @@
       return;
     }
     // === Если выбран BRouter — отдельный поток (свой протокол, без Table API) ===
-    if (routerKey === 'brouter-trek' || routerKey === 'brouter-car') {
-      var profile = (routerKey === 'brouter-car') ? 'car-fast' : 'trekking';
+    if (routerKey === 'brouter-car') {
+      var profile = 'car-fast'; // 22.09-126: trekking-профили убраны — тест проезда только для автомобиля
       buildTestRouteBRouter(profile, restoreBtn);
+      return;
+    }
+    // 22.09-128: OptMap — свой серверный оптимизатор (граф дорог OSM Минска
+    // + модель пробок по часу выезда). Считает наш же сервер — без внешних API.
+    if (routerKey === 'optmap') {
+      buildTestRouteOptMap(restoreBtn);
       return;
     }
     var ri = document.getElementById('t-route-info');
@@ -20422,7 +20351,7 @@
     var pts = sel.map(function (p) { return { id: p.id, lat: p.lat, lng: p.lng, addr: p.addr }; });
     function restoreBtn() { if (btn) { btn.disabled = false; btn.style.opacity = ''; btn.innerHTML = btnHtml; } }
     // Отдельная кнопка «🔀 Сравнить роутеры» (рядом с «Оптимизация маршрутов»).
-    // Запускает параллельный опрос 4 бесплатных источников и показывает
+    // Запускает параллельный опрос бесплатных автомобильных роутеров и показывает
     // результаты в отдельной панели сравнения (не конфликтует с основным маршрутом).
 
 
@@ -20718,6 +20647,86 @@
   // Протокол: GET https://brouter.de/brouter?lonlats=lng,lat|lng,lat&profile=trekking&format=geojson
   // НЕ оптимизирует порядок точек сам — нам надо сделать NN+2-opt самим
   // через OSRM Table API (эта функция берёт уже готовый порядок).
+  /* === 22.09-128: OptMap — свой серверный оптимизатор маршрута ===
+     Запрос на /api/optmap/optimize (наш сервер): порядок точек решается
+     Хелд-Карпом/2-opt по матрице дорог Минска (OSM) с моделью пробок по
+     часу выезда; геометрия участков возвращается сразу — рисуем тем же
+     слоем на Яндекс-карте (карта и точки не меняются). */
+  function buildTestRouteOptMap(restoreBtn) {
+    var base = currentBase();
+    var ri = document.getElementById('t-route-info');
+    var pts = (tState.pts || []).filter(function (p) { return p.lat != null && p.lng != null; })
+      .map(function (p) { return { id: p.id, lat: p.lat, lng: p.lng, addr: p.addr, mcol: p.mcol, work: p.work, norm: p.norm, master: p.master }; });
+    if (!pts.length) {
+      toast('warn', 'Выберите хотя бы одно задание с координатами');
+      if (ri) ri.textContent = 'нет точек с координатами';
+      restoreBtn();
+      return;
+    }
+    if (ri) ri.textContent = '⏳ OptMap: считаем на своём сервере…';
+    var reqPts = [{ lat: base.lat, lon: base.lng, name: base.name || 'База' }];
+    pts.forEach(function (p) { reqPts.push({ lat: p.lat, lon: p.lng, name: p.addr }); });
+    SP_API._request('POST', '/optmap/optimize', {
+      points: reqPts,
+      options: { roundTrip: true, mode: 'time', traffic: true, departHour: currentHourForJam(), returnGeometry: true, isWeekend: [0, 6].indexOf(new Date().getDay()) >= 0 }
+    }).then(function (r) {
+      if (!r || !r.ok || !r.order || !r.legs || !r.totals) {
+        restoreBtn();
+        if (ri) ri.textContent = 'OptMap: сервис недоступен';
+        toast('err', '⚠ OptMap: ' + ((r && (r.err || (r.error && r.error.message))) || 'нет ответа сервера'));
+        return;
+      }
+      // order[0] === 0 (база — стартовая точка); ноги соответствуют seq: 0→…→0
+      var order = r.order;
+      var ordered = [];
+      for (var i = 1; i < order.length; i++) ordered.push(pts[order[i] - 1]);
+      // Склейка геометрии участков (общие точки на стыках не дублируем)
+      var geom = [];
+      r.legs.forEach(function (l, li) {
+        (l.coords || []).forEach(function (c, ci) { if (li > 0 && ci === 0) return; geom.push([c[0], c[1]]); });
+      });
+      // Время+километры по участкам — как у других роутеров
+      ordered.forEach(function (p, idx) {
+        var leg = r.legs[idx];
+        if (!leg) return;
+        var km = (leg.distanceM || 0) / 1000;
+        var mn = Math.max(1, Math.round((leg.durationS || 0) / 60));
+        p.travelKm = km; p.travelKmText = km.toFixed(1).replace('.', ',') + ' км';
+        p.travelMin = mn; p.travelText = fmtDuration(mn) + ' (модель пробок)';
+      });
+      // Возврат на базу — последняя нога
+      var retLeg = r.legs[r.legs.length - 1];
+      var bc = document.getElementById('t-base-return-info');
+      if (bc && retLeg && retLeg.durationS != null) {
+        bc.innerHTML = '🛣 От последнего задания до базы: <b style="color:#fff">' +
+          fmtDuration(Math.max(1, Math.round(retLeg.durationS / 60))) + '</b> · ' +
+          ((retLeg.distanceM || 0) / 1000).toFixed(1).replace('.', ',') + ' км';
+      }
+      // Применяем оптимальный порядок: список, маркеры, линия
+      tState.pts = ordered.slice();
+      refreshTestCards(ordered);
+      updateTestDayCards(ordered);
+      if (tState.ymap) tDrawTestMarkers();
+      if (geom.length >= 2) tDrawTestRouteLine(geom);
+      tState.routeItems = [base].concat(ordered).concat([base]);
+      var yaBtn = document.getElementById('t-btn-yandex'); if (yaBtn && ordered.length) yaBtn.style.display = '';
+      var gBtn = document.getElementById('t-btn-google'); if (gBtn && ordered.length) gBtn.style.display = '';
+      var totalKm = (r.totals.distanceM || 0) / 1000;
+      var totalMin = Math.max(1, Math.round((r.totals.durationS || 0) / 60));
+      var freeMin = r.totals.freeFlowDurationS ? Math.max(1, Math.round(r.totals.freeFlowDurationS / 60)) : totalMin;
+      setTestRouteInfo({ km: totalKm, jamsMin: totalMin, freeMin: freeMin, count: ordered.length });
+      restoreBtn();
+      var wrn = (r.warnings && r.warnings.length) ? ' · ⚠ ' + r.warnings[0] : '';
+      toast('ok', '✓ OptMap (' + (r.optimizer && r.optimizer.method || 'свой движок') + '): ' +
+        totalKm.toFixed(1).replace('.', ',') + ' км · ' + fmtDuration(totalMin) + ' с пробками / ' + fmtDuration(freeMin) + ' без' +
+        (r.totals.detourFactor ? ' · объезд ×' + String(r.totals.detourFactor).replace('.', ',') : '') + wrn);
+    }).catch(function (e) {
+      restoreBtn();
+      if (ri) ri.textContent = 'OptMap: ошибка сети';
+      toast('err', '⚠ OptMap не ответил: ' + (e && e.message ? e.message : 'ошибка сети'));
+    });
+  }
+
   function buildTestRouteBRouter(profile, restoreBtn) {
     var base = currentBase();
     var sel = (tState.pts || []).slice();
