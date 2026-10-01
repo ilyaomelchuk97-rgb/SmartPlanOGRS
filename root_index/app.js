@@ -737,16 +737,16 @@
   }
 
   var TITLES = {
-    dashboard: ['Панель мониторинга', 'Сборка 22.09-132 · блок погоды: слева анимация размывается в чистый цвет неба (под текстом и кнопкой)'],
+    dashboard: ['Панель мониторинга', 'Сборка 22.09-135 · меню слева выше затемнений; окна — 80% ширины, по центру, высота по содержимому'],
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-127 · карта маршрутов: подложка всегда Яндекс, пробки слоем Яндекса, маршруты роутеров — точками поверх карты'],
+    objmap: ['Карта объектов', 'Сборка 22.09-136 · телеметрия: «Индел» → «ПТК "Индел"»; добавлены Wago, ПТК «Сириус», ПТК «Эксорт»'],
     testmap: ['Тест проезда', 'Сборка 22.09-131 · OptMap удалён: память сервера освобождена, роутеры — только внешние (OSRM / BRouter / Valhalla)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
     perms: ['Разрешения', 'Система разрешений на производство работ'],
-    refs: ['Справочники', 'Сборка 22.09-133 · атрибуты ГРП: «Проводится совместно» и список отсчёта периодичности снова показывают работы из справочника'],
+    refs: ['Справочники', 'Сборка 22.09-134 · атрибуты ГРП: оба списка — только работы ГРП; «совместно» — выбор нескольких работ галочками'],
     workers: ['Работники', 'Графики работы (8 ч → 5/2, 12 ч → 2/2), бригады и отсутствия'],
     schedules: ['Графики смен', 'Сводный календарь по бригадам: кто работает / отдыхает / отсутствует'],
     users: ['Пользователи', 'Учётные записи, роли и доступ к системе'],
@@ -8745,7 +8745,7 @@
     h += '<div class="calc" style="margin-bottom:10px;align-items:flex-start">Список общий для всех объектов (ГРП/ШРП/ПГРП): добавленный тип можно выбрать в атрибутах любого объекта — вкладка «Технические», поле «Тип телеметрии».' + (canEdit ? '' : ' <b>Изменение доступно администратору.</b>') + '</div>';
     if (canEdit) {
       h += '<div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:12px">' +
-        '<div class="fld" style="margin:0;flex:1"><label>Новый тип телеметрии</label><input id="tt-name" placeholder="напр.: Индел"></div>' +
+        '<div class="fld" style="margin:0;flex:1"><label>Новый тип телеметрии</label><input id="tt-name" placeholder="напр.: ПТК «Сириус»"></div>' +
         '<button type="button" class="btn primary" data-action="telemetry-add">+ Добавить</button></div>';
     }
     h += '<div style="max-height:320px;overflow-y:auto;border:1px solid var(--line);border-radius:8px">';
@@ -8786,6 +8786,74 @@
     toast('ok', 'Вид телеметрии удалён из списка');
     telemetrySyncSelects();
     openTelemetryModal();
+  }
+
+  /* ---------- 22.09-136: миграция видов телеметрии ----------
+     «Индел» → «ПТК "Индел"» (id записи сохраняется — переименование через
+     сервер разойдётся по всем устройствам), плюс гарантированные типы
+     Wago / ПТК "Сириус" / ПТК "Эксорт". Ссылки на старое имя обновляются
+     у объектов (attrs.telemetry) и работ (telemetry_type). Идемпотентно:
+     если менять нечего — ничего не делает; запуск из enterApp, в т.ч.
+     отложенно (после первой синхронизации раздела telemetry). */
+  var TEL_OLD_INDEL = 'Индел';
+  var TEL_NEW_INDEL = 'ПТК "Индел"';
+  var TEL_ENSURE = ['Wago', 'ПТК "Сириус"', 'ПТК "Эксорт"'];
+  function telemetryMigrateTypes() {
+    var changed = false, renamed = false;
+    var list = telemetryLoad();
+    // 1) переименование «Индел» → «ПТК "Индел"»
+    for (var i = 0; i < list.length; i++) {
+      var rr = list[i];
+      if (rr && !rr._deleted && rr.name === TEL_OLD_INDEL) {
+        rr = list[i] = Object.assign({}, rr, { id: rr.id || ('tt_' + Date.now().toString(36)), name: TEL_NEW_INDEL });
+        if (window.SP_API && SP_API.upsert) SP_API.upsert('telemetry', rr).catch(function () {});
+        changed = true; renamed = true;
+      }
+    }
+    // 2) гарантированные типы (добавляем только отсутствующие)
+    TEL_ENSURE.forEach(function (nm) {
+      var found = false;
+      for (var j = 0; j < list.length; j++) if (list[j] && list[j].name === nm && !list[j]._deleted) { found = true; break; }
+      if (!found) {
+        var rec = { id: 'tt_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 5), name: nm };
+        list.push(rec);
+        if (window.SP_API && SP_API.upsert) SP_API.upsert('telemetry', rec).catch(function () {});
+        changed = true;
+      }
+    });
+    if (changed) { telemetrySaveLS(list); try { telemetrySyncSelects(); } catch (e) {} }
+    // 3) ссылки на старое имя — только если было переименование в этом вызове
+    if (renamed) migrateIndelRefs();
+    return { changed: changed, renamed: renamed };
+  }
+  function migrateIndelRefs() {
+    var objsUpd = 0, worksUpd = 0;
+    try {
+      if (window.SP_OBJECTS && SP_OBJECTS.getObjects) {
+        SP_OBJECTS.getObjects().forEach(function (o) {
+          if (o && o.attrs && o.attrs.telemetry === TEL_OLD_INDEL) {
+            SP_OBJECTS.updateObject(o.id, { attrs: { telemetry: TEL_NEW_INDEL } });
+            objsUpd++;
+          }
+        });
+      }
+    } catch (e) {}
+    try {
+      if (WORK && WORK.getWorkTree) {
+        // getWorkTree: все участки КАТАЛОГА работ (getAreas зависит от справочника
+        // участков и может не знать область, где лежат работы) — 22.09-136
+        WORK.getWorkTree().forEach(function (w) {
+          if (w && w.telemetry_type === TEL_OLD_INDEL && w.area && w.area !== '__defaults') {
+            WORK.updateWork(w.area, w.id, { telemetry_type: TEL_NEW_INDEL });
+            worksUpd++;
+          }
+        });
+      }
+    } catch (e) {}
+    if (objsUpd || worksUpd) {
+      try { logAction('Миграция телеметрии', '«Индел» → «ПТК "Индел"»: объектов ' + objsUpd + ', работ ' + worksUpd); } catch (e) {}
+      toast('ok', '📡 «Индел» переименован в «ПТК "Индел"» — обновлено: объектов ' + objsUpd + ', работ ' + worksUpd);
+    }
   }
 
   function renderSchedules() {
@@ -10636,7 +10704,15 @@
       if (w.periodicity_value) {
         attr += ' <span class="permit-badge" title="Периодичность">🔁 ' + w.periodicity_value + ' ' + esc(w.periodicity_unit || 'мес') + '</span>';
       }
-      if (w.joint_with) attr += ' <span class="snow-badge" title="Проводится совместно">🤝 совместно</span>';
+      // 22.09-134: joint_with — массив id (старая строка читается как одиночный выбор)
+      var _jwArr = Array.isArray(w.joint_with) ? w.joint_with : (w.joint_with ? [w.joint_with] : []);
+      if (_jwArr.length) {
+        var _jwNames = _jwArr.map(function (id) {
+          var ww = null; try { ww = WORK.getWorkById && WORK.getWorkById(id); } catch (e) {}
+          return ww ? ww.name : id;
+        });
+        attr += ' <span class="snow-badge" title="Проводится совместно с: ' + esc(_jwNames.join(' · ')) + '">🤝 совместно' + (_jwArr.length > 1 ? ' ×' + _jwArr.length : '') + '</span>';
+      }
       if (w.crew_size) {
         var crewDesc = (w.crew || []).filter(function (e) { return e && e.prof; })
           .map(function (e) { return e.prof + (e.grade ? ' · ' + e.grade + ' разряд' : '') + ' × ' + e.count; }).join('; ');
@@ -12134,42 +12210,64 @@
       '<div style="font-size:10.5px;color:var(--muted);margin-top:4px">Шаг серии = периодичность − отклонение (как в настройке периодичности в графике работ)</div></div>';
     h += '<div class="fld" style="max-width:520px"><label>Реквизит отсчёта для выполнения работ</label><select id="wm-period-basis"><option value="prev_date"' + (w && w.periodicity_basis === 'prev_date' ? ' selected' : '') + '>Дата предыдущего выполнения</option><option value="commissioning_date"' + (w && w.periodicity_basis === 'commissioning_date' ? ' selected' : '') + '>Дата ввода в эксплуатацию</option></select></div>';
 
-    // 4. Виды работ, от которых отсчёт периодичности (мульти-чекбоксы)
+    // 4. Виды работ, от которых отсчёт периодичности (мульти-чекбоксы);
+    // 22.09-134: ТОЛЬКО работы участка ГРП (раньше — работы всех участков).
     var curDepends = (w && w.periodicity_depends_on) || [];
     var allWorks = [];
     try {
-      // 22.09-133: было window.WORK — такого глобала никогда не существовало
-      // (модуль справочника = window.SP_WORK, в app.js — локальная var WORK),
-      // поэтому allWorks всегда был пуст: пустой «Проводится совместно» и
-      // пустой список «Виды работ, от которых отсчёт периодичности».
       if (WORK && typeof WORK.getWorks === 'function') {
-        WORK.getAreas().forEach(function (a) {
-          (WORK.getWorks(a) || []).forEach(function (ww) {
-            if (ww.id !== wid) allWorks.push(ww);
-          });
-        });
+        allWorks = (WORK.getWorks(area) || []).filter(function (ww) { return ww.id !== wid; });
       }
     } catch (e) {}
-    h += '<div class="fld"><label>Виды работ, от которых отсчёт периодичности <span style="color:#94a3b8;font-weight:500">(Справочник Виды работ)</span></label>';
+    // id из старых записей, которых нет среди работ участка (работа перенесена
+    // или удалена): показываем строками с ⚠, чтобы значение не потерялось молча
+    function legacyWorkIds(ids) {
+      return (ids || []).filter(function (id) {
+        for (var i = 0; i < allWorks.length; i++) if (allWorks[i].id === id) return false;
+        return true;
+      });
+    }
+    function legacyRowHtml(id, attr) {
+      var lw = null; try { lw = WORK.getWorkById && WORK.getWorkById(id); } catch (e) {}
+      return '<label class="cb" style="display:flex;align-items:center;gap:6px;padding:3px 4px;border-radius:4px;font-size:12px;">' +
+        '<input type="checkbox" data-' + attr + '="' + esc(id) + '" checked><span style="flex:1"><b style="color:#92400e">' + esc(lw ? lw.name : id) + '</b><span style="color:#b45309"> · ⚠ нет среди работ ГРП</span></span></label>';
+    }
+    h += '<div class="fld"><label>Виды работ, от которых отсчёт периодичности <span style="color:#94a3b8;font-weight:500">(Справочник Виды работ — участок ГРП)</span></label>';
     h += '<div id="wm-period-deps" style="max-height:120px;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:6px;background:#fff;">';
     if (!allWorks.length) {
-      h += '<div style="color:#94a3b8;font-size:12px;padding:6px">Нет других работ в справочнике</div>';
+      h += '<div style="color:#94a3b8;font-size:12px;padding:6px">На участке ГРП нет других работ</div>';
     } else {
       allWorks.forEach(function (ww) {
         var on = curDepends.indexOf(ww.id) >= 0;
         h += '<label class="cb" style="display:flex;align-items:center;gap:6px;padding:3px 4px;border-radius:4px;font-size:12px;">';
         h += '<input type="checkbox" data-perioddep="' + esc(ww.id) + '"' + (on ? ' checked' : '') + '><span style="flex:1"><b style="color:var(--ink)">' + esc(ww.name) + '</b><span style="color:#64748b"> · ' + esc(ww.group || '') + '</span></span></label>';
       });
+      legacyWorkIds(curDepends).forEach(function (id) { h += legacyRowHtml(id, 'perioddep'); });
     }
     h += '</div></div>';
 
-    // 6. Проводится совместно (select с работами)
-    h += '<div class="fld"><label>Проводится совместно <span style="color:#94a3b8;font-weight:500">(Справочник Виды работ)</span></label>';
-    h += '<select id="wm-joint"><option value="">— не привязано —</option>';
-    allWorks.forEach(function (ww) {
-      h += '<option value="' + esc(ww.id) + '"' + (w && w.joint_with === ww.id ? ' selected' : '') + '>' + esc(ww.name) + ' · ' + esc(ww.group || '') + '</option>';
-    });
-    h += '</select></div>';
+    // 6. Проводится совместно (22.09-134: мульти-чекбоксы, как «отсчёт
+    //    периодичности» — работы участка ГРП, можно выбрать несколько;
+    //    в базе joint_with теперь массив id, старая строка читается как [строка])
+    var curJoint = [];
+    try {
+      var _jwOld = w && w.joint_with;
+      if (Array.isArray(_jwOld)) curJoint = _jwOld.slice();
+      else if (_jwOld) curJoint = [_jwOld];
+    } catch (e) {}
+    h += '<div class="fld"><label>Проводится совместно <span style="color:#94a3b8;font-weight:500">(Справочник Виды работ — участок ГРП, можно выбрать несколько)</span></label>';
+    h += '<div id="wm-joint-list" style="max-height:120px;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:6px;background:#fff;">';
+    if (!allWorks.length) {
+      h += '<div style="color:#94a3b8;font-size:12px;padding:6px">На участке ГРП нет других работ</div>';
+    } else {
+      allWorks.forEach(function (ww) {
+        var on = curJoint.indexOf(ww.id) >= 0;
+        h += '<label class="cb" style="display:flex;align-items:center;gap:6px;padding:3px 4px;border-radius:4px;font-size:12px;">';
+        h += '<input type="checkbox" data-joint="' + esc(ww.id) + '"' + (on ? ' checked' : '') + '><span style="flex:1"><b style="color:var(--ink)">' + esc(ww.name) + '</b><span style="color:#64748b"> · ' + esc(ww.group || '') + '</span></span></label>';
+      });
+      legacyWorkIds(curJoint).forEach(function (id) { h += legacyRowHtml(id, 'joint'); });
+    }
+    h += '</div></div>';
 
     // 7. Операции (список значений — через запятую)
     h += '<div class="fld"><label>Операции <span style="color:#94a3b8;font-weight:500">(список значений, через запятую)</span></label>';
@@ -12300,7 +12398,7 @@
       data.periodicity_unit = val('wm-period-unit') || 'мес';
       data.periodicity_depends_on = arrFromAttr('perioddep');
       data.periodicity_basis = val('wm-period-basis') || 'prev_date';
-      data.joint_with = val('wm-joint');
+      data.joint_with = arrFromAttr('joint'); // 22.09-134: массив id работ, проводимых совместно
       data.operations = val('wm-operations').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
       data.indicators = val('wm-indicators').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
       data.print_forms = val('wm-printforms').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
@@ -15073,6 +15171,10 @@
     setScreen(S.role === 'slesar' ? 'map' : 'dashboard');
     // Дропдаун онлайн-пользователей (после входа — знаем роль и ID юзера)
     try { setupSyncDropdown(); } catch (e) { console.error('setupSyncDropdown:', e); }
+    // 22.09-136: миграция видов телеметрии (идемпотентная): сразу после входа
+    // и повторно через 3 с — когда завершится первая фоновая синхронизация
+    try { telemetryMigrateTypes(); } catch (e) { console.error('telemetryMigrateTypes:', e); }
+    setTimeout(function () { try { telemetryMigrateTypes(); } catch (e) { console.error('telemetryMigrateTypes:', e); } }, 3000);
     setTimeout(function () {
       var info = ROLE_INFO[u.role] || { label: u.role };
       logAction('Вход в систему', '');
@@ -16358,7 +16460,7 @@
     var diag = !!w.diag_equipment, heat = !!w.heating_req;
     var txt = (String(w.name || '') + ' § ' + String(w.group || '')).toLowerCase();
     if (!tType && !tReq) {
-      if (txt.indexOf('индел') !== -1) { tReq = 'equipped'; tType = 'Индел'; }
+      if (txt.indexOf('индел') !== -1) { tReq = 'equipped'; tType = 'ПТК "Индел"'; } // 22.09-136: тип переименован
       else if (txt.indexOf('не оборудованных системой телеметр') !== -1) tReq = 'not_equipped';
       else if (txt.indexOf('оборудованных системой телеметр') !== -1) tReq = 'equipped';
       else if (txt.indexOf('тм и асутп') !== -1) tReq = 'equipped';

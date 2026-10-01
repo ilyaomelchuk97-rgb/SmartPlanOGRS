@@ -285,7 +285,10 @@
   /* ---------- MODAL ---------- */
   .overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;align-items:flex-start;justify-content:center;z-index:100;padding:40px 16px;overflow:auto}
   .overlay.show{display:flex}
-  .modal{background:var(--card);border-radius:14px;width:486px;min-width:min(486px,100%);max-width:min(486px,100%);margin:0 auto;box-shadow:var(--shadow-lg);overflow:hidden;display:flex;flex-direction:column;max-height:calc(100vh - 80px);transition:max-width .25s ease}
+  /* 22.09-135: окно — 80% ширины по центру экрана; высота — по содержимому
+     (cap max-height сверху); margin:auto центрирует по обеим осям, а при
+     переполнении схлопывается в 0 — окно не уходит за верх и скроллится. */
+  .modal{background:var(--card);border-radius:14px;width:80%;max-width:80%;margin:auto;box-shadow:var(--shadow-lg);overflow:hidden;display:flex;flex-direction:column;max-height:calc(100vh - 80px);transition:max-width .25s ease}
   .modal-h{display:flex;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line);flex-shrink:0}
   .modal-h h3{margin:0;font-size:15px;color:var(--ink)}
   .modal-h .x{margin-left:auto;cursor:pointer;color:var(--muted);font-size:20px;background:none;border:none}
@@ -548,7 +551,7 @@
     .trash-zone{font-size:11px;padding:5px 10px}
     /* Модальные окна — почти на весь экран */
     .overlay{padding:0}
-    .modal{max-width:100%!important;border-radius:0;min-height:100vh}
+    .modal{width:100%!important;min-width:0;max-width:100%!important;border-radius:0;min-height:100vh;margin:0} /* 22.09-135: гасим базовые 80%/margin:auto — на телефоне окно на весь экран */
     .modal-b{padding:14px}
     /* Тосты — выше, чтобы не перекрывать кнопку чата */
     #toasts{bottom:70px;right:10px;left:10px}
@@ -1065,6 +1068,14 @@
 @media(max-width:767px){.wx-map-fab{padding:6px 11px;font-size:11px}}
 @media(max-width:767px){#wx-map-window{inset:8px}}
 @keyframes tp{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+  /* 22.09-135: выдвижная навигация (≤1080px) — всегда ВЫШЕ любого затемнения:
+     своей подложки body.drawer-open::after (z-index:80) и модального оверлея
+     .overlay (z-index:100). Раньше в блоках 768–1023px и <768px сайдбар выезжал
+     с z-index:50 и оказывался ПОД затемнением (бар открыт, но скрыт темнотой).
+     Правило — в самом конце CSS: при равной специфичности побеждает оно. */
+  @media (max-width:1080px){
+    .sidebar{z-index:150}
+  }
 </style>
 </head>
 <body>
@@ -1097,7 +1108,7 @@
           <div style="margin-top:6px;font-size:11px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-133 · атрибуты ГРП: «Проводится совместно» и отсчёт периодичности снова показывают работы из справочника</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-136 · телеметрия: «Индел» переименован в «ПТК "Индел"»; добавлены Wago, ПТК "Сириус", ПТК "Эксорт"; «совместно» — выбор нескольких</div>
     </div>
   </div>
   </div>

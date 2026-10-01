@@ -154,7 +154,7 @@ window.SP_WORK = (function () {
       periodicity_unit:     'мес',       // 'мес' | 'дней'
       periodicity_depends_on: [],        // id работ из «Виды работ»
       periodicity_basis:    'prev_date', // 'prev_date' | 'commissioning_date'
-      joint_with:           '',          // id другой работы
+      joint_with:           [],          // 22.09-134: массив id работ, проводимых совместно
       operations:           [],          // список значений
       indicators:           [],          // контролируемые показатели
       print_forms:          [],          // печатные формы
@@ -207,7 +207,7 @@ window.SP_WORK = (function () {
       periodicity_unit:        (d.periodicity_unit === 'дней' ? 'дней' : 'мес'),
       periodicity_depends_on:  toArr(d.periodicity_depends_on),
       periodicity_basis:       (d.periodicity_basis === 'commissioning_date' ? 'commissioning_date' : 'prev_date'),
-      joint_with:              d.joint_with || '',
+      joint_with:              toArr(d.joint_with), // 22.09-134: массив id; строка из старой записи → [строка]
       operations:              toArr(d.operations),
       indicators:              toArr(d.indicators),
       print_forms:             toArr(d.print_forms),
