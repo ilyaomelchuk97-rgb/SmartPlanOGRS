@@ -18,27 +18,38 @@ const { optimizeOrder } = require('../optmap/optimizer');
 
 const WEEKEND_DAYS = [0, 6];
 
-/* Движок — синглтон: граф грузится в фоне при старте сервера,
-   до готовности запросы получают честный 503. */
+/* Движок — синглтон: граф грузится в фоне ПОСЛЕ старта сервера (чтобы
+   проблема движка никогда не роняла сам сайт — до готовности запросы
+   получают честный 503). Бинарный формат графа читается почти без пика
+   памяти (22.09-130; сайт падал 502 из-за OOM на JSON-версии). */
 let engine = null;
 let engineErr = null;
+const fs = require('fs');
+const dataDir = path.join(__dirname, '..', 'optmap', 'data');
 const graphPath =
-  process.env.OPTMAP_GRAPH || path.join(__dirname, '..', 'optmap', 'data', 'graph.json.gz');
+  process.env.OPTMAP_GRAPH ||
+  (fs.existsSync(path.join(dataDir, 'graph.bin.gz'))
+    ? path.join(dataDir, 'graph.bin.gz')
+    : path.join(dataDir, 'graph.json.gz'));
 
-Engine.create({
-  graphPath,
-  snapRadiusM: parseInt(process.env.OPTMAP_SNAP_M || '400', 10) || 400,
-  maxPoints: parseInt(process.env.OPTMAP_MAX_POINTS || '50', 10) || 50,
-  allowSynthetic: false,
-})
-  .then((e) => {
-    engine = e;
-    console.log('✅ [optmap] движок готов (локальный граф OSM, Минск)');
+function loadEngine() {
+  Engine.create({
+    graphPath,
+    snapRadiusM: parseInt(process.env.OPTMAP_SNAP_M || '400', 10) || 400,
+    maxPoints: parseInt(process.env.OPTMAP_MAX_POINTS || '50', 10) || 50,
+    allowSynthetic: false,
   })
-  .catch((err) => {
-    engineErr = err;
-    console.error('⚠ [optmap] граф дорог не загружен:', err.message);
-  });
+    .then((e) => {
+      engine = e;
+      console.log('✅ [optmap] движок готов (локальный граф OSM, Минск)');
+    })
+    .catch((err) => {
+      engineErr = err;
+      console.error('⚠ [optmap] граф дорог не загружен (сайт работает без OptMap):', err.message);
+    });
+}
+// Отступ 2 сек: сначала HTTP-сервер и health-check, потом движок
+setTimeout(loadEngine, 2000);
 
 function minskNow() {
   // Час и день недели по Минску (сервер на Render работает в UTC)

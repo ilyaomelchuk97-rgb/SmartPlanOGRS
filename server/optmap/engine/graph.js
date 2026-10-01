@@ -205,8 +205,57 @@ class Graph {
   static async loadGzip(filePath, fsMod = null) {
     const fs = fsMod || (await import('node:fs/promises'));
     const buf = await fs.readFile(filePath);
-    const json = JSON.parse(zlib.gunzipSync(buf).toString('utf8'));
+    const raw = zlib.gunzipSync(buf);
+    // SmartPlan 22.09-130: бинарный формат OPTG1BIN — загрузка почти без пика
+    // памяти (виды поверх буфера ~50 МБ вместо JSON.parse на ~500 МБ; Render
+    // free 512 МБ умирал по OOM при старте). Старый JSON тоже поддерживается.
+    if (raw.length > 12 && raw.toString('latin1', 0, 8) === 'OPTG1BIN') {
+      return Graph.fromBinary(raw);
+    }
+    const json = JSON.parse(raw.toString('utf8'));
     return Graph.deserialize(json);
+  }
+
+  /** Разобрать бинарник OPTG1BIN (pack-graph.js): массивы — ВИДЫ поверх raw. */
+  static fromBinary(raw) {
+    const metaLen = raw.readUInt32LE(8);
+    const meta = JSON.parse(raw.toString('utf8', 12, 12 + metaLen));
+    const { nodes: n, edges: m, shapeNumbers: k } = meta.counts;
+    let off = 12 + metaLen;
+    const align = (a) => { off = Math.ceil(off / a) * a; };
+    const base = raw.buffer; // общий ArrayBuffer — виды ссылаются на него
+    const view = (Ctor, count, alignTo) => {
+      align(alignTo);
+      let byteOff = raw.byteOffset + off;
+      // Выравнивание базы буфера: если буфер начинается не кратно alignTo — копия
+      if (byteOff % alignTo !== 0) {
+        const copy = Buffer.from(raw.slice(off, off + count * Ctor.BYTES_PER_ELEMENT));
+        off += count * Ctor.BYTES_PER_ELEMENT;
+        return new Ctor(copy.buffer, copy.byteOffset, count);
+      }
+      const v = new Ctor(base, byteOff, count);
+      off += count * Ctor.BYTES_PER_ELEMENT;
+      return v;
+    };
+
+    const g = new Graph();
+    g.lat = view(Float64Array, n, 8);
+    g.lon = view(Float64Array, n, 8);
+    g.classes = meta.classes || [];
+    g.classIdx = new Map(g.classes.map((c, i) => [c, i]));
+    g.names = meta.names || [];
+    g.nameIdx = new Map(g.names.map((c, i) => [c, i]));
+    g.eu = view(Uint32Array, m, 4);
+    g.ev = view(Uint32Array, m, 4);
+    g.lenM = view(Float64Array, m, 8);
+    g.kmh = view(Uint16Array, m, 2);
+    g.clsI = view(Int32Array, m, 4);
+    g.nameI = view(Int32Array, m, 4);
+    g.shapeOff = view(Uint32Array, m + 1, 4);
+    g.shapeCoords = view(Float64Array, k, 8);
+    g.meta = meta.meta || g.meta;
+    g.build();
+    return g;
   }
 
   async saveGzip(filePath) {
