@@ -737,7 +737,7 @@
   }
 
   var TITLES = {
-    dashboard: ['Панель мониторинга', 'Сборка 22.09-129 · блок погоды: переход анимации в цвет фона слева, как раньше'],
+    dashboard: ['Панель мониторинга', 'Сборка 22.09-132 · блок погоды: слева анимация размывается в чистый цвет неба (под текстом и кнопкой)'],
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
@@ -1010,13 +1010,12 @@
     else if (tod === 'evening') c = '#f0a868';
     else c = '#42a5f5';
     // 22.09-129: два варианта сцены. Блок «погода сегодня» на главной
-    // (opt.leftFade) — как раньше: анимация справа, справа→влево плавный
-    // переход в цвет фона (слева цвета сцены нет) и эффекты растворяются
-    // маской к левому краю. Окно прогноза «по часам» — без фейда (как есть).
+    // (opt.leftFade) — эффекты растворяются маской к левому краю; 22.09-132:
+    // цвет неба заливает ВЕСЬ блок, а слева поверх лежит слой размытия
+    // (см. ниже) — анимация там расплывается, преобладает чистый цвет неба.
+    // Окно прогноза «по часам» — без фейда и без размытия (как есть).
     var _leftFade = !!(opt && opt.leftFade);
-    var sceneBg = _leftFade
-      ? 'linear-gradient(to right,transparent 28%,' + c + ' 58%,' + c + ' 100%)'
-      : 'linear-gradient(to right,' + c + ' 0%,' + c + ' 60%,' + c + ' 100%)';
+    var sceneBg = 'linear-gradient(to right,' + c + ' 0%,' + c + ' 60%,' + c + ' 100%)';
     var windy = (wf.wind || 0) >= 5; // средний/сильный ветер → дождь под углом + линии ветра
     var scene = '<div class="wx-scene' + (windy ? ' wx-windy' : '') + '" style="background:' + sceneBg + ';transition:background 1.2s ease">';
     // При левом фейде звёзды/ветер/снег уходят в ноль к ~25% ширины (как раньше);
@@ -1094,6 +1093,21 @@
     if (hasStorm) {
       scene += '<div class="wx-flash" id="wx-flash"></div>';
       scene += '<div class="wx-bolts" id="wx-bolts"></div>';
+    }
+    // 22.09-132: только дашборд (leftFade). Слой «размытия» слева, под текстом
+    // погоды и кнопкой «🗺 Карта погоды»: backdrop-blur растворяет анимацию в
+    // мягкие пятна (облака/капли расплываются), лёгкая тёмная вуаль сохраняет
+    // читаемость белого текста; маской слой плавно исчезает к ~58% ширины
+    // блока (элемент занимает левые 62%, прозрачен с 94% своей ширины) —
+    // преобладает чистый цвет неба. Без поддержки backdrop-filter остаётся
+    // вуаль: небо читается, детали приглушены. z-index 5: выше облаков (0/2),
+    // снега (3), искр (4); молнии (6) остаются поверх.
+    if (_leftFade) {
+      scene += '<div style="position:absolute;left:0;top:0;bottom:0;right:38%;pointer-events:none;z-index:5;' +
+        'background:linear-gradient(to right,rgba(8,20,40,.34) 0%,rgba(8,20,40,.16) 48%,rgba(8,20,40,0) 94%);' +
+        '-webkit-backdrop-filter:blur(9px);backdrop-filter:blur(9px);' +
+        '-webkit-mask-image:linear-gradient(to right,black 0%,black 55%,transparent 94%);' +
+        'mask-image:linear-gradient(to right,black 0%,black 55%,transparent 94%)"></div>';
     }
     scene += '</div>';
     return { html: scene, bg: sceneBg };
@@ -2810,7 +2824,7 @@
     }
     var wIcon = todayWeather.snow ? '❄️' : todayWeather.desc.indexOf('Дождь') !== -1 || todayWeather.desc.indexOf('Морось') !== -1 ? '🌧️' : todayWeather.desc === 'Ясно' ? '☀️' : '⛅';
     var _wx = weatherSceneHTML(todayWeather, { hour: new Date().getHours(), leftFade: true });
-    html += '<div data-action="open-weather" style="margin-bottom:0;padding:14px 18px;min-height:68px;background:linear-gradient(to right,#1e3a5f 0%,#2563eb 30%,rgba(37,99,235,0) 62%);color:#fff;border-radius:10px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:transform .2s,box-shadow .2s;position:relative;overflow:hidden;" onmouseover="this.style.transform=\'translateY(-2px)\';this.style.boxShadow=\'0 8px 24px rgba(0,0,0,.3)\';" onmouseout="this.style.transform=\'\';this.style.boxShadow=\'\';" title="Нажмите для просмотра прогноза на 15 дней">';
+    html += '<div data-action="open-weather" style="margin-bottom:0;padding:14px 18px;min-height:68px;background:#1e3a5f;color:#fff;border-radius:10px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:transform .2s,box-shadow .2s;position:relative;overflow:hidden;" onmouseover="this.style.transform=\'translateY(-2px)\';this.style.boxShadow=\'0 8px 24px rgba(0,0,0,.3)\';" onmouseout="this.style.transform=\'\';this.style.boxShadow=\'\';" title="Нажмите для просмотра прогноза на 15 дней">';
     html += _wx.html;
     html += '<span style="font-size:28px;position:relative;z-index:1;text-shadow:0 1px 5px rgba(0,0,0,.35);">' + wIcon + '</span>';
     html += '<div style="position:relative;z-index:1;text-shadow:0 1px 5px rgba(0,0,0,.35);"><div style="font-size:15px;font-weight:700;">' + todayWeather.temp + '°C · ' + todayWeather.desc + '</div>';
