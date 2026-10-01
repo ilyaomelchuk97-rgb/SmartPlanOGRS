@@ -742,7 +742,7 @@
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
     objmap: ['Карта объектов', 'Сборка 22.09-127 · карта маршрутов: подложка всегда Яндекс, пробки слоем Яндекса, маршруты роутеров — точками поверх карты'],
-    testmap: ['Тест проезда', 'Сборка 22.09-130 · свой оптимизатор OptMap (граф дорог Минска из OSM); компактная загрузка графа — сайт не падает'],
+    testmap: ['Тест проезда', 'Сборка 22.09-131 · OptMap удалён: память сервера освобождена, роутеры — только внешние (OSRM / BRouter / Valhalla)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
     perms: ['Разрешения', 'Система разрешений на производство работ'],
@@ -17671,7 +17671,7 @@
   // Восстанавливаем выбор роутера из localStorage, чтобы между сессиями работал.
   try {
     var _savedRouter = localStorage.getItem('smartplan_test_router');
-    if (_savedRouter && /^(osrm|brouter-car|valhalla|optmap)$/.test(_savedRouter)) {
+    if (_savedRouter && /^(osrm|brouter-car|valhalla)$/.test(_savedRouter)) {
       TS.router = _savedRouter;
     }
     var _savedMap = localStorage.getItem('smartplan_test_map_engine');
@@ -17780,9 +17780,8 @@
           '<option value="osrm" ' + (TS.router === 'osrm' ? 'selected' : '') + '>🚗 OSRM</option>' +
           '<option value="brouter-car" ' + (TS.router === 'brouter-car' ? 'selected' : '') + '>🚗 BRouter car-fast</option>' +
           '<option value="valhalla" ' + (TS.router === 'valhalla' ? 'selected' : '') + '>🟧 Valhalla</option>' +
-          '<option value="optmap" ' + (TS.router === 'optmap' ? 'selected' : '') + '>🛰 OptMap — свой движок</option>' +
         '</select>' +
-        '<button class="btn primary" id="t-btn-build-route" data-action="t-build-route" disabled style="opacity:.5;cursor:not-allowed;">' + IC.route + ' Оптимизация маршрутов</button>' + '<button class="btn sm" id="t-btn-compare" data-action="t-build-compare" style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;font-weight:700" title="Сравнить автомобильные роутеры (OSRM demo / FOSSGIS car / Valhalla public / osm.ch / BRouter car / OptMap — свой серверный движок / Прямая линия ×1.4)">🔀 Сравнить</button>') +
+        '<button class="btn primary" id="t-btn-build-route" data-action="t-build-route" disabled style="opacity:.5;cursor:not-allowed;">' + IC.route + ' Оптимизация маршрутов</button>' + '<button class="btn sm" id="t-btn-compare" data-action="t-build-compare" style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;font-weight:700" title="Сравнить автомобильные роутеры (OSRM demo / FOSSGIS car / Valhalla public / osm.ch / BRouter car / Прямая линия ×1.4)">🔀 Сравнить</button>') +
       '<div class="spacer"></div>' +
       provSelHTML +
       '</div>';
@@ -18004,8 +18003,7 @@
         var labels = {
           'osrm': 'OSRM (автомобильный, дорожная сеть OSM)',
           'brouter-car': 'BRouter car-fast (авто, энергоэффективный)',
-          'valhalla': 'Valhalla public (авто, с проверкой закрытий)',
-          'optmap': 'OptMap — свой движок: граф ОСМ Минска + пробки по часу выезда'
+          'valhalla': 'Valhalla public (авто, с проверкой закрытий)'
         };
         try { toast('info', '🚦 Роутер: ' + (labels[TS.router] || TS.router)); } catch (er) {}
       });
@@ -19897,7 +19895,7 @@
         '</div>' +
         '<div style="padding:10px 22px;background:var(--panel-2);border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-shrink:0">' +
           '<div style="font-size:10.5px;color:var(--muted);line-height:1.5">' +
-            '<b>Цветной кружок</b> слева = движок (O=OSRM, F=FOSSGIS car, V=Valhalla, C=osm.ch, A=BRouter car, M=OptMap свой, 0=прямая).<br>' +
+            '<b>Цветной кружок</b> слева = движок (O=OSRM, F=FOSSGIS car, V=Valhalla, C=osm.ch, A=BRouter car, 0=прямая).<br>' +
             '<b>⭐</b> слева вверху — рекомендация системы (минимальная дистанция). Справа в строке — радио-кнопка для вашего выбора.' +
           '</div>' +
           '<button class="btn sm" id="t-compare-retry" type="button" style="background:#f1f5f9;color:var(--ink);border:1px solid var(--line);font-weight:600">↻ Обновить</button>' +
@@ -19947,7 +19945,6 @@
       'valhalla-public':{ letter: 'V', bg: '#ea580c', fg: '#fff', title: 'Valhalla public' },
       'osm-ch':         { letter: 'C', bg: '#dc2626', fg: '#fff', title: 'routing.osm.ch (CH/EU)' },
       'brouter-car':    { letter: 'A', bg: '#0f172a', fg: '#fff', title: 'BRouter, car-fast' },
-      'optmap':         { letter: 'M', bg: '#0e7490', fg: '#fff', title: 'OptMap — свой сервер: граф ОСМ Минска + пробки по часу выезда' },
       'straight':       { letter: '0', bg: '#64748b', fg: '#fff', title: 'Прямая линия ×1.4 (без сети)' }
     };
     var ICONS = {
@@ -19956,7 +19953,6 @@
       'valhalla-public':'🟧',
       'osm-ch':        '🇨🇭',
       'brouter-car':   '🚗',
-      'optmap':        '🛰',
       'straight':      '⬜'
     };
     var NAMES = {
@@ -19965,7 +19961,6 @@
       'valhalla-public':'Valhalla public',
       'osm-ch':        'osm.ch (CH)',
       'brouter-car':   'BRouter · car',
-      'optmap':        'OptMap · свой движок',
       'straight':      'Прямая ×1.4'
     };
     var URLS = {
@@ -20292,30 +20287,8 @@
         }).catch(function (e) { onResult({ ok: false, by: 'brouter-car', msg: 'BRouter car: ' + e.message }); });
     }
 
-    // 6) OptMap — наш собственный серверный оптимизатор (22.09-128):
-    //    граф дорог Минска из OSM + модель пробок по часу выезда; считает
-    //    наш же сервер, без внешних API и лимитов.
-    function callOptMap() {
-      var reqPts = [{ lat: base.lat, lon: base.lng, name: base.name || 'База' }];
-      pts.forEach(function (p) { reqPts.push({ lat: p.lat, lon: p.lng, name: p.addr }); });
-      SP_API._request('POST', '/optmap/optimize', {
-        points: reqPts,
-        options: { roundTrip: true, mode: 'time', traffic: true, departHour: new Date().getHours(), returnGeometry: true, isWeekend: [0, 6].indexOf(new Date().getDay()) >= 0 }
-      }).then(function (r) {
-        if (r && r.ok && r.totals) {
-          var geom = [];
-          (r.legs || []).forEach(function (l, li) {
-            (l.coords || []).forEach(function (c, ci) { if (li > 0 && ci === 0) return; geom.push([c[0], c[1]]); });
-          });
-          onResult({ ok: true, by: 'optmap', km: (r.totals.distanceM || 0) / 1000, min: Math.round((r.totals.durationS || 0) / 60), geometry: geom });
-        } else {
-          onResult({ ok: false, by: 'optmap', msg: 'OptMap: ' + ((r && (r.err || (r.error && r.error.message))) || 'нет ответа') });
-        }
-      }).catch(function (e) { onResult({ ok: false, by: 'optmap', msg: 'OptMap: ' + e.message }); });
-    }
-
-    // Запуск всех 6 параллельно (только автомобильные роутеры; отказ одного — не блокирует остальные)
-    var callers = [callOsrmDemo, callFossgisCar, callValhallaPublic, callOsmCh, callBRouterCar, callOptMap];
+    // Запуск всех 5 параллельно (только автомобильные роутеры; отказ одного — не блокирует остальные)
+    var callers = [callOsrmDemo, callFossgisCar, callValhallaPublic, callOsmCh, callBRouterCar];
     callers.forEach(function (fn) {
       try { fn(); } catch (e) { /* если упало на старте — пусть onResult не вызывается */ }
     });
@@ -20338,12 +20311,6 @@
     if (routerKey === 'brouter-car') {
       var profile = 'car-fast'; // 22.09-126: trekking-профили убраны — тест проезда только для автомобиля
       buildTestRouteBRouter(profile, restoreBtn);
-      return;
-    }
-    // 22.09-128: OptMap — свой серверный оптимизатор (граф дорог OSM Минска
-    // + модель пробок по часу выезда). Считает наш же сервер — без внешних API.
-    if (routerKey === 'optmap') {
-      buildTestRouteOptMap(restoreBtn);
       return;
     }
     var ri = document.getElementById('t-route-info');
@@ -20647,86 +20614,6 @@
   // Протокол: GET https://brouter.de/brouter?lonlats=lng,lat|lng,lat&profile=trekking&format=geojson
   // НЕ оптимизирует порядок точек сам — нам надо сделать NN+2-opt самим
   // через OSRM Table API (эта функция берёт уже готовый порядок).
-  /* === 22.09-128: OptMap — свой серверный оптимизатор маршрута ===
-     Запрос на /api/optmap/optimize (наш сервер): порядок точек решается
-     Хелд-Карпом/2-opt по матрице дорог Минска (OSM) с моделью пробок по
-     часу выезда; геометрия участков возвращается сразу — рисуем тем же
-     слоем на Яндекс-карте (карта и точки не меняются). */
-  function buildTestRouteOptMap(restoreBtn) {
-    var base = currentBase();
-    var ri = document.getElementById('t-route-info');
-    var pts = (tState.pts || []).filter(function (p) { return p.lat != null && p.lng != null; })
-      .map(function (p) { return { id: p.id, lat: p.lat, lng: p.lng, addr: p.addr, mcol: p.mcol, work: p.work, norm: p.norm, master: p.master }; });
-    if (!pts.length) {
-      toast('warn', 'Выберите хотя бы одно задание с координатами');
-      if (ri) ri.textContent = 'нет точек с координатами';
-      restoreBtn();
-      return;
-    }
-    if (ri) ri.textContent = '⏳ OptMap: считаем на своём сервере…';
-    var reqPts = [{ lat: base.lat, lon: base.lng, name: base.name || 'База' }];
-    pts.forEach(function (p) { reqPts.push({ lat: p.lat, lon: p.lng, name: p.addr }); });
-    SP_API._request('POST', '/optmap/optimize', {
-      points: reqPts,
-      options: { roundTrip: true, mode: 'time', traffic: true, departHour: currentHourForJam(), returnGeometry: true, isWeekend: [0, 6].indexOf(new Date().getDay()) >= 0 }
-    }).then(function (r) {
-      if (!r || !r.ok || !r.order || !r.legs || !r.totals) {
-        restoreBtn();
-        if (ri) ri.textContent = 'OptMap: сервис недоступен';
-        toast('err', '⚠ OptMap: ' + ((r && (r.err || (r.error && r.error.message))) || 'нет ответа сервера'));
-        return;
-      }
-      // order[0] === 0 (база — стартовая точка); ноги соответствуют seq: 0→…→0
-      var order = r.order;
-      var ordered = [];
-      for (var i = 1; i < order.length; i++) ordered.push(pts[order[i] - 1]);
-      // Склейка геометрии участков (общие точки на стыках не дублируем)
-      var geom = [];
-      r.legs.forEach(function (l, li) {
-        (l.coords || []).forEach(function (c, ci) { if (li > 0 && ci === 0) return; geom.push([c[0], c[1]]); });
-      });
-      // Время+километры по участкам — как у других роутеров
-      ordered.forEach(function (p, idx) {
-        var leg = r.legs[idx];
-        if (!leg) return;
-        var km = (leg.distanceM || 0) / 1000;
-        var mn = Math.max(1, Math.round((leg.durationS || 0) / 60));
-        p.travelKm = km; p.travelKmText = km.toFixed(1).replace('.', ',') + ' км';
-        p.travelMin = mn; p.travelText = fmtDuration(mn) + ' (модель пробок)';
-      });
-      // Возврат на базу — последняя нога
-      var retLeg = r.legs[r.legs.length - 1];
-      var bc = document.getElementById('t-base-return-info');
-      if (bc && retLeg && retLeg.durationS != null) {
-        bc.innerHTML = '🛣 От последнего задания до базы: <b style="color:#fff">' +
-          fmtDuration(Math.max(1, Math.round(retLeg.durationS / 60))) + '</b> · ' +
-          ((retLeg.distanceM || 0) / 1000).toFixed(1).replace('.', ',') + ' км';
-      }
-      // Применяем оптимальный порядок: список, маркеры, линия
-      tState.pts = ordered.slice();
-      refreshTestCards(ordered);
-      updateTestDayCards(ordered);
-      if (tState.ymap) tDrawTestMarkers();
-      if (geom.length >= 2) tDrawTestRouteLine(geom);
-      tState.routeItems = [base].concat(ordered).concat([base]);
-      var yaBtn = document.getElementById('t-btn-yandex'); if (yaBtn && ordered.length) yaBtn.style.display = '';
-      var gBtn = document.getElementById('t-btn-google'); if (gBtn && ordered.length) gBtn.style.display = '';
-      var totalKm = (r.totals.distanceM || 0) / 1000;
-      var totalMin = Math.max(1, Math.round((r.totals.durationS || 0) / 60));
-      var freeMin = r.totals.freeFlowDurationS ? Math.max(1, Math.round(r.totals.freeFlowDurationS / 60)) : totalMin;
-      setTestRouteInfo({ km: totalKm, jamsMin: totalMin, freeMin: freeMin, count: ordered.length });
-      restoreBtn();
-      var wrn = (r.warnings && r.warnings.length) ? ' · ⚠ ' + r.warnings[0] : '';
-      toast('ok', '✓ OptMap (' + (r.optimizer && r.optimizer.method || 'свой движок') + '): ' +
-        totalKm.toFixed(1).replace('.', ',') + ' км · ' + fmtDuration(totalMin) + ' с пробками / ' + fmtDuration(freeMin) + ' без' +
-        (r.totals.detourFactor ? ' · объезд ×' + String(r.totals.detourFactor).replace('.', ',') : '') + wrn);
-    }).catch(function (e) {
-      restoreBtn();
-      if (ri) ri.textContent = 'OptMap: ошибка сети';
-      toast('err', '⚠ OptMap не ответил: ' + (e && e.message ? e.message : 'ошибка сети'));
-    });
-  }
-
   function buildTestRouteBRouter(profile, restoreBtn) {
     var base = currentBase();
     var sel = (tState.pts || []).slice();
