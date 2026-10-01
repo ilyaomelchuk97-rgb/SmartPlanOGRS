@@ -741,7 +741,7 @@
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
     graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-122 · настройка периодов: работы с сезонами меняются на зимние/обычные версии по датам графика'],
+    objmap: ['Карта объектов', 'Сборка 22.09-124 · панель графика: «Настройка периодов» → «Сезоны» (после «Настроить периодичность»), «Праздничные дни» — перед «Фильтр»'],
     testmap: ['Тест проезда', 'Полигон: карта маршрутов + оптимизация + пробки + Google Maps (копия «Карты маршрутов» для экспериментов)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
@@ -8846,8 +8846,7 @@
     html += '<button type="button" class="btn sm" data-action="sch-excel" title="Скачать в Excel — текущий период, выбранный режим" style="background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border-color:#15803d">📥 Excel</button>';
     html += '</span></div>';
     html += '<div class="card-b">';
-    // 22.09-110: кнопка «🎉 Праздники» — отдельной строкой под шапкой карточки (не в ряду управления)
-    html += '<div style="display:flex;justify-content:flex-end;margin:0 0 10px"><button type="button" class="btn sm" data-action="sch-holidays" title="Праздничные дни — список (день и месяц, без года); подсвечиваются жёлтым" style="background:linear-gradient(135deg,#eab308,#ca8a04);color:#fff;border-color:#ca8a04">🎉 Праздники</button></div>';
+    // 22.09-123: кнопка «Праздники» перенесена в графики работ (панель слева, после «Обозначения работ»)
 
     if (!rows.length) {
       html += '<div class="empty" style="padding:30px">Нет работников</div>';
@@ -15394,6 +15393,7 @@
       if (el.dataset.tool === 'addobj') { openGraphAddObjsModal(false); }
       else if (el.dataset.tool === 'newobj') { openGraphAddObjsModal(false); } // уже добавленные скрыты
       else if (el.dataset.tool === 'legend') { openGraphLegendModal(); }
+      else if (el.dataset.tool === 'holidays') { openHolidaysModal(); }
       else if (el.dataset.tool === 'period') { openGraphPeriodModal(); }
       else if (el.dataset.tool === 'filter') { openGraphFilterModal(); }
       else if (el.dataset.tool === 'winter') { openGraphWinterModal(); }
@@ -15693,18 +15693,22 @@
     legend: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="6" r="1.6" fill="currentColor" stroke="none"/><path d="M10 6h11"/><circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none"/><path d="M10 12h11"/><circle cx="5" cy="18" r="1.6" fill="currentColor" stroke="none"/><path d="M10 18h11"/></svg>',
     funnel: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 3H2l8 9.5V19l4 2v-8.5L22 3z"/></svg>',
     snow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/><path d="m20 16-4-4 4-4"/><path d="m4 8 4 4-4 4"/><path d="m16 4-4 4-4-4"/><path d="m8 20 4-4 4 4"/></svg>',
+    gift: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 01-2 2H7a2 2 0 01-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 010-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 010 5"/></svg>',
     pencil: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>',
     copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>'
   };
   function graphsToolbarHtml(g) {
+    // 22.09-124: «Сезоны» (бывш. «Настройка периодов») — после «Настроить периодичность»;
+    // «Праздничные дни» — перед «Фильтр»
     var left = [
       { tool: 'newobj', tip: 'Добавить объекты в график', cls: 'gt-green', icon: 'plus' },
       { tool: 'period', tip: 'Настроить периодичность', cls: 'gt-violet', icon: 'repeat' },
+      { tool: 'winter', tip: 'Сезоны', cls: 'gt-sky', icon: 'snow' },
       { tool: 'legend', tip: 'Обозначения работ', cls: 'gt-rose', icon: 'legend' }
     ];
     var right = [
+      { tool: 'holidays', tip: 'Праздничные дни', cls: 'gt-amber', icon: 'gift' },
       { tool: 'filter', tip: 'Фильтр', cls: 'gt-slate', icon: 'funnel' },
-      { tool: 'winter', tip: 'Настройка периодов', cls: 'gt-sky', icon: 'snow' },
       { tool: 'print', tip: 'Печать графика (в Excel)', cls: 'gt-amber', icon: 'printer' },
       { tool: 'delworks', tip: 'Удалить работы', cls: 'gt-red', icon: 'trash' }
     ];
@@ -16933,7 +16937,7 @@
     var y = g.year || new Date().getFullYear();
     var wf = g.winter && g.winter.from ? y + '-' + g.winter.from : '';
     var wt = g.winter && g.winter.to ? y + '-' + g.winter.to : '';
-    var h = '<div class="modal-h"><h3>Настройка периодов</h3><button class="x" data-action="close-modal">×</button></div>';
+    var h = '<div class="modal-h"><h3>Сезоны</h3><button class="x" data-action="close-modal">×</button></div>';
     h += '<div class="modal-b">';
     h += '<div style="font-size:13.5px;font-weight:800;color:#0369a1;margin-bottom:10px">❄️ Зимний период</div>';
     h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">';
