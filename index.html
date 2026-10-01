@@ -801,7 +801,12 @@
   .weather-dropdown .wd-sub{font-size:11px;color:#93c5fd}
   .weather-dropdown .wd-close{position:absolute;top:10px;right:10px;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:16px;width:28px;height:28px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:3}
   .weather-dropdown .wd-close:hover{background:rgba(255,255,255,.3)}
-  .weather-dropdown .wd-grid{display:flex;gap:8px;overflow-x:auto;padding:5px 4px 8px 4px}
+  .weather-dropdown .wd-grid{display:flex;gap:8px;overflow-x:auto;padding:5px 4px 8px 4px;scrollbar-width:thin;scrollbar-color:rgba(147,197,253,.55) rgba(255,255,255,.06)}
+  /* 22.09-125: скроллбар прогноза — тонкий, небесно-голубой, в тон попапа */
+  .weather-dropdown .wd-grid::-webkit-scrollbar{height:7px}
+  .weather-dropdown .wd-grid::-webkit-scrollbar-track{background:rgba(255,255,255,.06);border-radius:10px}
+  .weather-dropdown .wd-grid::-webkit-scrollbar-thumb{background:linear-gradient(90deg,rgba(147,197,253,.6),rgba(56,189,248,.75));border-radius:10px;box-shadow:0 0 6px rgba(56,189,248,.45)}
+  .weather-dropdown .wd-grid::-webkit-scrollbar-thumb:hover{background:linear-gradient(90deg,#93c5fd,#38bdf8);box-shadow:0 0 9px rgba(56,189,248,.7)}
   .weather-dropdown .wd-day{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:10px 10px;text-align:center;min-width:95px;transition:.3s;animation:wpDayIn .4s ease backwards;cursor:pointer;display:flex;flex-direction:column;align-items:center}
   @keyframes wpDayIn{from{opacity:0;transform:translateY(15px)}to{opacity:1;transform:translateY(0)}}
   .weather-dropdown .wd-day:hover{background:rgba(255,255,255,.18);transform:translateY(-3px)}
@@ -1092,7 +1097,7 @@
           <div style="margin-top:6px;font-size:11px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-124 · «Сезоны» и «Праздничные дни» — новые места в панели графика</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-125 · красивый скроллбар в прогнозе погоды</div>
     </div>
   </div>
   </div>
