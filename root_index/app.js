@@ -739,7 +739,7 @@
   var TITLES = {
     dashboard: ['Панель мониторинга', 'Сборка 22.09-141 · у плашки «Нет соединения» убрана тень; меню слева выше затемнений; окна — 80% ширины, по центру'],
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
-    graphs: ['Планирование / График работ', 'Сборка 22.09-145 · периодичность: на виду группа работы (вид — по наведению); обозначения по группам, один цвет на группу'],
+    graphs: ['Планирование / График работ', 'Сборка 22.09-146 · подсказка треугольника — группа работ; в задаче выбор по группам с автовыбором работы как в графике'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
     objmap: ['Карта объектов', 'Сборка 22.09-137 · вид телеметрии «ПТК "Эксорт"» переименован в «ПТК "Эскорт"» — объекты и работы обновлены автоматически'],
     testmap: ['Тест проезда', 'Сборка 22.09-131 · OptMap удалён: память сервера освобождена, роутеры — только внешние (OSRM / BRouter / Valhalla)'],
@@ -14472,6 +14472,70 @@
     objPickRemoveEsc();
     var po = document.getElementById('obj-picker-overlay'); if (po) po.remove();
   }
+  /* 22.09-146: автовыбор конкретной РАБОТЫ внутри выбранной ГРУППЫ — по тем же
+     правилам, что автоподбор работ в графике (тип объекта, линии редуцирования,
+     телеметрия, вид обслуживания, отопление). Объект не выбран — фильтров нет:
+     первая неисключённая работа группы. Как в графике: исключённые названия
+     (автоподбор НИКОГДА) и зимние сезонные версии автовыбор не берёт. */
+  function taskGroupAutopick(area, gp, objId) {
+    if (!gp) return null;
+    var works = [];
+    try { works = WORK.getWorks(area) || []; } catch (e) {}
+    var attrs = {}, objType = '';
+    try {
+      var rec = (window.SP_OBJECTS && objId) ? SP_OBJECTS.getObject(objId) : null;
+      if (rec) { objType = rec.type || ''; if (window.SP_OBJ_ATTRS) attrs = SP_OBJ_ATTRS.getAttrs(rec) || {}; }
+    } catch (e2) {}
+    var rules = objId
+      ? { type: true, lines: true, telemetry: true, service: true, heating: true }
+      : { type: false, lines: false, telemetry: false, service: false, heating: false };
+    var first = null;
+    for (var i = 0; i < works.length; i++) {
+      var w = works[i];
+      if (!w || gwWorkGroup(w) !== gp) continue;
+      if (!first) first = w;
+      if (autopickExcludedName(w.name)) continue;
+      if (String(w.season || '').toLowerCase() === 'зима') continue;
+      if (workMatchesObjectParams(w, attrs, objType, rules)) return w;
+    }
+    return first;
+  }
+  /* Опции списка работ карточки задачи: по ГРУППЕ на строку. На виду — название
+     группы; во всплывающей подсказке опции/списка — какая работа выбрана в этой
+     группе (ранее выбранная сохраняется; новая — автовыбором). Работы без
+     группы — отдельными строками с названием, как раньше. Значение опции
+     по-прежнему id работы — сохранение задачи не меняется. */
+  function taskWorkOptionsHtml(area, works, selWid, objId) {
+    function badgesOf(w) {
+      var b = [];
+      if (w.needs_permit) b.push('📋');
+      if (w.depends_on_snow) b.push('❄️');
+      if (w.min_temp > -50) b.push('🌡️');
+      return b.length ? ' ' + b.join('') : '';
+    }
+    var order = [], gmap = {};
+    (works || []).forEach(function (w) {
+      var gp = gwWorkGroup(w);
+      if (!gp) return;
+      if (!gmap[gp]) { gmap[gp] = []; order.push(gp); }
+      gmap[gp].push(w);
+    });
+    var h = '';
+    order.forEach(function (gp) {
+      var ws = gmap[gp];
+      var chosen = null;
+      ws.forEach(function (w) { if (w.id === selWid) chosen = w; }); // уже выбранная — сохраняем
+      var w0 = chosen || taskGroupAutopick(area, gp, objId) || ws[0];
+      var tip = w0.name + ' (' + fmtH(w0.norm) + ' ч/' + w0.unit + ')' + badgesOf(w0);
+      h += '<option value="' + esc(w0.id) + '"' + (chosen ? ' selected' : '') + ' title="' + esc(tip) + '">' + esc(gp) + (ws.length > 1 ? ' ×' + ws.length : '') + '</option>';
+    });
+    (works || []).forEach(function (w) {
+      if (gwWorkGroup(w)) return; // работы с группой — выше, по одной строке на группу
+      var tip = w.name + ' (' + fmtH(w.norm) + ' ч/' + w.unit + ')' + badgesOf(w);
+      h += '<option value="' + esc(w.id) + '"' + (w.id === selWid ? ' selected' : '') + ' title="' + esc(tip) + '">' + esc(w.name) + '</option>';
+    });
+    return h;
+  }
   function openTaskModal(mode, tid) {
     var masters = visibleMasters();
     if (!masters.length) { toast('err', 'Нет мастеров. Добавьте пользователя с ролью «Мастер» в разделе «Пользователи».'); return; }
@@ -14571,15 +14635,9 @@
         // Блок: строка вида работ + свой объём под ней
         htmlStr += '<div class="work-item' + (idx === highlightIdx ? ' work-row-new' : '') + '">';
         htmlStr += '<div class="work-row">';
-        htmlStr += '<select class="task-work-sel" data-idx="' + idx + '" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;background:var(--card);font-family:inherit;">';
-        works.forEach(function(w) {
-          var badges = [];
-          if (w.needs_permit) badges.push('📋');
-          if (w.depends_on_snow) badges.push('❄️');
-          if (w.min_temp > -50) badges.push('🌡️');
-          var btxt = badges.length ? ' ' + badges.join('') : '';
-          htmlStr += '<option value="' + w.id + '"' + (w.id === selectedWid ? ' selected' : '') + '>' + esc(w.group || '—') + ' → ' + esc(w.name) + ' (' + fmtH(w.norm) + ' ч/' + esc(w.unit) + ')' + btxt + '</option>';
-        });
+        // 22.09-146: выбор между ГРУППАМИ работ; в подсказке списка — выбранная работа
+        htmlStr += '<select class="task-work-sel" data-idx="' + idx + '" title="' + esc(wSel ? wSel.name : '') + '" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;background:var(--card);font-family:inherit;">';
+        htmlStr += taskWorkOptionsHtml(area, works, selectedWid, S.taskModalObjId);
         htmlStr += '</select>';
         htmlStr += '<button type="button" class="work-add-btn" data-idx="' + idx + '" title="Добавить ещё один вид работ на этот адрес">+</button>';
         htmlStr += '<button type="button" class="btn sm ghost del-work-item" data-idx="' + idx + '" style="color:var(--red);border-color:transparent;padding:4px 8px;font-size:14px;font-weight:bold;" title="Убрать этот вид работ">×</button>';
@@ -14619,10 +14677,23 @@
           var mid = document.getElementById('f-master').value;
           var m = masterById(mid);
           var works = m && m.area ? WORK.getWorks(m.area) : [];
-          // По умолчанию подставляем первую ещё не выбранную работу
+          // 22.09-146: подставляем первую ещё не выбранную ГРУППУ; конкретная
+          // работа внутри неё — автовыбором по параметрам объекта (как в графике)
+          var usedG = {};
+          S.taskModalWorks.forEach(function (selId) {
+            var _sw = null;
+            works.forEach(function (x) { if (x.id === selId) _sw = x; });
+            if (_sw) usedG[gwWorkGroup(_sw) || ('id:' + _sw.id)] = 1;
+          });
           var nextWid = '';
           for (var k = 0; k < works.length; k++) {
-            if (S.taskModalWorks.indexOf(works[k].id) === -1) { nextWid = works[k].id; break; }
+            var _gk = gwWorkGroup(works[k]) || ('id:' + works[k].id);
+            if (!usedG[_gk]) {
+              nextWid = gwWorkGroup(works[k])
+                ? ((taskGroupAutopick(m && m.area ? m.area : null, gwWorkGroup(works[k]), S.taskModalObjId) || works[k]).id)
+                : works[k].id;
+              break;
+            }
           }
           if (!nextWid && works.length) nextWid = works[0].id;
           S.taskModalWorks.splice(i + 1, 0, nextWid);
@@ -18232,13 +18303,17 @@
     return '<svg viewBox="0 0 20 20" width="' + size + '" height="' + size + '" style="flex:0 0 auto;display:block"><rect x="1.5" y="1.5" width="17" height="17" rx="2.5" fill="' + color + '" stroke="#000" stroke-width="2"/><path d="M5.5 5.5l9 9M14.5 5.5l-9 9" stroke="#fff" stroke-width="4.6" stroke-linecap="round"/><path d="M5.5 5.5l9 9M14.5 5.5l-9 9" stroke="#000" stroke-width="2.2" stroke-linecap="round"/></svg>';
   }
 
-  /* Информация о работе для всплывающей подсказки при наведении на треугольник */
+  /* Информация о работе для всплывающей подсказки при наведении на треугольник.
+     22.09-146: заголовок — ГРУППА работ (коротко); полный вид работ — строкой ниже
+     светлее. У работ без группы заголовок — название, как раньше. */
   function gwWorkTipHtml(g, ob, wrk, oc) {
     var area = (g && g.area) || graphAreaDefault(g);
     var w = null;
     try { w = WORK.getWork(area, oc.wid || wrk.wid); } catch (e) {}
     var d = gwFromISO(oc.date);
-    return '<b>' + esc(w ? w.name : 'Работа графика') + '</b>' +
+    var _gp = gwWorkGroup(w);
+    return '<b>' + esc(_gp || (w ? w.name : 'Работа графика')) + '</b>' +
+      (_gp && w ? '<br><span style="opacity:.78;font-size:.92em">' + esc(w.name) + '</span>' : '') +
       '<br>Объект: ' + esc(ob.name || '—') +
       '<br>Дата: ' + d.getDate() + ' ' + MONTHS_GEN[d.getMonth()] + ' ' + d.getFullYear() +
       (wrk.period ? '<br>Периодичность: ' + wrk.period + ' мес' + (wrk.dev ? ' − ' + wrk.dev + ' дн' : '') : '') +
