@@ -739,19 +739,20 @@
   var TITLES = {
     dashboard: ['Панель мониторинга', 'Сборка 22.09-135 · меню слева выше затемнений; окна — 80% ширины, по центру, высота по содержимому'],
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
-    graphs: ['Планирование / График работ', 'График работ на год: объекты, периодичность и запланированные работы'],
+    graphs: ['Планирование / График работ', 'Сборка 22.09-138 · набор работ объекта общий для всех графиков: работы следуют за объектом, даты старых графиков не пересчитываются'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
-    objmap: ['Карта объектов', 'Сборка 22.09-136 · телеметрия: «Индел» → «ПТК "Индел"»; добавлены Wago, ПТК «Сириус», ПТК «Эксорт»'],
+    objmap: ['Карта объектов', 'Сборка 22.09-137 · вид телеметрии «ПТК "Эксорт"» переименован в «ПТК "Эскорт"» — объекты и работы обновлены автоматически'],
     testmap: ['Тест проезда', 'Сборка 22.09-131 · OptMap удалён: память сервера освобождена, роутеры — только внешние (OSRM / BRouter / Valhalla)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
     perms: ['Разрешения', 'Система разрешений на производство работ'],
-    refs: ['Справочники', 'Сборка 22.09-134 · атрибуты ГРП: оба списка — только работы ГРП; «совместно» — выбор нескольких работ галочками'],
+    refs: ['Справочники', 'Сборка 22.09-137 · свойства групп работ (🏷 у группы): «Телеметрия» и «ГРП» учитываются в автоподборе графика'],
     workers: ['Работники', 'Графики работы (8 ч → 5/2, 12 ч → 2/2), бригады и отсутствия'],
     schedules: ['Графики смен', 'Сводный календарь по бригадам: кто работает / отдыхает / отсутствует'],
     users: ['Пользователи', 'Учётные записи, роли и доступ к системе'],
     reports: ['Отчёты', 'Печатные формы для подписи у руководства'],
-    logs: ['Журнал действий', 'Действия пользователей системы']
+    logs: ['Журнал действий', 'Действия пользователей системы'],
+    backup: ['Бэкапы баз данных', 'Сборка 22.09-139 · резервные копии всех баз: каждая отдельным файлом (2+ — ZIP) + восстановление без потерь']
   };
 
   /* ---------- ИКОНКИ ---------- */
@@ -8788,28 +8789,44 @@
     openTelemetryModal();
   }
 
-  /* ---------- 22.09-136: миграция видов телеметрии ----------
-     «Индел» → «ПТК "Индел"» (id записи сохраняется — переименование через
-     сервер разойдётся по всем устройствам), плюс гарантированные типы
-     Wago / ПТК "Сириус" / ПТК "Эксорт". Ссылки на старое имя обновляются
+  /* ---------- 22.09-136/137: миграция видов телеметрии ----------
+     Переименования выполняются ПО ПАРАМ (старое имя → новое); id записи
+     сохраняется, поэтому через сервер переименование разойдётся по всем
+     устройствам. 22.09-136: «Индел» → «ПТК "Индел"»; 22.09-137:
+     «ПТК "Эксорт"» → «ПТК "Эскорт"». Плюс гарантированные типы Wago /
+     ПТК "Сириус" / ПТК "Эскорт". Ссылки на старое имя обновляются
      у объектов (attrs.telemetry) и работ (telemetry_type). Идемпотентно:
      если менять нечего — ничего не делает; запуск из enterApp, в т.ч.
      отложенно (после первой синхронизации раздела telemetry). */
-  var TEL_OLD_INDEL = 'Индел';
-  var TEL_NEW_INDEL = 'ПТК "Индел"';
-  var TEL_ENSURE = ['Wago', 'ПТК "Сириус"', 'ПТК "Эксорт"'];
+  var TEL_RENAMES = [['Индел', 'ПТК "Индел"'], ['ПТК "Эксорт"', 'ПТК "Эскорт"']];
+  var TEL_ENSURE = ['Wago', 'ПТК "Сириус"', 'ПТК "Эскорт"'];
   function telemetryMigrateTypes() {
-    var changed = false, renamed = false;
+    var changed = false;
+    var applied = []; // переименования, выполненные в ЭТОМ вызове
     var list = telemetryLoad();
-    // 1) переименование «Индел» → «ПТК "Индел"»
-    for (var i = 0; i < list.length; i++) {
-      var rr = list[i];
-      if (rr && !rr._deleted && rr.name === TEL_OLD_INDEL) {
-        rr = list[i] = Object.assign({}, rr, { id: rr.id || ('tt_' + Date.now().toString(36)), name: TEL_NEW_INDEL });
-        if (window.SP_API && SP_API.upsert) SP_API.upsert('telemetry', rr).catch(function () {});
-        changed = true; renamed = true;
+    // 1) переименования старых наименований по парам
+    TEL_RENAMES.forEach(function (pair) {
+      var oldN = pair[0], newN = pair[1];
+      var hasOld = false, hasNew = false;
+      for (var q = 0; q < list.length; q++) {
+        var rq = list[q];
+        if (rq && !rq._deleted) { if (rq.name === oldN) hasOld = true; if (rq.name === newN) hasNew = true; }
       }
-    }
+      if (!hasOld) return;
+      for (var i = 0; i < list.length; i++) {
+        var rr = list[i];
+        if (!rr || rr._deleted || rr.name !== oldN) continue;
+        if (hasNew) { // обе записи есть — старую удаляем (ссылки перепишем ниже)
+          list.splice(i, 1); i--;
+          if (window.SP_API && SP_API.del) SP_API.del('telemetry', rr.id).catch(function () {});
+        } else {
+          rr = list[i] = Object.assign({}, rr, { id: rr.id || ('tt_' + Date.now().toString(36)), name: newN });
+          if (window.SP_API && SP_API.upsert) SP_API.upsert('telemetry', rr).catch(function () {});
+        }
+        changed = true;
+      }
+      applied.push({ from: oldN, to: newN });
+    });
     // 2) гарантированные типы (добавляем только отсутствующие)
     TEL_ENSURE.forEach(function (nm) {
       var found = false;
@@ -8822,17 +8839,18 @@
       }
     });
     if (changed) { telemetrySaveLS(list); try { telemetrySyncSelects(); } catch (e) {} }
-    // 3) ссылки на старое имя — только если было переименование в этом вызове
-    if (renamed) migrateIndelRefs();
-    return { changed: changed, renamed: renamed };
+    // 3) ссылки на старые имена — только для переименований этого вызова
+    applied.forEach(function (p) { telemetryMigrateRefs(p.from, p.to); });
+    return { changed: changed, renamed: applied.length > 0 };
   }
-  function migrateIndelRefs() {
+  // Переписать ссылки «старое имя → новое» у объектов (attrs.telemetry) и работ (telemetry_type)
+  function telemetryMigrateRefs(oldN, newN) {
     var objsUpd = 0, worksUpd = 0;
     try {
       if (window.SP_OBJECTS && SP_OBJECTS.getObjects) {
         SP_OBJECTS.getObjects().forEach(function (o) {
-          if (o && o.attrs && o.attrs.telemetry === TEL_OLD_INDEL) {
-            SP_OBJECTS.updateObject(o.id, { attrs: { telemetry: TEL_NEW_INDEL } });
+          if (o && o.attrs && o.attrs.telemetry === oldN) {
+            SP_OBJECTS.updateObject(o.id, { attrs: { telemetry: newN } });
             objsUpd++;
           }
         });
@@ -8843,16 +8861,16 @@
         // getWorkTree: все участки КАТАЛОГА работ (getAreas зависит от справочника
         // участков и может не знать область, где лежат работы) — 22.09-136
         WORK.getWorkTree().forEach(function (w) {
-          if (w && w.telemetry_type === TEL_OLD_INDEL && w.area && w.area !== '__defaults') {
-            WORK.updateWork(w.area, w.id, { telemetry_type: TEL_NEW_INDEL });
+          if (w && w.telemetry_type === oldN && w.area && w.area !== '__defaults') {
+            WORK.updateWork(w.area, w.id, { telemetry_type: newN });
             worksUpd++;
           }
         });
       }
-    } catch (e) {}
+    } catch (e2) {}
     if (objsUpd || worksUpd) {
-      try { logAction('Миграция телеметрии', '«Индел» → «ПТК "Индел"»: объектов ' + objsUpd + ', работ ' + worksUpd); } catch (e) {}
-      toast('ok', '📡 «Индел» переименован в «ПТК "Индел"» — обновлено: объектов ' + objsUpd + ', работ ' + worksUpd);
+      try { logAction('Миграция телеметрии', '«' + oldN + '» → «' + newN + '»: объектов ' + objsUpd + ', работ ' + worksUpd); } catch (e) {}
+      toast('ok', '📡 «' + oldN + '» → «' + newN + '» — обновлено: объектов ' + objsUpd + ', работ ' + worksUpd);
     }
   }
 
@@ -10732,8 +10750,16 @@
     function grpHeadHtml(ch, depth) {
       var open = !!(S.refsOpen && S.refsOpen[ch.path]);
       var g = '<div class="grp' + (open ? '' : ' closed') + '" data-action="toggle-tree" data-grp="' + esc(ch.path) + '"' + (depth ? ' style="font-weight:600;font-size:12.5px"' : '') + '><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>' + esc(ch.name);
+      // 22.09-137: бейджи свойств группы (🏷); наследуются от родительских групп
+      var _gf = []; try { _gf = (WORK.groupFlagsOf && WORK.groupFlagsOf(area, ch.path)) || []; } catch (e) {}
+      _gf.forEach(function (f) {
+        var _fx = String(f || '').trim(), _fl = _fx.toLowerCase();
+        var _isTel = (_fl === 'телеметрия'), _isGrp = (_fx === 'ГРП');
+        g += ' <span class="equipment-badge" style="font-size:10px" title="' + (_isTel ? 'Группа помечена «Телеметрия»: работы подбираются только объектам с ТМ; не попадают в подбор «🚫📡 без ТМ»' : (_isGrp ? 'Группа помечена «ГРП»: работы подбираются только объектам типа ГРП' : 'Свойство группы (метка, на автоподбор не влияет)')) + '">' + (_isTel ? '📡 ' : _isGrp ? '🏭 ' : '🏷 ') + esc(_fx) + '</span>';
+      });
       if (admin) g += '<span style="margin-left:auto;display:inline-flex;gap:4px;flex-shrink:0">' +
         '<button type="button" class="btn sm ghost" data-action="grp-newwork" data-path="' + esc(ch.path) + '" title="Добавить работу в эту группу (подгруппа задаётся в карточке работы)" style="padding:2px 8px;font-size:12px;line-height:1.4">＋</button>' +
+        '<button type="button" class="btn sm ghost" data-action="grp-props" data-path="' + esc(ch.path) + '" title="Свойства группы: «Телеметрия» (работы только объектам с ТМ), «ГРП» (только типу ГРП) и другие метки — применяются ко всем работам группы и её подгрупп" style="padding:2px 8px;font-size:12px;line-height:1.4">🏷</button>' +
         '<button type="button" class="btn sm ghost" data-action="grp-rename" data-path="' + esc(ch.path) + '" title="Переименовать группу для всех работ сразу" style="padding:2px 8px;font-size:12px;line-height:1.4">✏️</button></span>';
       return g + '</div>';
     }
@@ -12127,6 +12153,62 @@
     renderRefs();
   }
 
+  /* ===== 22.09-137: СВОЙСТВА ГРУППЫ РАБОТ =====
+     «📡 Телеметрия»: работы группы подбираются только объектам с ТМ; в режиме
+     автоподбора «🚫📡 Только без ТМ» не подбираются, в «📡 Только работы с ТМ» —
+     подбираются. «🏭 ГРП»: работы группы подбираются только объектам типа ГРП.
+     Прочие свойства — простые метки для наглядности. Свойства записываются на
+     все работы группы и её подгрупп (group_flags — синхронизируются с сервером
+     вместе с работами). */
+  function openGroupPropsModal(path) {
+    if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
+    var p = normGroupPath(path);
+    if (!p) return;
+    var area = S.workArea;
+    var flags = []; try { flags = (WORK.groupFlagsOf && WORK.groupFlagsOf(area, p)) || []; } catch (e) {}
+    function hasFlag(f) { var x = String(f).toLowerCase(); return flags.some(function (s) { return String(s || '').trim().toLowerCase() === x; }); }
+    var others = flags.filter(function (s) {
+      var t = String(s || '').trim();
+      return t.toLowerCase() !== 'телеметрия' && t !== 'ГРП';
+    });
+    var affected = groupPathAffected(WORK.getWorks(area), p);
+    S.grpPropsPath = p;
+    var h = '<div class="modal-h"><h3>🏷 Свойства группы работ</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">';
+    h += '<div style="font-size:14px;font-weight:700;margin-bottom:4px">' + esc(p) + '</div>';
+    h += '<div style="font-size:11.5px;color:var(--muted);margin-bottom:12px">Свойства применятся ко всем работам группы и её подгрупп (затронуто работ: <b>' + affected + '</b>).</div>';
+    h += '<label class="cb" style="display:block;font-size:12.5px;line-height:1.5;margin-bottom:10px"><input type="checkbox" id="gp-tel"' + (hasFlag('Телеметрия') ? ' checked' : '') + '> 📡 <b>Телеметрия</b> — работы группы подбираются только объектам с телеметрией (ТМ); в режиме «🚫📡 Только без ТМ» НЕ подбираются, в «📡 Только работы с ТМ» — подбираются</label>';
+    h += '<label class="cb" style="display:block;font-size:12.5px;line-height:1.5;margin-bottom:12px"><input type="checkbox" id="gp-grp"' + (hasFlag('ГРП') ? ' checked' : '') + '> 🏭 <b>ГРП</b> — работы группы подбираются только объектам типа ГРП (не ШРП/ПГРП)</label>';
+    h += '<div class="fld"><label>Другие свойства (через запятую) <span style="color:#94a3b8;font-weight:500">— просто метки для наглядности, на автоподбор не влияют</span></label><input id="gp-other" value="' + esc(others.join(', ')) + '" placeholder="напр.: Зима, Капремонт" autocomplete="off"></div>';
+    h += '</div><div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="grp-props-save">Сохранить</button></div>';
+    modal.innerHTML = h; overlay.classList.add('show');
+  }
+  function saveGroupProps() {
+    if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
+    var p = S.grpPropsPath || '';
+    if (!p) return;
+    function chk(id) { var el = document.getElementById(id); return el ? el.checked : false; }
+    var flags = [];
+    if (chk('gp-tel')) flags.push('Телеметрия');
+    if (chk('gp-grp')) flags.push('ГРП');
+    var oEl = document.getElementById('gp-other');
+    var extra = (oEl ? oEl.value : '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+    extra.forEach(function (s) {
+      var x = s.toLowerCase();
+      if (s === 'ГРП' || x === 'телеметрия') { // системные метки — не дублируем
+        if (x === 'телеметрия' && flags.indexOf('Телеметрия') === -1) flags.push('Телеметрия');
+        if (s === 'ГРП' && flags.indexOf('ГРП') === -1) flags.push('ГРП');
+        return;
+      }
+      if (flags.indexOf(s) === -1) flags.push(s);
+    });
+    var n = 0;
+    try { n = WORK.setGroupFlags(S.workArea, p, flags); } catch (e) { toast('err', 'Не удалось сохранить свойства группы'); return; }
+    logAction('Свойства группы работ', p + ': ' + (flags.join(', ') || 'нет'));
+    overlay.classList.remove('show');
+    toast('ok', '🏷 Свойства группы «' + p + '» обновлены' + (n ? ' (работ затронуто: ' + n + ')' : ' (без изменений)'));
+    renderRefs();
+  }
+
   function openWorkModal(mode, wid) {
     var area = S.workArea;
     var w = mode === 'edit' ? WORK.getWork(area, wid) : null;
@@ -12430,10 +12512,21 @@
         'crew_size', 'crew', 'lines_count', 'telemetry_req', 'telemetry_type', 'diag_equipment', 'heating_req']
         .forEach(function (k) { if (oldW[k] !== undefined) data[k] = oldW[k]; });
     } // при создании на прочих участках — пропуск: work_db сам поставит дефолты
-    if (mode === 'edit') { WORK.updateWork(area, wid, data); logAction('Изменение вида работы', data.name);
+    var savedW = null;
+    if (mode === 'edit') { savedW = WORK.updateWork(area, wid, data); logAction('Изменение вида работы', data.name);
         toast('ok', 'Работа обновлена'); }
-    else { WORK.addWork(area, data); logAction('Добавление вида работы', data.name);
+    else { savedW = WORK.addWork(area, data); logAction('Добавление вида работы', data.name);
         toast('ok', 'Работа добавлена на участок ' + area); }
+    // 22.09-137: наследование свойств группы (🏷 «Телеметрия»/«ГРП»/метки):
+    // новая работа получает пометки своей группы; при переезде в другую
+    // группу — пометки новой группы (пометки старой затираются).
+    try {
+      if (savedW && savedW.id && WORK.groupFlagsOf) {
+        var _gfOwn = Array.isArray(savedW.group_flags) ? savedW.group_flags : [];
+        var _gfNew = WORK.groupFlagsOf(area, data.group, savedW.id) || [];
+        if (JSON.stringify(_gfOwn) !== JSON.stringify(_gfNew)) WORK.updateWork(area, savedW.id, { group_flags: _gfNew });
+      }
+    } catch (e) {}
     overlay.classList.remove('show'); modal.style.width = ''; modal.style.maxWidth = ''; renderRefs();
   }
   function delWork(wid) {
@@ -12685,6 +12778,266 @@
         localStorage.setItem('smartplan_local_logs', JSON.stringify(buf));
       } catch (e) {}
     } catch (e) {}
+  }
+
+  /* =====================================================================
+     22.09-139: БЭКАПЫ БАЗ ДАННЫХ (Администрирование → Бэкапы БД)
+     Каждая база — отдельный JSON-файл; при выборе 2+ — единый ZIP-архив
+     (STORE; чтение .zip поддерживает и deflate). Восстановление из .json
+     и/или .zip без потерь: локальная база заменяется содержимым файла,
+     модуль перечитывается (reloadFromCloud), записи отправляются на сервер;
+     записи, которых нет в файле, удаляются и с сервера.
+     ===================================================================== */
+  var DB_REGISTRY = [
+    { key: 'users', ls: 'smartplan_users_db', sec: 'users', mod: 'SP_USERS_DB', icon: '👤', title: 'Пользователи (учётные записи)',
+      valid: function (d) { return !!(d && Array.isArray(d.users)); },
+      recs: function (d) { return (d && d.users) || []; } },
+    { key: 'workers', ls: 'smartplan_workers_db', sec: 'workers', mod: 'SP_WORKERS', icon: '👷', title: 'Работники (графики смен, бригады)',
+      valid: function (d) { return !!(d && d.workers && typeof d.workers === 'object'); },
+      recs: function (d) {
+        var w = (d && d.workers) || {}, out = [];
+        Object.keys(w).forEach(function (k) { out.push(Object.assign({ id: k }, w[k])); });
+        return out;
+      } },
+    { key: 'areas', ls: 'smartplan_areas_db', sec: 'areas', mod: 'SP_AREAS', icon: '🗂', title: 'Участки',
+      valid: function (d) { return !!(d && Array.isArray(d.areas)); },
+      recs: function (d) { return (d && d.areas) || []; } },
+    { key: 'professions', ls: 'smartplan_professions_db', sec: 'professions', mod: 'SP_PROFS', icon: '🧰', title: 'Профессии',
+      valid: function (d) { return !!(d && (Array.isArray(d.professions) || Array.isArray(d.profNames))); },
+      recs: function (d) { return ((d && d.professions) || []).concat((d && d.profNames) || []); } },
+    { key: 'works', ls: 'smartplan_work_catalog', sec: 'work_catalog', mod: 'SP_WORK', icon: '🛠', title: 'Виды работ (справочник)',
+      valid: function (d) { return !!(d && d.areas && typeof d.areas === 'object'); },
+      recs: function (d) {
+        var out = [], a = (d && d.areas) || {};
+        Object.keys(a).forEach(function (ar) { (a[ar] || []).forEach(function (w) { if (w) out.push(Object.assign({ area: ar }, w)); }); });
+        return out;
+      } },
+    { key: 'objects', ls: 'smartplan_objects_db', sec: 'objects', mod: 'SP_OBJECTS', icon: '🏭', title: 'Объекты (ГРП/ШРП/ГРС/ПГРП)',
+      valid: function (d) { return !!(d && Array.isArray(d.objects)); },
+      recs: function (d) { return (d && d.objects) || []; } },
+    { key: 'tasks', ls: 'smartplan_tasks_db', sec: 'tasks', mod: 'SP_TASKS', icon: '✅', title: 'Задачи (планирование)',
+      valid: function (d) { return !!(d && Array.isArray(d.tasks)); },
+      recs: function (d) { return (d && d.tasks) || []; } },
+    { key: 'graphs', ls: 'smartplan_graphs', sec: 'graphs', mod: null, icon: '📊', title: 'Графики работ',
+      valid: function (d) { return Array.isArray(d); },
+      recs: function (d) { return Array.isArray(d) ? d.filter(function (g) { return g && g.id; }) : []; } },
+    { key: 'holidays', ls: 'smartplan_holidays', sec: 'holidays', mod: null, icon: '🎉', title: 'Праздники',
+      valid: function (d) { return Array.isArray(d); },
+      recs: function (d) { return Array.isArray(d) ? d.filter(function (x) { return x && x.id; }) : []; } },
+    { key: 'telemetry', ls: 'smartplan_telemetry', sec: 'telemetry', mod: null, icon: '📡', title: 'Виды телеметрии',
+      valid: function (d) { return Array.isArray(d); },
+      recs: function (d) { return Array.isArray(d) ? d.filter(function (x) { return x && x.id; }) : []; } },
+    { key: 'logs', ls: 'smartplan_local_logs', sec: null, mod: null, icon: '📜', title: 'Журнал действий (локальный буфер)',
+      valid: function (d) { return Array.isArray(d); },
+      recs: function (d) { return Array.isArray(d) ? d : []; } },
+    { key: 'errlogs', ls: 'smartplan_errors', sec: null, mod: null, icon: '🐞', title: 'Логи ошибок',
+      valid: function (d) { return Array.isArray(d); },
+      recs: function (d) { return Array.isArray(d) ? d : []; } }
+  ];
+  function dbRegByKey(key) { for (var i = 0; i < DB_REGISTRY.length; i++) if (DB_REGISTRY[i].key === key) return DB_REGISTRY[i]; return null; }
+  function dbReadLS(entry) { try { var r = localStorage.getItem(entry.ls); return r ? JSON.parse(r) : null; } catch (e) { return null; } }
+  function dbFmtSize(chars) {
+    if (chars < 1024) return chars + ' Б';
+    if (chars < 1024 * 1024) return (chars / 1024).toFixed(1) + ' КБ';
+    return (chars / 1048576).toFixed(2) + ' МБ';
+  }
+  function backupFileName(entry) { return 'smartplan_' + entry.key + '.json'; }
+  /* Собрать файлы бэкапа по выбранным ключам (каждая база — свой файл с
+     служебным заголовком: тип базы, дата выгрузки, число записей). */
+  function backupCollectFiles(keys) {
+    var files = [];
+    DB_REGISTRY.forEach(function (entry) {
+      if (keys && keys.indexOf(entry.key) === -1) return;
+      var data = dbReadLS(entry);
+      if (data == null) return; // база отсутствует — пропускаем
+      var wrapper = { app: 'SmartPlan', type: 'db-backup', v: 2, dbKey: entry.key, title: entry.title,
+        exportedAt: new Date().toISOString(), count: entry.recs(data).length, data: data };
+      files.push({ name: backupFileName(entry), bytes: window.SP_ZIP.strToBytes(JSON.stringify(wrapper, null, 1)) });
+    });
+    return files;
+  }
+  function backupYmd() {
+    var d = new Date();
+    function p2(n) { return String(n).padStart(2, '0'); }
+    return d.getFullYear() + '' + p2(d.getMonth() + 1) + p2(d.getDate()) + '_' + p2(d.getHours()) + p2(d.getMinutes());
+  }
+  function downloadBlob(name, bytes, type) {
+    try {
+      if (!window.URL || !window.URL.createObjectURL || typeof Blob === 'undefined') { toast('err', 'Скачивание файлов не поддерживается браузером'); return; }
+      var blob = new Blob([bytes], { type: type || 'application/octet-stream' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url; a.download = name;
+      document.body.appendChild(a); a.click();
+      setTimeout(function () { try { if (a.parentNode) a.parentNode.removeChild(a); URL.revokeObjectURL(url); } catch (e) {} }, 900);
+    } catch (e) { toast('err', 'Не удалось скачать файл: ' + ((e && e.message) || e)); }
+  }
+  /* Скачать бэкап: 1 база — файл .json; 2 и больше — ZIP-архив. */
+  function backupDownload(keys) {
+    if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
+    var files = backupCollectFiles(keys);
+    if (!files.length) { toast('warn', 'Нечего выгружать — выбранные базы пусты'); return; }
+    var ymd = backupYmd();
+    if (files.length === 1) {
+      downloadBlob(files[0].name.replace(/\.json$/, '_' + ymd + '.json'), files[0].bytes, 'application/json');
+      toast('ok', '💾 База выгружена одним файлом: ' + files[0].name);
+    } else {
+      var zip = window.SP_ZIP.zipBuildStore(files);
+      downloadBlob('smartplan_backup_' + ymd + '.zip', zip, 'application/zip');
+      toast('ok', '💾 Бэкап готов: ' + files.length + ' баз упаковано в ZIP-архив');
+    }
+    try { logAction('Бэкап БД', files.map(function (f) { return f.name; }).join(', ')); } catch (e) {}
+  }
+
+  /* ---------- Восстановление ---------- */
+  function backupParseText(fname, text, into, errors) {
+    var obj = null;
+    try { obj = JSON.parse(text); } catch (e) { errors.push(fname + ': не JSON-файл'); return; }
+    if (!obj || obj.app !== 'SmartPlan' || obj.type !== 'db-backup' || !obj.dbKey) { errors.push(fname + ': не файл бэкапа SmartPlan'); return; }
+    var entry = dbRegByKey(obj.dbKey);
+    if (!entry) { errors.push(fname + ': неизвестная база «' + obj.dbKey + '»'); return; }
+    if (!entry.valid(obj.data)) { errors.push(fname + ': структура данных базы «' + entry.title + '» не подошла'); return; }
+    into[entry.key] = { entry: entry, name: fname, count: entry.recs(obj.data).length, data: obj.data, exportedAt: obj.exportedAt || '' };
+  }
+  function backupScanFiles(fileList) {
+    if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
+    var files = Array.prototype.slice.call(fileList || []);
+    if (!files.length) return;
+    var into = {}, errors = [];
+    var chain = Promise.resolve();
+    files.forEach(function (f) {
+      chain = chain.then(function () {
+        return new Promise(function (resolve) {
+          var isZip = /\.zip$/i.test(f.name);
+          var fr = new FileReader();
+          fr.onload = function () {
+            try {
+              if (isZip) {
+                var arr = window.SP_ZIP.zipReadStore(new Uint8Array(fr.result));
+                var found = 0;
+                arr.forEach(function (z) {
+                  if (/\.json$/i.test(z.name)) { found++; backupParseText(f.name + ' → ' + z.name, window.SP_ZIP.bytesToStr(z.bytes), into, errors); }
+                });
+                if (!found) errors.push(f.name + ': в архиве нет файлов .json');
+              } else {
+                backupParseText(f.name, String(fr.result), into, errors);
+              }
+            } catch (e) { errors.push(f.name + ': ' + ((e && e.message) || e)); }
+            resolve();
+          };
+          fr.onerror = function () { errors.push(f.name + ': не удалось прочитать файл'); resolve(); };
+          if (isZip) fr.readAsArrayBuffer(f); else fr.readAsText(f, 'utf-8');
+        });
+      });
+    });
+    chain.then(function () { openBackupRestoreModal(into, errors); });
+  }
+  var BACKUP_PENDING = null;
+  function openBackupRestoreModal(into, errors) {
+    var keys = Object.keys(into);
+    var h = '<div class="modal-h"><h3>📥 Восстановление из бэкапа</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">';
+    if (errors && errors.length) {
+      h += '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 10px;font-size:12px;color:#991b1b;margin-bottom:10px">⚠ ' + errors.map(esc).join('<br>⚠ ') + '</div>';
+    }
+    if (!keys.length) {
+      h += '<div class="empty" style="padding:24px 10px">Подходящих баз SmartPlan в выбранных файлах не найдено.</div></div>' +
+        '<div class="modal-f"><button class="btn" data-action="close-modal">Закрыть</button></div>';
+      modal.innerHTML = h; overlay.classList.add('show'); return;
+    }
+    h += '<table class="dt" style="margin-bottom:10px"><thead><tr><th>База данных</th><th style="text-align:right">в файле</th><th style="text-align:right">сейчас</th><th>выгружена</th></tr></thead><tbody>';
+    keys.forEach(function (k) {
+      var p = into[k];
+      var cur = dbReadLS(p.entry);
+      var curCnt = cur == null ? 0 : p.entry.recs(cur).length;
+      var dt = p.exportedAt ? String(p.exportedAt).replace('T', ' ').slice(0, 16) : '—';
+      h += '<tr><td>' + p.entry.icon + ' <b>' + esc(p.entry.title) + '</b><div style="font-size:10.5px;color:var(--muted)">' + esc(p.name) + '</div></td>' +
+        '<td style="text-align:right">' + p.count + '</td><td style="text-align:right">' + curCnt + '</td><td style="font-size:11px;color:var(--muted)">' + esc(dt) + '</td></tr>';
+    });
+    h += '</tbody></table>';
+    h += '<div style="background:#fefce8;border:1px solid #fde68a;border-radius:8px;padding:8px 10px;font-size:12px;color:#92400e;line-height:1.5">⚠ <b>Восстановление без потерь:</b> данные этих баз будут полностью заменены содержимым файлов — на устройстве и на сервере. Записей, которых нет в файлах, после восстановления не останется. Действие необратимо.</div>';
+    h += '</div><div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button><button class="btn danger" data-action="backup-restore-go">Восстановить: ' + keys.length + ' ' + (keys.length === 1 ? 'базу' : keys.length < 5 ? 'базы' : 'баз') + '</button></div>';
+    BACKUP_PENDING = into;
+    modal.innerHTML = h; overlay.classList.add('show');
+  }
+  /* Применить восстановление (без DOM): локальная замена + перечитка модулей
+     + сервер (upsert всех записей файла; удаление записей, которых в файле нет). */
+  var BACKUP_RESTORE_ORDER = ['users', 'workers', 'areas', 'professions', 'works', 'objects', 'telemetry', 'holidays', 'graphs', 'tasks', 'logs', 'errlogs'];
+  function backupApplyAll(pending) {
+    var res = { dbs: 0, ups: 0, dels: 0, fails: 0, offline: false };
+    var byKey = {};
+    Object.keys(pending || {}).forEach(function (k) { byKey[k] = pending[k]; });
+    function runOne(pack) {
+      var entry = pack.entry, data = pack.data;
+      try {
+        var oldData = dbReadLS(entry);
+        try { localStorage.setItem(entry.ls, JSON.stringify(data)); } catch (eLS) { res.fails++; return; }
+        try {
+          var mod = entry.mod && window[entry.mod];
+          if (mod && typeof mod.reloadFromCloud === 'function') mod.reloadFromCloud(data);
+        } catch (eR) {}
+        if (entry.key === 'telemetry') { try { telemetrySyncSelects(); } catch (eT) {} }
+        res.dbs++;
+        if (!entry.sec || !(window.SP_API && SP_API.getToken && SP_API.getToken())) { res.offline = true; return; }
+        var newIds = {};
+        entry.recs(data).forEach(function (r) {
+          if (!r || r.id == null) return;
+          newIds[r.id] = 1; res.ups++;
+          try { Promise.resolve(SP_API.upsert(entry.sec, r)).catch(function () { res.fails++; }); } catch (eU) { res.fails++; }
+        });
+        entry.recs(oldData).forEach(function (r) {
+          if (!r || r.id == null || newIds[r.id]) return;
+          res.dels++;
+          try { Promise.resolve(SP_API.del(entry.sec, r.id)).catch(function () { res.fails++; }); } catch (eD) { res.fails++; }
+        });
+      } catch (e) { res.fails++; }
+    }
+    BACKUP_RESTORE_ORDER.forEach(function (k) { if (byKey[k]) { runOne(byKey[k]); delete byKey[k]; } });
+    Object.keys(byKey).forEach(function (k) { runOne(byKey[k]); });
+    return res;
+  }
+  function backupRestoreGo() {
+    if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
+    if (!BACKUP_PENDING) return;
+    var pending = BACKUP_PENDING; BACKUP_PENDING = null;
+    overlay.classList.remove('show');
+    var res = backupApplyAll(pending);
+    try { logAction('Восстановление БД из бэкапа', 'баз: ' + res.dbs + ', отправлено записей: ' + res.ups + ', удалено: ' + res.dels); } catch (e) {}
+    toast(res.fails ? 'warn' : 'ok', '📥 Восстановлено баз: ' + res.dbs + ' · записей на сервер: ' + res.ups + (res.dels ? ' · удалено с сервера: ' + res.dels : '') + (res.offline ? ' · сервер недоступен — данные восстановлены локально' : '') + (res.fails ? ' · ошибок: ' + res.fails : ''));
+    if (S.screen === 'backup') renderBackup();
+  }
+
+  /* ---------- СТРАНИЦА ---------- */
+  function renderBackup() {
+    if (S.role !== 'admin') { view.innerHTML = '<div class="card"><div class="card-b"><div class="empty">Страница доступна только администратору.</div></div></div>'; return; }
+    var html = '<div class="card"><div class="card-h"><h2>💾 Бэкапы баз данных</h2><span class="sub">Каждая база — отдельный файл · выбрано 2 и больше — единый ZIP-архив</span><div class="spacer"></div></div><div class="card-b">';
+    html += '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px">' +
+      '<button type="button" class="btn primary" data-action="backup-dl-sel">💾 Скачать выбранные</button>' +
+      '<button type="button" class="btn" data-action="backup-dl-all">📦 Скачать ВСЕ базы (ZIP)</button>' +
+      '<span style="width:1px;height:20px;background:var(--line);margin:0 4px"></span>' +
+      '<button type="button" class="btn" data-action="backup-restore" style="background:#166534;color:#fff;border-color:#15803d">📥 Восстановить из файлов…</button>' +
+      '<button type="button" class="btn sm ghost" data-action="backup-check-all">выбрать все</button>' +
+      '<button type="button" class="btn sm ghost" data-action="backup-check-none">снять выбор</button>' +
+      '</div>';
+    html += '<table class="dt"><thead><tr><th style="width:34px"></th><th>База данных</th><th>Ключ хранения</th><th style="text-align:right">Записей</th><th style="text-align:right">Объём</th></tr></thead><tbody>';
+    DB_REGISTRY.forEach(function (entry) {
+      var d = dbReadLS(entry);
+      var cnt = d == null ? 0 : entry.recs(d).length;
+      var sz = 0; try { sz = (localStorage.getItem(entry.ls) || '').length; } catch (e) {}
+      html += '<tr>' +
+        '<td><label class="cb" style="margin:0"><input type="checkbox" data-bk="' + entry.key + '"' + (d != null ? ' checked' : '') + '></label></td>' +
+        '<td>' + entry.icon + ' <b>' + esc(entry.title) + '</b></td>' +
+        '<td style="color:var(--muted);font-size:11px">' + esc(entry.ls) + '</td>' +
+        '<td style="text-align:right">' + (d == null ? '—' : cnt) + '</td>' +
+        '<td style="text-align:right;color:var(--muted);font-size:11.5px">' + (d == null ? 'пусто' : dbFmtSize(sz)) + '</td>' +
+        '</tr>';
+    });
+    html += '</tbody></table>';
+    html += '<input type="file" id="backup-file" multiple accept=".json,.zip,application/json,application/zip" style="display:none">';
+    html += '<div class="calc" style="margin-top:12px;font-size:11.5px;align-items:flex-start;line-height:1.55">Как это работает: каждая база выгружается отдельным JSON-файлом (внутри — служебный заголовок с типом базы, датой выгрузки и числом записей). Если баз 2 и больше — файлы упаковываются в один ZIP-архив, открывающийся любым архиватором. <b>Восстановление</b> принимает файлы .json, .zip или сразу несколько файлов: данные баз заменяются содержимым файлов на устройстве и на сервере — перенос происходит без потерь (при повреждённом архиве контрольная сумма не сойдётся и восстановление не выполнится).</div>';
+    html += '</div></div>';
+    view.innerHTML = html;
+    var inp = document.getElementById('backup-file');
+    if (inp) inp.addEventListener('change', function () { backupScanFiles(inp.files); try { inp.value = ''; } catch (e) {} });
   }
 
   /* =====================================================================
@@ -15320,6 +15673,7 @@
     else if (S.screen === 'reports') renderReports();
     else if (S.screen === 'logs') renderLogs();
     else if (S.screen === 'errlogs') renderErrLogs();
+    else if (S.screen === 'backup') renderBackup(); // 22.09-139
     else if (S.screen === 'graphs') renderGraphs();
   }
 
@@ -15504,6 +15858,18 @@
     else if (a === 'graphs-print-go') { graphsPrintGo(); }
     else if (a === 'graphs-excel-go') { graphsExportExcel(graphPrintOpts()); }
     else if (a === 'graphs-period-save') { graphsPeriodSave(); }
+    else if (a === 'backup-dl-all') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } backupDownload(null); } // 22.09-139
+    else if (a === 'backup-dl-sel') {
+      if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
+      var _bk = [];
+      document.querySelectorAll('[data-bk]').forEach(function (c) { if (c.checked) _bk.push(c.getAttribute('data-bk')); });
+      if (!_bk.length) { toast('warn', 'Отметьте базы для выгрузки'); return; }
+      backupDownload(_bk);
+    }
+    else if (a === 'backup-check-all') { document.querySelectorAll('[data-bk]').forEach(function (c) { c.checked = true; }); }
+    else if (a === 'backup-check-none') { document.querySelectorAll('[data-bk]').forEach(function (c) { c.checked = false; }); }
+    else if (a === 'backup-restore') { var _bf = document.getElementById('backup-file'); if (_bf) _bf.click(); }
+    else if (a === 'backup-restore-go') { backupRestoreGo(); }
     else if (a === 'gl-color') { /* цвет обозначения — слушатель на инпуте */ }
     // ===== Страница «Работники» =====
     else if (a === 'wk-month-prev') { wkShiftMonth(-1); }
@@ -15673,6 +16039,8 @@
     else if (a === 'grp-rename') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } openGroupRenameModal(el.dataset.path); }
     else if (a === 'grp-rename-save') { saveGroupRename(); }
     else if (a === 'grp-newwork') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } S.workPresetGroup = el.dataset.path || ''; openWorkModal('new'); }
+    else if (a === 'grp-props') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } openGroupPropsModal(el.dataset.path); } // 22.09-137
+    else if (a === 'grp-props-save') { saveGroupProps(); } // 22.09-137
     else if (a === 'save-work') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } saveWork(); }
     else if (a === 'print-report1') { printReport1(); }
     else if (a === 'print-report2') { printReport2(); }
@@ -16418,6 +16786,108 @@
     return ob.works;
   }
   function gwNewSid() { return 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+  /* ===== 22.09-138: ОБЩИЙ НАБОР РАБОТ ОБЪЕКТА (для всех графиков) =====
+     Набор работ объекта (вид, периодичность, отклонение, дата первого
+     проведения) хранится НА ОБЪЕКТЕ (o.plan_works) и един для всех графиков:
+     объект, добавленный в другой график, приходит со своими работами; правка
+     набора в одном графике отражается во всех. При этом УЖЕ РАССЧИТАННЫЕ
+     даты каждого графика НЕ меняются — пересчёт выполняется только в том
+     графике, который сохраняет пользователь. Серии всегда продолжаются от
+     даты отсчёта сквозь года (без перезапуска в новом году). */
+  function gowRowCfg(w) { return { wid: w.wid, period: w.period || 0, dev: w.dev || 0, first: w.first || '' }; }
+  /* Общий набор работ объекта: 1) o.plan_works; 2) запасной вариант — строки
+     из самого свежего (старший год) графика, где объект уже настроен. */
+  function graphObjWorksCfg(oid) {
+    if (!oid) return [];
+    try {
+      var rec = (window.SP_OBJECTS && SP_OBJECTS.getObject) ? SP_OBJECTS.getObject(oid) : null;
+      if (rec && Array.isArray(rec.plan_works) && rec.plan_works.length) {
+        return rec.plan_works.filter(function (r) { return r && r.wid; }).map(gowRowCfg);
+      }
+    } catch (e) {}
+    var found = [];
+    try {
+      graphsLoad().slice().sort(function (a, b) { return (b.year || 0) - (a.year || 0); }).some(function (g2) {
+        var ob = null;
+        (g2.objs || []).forEach(function (x) { if (!ob && x && x.oid === oid) ob = x; });
+        if (!ob) return false;
+        var rows = gwObjWorks(ob).filter(function (w) { return w && w.wid; });
+        if (!rows.length) return false;
+        found = rows.map(gowRowCfg);
+        return true;
+      });
+    } catch (e2) {}
+    return found;
+  }
+  function graphObjWorksCfgSame(a, b) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      var x = a[i], y = b[i];
+      if (!x || !y || x.wid !== y.wid || (x.period || 0) !== (y.period || 0) || (x.dev || 0) !== (y.dev || 0) || (x.first || '') !== (y.first || '')) return false;
+    }
+    return true;
+  }
+  /* Записать общий набор на объект (только при изменении). */
+  function graphObjWorksCfgSave(oid, rows) {
+    if (!oid || !window.SP_OBJECTS || !SP_OBJECTS.updateObject) return false;
+    var rec = null;
+    try { rec = SP_OBJECTS.getObject(oid); } catch (e) {}
+    if (!rec) return false;
+    rows = (rows || []).filter(function (r) { return r && r.wid; }).map(gowRowCfg);
+    var cur = Array.isArray(rec.plan_works) ? rec.plan_works.filter(function (r) { return r && r.wid; }).map(gowRowCfg) : [];
+    if (graphObjWorksCfgSame(cur, rows)) return false;
+    try { SP_OBJECTS.updateObject(oid, { plan_works: rows }); return true; } catch (e2) { return false; }
+  }
+  /* Распространить набор работ объекта на ДРУГИЕ графики (list — уже
+     загруженный массив графиков; hisId — график-источник, не трогаем).
+     Имеющиеся строки (по виду работы) обновляются по параметрам, их даты
+     (occs + задачи) не трогаются; новые работы добавляются строками БЕЗ дат;
+     убранные работы удаляются: невыполненные задачи стираются, выполненные
+     остаются в планировании, но отвязываются от серии. */
+  function graphObjWorksPropagate(list, oid, rows, hisId) {
+    var st = { updated: 0, added: 0, removed: 0 };
+    if (!oid || !Array.isArray(list)) return st;
+    list.forEach(function (g2) {
+      if (!g2 || g2.id === hisId || !g2.objs) return;
+      g2.objs.forEach(function (ob2) {
+        if (!ob2 || ob2.oid !== oid) return;
+        var ws = gwObjWorks(ob2);
+        if (!ws.length && !rows.length) return;
+        var kept = [];
+        rows.forEach(function (r) {
+          var w = null;
+          for (var i = 0; i < ws.length; i++) {
+            if (ws[i] && ws[i].wid === r.wid && kept.indexOf(ws[i]) === -1) { w = ws[i]; break; }
+          }
+          if (w) {
+            if ((w.period || 0) !== (r.period || 0) || (w.dev || 0) !== (r.dev || 0) || (w.first || '') !== (r.first || '')) st.updated++;
+            w.period = r.period || 0; w.dev = r.dev || 0; w.first = r.first || '';
+            kept.push(w);
+          } else {
+            kept.push({ sid: gwNewSid(), wid: r.wid, period: r.period || 0, dev: r.dev || 0, first: r.first || '', occs: [] });
+            st.added++;
+          }
+        });
+        ws.forEach(function (w) {
+          if (!w || kept.indexOf(w) !== -1) return;
+          (w.occs || []).forEach(function (oc) {
+            if (!oc.tid || !TASKS_DB) return;
+            var tk = null; try { tk = TASKS_DB.getTask(oc.tid); } catch (e) {}
+            if (tk && isDone(tk)) { // выполненные — отвязываем от серии, но сохраняем историю
+              try { TASKS_DB.updateTask(tk.id, { graphId: '', graphRi: null, graphSid: '' }); } catch (e2) {}
+            } else {
+              try { TASKS_DB.hardDeleteTask(oc.tid); } catch (e3) {}
+            }
+          });
+          st.removed++;
+        });
+        ob2.works = kept;
+        delete ob2.workId; delete ob2.workName; delete ob2.period; delete ob2.dev; delete ob2.first; delete ob2.occs;
+      });
+    });
+    return st;
+  }
   /* Найти объект и серию работ графика для задачи (по sid серии, затем по работе, затем первая) */
   function graphSeriesFind(g, t) {
     if (!g || !g.objs) return null;
@@ -16436,6 +16906,43 @@
     return { ob: ob, wrk: wrk };
   }
 
+  /* 22.09-138: рассчитать вхождения серии работы объекта в графике (от якоря
+     first с шагом = периодичность − отклонение, до конца года графика) и
+     создать задачи планирования. Та же логика, что при «Сохранить» в окне
+     «Настроить периодичность». */
+  function gwGenObjSeries(g, ri, area, ob, wrk, pastOn) {
+    var st = { created: 0, shifted: 0, fail: 0 };
+    wrk.occs = [];
+    if (!(g && wrk && wrk.wid && wrk.first && wrk.period > 0)) return st;
+    var endISO = g.year + '-12-31';
+    var iso = wrk.first, guard = 0;
+    var brigIds = [];
+    try { brigIds = wkBrigadeOf(g.respId).map(function (u) { return u.id; }); } catch (e) {}
+    while (iso <= endISO && guard < 400) {
+      var occIso = gwOccDate(g.respId, iso, g.year);
+      if (occIso !== iso) st.shifted++;
+      var isPast = gwFromISO(occIso) < TODAY;
+      var tk = null;
+      if (!isPast || pastOn) {
+        var dlIso = gwAddDaysISO(occIso, wrk.dev || 0);
+        try {
+          tk = TASKS_DB.addTask({
+            m: g.respId, d: dateToOff(gwFromISO(occIso)), o: ob.oid, w: wrk.wid, garea: area,
+            s: 'plan', status: 'plan', volume: 1,
+            slesari: brigIds,
+            dl_date: dlIso, dl: dateToOff(gwFromISO(dlIso)),
+            graphId: g.id, graphRi: ri, graphSid: wrk.sid
+          });
+          st.created++;
+        } catch (eTask) { tk = null; st.fail++; }
+      }
+      wrk.occs.push({ date: occIso, tid: tk ? tk.id : null, wid: wrk.wid });
+      iso = gwNextISO(iso, wrk.period, wrk.dev);
+      guard++;
+    }
+    return st;
+  }
+
   /* Окно «Настроить периодичность»: слева объекты данного графика, у каждого
      объекта — СВОЙ СПИСОК РАБОТ (сколько нужно, «+ работа»), для каждой работы:
      вид (справочник по участку), периодичность в месяцах, отклонение в днях
@@ -16448,6 +16955,28 @@
              совпадать с параметром объекта (attrs.reduceLines, запасной —
              attrs.linesCount). Если у объекта параметр не заполнен — работа
              с ограничением по линиям не подбирается. */
+  /* 22.09-137: свойства ГРУППЫ работы (хранятся в group_flags каждой работы;
+     задаются кнопкой 🏷 у группы в справочнике «Виды работ»).
+     «Телеметрия» — работа считается «с ТМ» (только объектам с телеметрией);
+     «ГРП» — работа только объектам типа ГРП. Прочие — метки для наглядности. */
+  function workGroupHasFlag(w, flag) {
+    var fl = w && w.group_flags;
+    if (!Array.isArray(fl)) return false;
+    var f = String(flag || '').trim().toLowerCase();
+    for (var i = 0; i < fl.length; i++) if (String(fl[i] || '').trim().toLowerCase() === f) return true;
+    return false;
+  }
+  /* 22.09-137: работы, которые автоподбор НЕ назначает НИКОГДА (ни в одном
+     режиме). Совпадение — по подстроке названия (нижний регистр, пробелы слиты). */
+  var AUTOPICK_NEVER = [
+    'текущий ремонт оборудования шкафных газорегуляторных пунктов без опрессовки'
+  ];
+  function autopickExcludedName(name) {
+    var n = String(name || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!n) return false;
+    for (var i = 0; i < AUTOPICK_NEVER.length; i++) if (n.indexOf(AUTOPICK_NEVER[i]) !== -1) return true;
+    return false;
+  }
   /* 22.09-117: Эффективные связи работы с оборудованием объекта.
      Приоритет — явные поля карточки (telemetry_req/telemetry_type/diag_equipment/
      heating_req); если они пустые — распознаём по названию работы и её группе:
@@ -16465,12 +16994,18 @@
       else if (txt.indexOf('оборудованных системой телеметр') !== -1) tReq = 'equipped';
       else if (txt.indexOf('тм и асутп') !== -1) tReq = 'equipped';
     }
+    // 22.09-137: ни поля карточки, ни название не определили — смотрим свойство
+    // группы «Телеметрия» (такие работы подбираются только объектам с ТМ).
+    if (!tType && !tReq && workGroupHasFlag(w, 'Телеметрия')) tReq = 'equipped';
     if (!diag && txt.indexOf('приборного диагностического оборудования') !== -1) diag = true;
     if (!heat && txt.indexOf('отопительн') !== -1) heat = true;
     return { telemetry_req: tReq, telemetry_type: tType, diag_equipment: diag, heating_req: heat };
   }
   function workMatchesObjectParams(w, attrs, objType, rules) {
     rules = rules || {};
+    // 22.09-137: свойство группы «ГРП» — работа подбирается только объектам
+    // типа ГРП (явная пометка группы — действует независимо от галочек критериев).
+    if (workGroupHasFlag(w, 'ГРП') && String(objType || '').trim() !== 'ГРП') return false;
     if (rules.type !== false) {
       var cats = w.object_categories || [];
       if (cats.length && objType && cats.indexOf(objType) === -1) return false;
@@ -16546,6 +17081,8 @@
     var added = 0;
     works.forEach(function (w) {
       if (!w || !w.id || have[w.id]) return;
+      // 22.09-137: исключённые названия не подбираются НИКОГДА (все режимы)
+      if (autopickExcludedName(w.name)) return;
       // 22.09-121: зимние работы (сезон «Зима» в карточке работы) автоподбором не добавляются
       if (String(w.season || '').toLowerCase() === 'зима') return;
       // 22.09-118: режимы подбора — 'tm' только работы с телеметрией, 'notm' только без ТМ
@@ -16601,12 +17138,24 @@
       '</div>';
     h += '<div class="gpr-cols"><span>Вид работы</span><span>Период., мес</span><span>Откл., дн</span><span>Дата первого проведения</span><span></span></div>';
     h += '<div id="gpr-list" style="display:flex;flex-direction:column;gap:10px;padding:2px"></div>';
-    h += '<div class="calc" style="align-items:flex-start;font-size:11.5px;line-height:1.5">Шаг серии = периодичность МИНУС отклонение (1 мес и отклонение 2 дн: работа 18 числа → следующая 16 числа следующего месяца). У каждого объекта может быть несколько работ — «+ работа». Работы появляются в «Планировании»; перемещение задачи там переносит её и последующие по шагу серии. <b>Даты, попавшие на день, когда мастер графика не работает (выходные 5/2 и 2/2, отсутствия — график смен на вкладке «Работники»), автоматически переносятся на ближайший предыдущий рабочий день; шаг серии считается от своих исходных дат.</b> <b>⚡ Автоподбор (кнопка сверху или «⚡» у объекта) добавляет объектам работы из справочника по их параметрам: тип объекта ↔ «Категория объекта обслуживания», линии редуцирования объекта ↔ «Кол-во линий редуцирования» в карточке работы. Периодичность и отклонение подставляются из справочника; дата первого проведения — из «Даты ввода в эксплуатацию» объекта, если у работы выбран реквизит отсчёта «Дата ввода в эксплуатацию». Критерии оборудования: телеметрия (работы «с ТМ» не попадут на объект без ТМ; выбран тип — совпадение по типу и наличию), приборная диагностика только при виде обслуживания «Region-gas», ТО отопительного оборудования только ГРП с отоплением. Если поля в карточке работы не заполнены, связь распознаётся по названию работы/группы («ИНДЕЛ», «оборудованных/не оборудованных системой телеметрии», «приборного диагностического оборудования», «отопительного»). Режимы: «📡 Только работы с ТМ» — одни телеметрические работы, «🚫📡 Только без ТМ» — одни работы без привязки к телеметрии. Зимние работы (сезон «Зима» в карточке работы) автоподбором не добавляются — назначьте их вручную кнопкой «+ работа».</b></div>';
+    h += '<div class="calc" style="align-items:flex-start;font-size:11.5px;line-height:1.5">Шаг серии = периодичность МИНУС отклонение (1 мес и отклонение 2 дн: работа 18 числа → следующая 16 числа следующего месяца). У каждого объекта может быть несколько работ — «+ работа». Работы появляются в «Планировании»; перемещение задачи там переносит её и последующие по шагу серии. <b>Даты, попавшие на день, когда мастер графика не работает (выходные 5/2 и 2/2, отсутствия — график смен на вкладке «Работники»), автоматически переносятся на ближайший предыдущий рабочий день; шаг серии считается от своих исходных дат.</b> <b>⚡ Автоподбор (кнопка сверху или «⚡» у объекта) добавляет объектам работы из справочника по их параметрам: тип объекта ↔ «Категория объекта обслуживания», линии редуцирования объекта ↔ «Кол-во линий редуцирования» в карточке работы. Периодичность и отклонение подставляются из справочника; дата первого проведения — из «Даты ввода в эксплуатацию» объекта, если у работы выбран реквизит отсчёта «Дата ввода в эксплуатацию». Критерии оборудования: телеметрия (работы «с ТМ» не попадут на объект без ТМ; выбран тип — совпадение по типу и наличию), приборная диагностика только при виде обслуживания «Region-gas», ТО отопительного оборудования только ГРП с отоплением. Если поля в карточке работы не заполнены, связь распознаётся по названию работы/группы («ИНДЕЛ», «оборудованных/не оборудованных системой телеметрии», «приборного диагностического оборудования», «отопительного»). Режимы: «📡 Только работы с ТМ» — одни телеметрические работы, «🚫📡 Только без ТМ» — одни работы без привязки к телеметрии. Зимние работы (сезон «Зима» в карточке работы) автоподбором не добавляются — назначьте их вручную кнопкой «+ работа». Пометки групп (кнопка 🏷 у группы в справочнике «Виды работ»): «Телеметрия» — работы группы только объектам с ТМ (в подбор «без ТМ» не входят), «ГРП» — только объектам типа ГРП; остальные пометки — просто метки. Работа «Текущий ремонт оборудования шкафных газорегуляторных пунктов без опрессовки» автоподбором НЕ назначается. <b>Набор работ объекта — ОБЩИЙ для всех графиков: добавленный в другой график объект приходит со своими работами; правки набора видны во всех графиках. Уже рассчитанные даты других графиков при этом НЕ меняются — пересчёт только в сохраняемом графике; серии всегда продолжаются от даты первого проведения (без перезапуска в новом году).</b></b></div>';
     h += '</div>';
     h += '<div class="modal-f"><button type="button" class="btn ok" data-action="graphs-period-save">Сохранить</button><button type="button" class="btn danger" data-action="close-modal">Отменить</button></div>';
     modal.innerHTML = h;
     modal.style.width = '80%'; modal.style.maxWidth = '80%'; // 22.09-105: настройка периодичности — 80% ширины, по центру (сброс: close-modal и graphsPeriodSave)
     overlay.classList.add('show');
+    // 22.09-138: если у объекта в ЭТОМ графике ещё нет работ — показываем его
+    // ОБЩИЙ набор (тот, что задан на объекте/в других графиках); даты
+    // проставятся после «Сохранить» (в этом окне это просто строки без occs).
+    var gowPrefill = 0;
+    (g.objs || []).forEach(function (ob) {
+      if (gwObjWorks(ob).length) return;
+      var cfg = graphObjWorksCfg(ob.oid);
+      if (!cfg.length) return;
+      ob.works = cfg.map(function (r) { return { sid: gwNewSid(), wid: r.wid, period: r.period, dev: r.dev, first: r.first, occs: [] }; });
+      gowPrefill += cfg.length;
+    });
+    if (gowPrefill) toast('ok', '🔗 Подтянуты общие наборы работ объектов: ' + gowPrefill + ' строк — даты появятся после «Сохранить»');
     gprDrawList(g, area);
     var listEl = document.getElementById('gpr-list');
     if (listEl) {
@@ -16734,6 +17283,7 @@
     var areaSel = document.getElementById('gpr-area');
     var area = areaSel ? areaSel.value : graphAreaDefault(g);
     var created = 0, removed = 0, yearWarn = 0, taskFail = 0, shiftedCnt = 0;
+    var propStat = { updated: 0, added: 0, removed: 0 }; // 22.09-138: распространение на другие графики
     g.objs.forEach(function (ob, ri) {
       // «Добавлять задачи на прошедшие дни» — чекбокс объекта
       var pastEl = document.querySelector('[data-gpr-past="' + ri + '"]');
@@ -16836,6 +17386,14 @@
       oldWorks.forEach(function (ow) { if (ow.sid && !usedSids[ow.sid]) killSeries(ow); });
       ob.works = newWorks;
       delete ob.workId; delete ob.workName; delete ob.period; delete ob.dev; delete ob.first; delete ob.occs;
+      // 22.09-138: набор работ объекта — ОБЩИЙ: пишем на объект и разносим по
+      // другим графикам с этим объектом (их рассчитанные даты НЕ трогаем).
+      try {
+        var cfgRows = newWorks.filter(function (w) { return w && w.wid; }).map(gowRowCfg);
+        graphObjWorksCfgSave(ob.oid, cfgRows);
+        var pr = graphObjWorksPropagate(list, ob.oid, cfgRows, g.id);
+        propStat.updated += pr.updated; propStat.added += pr.added; propStat.removed += pr.removed;
+      } catch (eProp) { try { console.error('gow propagate:', eProp); } catch (_e) {} }
     });
     g.area = area;
     graphsSaveList(list);
@@ -16844,6 +17402,7 @@
     modal.style.maxWidth = '';
     modal.style.width = '';
     logAction('Периодичность графика', g.name + ' (' + area + '): создано работ ' + created + ', удалено старых ' + removed);
+    if (propStat.updated || propStat.added || propStat.removed) toast('ok', '🔗 Общий набор работ объекта синхронизирован с другими графиками (обновлено строк: ' + propStat.updated + ', добавлено: ' + propStat.added + ', убрано: ' + propStat.removed + ') — их уже рассчитанные даты не менялись');
     var respIsMaster = getMasters().some(function (m) { return m.id === g.respId; });
     if (!respIsMaster) toast('warn', '⚠ Ответственный графика — не мастер: работы СОЗДАЮТСЯ, но не отображаются в планировании. Измените ответственного на мастера («Список графиков» → правка).');
     if (yearWarn) toast('warn', '⚠ У ' + yearWarn + ' работ дата первого проведения позже ' + g.year + ' года — они не попадут в график.');
@@ -17110,6 +17669,10 @@
         (wrk.occs || []).forEach(function (oc) { if (oc.tid && TASKS_DB) { TASKS_DB.hardDeleteTask(oc.tid); removed++; } });
       });
       ob.works = [];
+      // 22.09-138: общий набор работ объекта тоже очищаем — работы сняты с
+      // объекта. Другие графики сохраняют уже рассчитанные даты до их
+      // пересохранения (их строки тут не трогаем).
+      try { graphObjWorksCfgSave(ob.oid, []); } catch (e) {}
     });
     graphsSaveList(list);
     if (TASKS_DB) S.tasks = TASKS_DB.getTasks();
@@ -17689,20 +18252,34 @@
     if (!g.objs) g.objs = [];
     var inputs = document.querySelectorAll('#gao-list input[type=checkbox]:checked');
     var added = 0;
+    var newIdx = []; // 22.09-138: индексы добавленных объектов в g.objs
     for (var i = 0; i < inputs.length; i++) {
       var o = OBJ_MAP[inputs[i].getAttribute('data-gao')];
       if (!o) continue;
+      newIdx.push(g.objs.length);
       g.objs.push({ oid: o.id, type: o.type || 'ГРП', name: objFullAddr(o), respId: o.respId || '', respName: o.respName || '' });
       added++;
     }
     if (!added) { toast('err', 'Отметьте объекты для добавления'); return; }
+    // 22.09-138: у добавленного объекта мог уже быть ОБЩИЙ набор работ (задан
+    // в другом графике) — подтягиваем его и сразу считаем даты от якоря
+    // (серия продолжается от даты первого проведения, без перезапуска по годам)
+    var areaAdd = graphAreaDefault(g), impRows = 0, impTasks = 0;
+    newIdx.forEach(function (ri) {
+      var ent = g.objs[ri];
+      var cfg = graphObjWorksCfg(ent.oid);
+      if (!cfg.length) return;
+      impRows += cfg.length;
+      ent.works = cfg.map(function (r) { return { sid: gwNewSid(), wid: r.wid, period: r.period, dev: r.dev, first: r.first, occs: [] }; });
+      ent.works.forEach(function (w) { var s2 = gwGenObjSeries(g, ri, areaAdd, ent, w, false); impTasks += s2.created; });
+    });
     var list = graphsLoad();
     list.forEach(function (x) { if (x.id === g.id) x.objs = g.objs; });
     graphsSaveList(list);
     overlay.classList.remove('show');
     modal.style.maxWidth = '';
     logAction('Объекты добавлены в график', g.name + ': ' + added + ' шт.');
-    toast('ok', 'Добавлено объектов в график: ' + added);
+    toast('ok', 'Добавлено объектов в график: ' + added + (impRows ? '. Подтянуты их общие наборы работ: ' + impRows + ' строк' + (impTasks ? ' (создано задач: ' + impTasks + ')' : '') : ''));
     if (S.screen === 'graphs') renderGraphs(); else setScreen('graphs');
   }
 

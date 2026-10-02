@@ -1108,7 +1108,7 @@
           <div style="margin-top:6px;font-size:11px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-136 · телеметрия: «Индел» переименован в «ПТК "Индел"»; добавлены Wago, ПТК "Сириус", ПТК "Эксорт"; «совместно» — выбор нескольких</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-139 · новая страница «Бэкапы БД»: каждая база — отдельным файлом (2+ — ZIP-архив), восстановление из файлов без потерь</div>
     </div>
   </div>
   </div>
@@ -1151,6 +1151,7 @@
       <a data-screen="refs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20V3H6.5A2.5 2.5 0 004 5.5z"/><path d="M4 19.5V21h12"/></svg>Справочники</a>
       <div class="grp">Администрирование</div>
       <a data-screen="users"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>Пользователи</a>
+      <a data-screen="backup" title="Резервное копирование и восстановление всех баз данных (каждая — отдельным файлом)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>Бэкапы БД</a>
       <a data-screen="logs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/><path d="M3 12h2M19 12h2M12 3v2M12 19v2"/></svg>Журнал действий</a>
       <a data-screen="errlogs" title="Логи ошибок приложения и API"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>Логи ошибок</a>
       <a data-screen="testmap" title="Полигон: тест проезда между объектами — карта маршрутов + оптимизация + пробки + Google Maps"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3v6l-5.2 8.3A2 2 0 005.5 20h13a2 2 0 001.7-2.7L15 9V3"/><path d="M8 3h8M7.5 14h9"/></svg>Тест проезда</a>
@@ -1293,6 +1294,7 @@
       <script src="root_index/error_log.js"></script>
       <script src="root_index/api_client.js"></script>
       <script src="root_index/sync_polling.js"></script>
+      <script src="root_index/zip_util.js"></script>
       <script src="root_index/app.js"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>

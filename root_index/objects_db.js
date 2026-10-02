@@ -206,6 +206,12 @@ window.SP_OBJECTS = (function () {
         if (data.area_obj !== undefined) db.objects[i].area_obj = data.area_obj;
         if (data.length_km !== undefined) db.objects[i].length_km = data.length_km;
         if (data.area_ha !== undefined) db.objects[i].area_ha = data.area_ha;
+        // 22.09-138: общий набор работ объекта для графиков (нормализуем строки)
+        if (data.plan_works !== undefined) {
+          db.objects[i].plan_works = (Array.isArray(data.plan_works) ? data.plan_works : []).map(function (r) {
+            return { wid: String(r && r.wid || ''), period: parseInt(r && r.period, 10) || 0, dev: parseInt(r && r.dev, 10) || 0, first: String(r && r.first || '') };
+          }).filter(function (r) { return r.wid; });
+        }
         // Атрибуты (schema 3)
         if (data.attrs !== undefined) {
           if (window.SP_OBJ_ATTRS && SP_OBJ_ATTRS.supportsAttrs(db.objects[i].type)) {

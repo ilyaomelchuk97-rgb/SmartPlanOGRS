@@ -167,7 +167,8 @@ window.SP_WORK = (function () {
       telemetry_req:        '',          // 22.09-115: '' | 'equipped' (объект с ТМ) | 'not_equipped' (без ТМ)
       telemetry_type:       '',          // 22.09-115: конкретный тип телеметрии (из списка видов ТМ)
       diag_equipment:       false,       // 22.09-115: с приборным диагност. оборудованием (нужен вид обслуживания Region-gas)
-      heating_req:          false        // 22.09-115: ТО отопительного оборудования (объект с отоплением — ГРП)
+      heating_req:          false,       // 22.09-115: ТО отопительного оборудования (объект с отоплением — ГРП)
+      group_flags:          []           // 22.09-137: свойства ГРУППЫ работ («Телеметрия», «ГРП», произвольные метки)
     };
   }
   // Безопасно парсит массивы/enum-поля/числа из HTML-формы (строки → массив/число/bool)
@@ -220,7 +221,8 @@ window.SP_WORK = (function () {
       telemetry_req:           (d.telemetry_req === 'equipped' ? 'equipped' : (d.telemetry_req === 'not_equipped' ? 'not_equipped' : '')),
       telemetry_type:          String(d.telemetry_type || '').trim(),
       diag_equipment:          toBool(d.diag_equipment),
-      heating_req:             toBool(d.heating_req)
+      heating_req:             toBool(d.heating_req),
+      group_flags:             toArr(d.group_flags) // 22.09-137: свойства группы работ
     };
   }
 
@@ -376,6 +378,64 @@ window.SP_WORK = (function () {
     }
     return changed.length;
   }
+  /* 22.09-137: СВОЙСТВА ГРУПП РАБОТ.
+     Хранятся прямо на каждой работе группы (поле group_flags) — так они
+     синхронизируются вместе с записями работ без отдельного раздела на
+     сервере. Известные свойства: «Телеметрия» (работы только объектам с ТМ,
+     в подбор «без ТМ» не входят), «ГРП» (только объектам типа ГРП); прочие —
+     простые метки для наглядности. */
+  function _normGrp(s) {
+    return String(s || '').split(/\s+\/\s*|\s*\/\s+/).map(function (p) { return p.trim(); }).filter(Boolean).join(' / ');
+  }
+  function _grpMatch(g, path) { // сам путь + его подгруппы
+    return g === path || g.indexOf(path + ' / ') === 0;
+  }
+  // Установить свойства группы (и её подгрупп). Возвращает число изменённых работ.
+  function setGroupFlags(area, path, flags) {
+    var db = init(); var arr = db.areas[area] || [];
+    var p = _normGrp(path);
+    var fl = (Array.isArray(flags) ? flags : []).map(function (s) { return String(s || '').trim(); }).filter(Boolean);
+    if (!p) return 0;
+    var changed = [];
+    arr.forEach(function (w) {
+      var g = _normGrp(w.group) || 'Без группы';
+      if (!_grpMatch(g, p)) return;
+      if (JSON.stringify(w.group_flags || []) === JSON.stringify(fl)) return;
+      w.group_flags = fl.slice(); changed.push(w);
+    });
+    if (changed.length) {
+      save(db);
+      if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
+        changed.forEach(function (w) {
+          window.SP_API.upsert('work_catalog', w).catch(function (e) {
+              try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log("warn", "sync", "sync failed", { err: String(e && e.err || e), where: "work_db.js" }); } catch(_){ }
+          });
+        });
+      }
+    }
+    return changed.length;
+  }
+  // Прочитать свойства группы: сначала свои работы, затем родительские группы
+  // (вверх от «A / B» к «A»). exceptId — работа, которую пропускаем (наследование).
+  function groupFlagsOf(area, path, exceptId) {
+    var db = init(); var arr = db.areas[area] || [];
+    var p = _normGrp(path);
+    if (!p) return [];
+    var parts = p.split(' / ');
+    for (var lvl = parts.length; lvl >= 1; lvl--) {
+      var sub = parts.slice(0, lvl).join(' / ');
+      for (var i = 0; i < arr.length; i++) {
+        var w = arr[i];
+        if (!w || w.id === exceptId) continue;
+        var g = _normGrp(w.group) || 'Без группы';
+        if (g !== sub) continue;
+        var fl = Array.isArray(w.group_flags) ? w.group_flags.filter(function (s) { return s && String(s).trim(); }) : [];
+        if (fl.length) return fl.slice();
+      }
+    }
+    return [];
+  }
+
   function deleteWork(area, id) {
     var db = init(); var arr = db.areas[area] || [];
     db.areas[area] = arr.filter(function (w) { return w.id !== id; });
@@ -390,6 +450,7 @@ window.SP_WORK = (function () {
   return {
     ensureSeed: ensureSeed, getAreas: getAreas, getWorks: getWorks, getWork: getWork,
     getWorkById: getWorkById, getWorkTree: getWorkTree, addWork: addWork, updateWork: updateWork, deleteWork: deleteWork, renameGroup: renameGroup,
+    setGroupFlags: setGroupFlags, groupFlagsOf: groupFlagsOf,
     ensureArea: ensureArea, renameArea: renameArea, deleteArea: deleteArea,
     DEFAULTS: DEFAULTS, reloadFromCloud: reloadFromCloud, SCHEMA: SCHEMA
   };
