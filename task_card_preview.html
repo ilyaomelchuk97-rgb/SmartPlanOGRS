@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Карточка задачи — новая раскладка (22.09-155)</title>
+<style>
+  body{font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif;background:#f1f5f9;margin:0;padding:26px;color:#0f172a}
+  h1{font-size:18px;margin:0 0 4px}
+  .sub{font-size:13px;color:#64748b;margin-bottom:20px}
+  .panel{background:#fff;border:1px solid #d8e2ee;border-radius:14px;padding:16px 18px;max-width:640px;margin-bottom:18px}
+  .ptitle{font-size:12px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px}
+  .lbl{font-size:12.5px;font-weight:700;color:#334155;margin:14px 0 6px}
+  .work-list{display:flex;flex-direction:column;gap:8px}
+  .row{display:flex;gap:8px;align-items:stretch}
+  .work-item{flex:1;min-width:0;border:1px solid #d8e2ee;border-radius:10px;padding:8px;background:#fbfdff;position:relative}
+  .work-row{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+  .sel{flex:1;padding:7px 10px;border:1px solid #d8e2ee;border-radius:8px;font-size:12.5px;background:#fff;color:#0f172a;font-family:inherit}
+  .pick{flex:0 0 auto;padding:7px 9px;background:#eff6ff;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:8px;font-size:13px;line-height:1;cursor:pointer}
+  .vol{display:flex;align-items:center;gap:8px}
+  .vol input{flex:1;padding:7px 10px;border:1px solid #d8e2ee;border-radius:8px;font-size:12.5px;font-family:inherit;box-sizing:border-box}
+  .unit{font-size:12px;color:#64748b;min-width:44px}
+  .add{flex:0 0 34px;width:34px;border:none;border-radius:10px;background:linear-gradient(135deg,#22c55e,#15803d);color:#fff;font-size:19px;font-weight:800;cursor:pointer;box-shadow:0 2px 6px rgba(21,128,61,.35);align-self:stretch}
+  .del{color:#dc2626;border:none;background:transparent;padding:4px 8px;font-size:14px;font-weight:bold;cursor:pointer;align-self:flex-start}
+  .empty{border:1.5px dashed #d8e2ee;border-radius:10px;padding:14px 10px;text-align:center;background:#f8fafc}
+  .empty .add{width:34px;height:34px;align-self:auto;margin:0 auto;display:inline-flex;align-items:center;justify-content:center}
+  .cap{font-size:11.5px;color:#64748b;margin-top:6px}
+  .notes{font-size:13px;line-height:1.75}
+  .notes b{color:#1d4ed8}
+  .tag{display:inline-block;background:#eff6ff;border:1px solid #93c5fd;color:#1d4ed8;border-radius:6px;font-size:11px;font-weight:800;padding:2px 6px;vertical-align:2px}
+</style>
+</head>
+<body>
+
+<h1>Карточка задачи — так она будет выглядеть после обновления</h1>
+<div class="sub">Сборка 22.09-155 · это образец для проверки раскладки (не рабочая форма)</div>
+
+<div class="panel">
+  <div class="ptitle">Новая задача — список работ пустой</div>
+  <div class="lbl">Виды работ на адресе (можно выбрать несколько)</div>
+  <div class="work-list">
+    <div class="empty">
+      <button class="add">+</button>
+      <div class="cap">Вид работ не выбран — нажмите «+», чтобы добавить</div>
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="ptitle">После нажатия «+» — у каждого вида работ свои кнопки справа от карточки</div>
+  <div class="lbl">Виды работ на адресе (можно выбрать несколько)</div>
+  <div class="work-list">
+
+    <div class="row">
+      <div class="work-item">
+        <div class="work-row">
+          <select class="sel"><option>Обслуживание ШРП ×3</option></select>
+          <button class="pick" title="Точный выбор работы в этой группе">🎯</button>
+        </div>
+        <div class="vol"><input value="1"><span class="unit">объект</span></div>
+      </div>
+      <button class="add" title="Добавить ещё один вид работ">+</button>
+      <button class="del" title="Убрать этот вид работ">×</button>
+    </div>
+
+    <div class="row">
+      <div class="work-item">
+        <div class="work-row">
+          <select class="sel"><option>— выберите вид работ —</option></select>
+          <button class="pick" title="Точный выбор работы в этой группе">🎯</button>
+        </div>
+        <div class="vol"><input value="1"><span class="unit">объект</span></div>
+      </div>
+      <button class="add" title="Добавить ещё один вид работ">+</button>
+      <button class="del" title="Убрать этот вид работ">×</button>
+    </div>
+
+  </div>
+</div>
+
+<div class="panel notes">
+  <b>Что здесь важно:</b><br>
+  • Кнопка <button class="pick" style="padding:2px 7px">🎯</button> — <b>внутри карточки работы, сразу справа от выпадающего списка</b> (светло-синяя, заметная).<br>
+  • Зелёная «+» — своя у каждого вида, <b>справа от карточки (снаружи)</b>, во всю высоту блока; «×» — ещё правее.<br>
+  • «+» добавляет новую <b>пустую</b> строку; конкретная работа в выбранной группе подставляется автоматически под объект и сезон.<br>
+  • У блока видов работ больше нет правого отступа — строки во всю ширину окна.
+</div>
+
+</body>
+</html>
