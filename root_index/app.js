@@ -739,14 +739,14 @@
   var TITLES = {
     dashboard: ['Панель мониторинга', 'Сборка 22.09-141 · у плашки «Нет соединения» убрана тень; меню слева выше затемнений; окна — 80% ширины, по центру'],
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
-    graphs: ['Планирование / График работ', 'Сборка 22.09-140 · при смене года графика серии пересчитываются на новый год от даты первого проведения; набор работ объекта — общий для всех графиков'],
+    graphs: ['Планирование / График работ', 'Сборка 22.09-145 · периодичность: на виду группа работы (вид — по наведению); обозначения по группам, один цвет на группу'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
     objmap: ['Карта объектов', 'Сборка 22.09-137 · вид телеметрии «ПТК "Эксорт"» переименован в «ПТК "Эскорт"» — объекты и работы обновлены автоматически'],
     testmap: ['Тест проезда', 'Сборка 22.09-131 · OptMap удалён: память сервера освобождена, роутеры — только внешние (OSRM / BRouter / Valhalla)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
     perms: ['Разрешения', 'Система разрешений на производство работ'],
-    refs: ['Справочники', 'Сборка 22.09-137 · свойства групп работ (🏷 у группы): «Телеметрия» и «ГРП» учитываются в автоподборе графика'],
+    refs: ['Справочники', 'Сборка 22.09-144 · свойства групп работ (🏷, только ГРП): «Работы с ТМ» / «Без телеметрии»; метка «ГРП» больше не фильтрует по типу объекта'],
     workers: ['Работники', 'Графики работы (8 ч → 5/2, 12 ч → 2/2), бригады и отсутствия'],
     schedules: ['Графики смен', 'Сводный календарь по бригадам: кто работает / отдыхает / отсутствует'],
     users: ['Пользователи', 'Учётные записи, роли и доступ к системе'],
@@ -8841,8 +8841,55 @@
     if (changed) { telemetrySaveLS(list); try { telemetrySyncSelects(); } catch (e) {} }
     // 3) ссылки на старые имена — только для переименований этого вызова
     applied.forEach(function (p) { telemetryMigrateRefs(p.from, p.to); });
-    return { changed: changed, renamed: applied.length > 0 };
+    var dd = null; // 22.09-142: после переименований — склейка дублей
+    try { dd = telemetryDedupeTypes(); } catch (e) { console.error('telemetryDedupeTypes:', e); }
+    return { changed: changed || !!(dd && dd.changed), renamed: applied.length > 0 };
   }
+  /* 22.09-142: дедупликация видов телеметрии. Одна и та же запись могла
+     завестись несколько раз с разным id (сид на нескольких устройствах +
+     общий раздел на сервере): написания отличаются кавычками («»/""),
+     пробелами или регистром. Записи объединяем в одну: каноничным считается
+     вариант из TEL_ENSURE при точном совпадении, иначе первое встречное
+     написание. Ссылки (объекты attrs.telemetry, работы telemetry_type)
+     переписываем на канон, лишние записи удаляем локально и на сервере. */
+  function telNormKey(nm) {
+    return String(nm || '').toLowerCase()
+      .replace(/[«»„“”]/g, '"').replace(/'/g, '"')
+      .replace(/\s+/g, ' ').trim();
+  }
+  function telemetryDedupeTypes() {
+    var list = telemetryLoad();
+    var keep = [], byKey = {}, renames = [], removed = 0;
+    list.forEach(function (r) {
+      if (!r || r._deleted || !r.name || !telNormKey(r.name)) { keep.push(r); return; }
+      var k = telNormKey(r.name);
+      var cur = byKey[k];
+      if (!cur) { byKey[k] = r; keep.push(r); return; }
+      // дубликат: канон — вариант из гарантированного списка, если он есть
+      var canon = cur, dup = r;
+      if (TEL_ENSURE.indexOf(r.name) >= 0 && TEL_ENSURE.indexOf(cur.name) < 0) {
+        canon = r; dup = cur;
+        var ix = keep.indexOf(cur); if (ix >= 0) keep[ix] = r;
+        byKey[k] = r;
+      }
+      removed++;
+      if (dup.name !== canon.name) renames.push({ from: dup.name, to: canon.name });
+      if (window.SP_API && SP_API.del && dup.id) SP_API.del('telemetry', dup.id).catch(function () {});
+    });
+    if (!removed) return { changed: false, removed: 0 };
+    telemetrySaveLS(keep);
+    try { telemetrySyncSelects(); } catch (e) {}
+    var seen = {};
+    renames.forEach(function (p) {
+      var key = p.from + '→' + p.to;
+      if (seen[key]) return;
+      seen[key] = 1;
+      try { telemetryMigrateRefs(p.from, p.to); } catch (e) {}
+    });
+    try { logAction('Дедупликация видов телеметрии', 'объединено дублей: ' + removed); } catch (e) {}
+    return { changed: true, removed: removed };
+  }
+
   // Переписать ссылки «старое имя → новое» у объектов (attrs.telemetry) и работ (telemetry_type)
   function telemetryMigrateRefs(oldN, newN) {
     var objsUpd = 0, worksUpd = 0;
@@ -10754,12 +10801,16 @@
       var _gf = []; try { _gf = (WORK.groupFlagsOf && WORK.groupFlagsOf(area, ch.path)) || []; } catch (e) {}
       _gf.forEach(function (f) {
         var _fx = String(f || '').trim(), _fl = _fx.toLowerCase();
-        var _isTel = (_fl === 'телеметрия'), _isGrp = (_fx === 'ГРП');
-        g += ' <span class="equipment-badge" style="font-size:10px" title="' + (_isTel ? 'Группа помечена «Телеметрия»: работы подбираются только объектам с ТМ; не попадают в подбор «🚫📡 без ТМ»' : (_isGrp ? 'Группа помечена «ГРП»: работы подбираются только объектам типа ГРП' : 'Свойство группы (метка, на автоподбор не влияет)')) + '">' + (_isTel ? '📡 ' : _isGrp ? '🏭 ' : '🏷 ') + esc(_fx) + '</span>';
+        // 22.09-144: «Телеметрия» → «Работы с ТМ»; «ГРП» упразднена — просто метка
+        var _isTel = (_fl === 'телеметрия' || _fl === 'работы с тм'), _isNoTm = (_fl === 'без телеметрии');
+        var _tip = _isTel ? 'Группа помечена «Работы с ТМ»: работы подбираются только объектам с телеметрией' :
+          (_isNoTm ? 'Группа помечена «Без телеметрии»: работы подбираются только объектам без телеметрии' :
+          'Свойство группы (метка, на автоподбор не влияет)');
+        g += ' <span class="equipment-badge" style="font-size:10px" title="' + _tip + '">' + (_isTel ? '📡 ' : _isNoTm ? '🚫📡 ' : '🏷 ') + esc(_isTel ? 'Работы с ТМ' : _fx) + '</span>';
       });
       if (admin) g += '<span style="margin-left:auto;display:inline-flex;gap:4px;flex-shrink:0">' +
         '<button type="button" class="btn sm ghost" data-action="grp-newwork" data-path="' + esc(ch.path) + '" title="Добавить работу в эту группу (подгруппа задаётся в карточке работы)" style="padding:2px 8px;font-size:12px;line-height:1.4">＋</button>' +
-        '<button type="button" class="btn sm ghost" data-action="grp-props" data-path="' + esc(ch.path) + '" title="Свойства группы: «Телеметрия» (работы только объектам с ТМ), «ГРП» (только типу ГРП) и другие метки — применяются ко всем работам группы и её подгрупп" style="padding:2px 8px;font-size:12px;line-height:1.4">🏷</button>' +
+        (area === 'ГРП' ? '<button type="button" class="btn sm ghost" data-action="grp-props" data-path="' + esc(ch.path) + '" title="Свойства группы (только участок ГРП): «Работы с ТМ» — только объектам с телеметрией, «Без телеметрии» — только объектам без ТМ; применяются ко всем работам группы и её подгрупп" style="padding:2px 8px;font-size:12px;line-height:1.4">🏷</button>' : '') +
         '<button type="button" class="btn sm ghost" data-action="grp-rename" data-path="' + esc(ch.path) + '" title="Переименовать группу для всех работ сразу" style="padding:2px 8px;font-size:12px;line-height:1.4">✏️</button></span>';
       return g + '</div>';
     }
@@ -12155,32 +12206,43 @@
 
   /* ===== 22.09-137: СВОЙСТВА ГРУППЫ РАБОТ =====
      «📡 Телеметрия»: работы группы подбираются только объектам с ТМ; в режиме
-     автоподбора «🚫📡 Только без ТМ» не подбираются, в «📡 Только работы с ТМ» —
-     подбираются. «🏭 ГРП»: работы группы подбираются только объектам типа ГРП.
-     Прочие свойства — простые метки для наглядности. Свойства записываются на
-     все работы группы и её подгрупп (group_flags — синхронизируются с сервером
-     вместе с работами). */
+     «Работы с ТМ» — подбираются только объектам с телеметрией; «Без телеметрии» —
+     только объектам без ТМ. Прочие свойства — простые метки для наглядности.
+     Свойства записываются на все работы группы и её подгрупп (group_flags —
+     синхронизируются с сервером вместе с работами). Карточка доступна только
+     на участке «ГРП» (22.09-144). */
   function openGroupPropsModal(path) {
     if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
+    // 22.09-144: карточка свойств групп — только участок «ГРП»
+    if (S.workArea !== 'ГРП') { toast('warn', '🏷 Свойства групп доступны только на участке «ГРП»'); return; }
     var p = normGroupPath(path);
     if (!p) return;
     var area = S.workArea;
     var flags = []; try { flags = (WORK.groupFlagsOf && WORK.groupFlagsOf(area, p)) || []; } catch (e) {}
     function hasFlag(f) { var x = String(f).toLowerCase(); return flags.some(function (s) { return String(s || '').trim().toLowerCase() === x; }); }
+    // 22.09-144: системные метки — «Работы с ТМ» (старое имя «Телеметрия») и
+    // «Без телеметрии»; «ГРП» упразднена и в «Другие свойства» не поднимается
     var others = flags.filter(function (s) {
-      var t = String(s || '').trim();
-      return t.toLowerCase() !== 'телеметрия' && t !== 'ГРП';
+      var x = String(s || '').trim().toLowerCase();
+      return x !== 'телеметрия' && x !== 'работы с тм' && x !== 'без телеметрии' && s.trim() !== 'ГРП';
     });
     var affected = groupPathAffected(WORK.getWorks(area), p);
     S.grpPropsPath = p;
     var h = '<div class="modal-h"><h3>🏷 Свойства группы работ</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">';
     h += '<div style="font-size:14px;font-weight:700;margin-bottom:4px">' + esc(p) + '</div>';
     h += '<div style="font-size:11.5px;color:var(--muted);margin-bottom:12px">Свойства применятся ко всем работам группы и её подгрупп (затронуто работ: <b>' + affected + '</b>).</div>';
-    h += '<label class="cb" style="display:block;font-size:12.5px;line-height:1.5;margin-bottom:10px"><input type="checkbox" id="gp-tel"' + (hasFlag('Телеметрия') ? ' checked' : '') + '> 📡 <b>Телеметрия</b> — работы группы подбираются только объектам с телеметрией (ТМ); в режиме «🚫📡 Только без ТМ» НЕ подбираются, в «📡 Только работы с ТМ» — подбираются</label>';
-    h += '<label class="cb" style="display:block;font-size:12.5px;line-height:1.5;margin-bottom:12px"><input type="checkbox" id="gp-grp"' + (hasFlag('ГРП') ? ' checked' : '') + '> 🏭 <b>ГРП</b> — работы группы подбираются только объектам типа ГРП (не ШРП/ПГРП)</label>';
+    var tmOn = hasFlag('Работы с ТМ') || hasFlag('Телеметрия'), noTmOn = hasFlag('Без телеметрии');
+    h += '<label class="cb" style="display:block;font-size:12.5px;line-height:1.5;margin-bottom:10px"><input type="checkbox" id="gp-tm"' + (tmOn ? ' checked' : '') + '> 📡 <b>Работы с ТМ</b> — работы группы подбираются только объектам С телеметрией</label>';
+    h += '<label class="cb" style="display:block;font-size:12.5px;line-height:1.5;margin-bottom:12px"><input type="checkbox" id="gp-notm"' + (noTmOn ? ' checked' : '') + '> 🚫📡 <b>Без телеметрии</b> — работы группы подбираются только объектам БЕЗ телеметрии</label>';
     h += '<div class="fld"><label>Другие свойства (через запятую) <span style="color:#94a3b8;font-weight:500">— просто метки для наглядности, на автоподбор не влияют</span></label><input id="gp-other" value="' + esc(others.join(', ')) + '" placeholder="напр.: Зима, Капремонт" autocomplete="off"></div>';
     h += '</div><div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="grp-props-save">Сохранить</button></div>';
     modal.innerHTML = h; overlay.classList.add('show');
+    // «Работы с ТМ» и «Без телеметрии» взаимоисключают друг друга
+    var tmEl = document.getElementById('gp-tm'), noEl = document.getElementById('gp-notm');
+    if (tmEl && noEl) {
+      tmEl.addEventListener('change', function () { if (tmEl.checked) noEl.checked = false; });
+      noEl.addEventListener('change', function () { if (noEl.checked) tmEl.checked = false; });
+    }
   }
   function saveGroupProps() {
     if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
@@ -12188,15 +12250,18 @@
     if (!p) return;
     function chk(id) { var el = document.getElementById(id); return el ? el.checked : false; }
     var flags = [];
-    if (chk('gp-tel')) flags.push('Телеметрия');
-    if (chk('gp-grp')) flags.push('ГРП');
+    if (chk('gp-tm')) flags.push('Работы с ТМ');
+    if (chk('gp-notm')) flags.push('Без телеметрии');
     var oEl = document.getElementById('gp-other');
     var extra = (oEl ? oEl.value : '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
     extra.forEach(function (s) {
       var x = s.toLowerCase();
-      if (s === 'ГРП' || x === 'телеметрия') { // системные метки — не дублируем
-        if (x === 'телеметрия' && flags.indexOf('Телеметрия') === -1) flags.push('Телеметрия');
-        if (s === 'ГРП' && flags.indexOf('ГРП') === -1) flags.push('ГРП');
+      if (x === 'телеметрия' || x === 'работы с тм') { // системная — нормализуем имя
+        if (flags.indexOf('Работы с ТМ') === -1) flags.push('Работы с ТМ');
+        return;
+      }
+      if (x === 'без телеметрии') {
+        if (flags.indexOf('Без телеметрии') === -1) flags.push('Без телеметрии');
         return;
       }
       if (flags.indexOf(s) === -1) flags.push(s);
@@ -15848,6 +15913,8 @@
       else if (el.dataset.tool === 'print') { openGraphPrintModal(); }
     }
     else if (a === 'graphs-add-objs') { graphsAddObjs(); }
+    else if (a === 'graphs-del-objs') { graphsDelObjs(); } // 22.09-143
+    else if (a === 'gao-mode') { gaoSetMode(el.dataset.m); } // 22.09-143
     else if (a === 'graphs-obj-month') { openGraphObjMonthModal(parseInt(el.dataset.ri, 10) || 0, parseInt(el.dataset.mi, 10) || 0); }
     else if (a === 'graphs-month-view') { openGraphMonthModal(parseInt(el.dataset.mi, 10) || 0); }
     else if (a === 'graphs-print-view') { graphsPrintView(); }
@@ -16487,6 +16554,7 @@
     var g = graphsFind(GS.cur);
     if (!g) { toast('err', 'Сначала создайте или выберите график'); return; }
     GS.gaoDup = !!allowDup;
+    GS.gaoMode = 'add'; // 22.09-143: «Добавить» / «Удалить» — два режима одного окна
     // 22.09-82: в фильтре «Ответственный» — только мастера (ст. мастера, нач. участка),
     // как в окне создания графика. Слесарей и прочие роли здесь быть не должно.
     var users = getMasters().slice();
@@ -16498,7 +16566,11 @@
     });
     var typeOpts = '<option value="">Все типы</option>';
     OBJ_GAS_TYPES.forEach(function (t) { typeOpts += '<option value="' + t + '">' + t + '</option>'; });
-    var h = '<div class="modal-h"><h3>Добавить объекты в график</h3><button class="x" data-action="close-modal">×</button></div>';
+    var h = '<div class="modal-h"><h3 style="font-size:13.5px;line-height:1.35">' +
+      '<span id="gao-tab-add" data-action="gao-mode" data-m="add" style="cursor:pointer">Добавить объекты в график</span>' +
+      '<span style="color:var(--line);font-weight:400;user-select:none;padding:0 7px">|</span>' +
+      '<span id="gao-tab-del" data-action="gao-mode" data-m="del" style="cursor:pointer;opacity:.45">Удалить объекты из графика</span>' +
+      '</h3><button class="x" data-action="close-modal">×</button></div>';
     h += '<div class="modal-b">';
     h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">';
     h += '<div class="fld"><label>Тип объекта</label><select id="gao-type">' + typeOpts + '</select></div>';
@@ -16512,6 +16584,7 @@
     h += '</div>';
     h += '<div class="modal-f">' +
       '<button type="button" class="btn ok" data-action="graphs-add-objs" id="gao-add" disabled>Добавить в график</button>' +
+      '<button type="button" class="btn danger" data-action="graphs-del-objs" id="gao-del" style="display:none" disabled>Удалить из графика</button>' +
       '<button type="button" class="btn danger" data-action="close-modal">Отменить</button>' +
       '</div>';
     modal.innerHTML = h;
@@ -16541,6 +16614,48 @@
     var fType = typeSel ? typeSel.value : '';
     var respSel = document.getElementById('gao-resp');
     var respId = respSel ? respSel.value : '';
+    // 22.09-143, режим «Удалить объекты из графика»: список — только то, что
+    // УЖЕ есть в графике; все строки отмечены, СНЯТАЯ галочка = убрать из
+    // графика. Строка привязана к позиции в g.objs (объект может повторяться).
+    if (GS.gaoMode === 'del') {
+      var rows = [];
+      g.objs.forEach(function (ob, ri) {
+        if (!ob) return;
+        var ref = null;
+        try { ref = (typeof OBJ_MAP !== 'undefined' && OBJ_MAP[ob.oid]) || null; } catch (e) {}
+        var type = (ref && ref.type) || ob.type || '';
+        var addr = ref ? objFullAddr(ref) : (ob.name || ob.oid || '?');
+        var resp = ref ? (ref.respId || '') : (ob.respId || '');
+        var respName = (ref && ref.respName) || ob.respName || '';
+        if (fType && type !== fType) return;
+        if (respId && resp !== respId) return;
+        rows.push({ ri: ri, type: type, addr: addr, respName: respName });
+      });
+      rows.sort(function (x, y) {
+        var ti = OBJ_GAS_TYPES.indexOf(x.type) - OBJ_GAS_TYPES.indexOf(y.type);
+        if (ti) return ti;
+        return String(x.addr).localeCompare(String(y.addr), 'ru');
+      });
+      if (!rows.length) {
+        box.innerHTML = '<div class="empty" style="padding:26px 14px;font-size:12.5px">' +
+          ((fType || respId) ? 'Нет объектов графика по выбранным фильтрам (тип объекта / ответственный).' : 'В этом графике пока нет объектов — сначала добавьте их на вкладке «Добавить объекты в график» выше.') + '</div>';
+      } else {
+        var hd = '<div style="font-size:11.5px;color:var(--muted);padding:0 2px 2px">Снимите галочки у объектов, которые нужно убрать из графика:</div>';
+        rows.forEach(function (r) {
+          hd += '<label class="gao-row">' +
+            '<input type="checkbox" data-gao-ri="' + r.ri + '" checked style="accent-color:#dc2626;width:15px;height:15px;cursor:pointer;flex:0 0 auto;margin:0">' +
+            '<span class="chip ' + esc(r.type) + '">' + esc(r.type) + '</span>' +
+            '<span style="min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(r.addr) + '">' + esc(r.addr) + '</span>' +
+            (r.respName ? '<span style="font-size:10.5px;color:var(--muted);flex:0 0 auto">' + esc(r.respName) + '</span>' : '') +
+            '</label>';
+        });
+        box.innerHTML = hd;
+      }
+      var inD = box.querySelectorAll('input[type=checkbox]');
+      for (var di = 0; di < inD.length; di++) inD[di].addEventListener('change', graphsGaoSyncBtn);
+      graphsGaoSyncBtn();
+      return;
+    }
     var gasTotal = 0;
     var objs = OBJECTS.filter(function (o) {
       if (!o || !isGasType(o.type)) return false; // только ГРП/ШРП/ГРС/ПГРП
@@ -16575,6 +16690,20 @@
     graphsGaoSyncBtn();
   }
 
+  /* 22.09-143: переключатель режимов окна — «Добавить» / «Удалить».
+     Активная фраза яркая, вторая полупрозрачная; клик по полупрозрачной
+     переключает список и кнопку подвала. */
+  function gaoSetMode(m) {
+    GS.gaoMode = m === 'del' ? 'del' : 'add';
+    var ta = document.getElementById('gao-tab-add'), td = document.getElementById('gao-tab-del');
+    if (ta) ta.style.opacity = GS.gaoMode === 'add' ? '1' : '.45';
+    if (td) td.style.opacity = GS.gaoMode === 'del' ? '1' : '.45';
+    var ba = document.getElementById('gao-add'), bd = document.getElementById('gao-del');
+    if (ba) ba.style.display = GS.gaoMode === 'add' ? '' : 'none';
+    if (bd) bd.style.display = GS.gaoMode === 'del' ? '' : 'none';
+    graphsGaoRender();
+  }
+
   /* «Выбрать все»: отмечает все доступные объекты (повторное нажатие — снимает) */
   function graphsGaoToggleAll() {
     var inputs = document.querySelectorAll('#gao-list input[type=checkbox]');
@@ -16586,24 +16715,83 @@
     graphsGaoSyncBtn();
   }
 
-  /* Кнопка «Добавить в график (N)» — активна, когда есть отметки */
+  /* Кнопка действия окна — активна, когда есть что применить.
+     Режим «Добавить»: ОТМЕЧЕННЫЕ попадут в график; режим «Удалить»
+     (22.09-143): СНЯТЫЕ галочки будут убраны из графика. */
   function graphsGaoSyncBtn() {
-    var btn = document.getElementById('gao-add');
+    var delMode = GS.gaoMode === 'del';
+    var btn = document.getElementById(delMode ? 'gao-del' : 'gao-add');
     if (!btn) return;
     var inputs = document.querySelectorAll('#gao-list input[type=checkbox]');
     var total = 0, checked = 0;
     for (var i = 0; i < inputs.length; i++) {
       if (!inputs[i].disabled) { total++; if (inputs[i].checked) checked++; }
     }
-    btn.disabled = !checked;
-    btn.textContent = checked ? 'Добавить в график (' + checked + ')' : 'Добавить в график';
     var cnt = document.getElementById('gao-count');
-    if (cnt) cnt.textContent = total ? ('Выбрано: ' + checked + ' из ' + total) : '';
+    if (delMode) {
+      var off = total - checked;
+      btn.disabled = !off;
+      btn.textContent = off ? 'Удалить из графика (' + off + ')' : 'Удалить из графика';
+      if (cnt) cnt.textContent = total ? ('Убрать из графика: ' + off + ' из ' + total) : '';
+    } else {
+      btn.disabled = !checked;
+      btn.textContent = checked ? 'Добавить в график (' + checked + ')' : 'Добавить в график';
+      if (cnt) cnt.textContent = total ? ('Выбрано: ' + checked + ' из ' + total) : '';
+    }
     var ab = document.getElementById('gao-all');
     if (ab) {
       ab.textContent = (total > 0 && checked === total) ? 'Снять выделение' : 'Выбрать все';
       ab.style.display = total ? '' : 'none';
     }
+  }
+
+  /* 22.09-143: «Удалить из графика» — убирает из графика объекты со СНЯТОЙ
+     галочкой. Задачи их серий: невыполненные удаляются, выполненные —
+     отвязываются от серии и остаются в истории (как при уборке работы из
+     общего набора, 22.09-138). */
+  function graphsDelObjs() {
+    var g = graphsFind(GS.cur);
+    if (!g) { overlay.classList.remove('show'); modal.style.maxWidth = ''; return; }
+    if (!g.objs || !g.objs.length) { toast('warn', 'В графике нет объектов'); return; }
+    var inputs = document.querySelectorAll('#gao-list input[type=checkbox]');
+    var ris = [];
+    for (var i = 0; i < inputs.length; i++) {
+      if (inputs[i].getAttribute('data-gao-ri') != null && !inputs[i].checked) {
+        var ri0 = parseInt(inputs[i].getAttribute('data-gao-ri'), 10);
+        if (!isNaN(ri0)) ris.push(ri0);
+      }
+    }
+    if (!ris.length) { toast('warn', 'Снимите галочки у объектов, которые нужно убрать из графика'); return; }
+    var removedObjs = 0, killTasks = 0, keptTasks = 0;
+    ris.sort(function (a, b) { return b - a; }); // с конца — splice не ломает индексы
+    ris.forEach(function (ri) {
+      var ob = g.objs[ri];
+      if (!ob) return;
+      gwObjWorks(ob).forEach(function (w) {
+        (w.occs || []).forEach(function (oc) {
+          if (!oc || !oc.tid || !TASKS_DB) return;
+          var tk = null; try { tk = TASKS_DB.getTask(oc.tid); } catch (e) {}
+          if (!tk) return;
+          if (isDone(tk)) { // выполненная — отвязать, но сохранить историю
+            try { TASKS_DB.updateTask(tk.id, { graphId: '', graphRi: null, graphSid: '' }); } catch (e2) {}
+            keptTasks++;
+          } else {
+            try { TASKS_DB.hardDeleteTask(tk.id); } catch (e3) {}
+            killTasks++;
+          }
+        });
+      });
+      g.objs.splice(ri, 1);
+      removedObjs++;
+    });
+    var list = graphsLoad();
+    for (var j = 0; j < list.length; j++) if (list[j].id === g.id) list[j].objs = g.objs;
+    graphsSaveList(list);
+    if (TASKS_DB) S.tasks = TASKS_DB.getTasks();
+    logAction('Объекты убраны из графика', g.name + ': ' + removedObjs + ' шт.');
+    toast('ok', 'Убрано объектов из графика: ' + removedObjs + (killTasks ? '; удалено запланированных задач: ' + killTasks : '') + (keptTasks ? '; выполненные сохранены в истории: ' + keptTasks : ''));
+    if (S.screen === 'graphs') renderGraphs();
+    graphsGaoRender(); // список в окне обновился
   }
 
   /* Обозначения работ графика: работы ВЫБРАННОГО УЧАСТКА (справочник видов
@@ -16629,13 +16817,23 @@
     }
     return '<svg viewBox="0 0 20 24" width="' + size + '" height="' + Math.round(size * 1.2) + '" style="flex:0 0 auto;display:block">' + parts.join('') + '</svg>';
   }
-  /* Цвет работы: назначенный в графике → иначе из палитры по порядку в участке */
+  /* Путь группы работы (нормализованный): 22.09-145 — цвета и обозначения по группам */
+  function gwWorkGroup(w) { return w ? String(w.group || '').replace(/\s+/g, ' ').trim() : ''; }
+  /* Цвет работы: 22.09-145 — у всех работ ОДНОЙ группы один цвет.
+     Приоритет: цвет, назначенный группе в «Обозначениях работ» (ключ 'grp:путь')
+     → старый индивидуальный цвет работы → палитра по индексу ПЕРВОЙ работы
+     группы (по умолчанию работы группы тоже совпадают по цвету). */
   function gwColorOf(g, wid) {
-    if (g && g.workColors && g.workColors[wid]) return g.workColors[wid];
     var works = [];
     try { works = WORK.getWorks(graphAreaDefault(g)) || []; } catch (e) {}
-    var idx = 0;
+    var idx = -1;
     for (var i = 0; i < works.length; i++) if (works[i].id === wid) { idx = i; break; }
+    var w = idx >= 0 ? works[idx] : null;
+    var gp = gwWorkGroup(w);
+    if (gp && g && g.workColors && g.workColors['grp:' + gp]) return g.workColors['grp:' + gp];
+    if (g && g.workColors && g.workColors[wid]) return g.workColors[wid];
+    if (idx < 0) idx = 0;
+    if (gp) { for (var j = 0; j < works.length; j++) { if (gwWorkGroup(works[j]) === gp) { idx = j; break; } } }
     return GW_COLOR_PALETTE[idx % GW_COLOR_PALETTE.length];
   }
   /* Участок графика: выбранный → участок ответственного → первый из справочника */
@@ -16688,12 +16886,33 @@
         box.innerHTML = '<div class="empty" style="padding:24px 14px;font-size:12.5px">Нет видов работ на участке «' + esc(area) + '».</div>';
         return;
       }
-      var rh = '';
+      // 22.09-145: строки обозначений = ГРУППЫ работ (один цвет на всю группу).
+      // На виду — название группы; виды работ группы — во всплывающей подсказке
+      // (наведите на строку). Работы без группы — отдельными строками, как раньше.
+      var groupOrder = [], groupMap = {}, singleW = [];
       works.forEach(function (w) {
+        var gp = gwWorkGroup(w);
+        if (!gp) { singleW.push(w); return; }
+        if (!groupMap[gp]) { groupMap[gp] = []; groupOrder.push(gp); }
+        groupMap[gp].push(w);
+      });
+      var rh = '';
+      groupOrder.forEach(function (gp) {
+        var ws = groupMap[gp];
+        var col = gwColorOf(g, ws[0].id);
+        var tip = 'Работы группы:';
+        ws.forEach(function (x) { tip += '\n• ' + x.name; });
+        rh += '<div class="gw-leg-row">' +
+          '<span class="gl-tri" data-tri="' + esc('grp:' + gp) + '">' + gwTriangle(col, 18) + '</span>' +
+          '<span class="gw-leg-txt" title="' + esc(tip) + '">' + esc(gp) + (ws.length > 1 ? ' <span style="color:var(--muted);font-weight:600">×' + ws.length + '</span>' : '') + '</span>' +
+          '<input type="color" data-gl-color="' + esc('grp:' + gp) + '" value="' + col + '" title="Цвет треугольника — единый для всех работ группы">' +
+          '</div>';
+      });
+      singleW.forEach(function (w) {
         var col = gwColorOf(g, w.id);
         rh += '<div class="gw-leg-row">' +
           '<span class="gl-tri" data-tri="' + esc(w.id) + '">' + gwTriangle(col, 18) + '</span>' +
-          '<span class="gw-leg-txt" title="' + esc(w.group || '') + '">' + esc(w.name) + '</span>' +
+          '<span class="gw-leg-txt" title="' + esc(w.name) + '">' + esc(w.name) + '</span>' +
           '<input type="color" data-gl-color="' + esc(w.id) + '" value="' + col + '" title="Цвет треугольника работы">' +
           '</div>';
       });
@@ -16701,11 +16920,13 @@
       var cols = box.querySelectorAll('input[data-gl-color]');
       for (var i = 0; i < cols.length; i++) {
         cols[i].addEventListener('input', function (e) {
-          var wid = e.target.getAttribute('data-gl-color');
-          g.workColors[wid] = e.target.value;
+          // 22.09-145: ключ может быть группой 'grp:…' — в названиях групп бывают
+          // кавычки, поэтому треугольник строки ищем перебором, без CSS-селектора
+          var key = e.target.getAttribute('data-gl-color');
+          g.workColors[key] = e.target.value;
           graphsSaveList(list);
-          var tri = box.querySelector('[data-tri="' + wid + '"]');
-          if (tri) tri.innerHTML = gwTriangle(e.target.value, 18);
+          var tris = box.querySelectorAll('[data-tri]');
+          for (var ti = 0; ti < tris.length; ti++) { if (tris[ti].getAttribute('data-tri') === key) { tris[ti].innerHTML = gwTriangle(e.target.value, 18); } }
           if (S.screen === 'graphs') renderGraphs(); // перекрасить таблицы за окном
         });
       }
@@ -16723,12 +16944,17 @@
 
   /* ===== ПЕРИОДИЧНОСТЬ РАБОТ ГРАФИКА ===== */
   /* Опции видов работ участка (справочник видов работ по участкам) */
+  /* 22.09-145: в строках работ окна «Настроить периодичность» на виду —
+     название ГРУППЫ (коротко), полный вид работ — во всплывающей подсказке
+     (title у опции и у самого списка). У работ без группы — название, как раньше.
+     Значение опции — по-прежнему id работы: выбор/сохранение не меняются. */
   function gprWorkOptions(area, sel) {
     var works = [];
     try { works = WORK.getWorks(area) || []; } catch (e) {}
     var h = '<option value="">— не задана —</option>';
     works.forEach(function (w) {
-      h += '<option value="' + esc(w.id) + '"' + (w.id === sel ? ' selected' : '') + '>' + esc(w.name) + '</option>';
+      var gp = gwWorkGroup(w);
+      h += '<option value="' + esc(w.id) + '"' + (w.id === sel ? ' selected' : '') + ' title="' + esc(w.name) + '">' + esc(gp || w.name) + '</option>';
     });
     return h;
   }
@@ -17015,10 +17241,10 @@
              совпадать с параметром объекта (attrs.reduceLines, запасной —
              attrs.linesCount). Если у объекта параметр не заполнен — работа
              с ограничением по линиям не подбирается. */
-  /* 22.09-137: свойства ГРУППЫ работы (хранятся в group_flags каждой работы;
-     задаются кнопкой 🏷 у группы в справочнике «Виды работ»).
-     «Телеметрия» — работа считается «с ТМ» (только объектам с телеметрией);
-     «ГРП» — работа только объектам типа ГРП. Прочие — метки для наглядности. */
+  /* 22.09-137/144: свойства ГРУППЫ работы (хранятся в group_flags каждой работы;
+     задаются кнопкой 🏷 у группы в справочнике «Виды работ», участок «ГРП»).
+     «Работы с ТМ» (старое имя «Телеметрия») — работа только объектам с ТМ;
+     «Без телеметрии» — только объектам без ТМ. Прочие — метки для наглядности. */
   function workGroupHasFlag(w, flag) {
     var fl = w && w.group_flags;
     if (!Array.isArray(fl)) return false;
@@ -17026,6 +17252,10 @@
     for (var i = 0; i < fl.length; i++) if (String(fl[i] || '').trim().toLowerCase() === f) return true;
     return false;
   }
+  /* 22.09-144: групповые метки телеметрии; «Телеметрия» переименована в
+     «Работы с ТМ» — распознаются оба написания (старые записи работают). */
+  function workGroupHasTmFlag(w) { return workGroupHasFlag(w, 'Работы с ТМ') || workGroupHasFlag(w, 'Телеметрия'); }
+  function workGroupHasNoTmFlag(w) { return workGroupHasFlag(w, 'Без телеметрии'); }
   /* 22.09-137: работы, которые автоподбор НЕ назначает НИКОГДА (ни в одном
      режиме). Совпадение — по подстроке названия (нижний регистр, пробелы слиты). */
   var AUTOPICK_NEVER = [
@@ -17054,18 +17284,20 @@
       else if (txt.indexOf('оборудованных системой телеметр') !== -1) tReq = 'equipped';
       else if (txt.indexOf('тм и асутп') !== -1) tReq = 'equipped';
     }
-    // 22.09-137: ни поля карточки, ни название не определили — смотрим свойство
-    // группы «Телеметрия» (такие работы подбираются только объектам с ТМ).
-    if (!tType && !tReq && workGroupHasFlag(w, 'Телеметрия')) tReq = 'equipped';
+    // 22.09-137/144: ни поля карточки, ни название не определили — смотрим
+    // групповые метки: «Работы с ТМ» (старое «Телеметрия») — только объектам
+    // с ТМ; «Без телеметрии» — только объектам без ТМ.
+    if (!tType && !tReq && workGroupHasTmFlag(w)) tReq = 'equipped';
+    if (!tType && !tReq && workGroupHasNoTmFlag(w)) tReq = 'not_equipped';
     if (!diag && txt.indexOf('приборного диагностического оборудования') !== -1) diag = true;
     if (!heat && txt.indexOf('отопительн') !== -1) heat = true;
     return { telemetry_req: tReq, telemetry_type: tType, diag_equipment: diag, heating_req: heat };
   }
   function workMatchesObjectParams(w, attrs, objType, rules) {
     rules = rules || {};
-    // 22.09-137: свойство группы «ГРП» — работа подбирается только объектам
-    // типа ГРП (явная пометка группы — действует независимо от галочек критериев).
-    if (workGroupHasFlag(w, 'ГРП') && String(objType || '').trim() !== 'ГРП') return false;
+    // 22.09-144: пометка группы «ГРП» УПРАЗДНЕНА — это название участка
+    // справочника, а не фильтр по типу объекта. Ограничение по типу объекта —
+    // только через «Категорию объекта обслуживания» в карточке работы.
     if (rules.type !== false) {
       var cats = w.object_categories || [];
       if (cats.length && objType && cats.indexOf(objType) === -1) return false;
@@ -17198,7 +17430,7 @@
       '</div>';
     h += '<div class="gpr-cols"><span>Вид работы</span><span>Период., мес</span><span>Откл., дн</span><span>Дата первого проведения</span><span></span></div>';
     h += '<div id="gpr-list" style="display:flex;flex-direction:column;gap:10px;padding:2px"></div>';
-    h += '<div class="calc" style="align-items:flex-start;font-size:11.5px;line-height:1.5">Шаг серии = периодичность МИНУС отклонение (1 мес и отклонение 2 дн: работа 18 числа → следующая 16 числа следующего месяца). У каждого объекта может быть несколько работ — «+ работа». Работы появляются в «Планировании»; перемещение задачи там переносит её и последующие по шагу серии. <b>Даты, попавшие на день, когда мастер графика не работает (выходные 5/2 и 2/2, отсутствия — график смен на вкладке «Работники»), автоматически переносятся на ближайший предыдущий рабочий день; шаг серии считается от своих исходных дат.</b> <b>⚡ Автоподбор (кнопка сверху или «⚡» у объекта) добавляет объектам работы из справочника по их параметрам: тип объекта ↔ «Категория объекта обслуживания», линии редуцирования объекта ↔ «Кол-во линий редуцирования» в карточке работы. Периодичность и отклонение подставляются из справочника; дата первого проведения — из «Даты ввода в эксплуатацию» объекта, если у работы выбран реквизит отсчёта «Дата ввода в эксплуатацию». Критерии оборудования: телеметрия (работы «с ТМ» не попадут на объект без ТМ; выбран тип — совпадение по типу и наличию), приборная диагностика только при виде обслуживания «Region-gas», ТО отопительного оборудования только ГРП с отоплением. Если поля в карточке работы не заполнены, связь распознаётся по названию работы/группы («ИНДЕЛ», «оборудованных/не оборудованных системой телеметрии», «приборного диагностического оборудования», «отопительного»). Режимы: «📡 Только работы с ТМ» — одни телеметрические работы, «🚫📡 Только без ТМ» — одни работы без привязки к телеметрии. Зимние работы (сезон «Зима» в карточке работы) автоподбором не добавляются — назначьте их вручную кнопкой «+ работа». Пометки групп (кнопка 🏷 у группы в справочнике «Виды работ»): «Телеметрия» — работы группы только объектам с ТМ (в подбор «без ТМ» не входят), «ГРП» — только объектам типа ГРП; остальные пометки — просто метки. Работа «Текущий ремонт оборудования шкафных газорегуляторных пунктов без опрессовки» автоподбором НЕ назначается. <b>Набор работ объекта — ОБЩИЙ для всех графиков: добавленный в другой график объект приходит со своими работами; правки набора видны во всех графиках. Уже рассчитанные даты других графиков при этом НЕ меняются — пересчёт только в сохраняемом графике; серии всегда продолжаются от даты первого проведения (без перезапуска в новом году).</b></b></div>';
+    h += '<div class="calc" style="align-items:flex-start;font-size:11.5px;line-height:1.5"><b>В строках работ на виду название ГРУППЫ — полный вид работ показывается при наведении на строку.</b> Шаг серии = периодичность МИНУС отклонение (1 мес и отклонение 2 дн: работа 18 числа → следующая 16 числа следующего месяца). У каждого объекта может быть несколько работ — «+ работа». Работы появляются в «Планировании»; перемещение задачи там переносит её и последующие по шагу серии. <b>Даты, попавшие на день, когда мастер графика не работает (выходные 5/2 и 2/2, отсутствия — график смен на вкладке «Работники»), автоматически переносятся на ближайший предыдущий рабочий день; шаг серии считается от своих исходных дат.</b> <b>⚡ Автоподбор (кнопка сверху или «⚡» у объекта) добавляет объектам работы из справочника по их параметрам: тип объекта ↔ «Категория объекта обслуживания», линии редуцирования объекта ↔ «Кол-во линий редуцирования» в карточке работы. Периодичность и отклонение подставляются из справочника; дата первого проведения — из «Даты ввода в эксплуатацию» объекта, если у работы выбран реквизит отсчёта «Дата ввода в эксплуатацию». Критерии оборудования: телеметрия (работы «с ТМ» не попадут на объект без ТМ; выбран тип — совпадение по типу и наличию), приборная диагностика только при виде обслуживания «Region-gas», ТО отопительного оборудования только ГРП с отоплением. Если поля в карточке работы не заполнены, связь распознаётся по названию работы/группы («ИНДЕЛ», «оборудованных/не оборудованных системой телеметрии», «приборного диагностического оборудования», «отопительного»). Режимы: «📡 Только работы с ТМ» — одни телеметрические работы, «🚫📡 Только без ТМ» — одни работы без привязки к телеметрии. Зимние работы (сезон «Зима» в карточке работы) автоподбором не добавляются — назначьте их вручную кнопкой «+ работа». Пометки групп (кнопка 🏷 у группы в справочнике «Виды работ», участок ГРП): «Работы с ТМ» — только объектам с телеметрией; «Без телеметрии» — только объектам без телеметрии; остальные пометки — просто метки. Работа «Текущий ремонт оборудования шкафных газорегуляторных пунктов без опрессовки» автоподбором НЕ назначается. <b>Набор работ объекта — ОБЩИЙ для всех графиков: добавленный в другой график объект приходит со своими работами; правки набора видны во всех графиках. Уже рассчитанные даты других графиков при этом НЕ меняются — пересчёт только в сохраняемом графике; серии всегда продолжаются от даты первого проведения (без перезапуска в новом году).</b></b></div>';
     h += '</div>';
     h += '<div class="modal-f"><button type="button" class="btn ok" data-action="graphs-period-save">Сохранить</button><button type="button" class="btn danger" data-action="close-modal">Отменить</button></div>';
     modal.innerHTML = h;
@@ -17251,6 +17483,7 @@
       var w = null;
       try { w = WORK.getWork(area, sel.value); } catch (err) {}
       if (!w) return;
+      sel.title = w.name || ''; // 22.09-145: подсказка строки — полный вид работ
       var id = sel.getAttribute('data-idx');
       // В графике шаг задаётся в месяцах: значение «в днях» не конвертируем
       var per = (w.periodicity_unit === 'дней') ? 0 : (parseInt(w.periodicity_value, 10) || 0);
@@ -17268,6 +17501,8 @@
         sels[i].innerHTML = gprWorkOptions(area, null);
         // значение сохраняем, если такая работа есть на новом участке
         for (var j = 0; j < sels[i].options.length; j++) if (sels[i].options[j].value === v) { sels[i].value = v; break; }
+        var _sw = null; try { _sw = WORK.getWork(area, sels[i].value); } catch (e3) {} // 22.09-145: подсказка
+        sels[i].title = _sw ? _sw.name : '';
       }
     });
     // 22.09-114: кнопки автоподбора — всем / 22.09-118: только с ТМ / только без ТМ
@@ -17310,8 +17545,10 @@
   }
   function gprRowHtml(area, ri, wi, wrk, auto) {
     var id = ri + '-' + wi;
+    var _selW = null; // 22.09-145: подсказка списка — полный вид работ
+    if (wrk.wid) { try { _selW = WORK.getWork(area, wrk.wid); } catch (eW) {} }
     return '<div class="gpr-wrow" data-sid="' + esc(wrk.sid || '') + '"' + (auto ? ' style="background:#f0fdf4;outline:1px solid #bbf7d0;outline-offset:-1px;border-radius:6px" title="⚡ Работа подобрана автоматически по параметрам объекта"' : '') + '>' +
-      '<select class="gpr-inp" data-gpr-w="' + id + '" data-idx="' + id + '">' + gprWorkOptions(area, wrk.wid) + '</select>' +
+      '<select class="gpr-inp" data-gpr-w="' + id + '" data-idx="' + id + '" title="' + esc(_selW ? _selW.name : '') + '">' + gprWorkOptions(area, wrk.wid) + '</select>' +
       '<input class="gpr-inp" type="number" min="0" step="1" placeholder="—" value="' + (wrk.period || '') + '" data-gpr-p="' + id + '" title="Периодичность, месяцев">' +
       '<input class="gpr-inp" type="number" min="0" step="1" placeholder="—" value="' + (wrk.dev || '') + '" data-gpr-d="' + id + '" title="Отклонение, дней (шаг = периодичность − отклонение)">' +
       '<input class="gpr-inp" type="date" value="' + esc(wrk.first || '') + '" data-gpr-f="' + id + '">' +
