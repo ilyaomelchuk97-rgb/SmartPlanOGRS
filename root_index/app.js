@@ -737,9 +737,9 @@
   }
 
   var TITLES = {
-    dashboard: ['Панель мониторинга', 'Сборка 22.09-135 · меню слева выше затемнений; окна — 80% ширины, по центру, высота по содержимому'],
+    dashboard: ['Панель мониторинга', 'Сборка 22.09-141 · у плашки «Нет соединения» убрана тень; меню слева выше затемнений; окна — 80% ширины, по центру'],
     calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
-    graphs: ['Планирование / График работ', 'Сборка 22.09-138 · набор работ объекта общий для всех графиков: работы следуют за объектом, даты старых графиков не пересчитываются'],
+    graphs: ['Планирование / График работ', 'Сборка 22.09-140 · при смене года графика серии пересчитываются на новый год от даты первого проведения; набор работ объекта — общий для всех графиков'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
     objmap: ['Карта объектов', 'Сборка 22.09-137 · вид телеметрии «ПТК "Эксорт"» переименован в «ПТК "Эскорт"» — объекты и работы обновлены автоматически'],
     testmap: ['Тест проезда', 'Сборка 22.09-131 · OptMap удалён: память сервера освобождена, роутеры — только внешние (OSRM / BRouter / Valhalla)'],
@@ -16388,16 +16388,29 @@
     var respId = ri ? ri.value : '';
     var respName = '';
     (DB.getUsers() || []).forEach(function (u) { if (u && u.id === respId) respName = u.full_name || ''; });
+    var oldYear = g.year || year;
     var list = graphsLoad();
+    var gg = null;
     list.forEach(function (x) {
-      if (x.id === gid) { x.name = name; x.year = year; x.respId = respId; x.respName = respName; }
+      if (x.id === gid) { x.name = name; x.year = year; x.respId = respId; x.respName = respName; gg = x; }
     });
+    // 22.09-140: год изменился — серии пересчитываем на новый год (от тех же
+    // дат первого проведения, без перезапуска). Режим 'auto' — самолечение:
+    // год меняли раньше без пересчёта (даты серии остались старого года).
+    var rs = gg ? graphYearResync(gg, oldYear !== year ? 'all' : 'auto') : null;
     graphsSaveList(list);
     GS.edit = null;
     overlay.classList.remove('show');
     modal.style.maxWidth = '';
     logAction('Изменён график', name + ' (' + year + ')');
     toast('ok', 'График «' + name + '» обновлён');
+    if (rs && rs.series) {
+      if (TASKS_DB) S.tasks = TASKS_DB.getTasks();
+      toast('ok', '📅 Работы пересчитаны на ' + year + ' год — серии продолжаются от дат первого проведения: серий ' + rs.series + ', задач создано ' + rs.created + (rs.removed ? ', убрано прежних ' + rs.removed : '') + (rs.kept ? ', сохранено выполненных ' + rs.kept : ''));
+      if (rs.yaw) toast('warn', '⚠ У ' + rs.yaw + ' работ дата первого проведения позже ' + year + ' года — они не попадут в график.');
+      if (rs.shifted) toast('ok', '⏮ По графику смен мастера: ' + rs.shifted + ' вхождений перенесено на ближайший предыдущий рабочий день.');
+      if (rs.fail) toast('warn', '⚠ Не удалось создать задач: ' + rs.fail + ' (возможно, память браузера переполнена). Треугольники выставлены.');
+    }
     if (S.screen === 'graphs' && GS.cur === gid) renderGraphs(); // шапка в панели обновится
     openGraphsListModal(); // возвращаемся к списку — изменения видны сразу
   }
@@ -16940,6 +16953,53 @@
       iso = gwNextISO(iso, wrk.period, wrk.dev);
       guard++;
     }
+    return st;
+  }
+
+  /* 22.09-140: пересчёт серий графика при смене ГОДА (окно «Редактировать
+     график»). Даты нового года считаются от того же якоря (first) с тем же
+     шагом (периодичность − отклонение) — серия продолжается сквозь года без
+     перезапуска. Невыполненные задачи прежней раскладки убираются,
+     выполненные — отвязываются от серии и остаются в истории.
+     mode 'all' — все серии (год только что изменили);
+     mode 'auto' — только «битые» серии: рассчитаны, но текущего года в них
+     нет, хотя по якорю даты быть должны (год меняли раньше без пересчёта). */
+  function graphYearResync(g, mode) {
+    var st = { series: 0, created: 0, removed: 0, kept: 0, shifted: 0, fail: 0, yaw: 0 };
+    if (!g || !g.objs || !g.objs.length || !TASKS_DB) return st;
+    var area = graphAreaDefault(g);
+    var pfx = String(g.year) + '-';
+    var endISO = g.year + '-12-31';
+    g.objs.forEach(function (ob, ri) {
+      var pastOn = !!ob.pastTasks;
+      gwObjWorks(ob).forEach(function (wrk) {
+        if (!wrk || !wrk.wid) return;
+        var occs = wrk.occs || [];
+        var canHave = !!(wrk.first && (wrk.period || 0) > 0 && String(wrk.first) <= endISO);
+        if (mode !== 'all') {
+          if (!occs.length || !canHave) return;
+          var hasYear = false;
+          for (var i = 0; i < occs.length; i++) {
+            var d0 = occs[i] && String(occs[i].date || '');
+            if (d0.indexOf(pfx) === 0) { hasYear = true; break; }
+          }
+          if (hasYear) return; // серия уже на текущем году — не трогаем
+        }
+        (occs || []).forEach(function (oc) {
+          if (!oc || !oc.tid) return;
+          var tk = null; try { tk = TASKS_DB.getTask(oc.tid); } catch (e) {}
+          if (!tk) return;
+          if (isDone(tk)) { // выполненная — отвязать от серии, сохранить историю
+            try { TASKS_DB.updateTask(tk.id, { graphId: '', graphRi: null, graphSid: '' }); st.kept++; } catch (e2) {}
+          } else {
+            try { TASKS_DB.hardDeleteTask(tk.id); st.removed++; } catch (e3) { st.fail++; }
+          }
+        });
+        if (wrk.first && !canHave) st.yaw++;
+        var s2 = gwGenObjSeries(g, ri, area, ob, wrk, pastOn);
+        st.series++; st.created += s2.created; st.shifted += s2.shifted; st.fail += s2.fail;
+      });
+    });
     return st;
   }
 
