@@ -378,7 +378,8 @@
   .gpr-past{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--muted);cursor:pointer;user-select:none;white-space:nowrap;flex:0 0 auto}
   .gpr-past input{width:14px;height:14px;cursor:pointer;accent-color:#2563eb;margin:0;flex:0 0 auto}
   .gpr-works{padding:8px;display:flex;flex-direction:column;gap:6px}
-  .gpr-wrow,.gpr-cols{display:grid;grid-template-columns:minmax(170px,1.7fr) 78px 68px 128px 30px;gap:6px;align-items:center;min-width:0}
+  .gpr-wrow{display:grid;grid-auto-flow:column;grid-template-columns:minmax(170px,1.7fr) 30px 78px 68px 128px 30px;gap:6px;align-items:center;min-width:0}
+  .gpr-cols{display:grid;grid-template-columns:minmax(170px,1.7fr) 30px 78px 68px 128px 30px;gap:6px;align-items:center;min-width:0}
   .gpr-cols{padding:0 18px 4px;font-size:10.5px;font-weight:800;color:var(--muted)}
   .gpr-cols span{text-align:center}
   .gpr-cols span:first-child{text-align:left}
@@ -1108,7 +1109,7 @@
           <div style="margin-top:6px;font-size:11px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-148 · мини-кнопка 🎯 у списка работ — точный выбор работы в группе (в планировании и в настройке периодичности графика)</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-150 · автовыбор работ в задаче всегда по виду/линиям/телеметрии объекта + сезон графика (3 июля — летние, 15 декабря — зимние)</div>
     </div>
   </div>
   </div>
