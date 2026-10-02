@@ -738,8 +738,8 @@
 
   var TITLES = {
     dashboard: ['Панель мониторинга', 'Сборка 22.09-141 · у плашки «Нет соединения» убрана тень; меню слева выше затемнений; окна — 80% ширины, по центру'],
-    calendar: ['Планирование / Календарь', 'Сборка 22.09-151 · карточка задачи: 🎯 внутри блока справа от списка, зелёная «+» — во всю высоту блока вида работ'],
-    graphs: ['Планирование / График работ', 'Сборка 22.09-149 · периодичность: 🎯 сразу после списка групп, строки в одну линию (grid-auto-flow: column); в задаче 🎯 над «+»'],
+    calendar: ['Планирование / Календарь', 'Сборка 22.09-152 · карточка задачи: зелёная «+» — ОДНА, справа от ВСЕГО блока видов работ и на всю его высоту (не внутри карточек)'],
+    graphs: ['Планирование / График работ', 'Сборка 22.09-152 · периодичность: в списке ОДНА строка на группу работ; вид работ внутри группы подбирается под объект автоматически, точный выбор — 🎯'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
     objmap: ['Карта объектов', 'Сборка 22.09-137 · вид телеметрии «ПТК "Эксорт"» переименован в «ПТК "Эскорт"» — объекты и работы обновлены автоматически'],
     testmap: ['Тест проезда', 'Сборка 22.09-131 · OptMap удалён: память сервера освобождена, роутеры — только внешние (OSRM / BRouter / Valhalla)'],
@@ -14748,6 +14748,13 @@
           '<div style="font-size:11.5px;color:var(--muted);margin-top:6px">Вид работ не выбран — нажмите «+», чтобы добавить</div>' +
           '</div>';
       }
+      var _wlWrapOpen = false;
+      if (S.taskModalWorks.length) {
+        // 22.09-152: снаружи справа — ОДНА зелёная «+» на всю высоту блока
+        htmlStr += '<div style="display:flex;gap:8px;align-items:stretch">' +
+          '<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px">';
+        _wlWrapOpen = true;
+      }
       S.taskModalWorks.forEach(function(selectedWid, idx) {
         var widOk = works.some(function(w) { return w.id === selectedWid; });
         if ((!selectedWid || !widOk) && works.length > 0) { selectedWid = works[0].id; S.taskModalWorks[idx] = selectedWid; if (S.taskModalWorksAuto) S.taskModalWorksAuto[idx] = true; }
@@ -14760,8 +14767,10 @@
         var wSel = null;
         works.forEach(function(w) { if (w.id === selectedWid) wSel = w; });
         var unitSel = wSel ? wSel.unit : 'объект';
-        // 22.09-151: блок вида работ: слева строка списка (🎯 СРАЗУ СПРАВА от списка)
-        // и объём под ней; зелёная «+» — на ВСЮ высоту блока справа, рядом «×»
+        /* 22.09-152: карточка вида работ — слева список групп (🎯 сразу справа
+           от него) и объём под ним; справа внутри карточки — только «×».
+           Зелёная «+» теперь ОДНА — справа от ВСЕГО блока видов работ (ниже,
+           после цикла), развёрнута на всю его высоту. */
         htmlStr += '<div class="work-item' + (idx === highlightIdx ? ' work-row-new' : '') + '" style="display:flex;gap:8px;align-items:stretch">';
         htmlStr += '<div style="flex:1;min-width:0">';
         htmlStr += '<div class="work-row">';
@@ -14776,10 +14785,16 @@
           '<span class="vol-unit">' + esc(unitSel) + '</span>' +
           '</div>';
         htmlStr += '</div>';
-        htmlStr += '<button type="button" class="work-add-btn" data-idx="' + idx + '" title="Добавить ещё один вид работ на этот адрес" style="height:auto;align-self:stretch">+</button>';
         htmlStr += '<button type="button" class="btn sm ghost del-work-item" data-idx="' + idx + '" style="color:var(--red);border-color:transparent;padding:4px 8px;font-size:14px;font-weight:bold;align-self:flex-start" title="Убрать этот вид работ">×</button>';
         htmlStr += '</div>';
       });
+      if (_wlWrapOpen) {
+        /* 22.09-152: зелёная «+» — СПРАВА ОТ ВСЕГО БЛОКА видов работ (не внутри
+           карточек), высотой во весь блок; добавляет новый вид в конец списка */
+        htmlStr += '</div>'; // конец колонки карточек
+        htmlStr += '<button type="button" class="work-add-btn" data-idx="' + (S.taskModalWorks.length - 1) + '" title="Добавить ещё один вид работ на этот адрес" style="height:auto;align-self:stretch">+</button>';
+        htmlStr += '</div>'; // конец внешней строки (колонка карточек + «+»)
+      }
       cont.innerHTML = htmlStr;
       cont.querySelectorAll('.task-work-sel').forEach(function(sel) {
         sel.addEventListener('change', function(e) {
@@ -17177,13 +17192,74 @@
      название ГРУППЫ (коротко), полный вид работ — во всплывающей подсказке
      (title у опции и у самого списка). У работ без группы — название, как раньше.
      Значение опции — по-прежнему id работы: выбор/сохранение не меняются. */
-  function gprWorkOptions(area, sel) {
+  /* 22.09-152: автовыбор работы ВНУТРИ ГРУППЫ для строки объекта ri текущего
+     графика — те же правила, что у «⚡ Автоподбора»: тип объекта, линии
+     редуцирования, телеметрия, вид обслуживания, отопление (чекбоксы окна;
+     по умолчанию все включены). Исключённые названия («автоподбор НИКОГДА»)
+     и сезон «Зима» автоматически не подставляются — их выбирают вручную через
+     🎯. Без объекта — первая подходящая работа группы. */
+  function gprGroupAutopick(area, gp, ri) {
+    if (!gp) return null;
+    var works = [];
+    try { works = WORK.getWorks(area) || []; } catch (e) {}
+    var ob = null, attrs = {}, objType = '';
+    try {
+      var g = graphsFind(GS.cur);
+      ob = (g && g.objs) ? g.objs[ri] : null;
+      if (ob) {
+        objType = ob.type || '';
+        var rec = (window.SP_OBJECTS && ob.oid) ? SP_OBJECTS.getObject(ob.oid) : null;
+        if (rec && window.SP_OBJ_ATTRS) attrs = SP_OBJ_ATTRS.getAttrs(rec) || {};
+      }
+    } catch (e2) {}
+    var rules;
+    if (ob) {
+      try { rules = gprAutofillRules(); } catch (e3) { rules = null; }
+      if (!rules) rules = { type: true, lines: true, telemetry: true, service: true, heating: true };
+    } else {
+      rules = { type: false, lines: false, telemetry: false, service: false, heating: false };
+    }
+    var firstOk = null, firstNoWin = null, firstAny = null;
+    for (var i = 0; i < works.length; i++) {
+      var w = works[i];
+      if (!w || gwWorkGroup(w) !== gp) continue;
+      if (!firstAny) firstAny = w;
+      if (autopickExcludedName(w.name)) continue;
+      var winter = String(w.season || '').toLowerCase() === 'зима';
+      if (!winter && !firstNoWin) firstNoWin = w;
+      if (winter) continue; // как «⚡ Автоподбор»: зимние работы — вручную через 🎯
+      if (ob && workMatchesObjectParams(w, attrs, objType, rules)) return w;
+      if (!firstOk) firstOk = w;
+    }
+    return firstOk || firstNoWin || firstAny;
+  }
+  /* 22.09-152: опции периодичности — ОДНА строка на ГРУППУ (не на работу!).
+     Конкретная работа внутри группы подбирается под объект этой строки
+     автоматически (теми же правилами, что «⚡»); ручной точный выбор в группе —
+     кнопкой 🎯 справа. Работы без группы — поимённо, как раньше. Значение
+     опции — id работы (сохранение серии не меняется). sel — id уже выбранной
+     работы: она сохраняется, если входит в группу. */
+  function gprWorkOptions(area, sel, ri) {
     var works = [];
     try { works = WORK.getWorks(area) || []; } catch (e) {}
     var h = '<option value="">— не задана —</option>';
+    var order = [], gmap = {};
     works.forEach(function (w) {
       var gp = gwWorkGroup(w);
-      h += '<option value="' + esc(w.id) + '"' + (w.id === sel ? ' selected' : '') + ' title="' + esc(w.name) + '">' + esc(gp || w.name) + '</option>';
+      if (!gp) return;
+      if (!gmap[gp]) { gmap[gp] = []; order.push(gp); }
+      gmap[gp].push(w);
+    });
+    order.forEach(function (gp) {
+      var ws = gmap[gp];
+      var chosen = null;
+      ws.forEach(function (w) { if (w.id === sel) chosen = w; }); // выбранную ранее — сохраняем
+      var w0 = chosen || gprGroupAutopick(area, gp, ri) || ws[0];
+      h += '<option value="' + esc(w0.id) + '"' + (chosen ? ' selected' : '') + ' title="' + esc(w0.name) + '">' + esc(gp) + (ws.length > 1 ? ' ×' + ws.length : '') + '</option>';
+    });
+    works.forEach(function (w) {
+      if (gwWorkGroup(w)) return; // работы с группой — выше, одна строка на группу
+      h += '<option value="' + esc(w.id) + '"' + (w.id === sel ? ' selected' : '') + ' title="' + esc(w.name) + '">' + esc(w.name) + '</option>';
     });
     return h;
   }
@@ -17659,7 +17735,7 @@
       '</div>';
     h += '<div class="gpr-cols"><span>Вид работы</span><span></span><span>Период., мес</span><span>Откл., дн</span><span>Дата первого проведения</span><span></span></div>';
     h += '<div id="gpr-list" style="display:flex;flex-direction:column;gap:10px;padding:2px"></div>';
-    h += '<div class="calc" style="align-items:flex-start;font-size:11.5px;line-height:1.5"><b>В строках работ на виду название ГРУППЫ — полный вид работ показывается при наведении на строку.</b> Шаг серии = периодичность МИНУС отклонение (1 мес и отклонение 2 дн: работа 18 числа → следующая 16 числа следующего месяца). У каждого объекта может быть несколько работ — «+ работа». Работы появляются в «Планировании»; перемещение задачи там переносит её и последующие по шагу серии. <b>Даты, попавшие на день, когда мастер графика не работает (выходные 5/2 и 2/2, отсутствия — график смен на вкладке «Работники»), автоматически переносятся на ближайший предыдущий рабочий день; шаг серии считается от своих исходных дат.</b> <b>⚡ Автоподбор (кнопка сверху или «⚡» у объекта) добавляет объектам работы из справочника по их параметрам: тип объекта ↔ «Категория объекта обслуживания», линии редуцирования объекта ↔ «Кол-во линий редуцирования» в карточке работы. Периодичность и отклонение подставляются из справочника; дата первого проведения — из «Даты ввода в эксплуатацию» объекта, если у работы выбран реквизит отсчёта «Дата ввода в эксплуатацию». Критерии оборудования: телеметрия (работы «с ТМ» не попадут на объект без ТМ; выбран тип — совпадение по типу и наличию), приборная диагностика только при виде обслуживания «Region-gas», ТО отопительного оборудования только ГРП с отоплением. Если поля в карточке работы не заполнены, связь распознаётся по названию работы/группы («ИНДЕЛ», «оборудованных/не оборудованных системой телеметрии», «приборного диагностического оборудования», «отопительного»). Режимы: «📡 Только работы с ТМ» — одни телеметрические работы, «🚫📡 Только без ТМ» — одни работы без привязки к телеметрии. Зимние работы (сезон «Зима» в карточке работы) автоподбором не добавляются — назначьте их вручную кнопкой «+ работа». Пометки групп (кнопка 🏷 у группы в справочнике «Виды работ», участок ГРП): «Работы с ТМ» — только объектам с телеметрией; «Без телеметрии» — только объектам без телеметрии; остальные пометки — просто метки. Работа «Текущий ремонт оборудования шкафных газорегуляторных пунктов без опрессовки» автоподбором НЕ назначается. <b>Набор работ объекта — ОБЩИЙ для всех графиков: добавленный в другой график объект приходит со своими работами; правки набора видны во всех графиках. Уже рассчитанные даты других графиков при этом НЕ меняются — пересчёт только в сохраняемом графике; серии всегда продолжаются от даты первого проведения (без перезапуска в новом году).</b></b></div>';
+    h += '<div class="calc" style="align-items:flex-start;font-size:11.5px;line-height:1.5"><b>В списке каждой строки — ОДНА строка на ГРУППУ работ (×N — сколько видов работ в группе): конкретный вид работ внутри группы подбирается под объект автоматически по тем же правилам, что «⚡», ручной точный выбор — кнопкой 🎯; какой вид работ выбран — видно при наведении на строку.</b> Шаг серии = периодичность МИНУС отклонение (1 мес и отклонение 2 дн: работа 18 числа → следующая 16 числа следующего месяца). У каждого объекта может быть несколько работ — «+ работа». Работы появляются в «Планировании»; перемещение задачи там переносит её и последующие по шагу серии. <b>Даты, попавшие на день, когда мастер графика не работает (выходные 5/2 и 2/2, отсутствия — график смен на вкладке «Работники»), автоматически переносятся на ближайший предыдущий рабочий день; шаг серии считается от своих исходных дат.</b> <b>⚡ Автоподбор (кнопка сверху или «⚡» у объекта) добавляет объектам работы из справочника по их параметрам: тип объекта ↔ «Категория объекта обслуживания», линии редуцирования объекта ↔ «Кол-во линий редуцирования» в карточке работы. Периодичность и отклонение подставляются из справочника; дата первого проведения — из «Даты ввода в эксплуатацию» объекта, если у работы выбран реквизит отсчёта «Дата ввода в эксплуатацию». Критерии оборудования: телеметрия (работы «с ТМ» не попадут на объект без ТМ; выбран тип — совпадение по типу и наличию), приборная диагностика только при виде обслуживания «Region-gas», ТО отопительного оборудования только ГРП с отоплением. Если поля в карточке работы не заполнены, связь распознаётся по названию работы/группы («ИНДЕЛ», «оборудованных/не оборудованных системой телеметрии», «приборного диагностического оборудования», «отопительного»). Режимы: «📡 Только работы с ТМ» — одни телеметрические работы, «🚫📡 Только без ТМ» — одни работы без привязки к телеметрии. Зимние работы (сезон «Зима» в карточке работы) автоподбором не добавляются — назначьте их вручную кнопкой «+ работа». Пометки групп (кнопка 🏷 у группы в справочнике «Виды работ», участок ГРП): «Работы с ТМ» — только объектам с телеметрией; «Без телеметрии» — только объектам без телеметрии; остальные пометки — просто метки. Работа «Текущий ремонт оборудования шкафных газорегуляторных пунктов без опрессовки» автоподбором НЕ назначается. <b>Набор работ объекта — ОБЩИЙ для всех графиков: добавленный в другой график объект приходит со своими работами; правки набора видны во всех графиках. Уже рассчитанные даты других графиков при этом НЕ меняются — пересчёт только в сохраняемом графике; серии всегда продолжаются от даты первого проведения (без перезапуска в новом году).</b></b></div>';
     h += '</div>';
     h += '<div class="modal-f"><button type="button" class="btn ok" data-action="graphs-period-save">Сохранить</button><button type="button" class="btn danger" data-action="close-modal">Отменить</button></div>';
     modal.innerHTML = h;
@@ -17694,10 +17770,15 @@
         if (pick) {
           var pRow = pick.closest('.gpr-wrow');
           var pSel = pRow ? pRow.querySelector('select[data-gpr-w]') : null;
+          var pBox = pick.closest('.gpr-works'); // 22.09-152: объект этой строки
+          var pRi = pBox ? parseInt(pBox.getAttribute('data-wl'), 10) : -1;
           var pw = null; try { pw = (pSel && pSel.value) ? WORK.getWork(area, pSel.value) : null; } catch (errP) {}
           openExactWorkPickModal(area, gwWorkGroup(pw), pSel ? pSel.value : '', function (newWid) {
             if (!pSel) return;
-            pSel.value = newWid; // опция на каждую работу есть (145: текст=группа, значение=id)
+            /* 22.09-152: опция в списке одна на группу — перестраиваем её под
+               выбранную вручную работу (иначе option со старым id не совпадёт) */
+            pSel.innerHTML = gprWorkOptions(area, newWid, isNaN(pRi) ? -1 : pRi);
+            pSel.value = newWid;
             try { var wN = WORK.getWork(area, newWid); pSel.title = wN ? wN.name : ''; } catch (errN) {}
             try { pSel.dispatchEvent(new Event('change', { bubbles: true })); } catch (errD) {} // подтянуть периодичность из карточки
           });
@@ -17740,7 +17821,10 @@
       var sels = document.querySelectorAll('#gpr-list select[data-gpr-w]');
       for (var i = 0; i < sels.length; i++) {
         var v = sels[i].value;
-        sels[i].innerHTML = gprWorkOptions(area, null);
+        // 22.09-152: автоподбор внутри группы — под объект ЭТОЙ строки
+        var wlBox = sels[i].closest ? sels[i].closest('.gpr-works') : null;
+        var wlRi = wlBox ? parseInt(wlBox.getAttribute('data-wl'), 10) : -1;
+        sels[i].innerHTML = gprWorkOptions(area, v, isNaN(wlRi) ? -1 : wlRi);
         // значение сохраняем, если такая работа есть на новом участке
         for (var j = 0; j < sels[i].options.length; j++) if (sels[i].options[j].value === v) { sels[i].value = v; break; }
         var _sw = null; try { _sw = WORK.getWork(area, sels[i].value); } catch (e3) {} // 22.09-145: подсказка
@@ -17790,7 +17874,7 @@
     var _selW = null; // 22.09-145: подсказка списка — полный вид работ
     if (wrk.wid) { try { _selW = WORK.getWork(area, wrk.wid); } catch (eW) {} }
     return '<div class="gpr-wrow" data-sid="' + esc(wrk.sid || '') + '"' + (auto ? ' style="background:#f0fdf4;outline:1px solid #bbf7d0;outline-offset:-1px;border-radius:6px" title="⚡ Работа подобрана автоматически по параметрам объекта"' : '') + '>' +
-      '<select class="gpr-inp" data-gpr-w="' + id + '" data-idx="' + id + '" title="' + esc(_selW ? _selW.name : '') + '">' + gprWorkOptions(area, wrk.wid) + '</select>' +
+      '<select class="gpr-inp" data-gpr-w="' + id + '" data-idx="' + id + '" title="' + esc(_selW ? _selW.name : '') + '">' + gprWorkOptions(area, wrk.wid, ri) + '</select>' +
       '<button type="button" class="gpr-del" data-gpr-pick="' + id + '" title="Точный выбор работы в этой группе: весь список работ группы с полными названиями" style="color:var(--blue)">🎯</button>' +
       '<input class="gpr-inp" type="number" min="0" step="1" placeholder="—" value="' + (wrk.period || '') + '" data-gpr-p="' + id + '" title="Периодичность, месяцев">' +
       '<input class="gpr-inp" type="number" min="0" step="1" placeholder="—" value="' + (wrk.dev || '') + '" data-gpr-d="' + id + '" title="Отклонение, дней (шаг = периодичность − отклонение)">' +
