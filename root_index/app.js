@@ -738,8 +738,8 @@
 
   var TITLES = {
     dashboard: ['Панель мониторинга', 'Сборка 22.09-141 · у плашки «Нет соединения» убрана тень; меню слева выше затемнений; окна — 80% ширины, по центру'],
-    calendar: ['Планирование / Календарь', 'Сборка 22.09-156 · все скрипты приложения — с меткой версии в адресе: браузер всегда получает свежий код (ранее service-worker мог отдавать старую копию app.js)'],
-    graphs: ['Планирование / График работ', 'Сборка 22.09-152 · периодичность: в списке ОДНА строка на группу работ; вид работ внутри группы подбирается под объект автоматически, точный выбор — 🎯'],
+    calendar: ['Планирование / Календарь', 'Сборка 22.09-157 · списки групп в задаче: раскрытый — «Группа (число работ)», закрытый — просто название группы'],
+    graphs: ['Планирование / График работ', 'Сборка 22.09-158 · новая кнопка «Трудоёмкость графика» 📊: окно с чел/ч текущего графика — итог за год, по месяцам и по объектам'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
     objmap: ['Карта объектов', 'Сборка 22.09-137 · вид телеметрии «ПТК "Эксорт"» переименован в «ПТК "Эскорт"» — объекты и работы обновлены автоматически'],
     testmap: ['Тест проезда', 'Сборка 22.09-131 · OptMap удалён: память сервера освобождена, роутеры — только внешние (OSRM / BRouter / Valhalla)'],
@@ -14638,7 +14638,9 @@
       ws.forEach(function (w) { if (w.id === selWid) chosen = w; }); // уже выбранная — сохраняем
       var w0 = chosen || taskGroupAutopick(area, gp, objId, dateISO) || ws[0];
       var tip = w0.name + ' (' + fmtH(w0.norm) + ' ч/' + w0.unit + ')' + badgesOf(w0);
-      h += '<option value="' + esc(w0.id) + '"' + (chosen ? ' selected' : '') + ' title="' + esc(tip) + '">' + esc(gp) + (ws.length > 1 ? ' ×' + ws.length : '') + '</option>';
+      // 22.09-157: в закрытом списке — просто название группы; при раскрытии
+      // к опции добавляется «(число работ)» — см. grpSelExpandText
+      h += '<option value="' + esc(w0.id) + '"' + (chosen ? ' selected' : '') + ' title="' + esc(tip) + '" data-grp="' + esc(gp) + '"' + (ws.length > 1 ? ' data-cnt="' + ws.length + '"' : '') + '>' + esc(gp) + '</option>';
     });
     (works || []).forEach(function (w) {
       if (gwWorkGroup(w)) return; // работы с группой — выше, по одной строке на группу
@@ -14795,6 +14797,11 @@
           if (S.taskModalWorksAuto) S.taskModalWorksAuto[i] = true; // 22.09-147: из группы — автовыбор, следует за объектом
           renderTaskWorksList(); // перерисовка: обновится единица измерения у объёма
         });
+        /* 22.09-157: раскрытый список — «Группа (N)», закрытый — «Группа».
+           (после change список перерисовывается целиком — тексты и так чистые) */
+        sel.addEventListener('mousedown', function () { grpSelExpandText(sel); });
+        sel.addEventListener('keydown', function (e) { if (e.key === 'Escape') grpSelCollapseText(sel); else grpSelExpandText(sel); });
+        sel.addEventListener('blur', function () { grpSelCollapseText(sel); });
       });
       cont.querySelectorAll('.task-vol-input').forEach(function(inp) {
         inp.addEventListener('input', function(e) {
@@ -16130,6 +16137,7 @@
       else if (el.dataset.tool === 'winter') { openGraphWinterModal(); }
       else if (el.dataset.tool === 'delworks') { openGraphDelWorksModal(); }
       else if (el.dataset.tool === 'print') { openGraphPrintModal(); }
+      else if (el.dataset.tool === 'labor') { openGraphLaborModal(); } // 22.09-158
     }
     else if (a === 'graphs-add-objs') { graphsAddObjs(); }
     else if (a === 'graphs-del-objs') { graphsDelObjs(); } // 22.09-143
@@ -16451,7 +16459,8 @@
       { tool: 'newobj', tip: 'Добавить объекты в график', cls: 'gt-green', icon: 'plus' },
       { tool: 'period', tip: 'Настроить периодичность', cls: 'gt-violet', icon: 'repeat' },
       { tool: 'winter', tip: 'Сезоны', cls: 'gt-sky', icon: 'snow' },
-      { tool: 'legend', tip: 'Обозначения работ', cls: 'gt-rose', icon: 'legend' }
+      { tool: 'legend', tip: 'Обозначения работ', cls: 'gt-rose', icon: 'legend' },
+      { tool: 'labor', tip: 'Трудоёмкость графика (за год, по месяцам, по объектам)', cls: 'gt-green', icon: 'bars' }
     ];
     var right = [
       { tool: 'holidays', tip: 'Праздничные дни', cls: 'gt-amber', icon: 'gift' },
@@ -17208,6 +17217,24 @@
     }
     return firstOk || firstNoWin || firstAny;
   }
+  /* 22.09-157: подпись группы в списках выбора работ. Закрытый список —
+     просто название группы; РАСКРЫТЫЙ — «Группа (число работ)». Текст опций
+     с data-grp подменяется при открытии/закрытии/выборе списка. */
+  function grpSelExpandText(sel) {
+    if (!sel || !sel.options) return;
+    for (var i = 0; i < sel.options.length; i++) {
+      var o = sel.options[i];
+      if (o.dataset && o.dataset.grp) o.textContent = o.dataset.grp + (o.dataset.cnt ? ' (' + o.dataset.cnt + ')' : '');
+    }
+  }
+  function grpSelCollapseText(sel) {
+    if (!sel || !sel.options) return;
+    for (var i = 0; i < sel.options.length; i++) {
+      var o = sel.options[i];
+      if (o.dataset && o.dataset.grp) o.textContent = o.dataset.grp;
+    }
+  }
+
   /* 22.09-152: опции периодичности — ОДНА строка на ГРУППУ (не на работу!).
      Конкретная работа внутри группы подбирается под объект этой строки
      автоматически (теми же правилами, что «⚡»); ручной точный выбор в группе —
@@ -17230,7 +17257,8 @@
       var chosen = null;
       ws.forEach(function (w) { if (w.id === sel) chosen = w; }); // выбранную ранее — сохраняем
       var w0 = chosen || gprGroupAutopick(area, gp, ri) || ws[0];
-      h += '<option value="' + esc(w0.id) + '"' + (chosen ? ' selected' : '') + ' title="' + esc(w0.name) + '">' + esc(gp) + (ws.length > 1 ? ' ×' + ws.length : '') + '</option>';
+      // 22.09-157: закрытый список — название группы; раскрытый — «Группа (N)»
+      h += '<option value="' + esc(w0.id) + '"' + (chosen ? ' selected' : '') + ' title="' + esc(w0.name) + '" data-grp="' + esc(gp) + '"' + (ws.length > 1 ? ' data-cnt="' + ws.length + '"' : '') + '>' + esc(gp) + '</option>';
     });
     works.forEach(function (w) {
       if (gwWorkGroup(w)) return; // работы с группой — выше, одна строка на группу
@@ -17710,7 +17738,7 @@
       '</div>';
     h += '<div class="gpr-cols"><span>Вид работы</span><span></span><span>Период., мес</span><span>Откл., дн</span><span>Дата первого проведения</span><span></span></div>';
     h += '<div id="gpr-list" style="display:flex;flex-direction:column;gap:10px;padding:2px"></div>';
-    h += '<div class="calc" style="align-items:flex-start;font-size:11.5px;line-height:1.5"><b>В списке каждой строки — ОДНА строка на ГРУППУ работ (×N — сколько видов работ в группе): конкретный вид работ внутри группы подбирается под объект автоматически по тем же правилам, что «⚡», ручной точный выбор — кнопкой 🎯; какой вид работ выбран — видно при наведении на строку.</b> Шаг серии = периодичность МИНУС отклонение (1 мес и отклонение 2 дн: работа 18 числа → следующая 16 числа следующего месяца). У каждого объекта может быть несколько работ — «+ работа». Работы появляются в «Планировании»; перемещение задачи там переносит её и последующие по шагу серии. <b>Даты, попавшие на день, когда мастер графика не работает (выходные 5/2 и 2/2, отсутствия — график смен на вкладке «Работники»), автоматически переносятся на ближайший предыдущий рабочий день; шаг серии считается от своих исходных дат.</b> <b>⚡ Автоподбор (кнопка сверху или «⚡» у объекта) добавляет объектам работы из справочника по их параметрам: тип объекта ↔ «Категория объекта обслуживания», линии редуцирования объекта ↔ «Кол-во линий редуцирования» в карточке работы. Периодичность и отклонение подставляются из справочника; дата первого проведения — из «Даты ввода в эксплуатацию» объекта, если у работы выбран реквизит отсчёта «Дата ввода в эксплуатацию». Критерии оборудования: телеметрия (работы «с ТМ» не попадут на объект без ТМ; выбран тип — совпадение по типу и наличию), приборная диагностика только при виде обслуживания «Region-gas», ТО отопительного оборудования только ГРП с отоплением. Если поля в карточке работы не заполнены, связь распознаётся по названию работы/группы («ИНДЕЛ», «оборудованных/не оборудованных системой телеметрии», «приборного диагностического оборудования», «отопительного»). Режимы: «📡 Только работы с ТМ» — одни телеметрические работы, «🚫📡 Только без ТМ» — одни работы без привязки к телеметрии. Зимние работы (сезон «Зима» в карточке работы) автоподбором не добавляются — назначьте их вручную кнопкой «+ работа». Пометки групп (кнопка 🏷 у группы в справочнике «Виды работ», участок ГРП): «Работы с ТМ» — только объектам с телеметрией; «Без телеметрии» — только объектам без телеметрии; остальные пометки — просто метки. Работа «Текущий ремонт оборудования шкафных газорегуляторных пунктов без опрессовки» автоподбором НЕ назначается. <b>Набор работ объекта — ОБЩИЙ для всех графиков: добавленный в другой график объект приходит со своими работами; правки набора видны во всех графиках. Уже рассчитанные даты других графиков при этом НЕ меняются — пересчёт только в сохраняемом графике; серии всегда продолжаются от даты первого проведения (без перезапуска в новом году).</b></b></div>';
+    h += '<div class="calc" style="align-items:flex-start;font-size:11.5px;line-height:1.5"><b>В списке каждой строки — ОДНА строка на ГРУППУ работ (раскройте список — в скобках число видов работ в группе): конкретный вид работ внутри группы подбирается под объект автоматически по тем же правилам, что «⚡», ручной точный выбор — кнопкой 🎯; какой вид работ выбран — видно при наведении на строку.</b> Шаг серии = периодичность МИНУС отклонение (1 мес и отклонение 2 дн: работа 18 числа → следующая 16 числа следующего месяца). У каждого объекта может быть несколько работ — «+ работа». Работы появляются в «Планировании»; перемещение задачи там переносит её и последующие по шагу серии. <b>Даты, попавшие на день, когда мастер графика не работает (выходные 5/2 и 2/2, отсутствия — график смен на вкладке «Работники»), автоматически переносятся на ближайший предыдущий рабочий день; шаг серии считается от своих исходных дат.</b> <b>⚡ Автоподбор (кнопка сверху или «⚡» у объекта) добавляет объектам работы из справочника по их параметрам: тип объекта ↔ «Категория объекта обслуживания», линии редуцирования объекта ↔ «Кол-во линий редуцирования» в карточке работы. Периодичность и отклонение подставляются из справочника; дата первого проведения — из «Даты ввода в эксплуатацию» объекта, если у работы выбран реквизит отсчёта «Дата ввода в эксплуатацию». Критерии оборудования: телеметрия (работы «с ТМ» не попадут на объект без ТМ; выбран тип — совпадение по типу и наличию), приборная диагностика только при виде обслуживания «Region-gas», ТО отопительного оборудования только ГРП с отоплением. Если поля в карточке работы не заполнены, связь распознаётся по названию работы/группы («ИНДЕЛ», «оборудованных/не оборудованных системой телеметрии», «приборного диагностического оборудования», «отопительного»). Режимы: «📡 Только работы с ТМ» — одни телеметрические работы, «🚫📡 Только без ТМ» — одни работы без привязки к телеметрии. Зимние работы (сезон «Зима» в карточке работы) автоподбором не добавляются — назначьте их вручную кнопкой «+ работа». Пометки групп (кнопка 🏷 у группы в справочнике «Виды работ», участок ГРП): «Работы с ТМ» — только объектам с телеметрией; «Без телеметрии» — только объектам без телеметрии; остальные пометки — просто метки. Работа «Текущий ремонт оборудования шкафных газорегуляторных пунктов без опрессовки» автоподбором НЕ назначается. <b>Набор работ объекта — ОБЩИЙ для всех графиков: добавленный в другой график объект приходит со своими работами; правки набора видны во всех графиках. Уже рассчитанные даты других графиков при этом НЕ меняются — пересчёт только в сохраняемом графике; серии всегда продолжаются от даты первого проведения (без перезапуска в новом году).</b></b></div>';
     h += '</div>';
     h += '<div class="modal-f"><button type="button" class="btn ok" data-action="graphs-period-save">Сохранить</button><button type="button" class="btn danger" data-action="close-modal">Отменить</button></div>';
     modal.innerHTML = h;
@@ -17788,6 +17816,25 @@
       var dev = parseInt(w.periodicity_dev, 10) || 0;
       if (per > 0) { var pInp = listEl.querySelector('[data-gpr-p="' + id + '"]'); if (pInp) pInp.value = per; }
       if (dev > 0) { var dInp = listEl.querySelector('[data-gpr-d="' + id + '"]'); if (dInp) dInp.value = dev; }
+    });
+    /* 22.09-157: раскрытый список работ — «Группа (N видов)», закрытый —
+     просто название группы. Делегировано: строки добавляются динамически. */
+    listEl.addEventListener('mousedown', function (e) {
+      var s0 = e.target && e.target.closest ? e.target.closest('select[data-gpr-w]') : null;
+      if (s0) grpSelExpandText(s0);
+    });
+    listEl.addEventListener('keydown', function (e) {
+      var s1 = e.target && e.target.closest ? e.target.closest('select[data-gpr-w]') : null;
+      if (!s1) return;
+      if (e.key === 'Escape') grpSelCollapseText(s1); else grpSelExpandText(s1);
+    });
+    listEl.addEventListener('change', function (e) {
+      var s2 = e.target && e.target.closest ? e.target.closest('select[data-gpr-w]') : null;
+      if (s2) grpSelCollapseText(s2);
+    });
+    listEl.addEventListener('focusout', function (e) {
+      var s3 = e.target && e.target.closest ? e.target.closest('select[data-gpr-w]') : null;
+      if (s3) grpSelCollapseText(s3);
     });
     var areaSel = document.getElementById('gpr-area');
     if (areaSel) areaSel.addEventListener('change', function () {
@@ -18095,6 +18142,100 @@
   /* Окно фильтра: объекты в столбик с чекбоксами (вкл/выкл видимости),
      поиск по типу, наименованию и номеру. Применяется к отображению
      таблиц графика, НЕ затрагивая запланированные работы и задачи. */
+  /* ===== 22.09-158: ТРУДОЁМКОСТЬ ГРАФИКА =====
+     Часы одного проведения = норма работы (у задач графика объём всегда 1 —
+     см. создание задач в graphsPeriodSave). Считаем по датам треугольников
+     (occs): итог за год, по месяцам и по объектам. */
+  function graphsLaborStats(g, area) {
+    var months = [];
+    for (var i = 0; i < 12; i++) months.push({ h: 0, occ: 0 });
+    var objs = [];
+    var yearH = 0, occTotal = 0, series = 0, noNorm = 0;
+    (g.objs || []).forEach(function (ob) {
+      var row = { name: ob.name || '', type: ob.type || '', h: 0, occ: 0, works: 0 };
+      gwObjWorks(ob).forEach(function (wrk) {
+        series++; row.works++;
+        var w = null;
+        try { w = wrk.wid ? WORK.getWork(area, wrk.wid) : null; } catch (eW) {}
+        var h1 = (w && isFinite(+w.norm) && +w.norm > 0) ? +w.norm : 0;
+        if (!w || !h1) noNorm++;
+        (wrk.occs || []).forEach(function (oc) {
+          var d = String(oc && oc.date || '');
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
+          if (parseInt(d.slice(0, 4), 10) !== (+g.year)) return; // только год графика
+          var mi = parseInt(d.slice(5, 7), 10) - 1;
+          if (mi < 0 || mi > 11) return;
+          row.h += h1; row.occ++;
+          months[mi].h += h1; months[mi].occ++;
+          yearH += h1; occTotal++;
+        });
+      });
+      objs.push(row);
+    });
+    return { yearH: yearH, occTotal: occTotal, months: months, objs: objs, series: series, noNorm: noNorm };
+  }
+  function graphsLaborTableCss() { return 'width:100%;border-collapse:collapse;font-size:12.5px'; }
+  function graphsLaborCellCss(head) { return 'border:1px solid var(--line);padding:6px 9px;text-align:' + (head ? 'left' : 'right') + ';' + (head ? 'font-weight:800;background:var(--panel-2)' : ''); }
+  function openGraphLaborModal() {
+    var g = graphsFind(GS.cur);
+    if (!g) { toast('err', 'Сначала создайте или выберите график'); return; }
+    var area = graphAreaDefault(g);
+    var st = graphsLaborStats(g, area);
+    var h = '<div class="modal-h"><h3>📊 Трудоёмкость графика «' + esc(g.name || 'Без названия') + '» · ' + esc(String(g.year)) + ' г.</h3><button class="x" data-action="close-modal">×</button></div>';
+    h += '<div class="modal-b">';
+    if (!st.series) {
+      h += '<div class="empty" style="padding:18px;font-size:13px">В графике пока нет работ — сначала настройте периодичность (кнопка 🔁 на панели), потом сохраните.</div>';
+    } else {
+      h += '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 12px;font-size:13.5px;display:flex;gap:16px;flex-wrap:wrap;align-items:center">' +
+        '<span>Итого за год: <b style="font-size:16px;color:#15803d">' + fmtH(st.yearH) + ' чел/ч</b></span>' +
+        '<span style="color:var(--muted)">проведений за год: <b>' + st.occTotal + '</b></span>' +
+        '<span style="color:var(--muted)">объектов: <b>' + st.objs.length + '</b></span>' +
+        '<span style="color:var(--muted)">видов работ: <b>' + st.series + '</b></span>' +
+        '<span style="color:var(--muted)">в среднем в месяц: <b>' + fmtH(st.yearH / 12) + ' чел/ч</b></span>' +
+        '</div>';
+      h += '<div style="font-weight:800;margin:14px 0 6px;font-size:13px">📅 По месяцам</div>';
+      h += '<table style="' + graphsLaborTableCss() + '"><tr>' +
+        '<th style="' + graphsLaborCellCss(true) + '">Месяц</th>' +
+        '<th style="' + graphsLaborCellCss(true) + 'text-align:right">Проведений</th>' +
+        '<th style="' + graphsLaborCellCss(true) + 'text-align:right">Трудоёмкость, чел/ч</th>' +
+        '<th style="' + graphsLaborCellCss(true) + 'text-align:right">% года</th></tr>';
+      st.months.forEach(function (mo, mi) {
+        if (!mo.occ && !mo.h) return;
+        var pct = st.yearH > 0 ? Math.round(mo.h / st.yearH * 1000) / 10 : 0;
+        h += '<tr><td style="' + graphsLaborCellCss(false) + 'text-align:left">' + esc(MONTHS_RU[mi]) + '</td>' +
+          '<td style="' + graphsLaborCellCss(false) + '">' + mo.occ + '</td>' +
+          '<td style="' + graphsLaborCellCss(false) + '"><b>' + fmtH(mo.h) + '</b></td>' +
+          '<td style="' + graphsLaborCellCss(false) + 'color:var(--muted)">' + String(pct).replace('.', ',') + '%</td></tr>';
+      });
+      h += '<tr style="font-weight:800;background:#f0fdf4"><td style="' + graphsLaborCellCss(false) + 'text-align:left">ИТОГО за год</td>' +
+        '<td style="' + graphsLaborCellCss(false) + '">' + st.occTotal + '</td>' +
+        '<td style="' + graphsLaborCellCss(false) + '">' + fmtH(st.yearH) + '</td>' +
+        '<td style="' + graphsLaborCellCss(false) + 'color:var(--muted)">100%</td></tr>';
+      h += '</table>';
+      h += '<div style="font-weight:800;margin:16px 0 6px;font-size:13px">📍 По объектам</div>';
+      h += '<table style="' + graphsLaborTableCss() + '"><tr>' +
+        '<th style="' + graphsLaborCellCss(true) + '">Объект</th>' +
+        '<th style="' + graphsLaborCellCss(true) + 'text-align:right">Видов работ</th>' +
+        '<th style="' + graphsLaborCellCss(true) + 'text-align:right">Проведений</th>' +
+        '<th style="' + graphsLaborCellCss(true) + 'text-align:right">Трудоёмкость, чел/ч</th></tr>';
+      st.objs.forEach(function (row) {
+        h += '<tr><td style="' + graphsLaborCellCss(false) + 'text-align:left;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(row.name) + '">' +
+          '<span class="chip ' + esc(row.type) + '" style="margin-right:6px">' + esc(row.type) + '</span>' + esc(row.name) + '</td>' +
+          '<td style="' + graphsLaborCellCss(false) + '">' + row.works + '</td>' +
+          '<td style="' + graphsLaborCellCss(false) + '">' + row.occ + '</td>' +
+          '<td style="' + graphsLaborCellCss(false) + '"><b>' + fmtH(row.h) + '</b></td></tr>';
+      });
+      h += '</table>';
+      if (st.noNorm) h += '<div style="font-size:11.5px;color:#92400e;margin-top:8px">⚠ У ' + st.noNorm + ' видов работ не задана норма (ч/ед.) в справочнике — они не учтены в часах (проведения посчитаны).</div>';
+      h += '<div style="font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5">Часы одного проведения = норма работы из справочника «Виды работ» (у задач графика объём — 1). Даты берутся из треугольников графика; проведения других лет не учитываются.</div>';
+    }
+    h += '</div>';
+    h += '<div class="modal-f"><button type="button" class="btn" data-action="close-modal">Закрыть</button></div>';
+    modal.innerHTML = h;
+    modal.style.width = '60%'; modal.style.maxWidth = '60%'; // сброс — в close-modal
+    overlay.classList.add('show');
+  }
+
   function openGraphFilterModal() {
     var list = graphsLoad();
     var g = null;
