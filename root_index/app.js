@@ -738,15 +738,15 @@
 
   var TITLES = {
     dashboard: ['Панель мониторинга', 'Сборка 22.09-141 · у плашки «Нет соединения» убрана тень; меню слева выше затемнений; окна — 80% ширины, по центру'],
-    calendar: ['Планирование / Календарь', 'Сборка 22.09-157 · списки групп в задаче: раскрытый — «Группа (число работ)», закрытый — просто название группы'],
-    graphs: ['Планирование / График работ', 'Сборка 22.09-158 · новая кнопка «Трудоёмкость графика» 📊: окно с чел/ч текущего графика — итог за год, по месяцам и по объектам'],
+    calendar: ['Планирование / Календарь', 'Сборка 22.09-159 · карточка задачи: у строки вида работ (work-row) запас справа 34px'],
+    graphs: ['Планирование / График работ', 'Сборка 22.09-159 · совместные работы одного объекта, попавшие в один месяц, встают в один день (позднее — на день раннего; задачи переносятся)'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
     objmap: ['Карта объектов', 'Сборка 22.09-137 · вид телеметрии «ПТК "Эксорт"» переименован в «ПТК "Эскорт"» — объекты и работы обновлены автоматически'],
     testmap: ['Тест проезда', 'Сборка 22.09-131 · OptMap удалён: память сервера освобождена, роутеры — только внешние (OSRM / BRouter / Valhalla)'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
     perms: ['Разрешения', 'Система разрешений на производство работ'],
-    refs: ['Справочники', 'Сборка 22.09-144 · свойства групп работ (🏷, только ГРП): «Работы с ТМ» / «Без телеметрии»; метка «ГРП» больше не фильтрует по типу объекта'],
+    refs: ['Справочники', 'Сборка 22.09-159 · карточка работы ГРП: в «Проводится совместно» и «отсчёт от работ» не предлагается и не сохраняется сама эта работа'],
     workers: ['Работники', 'Графики работы (8 ч → 5/2, 12 ч → 2/2), бригады и отсутствия'],
     schedules: ['Графики смен', 'Сводный календарь по бригадам: кто работает / отдыхает / отсутствует'],
     users: ['Пользователи', 'Учётные записи, роли и доступ к системе'],
@@ -12359,7 +12359,7 @@
 
     // 4. Виды работ, от которых отсчёт периодичности (мульти-чекбоксы);
     // 22.09-134: ТОЛЬКО работы участка ГРП (раньше — работы всех участков).
-    var curDepends = (w && w.periodicity_depends_on) || [];
+    var curDepends = ((w && w.periodicity_depends_on) || []).filter(function (x) { return x !== wid; }); // 22.09-159: сама работа — не зависимость
     var allWorks = [];
     try {
       if (WORK && typeof WORK.getWorks === 'function') {
@@ -12401,6 +12401,10 @@
       var _jwOld = w && w.joint_with;
       if (Array.isArray(_jwOld)) curJoint = _jwOld.slice();
       else if (_jwOld) curJoint = [_jwOld];
+      /* 22.09-159: сама работа не может быть совместной сама себе — выкидываем
+         её id (раннее сохранённое самоссылочное значение показывалось строкой
+         с ⚠ и сохранялось вечно — теперь исчезает и при пересохранении) */
+      if (wid) curJoint = curJoint.filter(function (x) { return x !== wid; });
     } catch (e) {}
     h += '<div class="fld"><label>Проводится совместно <span style="color:#94a3b8;font-weight:500">(Справочник Виды работ — участок ГРП, можно выбрать несколько)</span></label>';
     h += '<div id="wm-joint-list" style="max-height:120px;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:6px;background:#fff;">';
@@ -12543,9 +12547,9 @@
       data.periodicity_dev = parseInt(val('wm-period-dev'), 10);
       if (!isFinite(data.periodicity_dev) || data.periodicity_dev < 0) data.periodicity_dev = 0;
       data.periodicity_unit = val('wm-period-unit') || 'мес';
-      data.periodicity_depends_on = arrFromAttr('perioddep');
+      data.periodicity_depends_on = arrFromAttr('perioddep').filter(function (x) { return x !== wid; }); // 22.09-159: без самой работы
       data.periodicity_basis = val('wm-period-basis') || 'prev_date';
-      data.joint_with = arrFromAttr('joint'); // 22.09-134: массив id работ, проводимых совместно
+      data.joint_with = arrFromAttr('joint').filter(function (x) { return x !== wid; }); // 22.09-159: без самой работы
       data.operations = val('wm-operations').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
       data.indicators = val('wm-indicators').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
       data.print_forms = val('wm-printforms').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
@@ -17533,6 +17537,8 @@
         var s2 = gwGenObjSeries(g, ri, area, ob, wrk, pastOn);
         st.series++; st.created += s2.created; st.shifted += s2.shifted; st.fail += s2.fail;
       });
+      // 22.09-159: после перегенерации года совместные работы снова в один день
+      try { st.joint = (st.joint || 0) + gwJointAlign(ob.works || [], area); } catch (eJ) {}
     });
     return st;
   }
@@ -17929,6 +17935,7 @@
     var areaSel = document.getElementById('gpr-area');
     var area = areaSel ? areaSel.value : graphAreaDefault(g);
     var created = 0, removed = 0, yearWarn = 0, taskFail = 0, shiftedCnt = 0;
+    var jointMoved = 0; // 22.09-159: перенесённые совместные проведения
     var propStat = { updated: 0, added: 0, removed: 0 }; // 22.09-138: распространение на другие графики
     g.objs.forEach(function (ob, ri) {
       // «Добавлять задачи на прошедшие дни» — чекбокс объекта
@@ -18030,6 +18037,8 @@
       });
       // строки, удалённые из окна: задачи их серий убираем
       oldWorks.forEach(function (ow) { if (ow.sid && !usedSids[ow.sid]) killSeries(ow); });
+      // 22.09-159: совместные работы ЭТОГО объекта — проведения в одном месяце → в один день
+      jointMoved += gwJointAlign(newWorks, area);
       ob.works = newWorks;
       delete ob.workId; delete ob.workName; delete ob.period; delete ob.dev; delete ob.first; delete ob.occs;
       // 22.09-138: набор работ объекта — ОБЩИЙ: пишем на объект и разносим по
@@ -18054,10 +18063,68 @@
     if (yearWarn) toast('warn', '⚠ У ' + yearWarn + ' работ дата первого проведения позже ' + g.year + ' года — они не попадут в график.');
     if (created || removed) toast('ok', 'Работы в планировании: создано ' + created + (removed ? ', удалено старых ' + removed : '') + '. Треугольники выставлены в графике.');
     if (shiftedCnt) toast('ok', '⏮ По графику смен мастера: ' + shiftedCnt + ' вхождений перенесено на ближайший предыдущий рабочий день.');
+    if (jointMoved) toast('ok', '🤝 Совместные работы: ' + jointMoved + ' проведений совмещены в один день с более ранней совместной работой того же месяца');
     if (taskFail) toast('warn', '⚠ Не удалось создать задач: ' + taskFail + ' (возможно, память браузера переполнена). Треугольники в графике выставлены.');
     else if (!yearWarn) toast('ok', 'Периодичность сохранена');
     if (S.screen === 'graphs') renderGraphs();
     else if (S.screen === 'calendar') drawCalendarGrid();
+  }
+
+  /* 22.09-159: ВЫРАВНИВАНИЕ СОВМЕСТНЫХ РАБОТ (joint_with) ОДНОГО объекта.
+     Если у двух совместных серий есть проведения в ОДНОМ месяце — более
+     позднее (первое в месяце) переносится на день более раннего (тот же день;
+     рабочий день уже обеспечен у исходной даты). Даты задач этих проведений
+     переносятся тоже (выполненные не трогаем — это история). Отмечать
+     совместность достаточно у одной из пары. Возвращает число переносов. */
+  function gwJointAlign(newWorks, area) {
+    var ws = (newWorks || []).filter(function (x) { return x && x.wid && x.occs && x.occs.length; });
+    if (ws.length < 2) return 0;
+    var moved = 0;
+    function jointsOf(wid2) {
+      try {
+        var w = WORK.getWork(area, wid2);
+        var j = w && w.joint_with;
+        return Array.isArray(j) ? j : (j ? [j] : []);
+      } catch (e) { return []; }
+    }
+    function monthOf(iso) { return +String(iso).slice(5, 7) - 1; }
+    function firstOccOf(wrk, mi) {
+      var o = null;
+      (wrk.occs || []).forEach(function (oc) { if (!o && monthOf(oc.date) === mi) o = oc; });
+      return o;
+    }
+    function moveOcc(wrk, oc, newIso) {
+      if (!oc || oc.date === newIso) return;
+      oc.date = newIso; moved++;
+      if (!oc.tid || !TASKS_DB) return;
+      var t = null; try { t = TASKS_DB.getTask(oc.tid); } catch (eT) {}
+      if (!t) return;
+      try { if (isDone(t)) return; } catch (eD) {} // выполненные — история, не двигаем
+      try {
+        try { invalidateRouteCache(t.m, t.d); } catch (eR) {}
+        t.d = dateToOff(gwFromISO(newIso));
+        t.dl_date = gwAddDaysISO(newIso, wrk.dev || 0);
+        t.dl = dateToOff(gwFromISO(t.dl_date));
+        TASKS_DB.updateTask(t.id, t);
+        try { invalidateRouteCache(t.m, t.d); } catch (eR2) {}
+      } catch (eU) {}
+    }
+    for (var a = 0; a < ws.length; a++) {
+      var ja = jointsOf(ws[a].wid);
+      if (!ja.length) continue;
+      for (var b = 0; b < ws.length; b++) {
+        if (a === b || ja.indexOf(ws[b].wid) < 0) continue; // b — совместная с a
+        for (var mi = 0; mi < 12; mi++) {
+          var oa = firstOccOf(ws[a], mi), obb = firstOccOf(ws[b], mi);
+          if (oa && obb) {
+            // в одном месяце — позднее проведение на день более раннего (любая из пары)
+            if (obb.date > oa.date) moveOcc(ws[b], obb, oa.date);
+            else if (oa.date > obb.date) moveOcc(ws[a], oa, obb.date);
+          }
+        }
+      }
+    }
+    return moved;
   }
 
   /* Созданная в планировании задача попадает в график: в серию работы

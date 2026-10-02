@@ -317,7 +317,7 @@
   /* Зелёная кнопка «+» — добавить ещё один вид работ в задаче */
   .work-item{border:1px solid var(--line);border-radius:10px;padding:8px;background:#fbfdff}
   .work-item .work-row{margin-bottom:6px}
-  .work-row{display:flex;gap:6px;align-items:center}
+  .work-row{display:flex;gap:6px;align-items:center;padding-right:34px}/* 22.09-159 */
   .work-row-new{animation:workRowIn .28s ease}
   @keyframes workRowIn{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
   .work-add-btn{flex:0 0 34px;width:34px;height:34px;border:none;border-radius:10px;background:linear-gradient(135deg,#22c55e,#15803d);color:#fff;font-family:inherit;font-size:19px;font-weight:800;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(21,128,61,.35);text-shadow:0 1px 1px rgba(0,0,0,.18);transition:transform .15s ease,box-shadow .15s ease,filter .15s ease}
@@ -1109,7 +1109,7 @@
           <div style="margin-top:6px;font-size:11px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-158 · график работ: кнопка «Трудоёмкость графика» — окно с чел/ч за год, по месяцам и по объектам</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-159 · совместные работы объекта в одном месяце — в один день; карточка работы: сама работа не предлагается в совместные; у строки работ отступ справа</div>
     </div>
   </div>
   </div>
@@ -1263,17 +1263,17 @@
   }
 })();
 </script>
-<script src="root_index/config.js?v=22.09-158"></script>
-<script src="root_index/data.js?v=22.09-158"></script>
-<script src="root_index/users_db.js?v=22.09-158"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-158"></script>
-<script src="root_index/areas_db.js?v=22.09-158"></script>
-<script src="root_index/professions_db.js?v=22.09-158"></script>
-<script src="root_index/work_db.js?v=22.09-158"></script>
-<script src="root_index/objects_db.js?v=22.09-158"></script>
-<script src="root_index/workers_db.js?v=22.09-158"></script>
-<script src="root_index/tasks_db.js?v=22.09-158"></script>
-<script src="root_index/db.js?v=22.09-158"></script>
+<script src="root_index/config.js?v=22.09-159"></script>
+<script src="root_index/data.js?v=22.09-159"></script>
+<script src="root_index/users_db.js?v=22.09-159"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-159"></script>
+<script src="root_index/areas_db.js?v=22.09-159"></script>
+<script src="root_index/professions_db.js?v=22.09-159"></script>
+<script src="root_index/work_db.js?v=22.09-159"></script>
+<script src="root_index/objects_db.js?v=22.09-159"></script>
+<script src="root_index/workers_db.js?v=22.09-159"></script>
+<script src="root_index/tasks_db.js?v=22.09-159"></script>
+<script src="root_index/db.js?v=22.09-159"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -1291,12 +1291,12 @@
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-158"></script>
-      <script src="root_index/error_log.js?v=22.09-158"></script>
-      <script src="root_index/api_client.js?v=22.09-158"></script>
-      <script src="root_index/sync_polling.js?v=22.09-158"></script>
-      <script src="root_index/zip_util.js?v=22.09-158"></script>
-      <script src="root_index/app.js?v=22.09-158"></script>
+<script src="root_index/object_attrs.js?v=22.09-159"></script>
+      <script src="root_index/error_log.js?v=22.09-159"></script>
+      <script src="root_index/api_client.js?v=22.09-159"></script>
+      <script src="root_index/sync_polling.js?v=22.09-159"></script>
+      <script src="root_index/zip_util.js?v=22.09-159"></script>
+      <script src="root_index/app.js?v=22.09-159"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {
