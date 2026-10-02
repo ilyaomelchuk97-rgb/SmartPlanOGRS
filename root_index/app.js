@@ -738,7 +738,7 @@
 
   var TITLES = {
     dashboard: ['Панель мониторинга', 'Сборка 22.09-141 · у плашки «Нет соединения» убрана тень; меню слева выше затемнений; окна — 80% ширины, по центру'],
-    calendar: ['Планирование / Календарь', 'Сборка 22.09-152 · карточка задачи: зелёная «+» — ОДНА, справа от ВСЕГО блока видов работ и на всю его высоту (не внутри карточек)'],
+    calendar: ['Планирование / Календарь', 'Сборка 22.09-153 · карточка задачи: у каждого вида работ свои зелёная «+» (во всю высоту блока) и «×» СПРАВА от карточки (снаружи); новая задача открывается с пустым списком работ — вид добавляется кнопкой «+»'],
     graphs: ['Планирование / График работ', 'Сборка 22.09-152 · периодичность: в списке ОДНА строка на группу работ; вид работ внутри группы подбирается под объект автоматически, точный выбор — 🎯'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
     objmap: ['Карта объектов', 'Сборка 22.09-137 · вид телеметрии «ПТК "Эксорт"» переименован в «ПТК "Эскорт"» — объекты и работы обновлены автоматически'],
@@ -14662,8 +14662,10 @@
       // 22.09-147: сохранённые виды — закреплены: автовыбор при смене объекта их не трогает
       S.taskModalWorksAuto = S.taskModalWorks.map(function () { return false; });
     } else {
-      S.taskModalWorks = [''];
-      S.taskModalWorksAuto = [true]; // 22.09-147: новая строка — автовыбранная, идёт за объектом
+      /* 22.09-153: НОВАЯ задача — карточка открывается СОВСЕМ ПУСТОЙ: ни одного
+         вида работ; пользователь сам добавляет виды зелёной «+» и выбирает группу */
+      S.taskModalWorks = [];
+      S.taskModalWorksAuto = [];
     }
     // Объём работ — СВОЙ у каждого вида работ (параллельный массив)
     if (isEdit && t && t.volumes && t.volumes.length === S.taskModalWorks.length) {
@@ -14742,22 +14744,15 @@
       }
       var htmlStr = '';
       if (!S.taskModalWorks.length) {
-        // все виды работ удалены — предлагаем добавить (кнопка «+» работает и здесь)
+        // пусто (новая задача или все виды удалены) — предлагаем добавить («+» работает и здесь)
         htmlStr += '<div style="border:1.5px dashed var(--line);border-radius:10px;padding:14px 10px;text-align:center;background:var(--panel-2)">' +
           '<button type="button" class="work-add-btn" data-idx="-1" style="margin:0 auto;" title="Добавить вид работ">+</button>' +
           '<div style="font-size:11.5px;color:var(--muted);margin-top:6px">Вид работ не выбран — нажмите «+», чтобы добавить</div>' +
           '</div>';
       }
-      var _wlWrapOpen = false;
-      if (S.taskModalWorks.length) {
-        // 22.09-152: снаружи справа — ОДНА зелёная «+» на всю высоту блока
-        htmlStr += '<div style="display:flex;gap:8px;align-items:stretch">' +
-          '<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px">';
-        _wlWrapOpen = true;
-      }
       S.taskModalWorks.forEach(function(selectedWid, idx) {
         var widOk = works.some(function(w) { return w.id === selectedWid; });
-        if ((!selectedWid || !widOk) && works.length > 0) { selectedWid = works[0].id; S.taskModalWorks[idx] = selectedWid; if (S.taskModalWorksAuto) S.taskModalWorksAuto[idx] = true; }
+        // 22.09-153: пустая строка остаётся ПУСТОЙ («— выберите вид работ —») — ничего не подставляем
         // Объём этой работы (свой у каждого вида)
         var volVal = 1;
         if (S.taskModalVols && S.taskModalVols.length > idx) {
@@ -14767,15 +14762,15 @@
         var wSel = null;
         works.forEach(function(w) { if (w.id === selectedWid) wSel = w; });
         var unitSel = wSel ? wSel.unit : 'объект';
-        /* 22.09-152: карточка вида работ — слева список групп (🎯 сразу справа
-           от него) и объём под ним; справа внутри карточки — только «×».
-           Зелёная «+» теперь ОДНА — справа от ВСЕГО блока видов работ (ниже,
-           после цикла), развёрнута на всю его высоту. */
-        htmlStr += '<div class="work-item' + (idx === highlightIdx ? ' work-row-new' : '') + '" style="display:flex;gap:8px;align-items:stretch">';
-        htmlStr += '<div style="flex:1;min-width:0">';
+        /* 22.09-153: СТРОКА = карточка вида работ + её СОБСТВЕННЫЕ кнопки СПРАВА
+           от карточки (снаружи, не внутри): зелёная «+» высотой во ВЕСЬ БЛОК,
+           ещё правее — «×». У каждого вида работ — свои «+» и «×». */
+        htmlStr += '<div style="display:flex;gap:8px;align-items:stretch">';
+        htmlStr += '<div class="work-item' + (idx === highlightIdx ? ' work-row-new' : '') + '" style="flex:1;min-width:0">';
         htmlStr += '<div class="work-row">';
-        // 22.09-146: выбор между ГРУППАМИ работ; в подсказке списка — выбранная работа
+        // 22.09-146/153: выбор между ГРУППАМИ работ; пустая строка — «— выберите вид работ —»
         htmlStr += '<select class="task-work-sel" data-idx="' + idx + '" title="' + esc(wSel ? wSel.name : '') + '" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;background:var(--card);font-family:inherit;">';
+        if (!widOk) htmlStr += '<option value="">— выберите вид работ —</option>'; // 22.09-153: пустая строка
         htmlStr += taskWorkOptionsHtml(area, works, selectedWid, S.taskModalObjId, taskFormDateISO());
         htmlStr += '</select>';
         htmlStr += '<button type="button" class="btn sm ghost work-pick-btn" data-idx="' + idx + '" title="Точный выбор работы в этой группе: весь список работ группы с полными названиями" style="flex:0 0 auto;padding:7px 8px">🎯</button>';
@@ -14784,17 +14779,11 @@
           '<input class="task-vol-input" data-idx="' + idx + '" type="number" step="0.01" min="0.01" value="' + volVal + '" placeholder="Объём">' +
           '<span class="vol-unit">' + esc(unitSel) + '</span>' +
           '</div>';
-        htmlStr += '</div>';
+        htmlStr += '</div>'; // конец карточки .work-item
+        htmlStr += '<button type="button" class="work-add-btn" data-idx="' + idx + '" title="Добавить ещё один вид работ на этот адрес (новая пустая строка встанет после этой)" style="height:auto;align-self:stretch">+</button>';
         htmlStr += '<button type="button" class="btn sm ghost del-work-item" data-idx="' + idx + '" style="color:var(--red);border-color:transparent;padding:4px 8px;font-size:14px;font-weight:bold;align-self:flex-start" title="Убрать этот вид работ">×</button>';
-        htmlStr += '</div>';
+        htmlStr += '</div>'; // конец строки (карточка + «+» + «×»)
       });
-      if (_wlWrapOpen) {
-        /* 22.09-152: зелёная «+» — СПРАВА ОТ ВСЕГО БЛОКА видов работ (не внутри
-           карточек), высотой во весь блок; добавляет новый вид в конец списка */
-        htmlStr += '</div>'; // конец колонки карточек
-        htmlStr += '<button type="button" class="work-add-btn" data-idx="' + (S.taskModalWorks.length - 1) + '" title="Добавить ещё один вид работ на этот адрес" style="height:auto;align-self:stretch">+</button>';
-        htmlStr += '</div>'; // конец внешней строки (колонка карточек + «+»)
-      }
       cont.innerHTML = htmlStr;
       cont.querySelectorAll('.task-work-sel').forEach(function(sel) {
         sel.addEventListener('change', function(e) {
@@ -14837,29 +14826,10 @@
       cont.querySelectorAll('.work-add-btn').forEach(function(btn) {
         btn.addEventListener('click', function(e) {
           var i = parseInt(e.currentTarget.dataset.idx, 10);
-          var mid = document.getElementById('f-master').value;
-          var m = masterById(mid);
-          var works = m && m.area ? WORK.getWorks(m.area) : [];
-          // 22.09-146: подставляем первую ещё не выбранную ГРУППУ; конкретная
-          // работа внутри неё — автовыбором по параметрам объекта (как в графике)
-          var usedG = {};
-          S.taskModalWorks.forEach(function (selId) {
-            var _sw = null;
-            works.forEach(function (x) { if (x.id === selId) _sw = x; });
-            if (_sw) usedG[gwWorkGroup(_sw) || ('id:' + _sw.id)] = 1;
-          });
-          var nextWid = '';
-          for (var k = 0; k < works.length; k++) {
-            var _gk = gwWorkGroup(works[k]) || ('id:' + works[k].id);
-            if (!usedG[_gk]) {
-              nextWid = gwWorkGroup(works[k])
-                ? ((taskGroupAutopick(m && m.area ? m.area : null, gwWorkGroup(works[k]), S.taskModalObjId, taskFormDateISO()) || works[k]).id)
-                : works[k].id;
-              break;
-            }
-          }
-          if (!nextWid && works.length) nextWid = works[0].id;
-          S.taskModalWorks.splice(i + 1, 0, nextWid);
+          /* 22.09-153: «+» добавляет ПУСТУЮ строку сразу после своей — вид работ
+             пользователь выбирает сам из списка групп (конкретная работа внутри
+             выбранной группы подставится автовыбором по параметрам объекта и сезону) */
+          S.taskModalWorks.splice(i + 1, 0, '');
           if (S.taskModalVols) S.taskModalVols.splice(i + 1, 0, 1); // у нового вида — свой объём
           if (S.taskModalWorksAuto) S.taskModalWorksAuto.splice(i + 1, 0, true); // 22.09-147
           renderTaskWorksList(i + 1);
@@ -14909,6 +14879,8 @@
         if (firstWork.min_temp > -50) attrWarnings.push('🌡️ Работа не планируется при t ниже +' + firstWork.min_temp + '°C');
 
         ap.innerHTML = ah;
+      } else if (ap) {
+        ap.innerHTML = ''; // 22.09-153: вид работ не выбран — панель атрибутов пустая
       }
 
       // Расчёт трудозатрат: у каждого вида работ СВОЙ объём
