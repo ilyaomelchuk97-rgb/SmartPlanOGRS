@@ -738,8 +738,8 @@
 
   var TITLES = {
     dashboard: ['Панель мониторинга', 'Сборка 22.09-141 · у плашки «Нет соединения» убрана тень; меню слева выше затемнений; окна — 80% ширины, по центру'],
-    calendar: ['Планирование / Календарь', 'Перетаскивайте карточки: влево/вправо — смена даты, вверх/вниз — смена мастера'],
-    graphs: ['Планирование / График работ', 'Сборка 22.09-146 · подсказка треугольника — группа работ; в задаче выбор по группам с автовыбором работы как в графике'],
+    calendar: ['Планирование / Календарь', 'Сборка 22.09-147 · в карточке задачи выбор объекта переподбирает автовыбранные работы групп под его параметры (линии, ТМ)'],
+    graphs: ['Планирование / График работ', 'Сборка 22.09-148 · мини-кнопка 🎯 у списка работ (и в задаче): точный выбор работы в группе из полного списка'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
     objmap: ['Карта объектов', 'Сборка 22.09-137 · вид телеметрии «ПТК "Эксорт"» переименован в «ПТК "Эскорт"» — объекты и работы обновлены автоматически'],
     testmap: ['Тест проезда', 'Сборка 22.09-131 · OptMap удалён: память сервера освобождена, роутеры — только внешние (OSRM / BRouter / Valhalla)'],
@@ -14500,6 +14500,83 @@
     }
     return first;
   }
+  /* 22.09-148: точный выбор работы в группе (справа от списка работ — 🎯).
+     Список: все работы группы целиком (название, норма/единица, значки);
+     без группы — все работы участка. Текущая работа подсвечена. */
+  function exactWorkPickHtml(area, gp, curWid) {
+    var works = [];
+    try { works = WORK.getWorks(area) || []; } catch (e) {}
+    function badgesOf(w) {
+      var b = [];
+      if (w.needs_permit) b.push('📋 ордер');
+      if (w.depends_on_snow) b.push('❄️ снег');
+      if (w.min_temp > -50) b.push('🌡️');
+      if (w.telemetry_type) b.push('📡 ' + w.telemetry_type);
+      else if (w.telemetry_req === 'equipped') b.push('📡 ТМ');
+      else if (w.telemetry_req === 'not_equipped') b.push('🚫📡 без ТМ');
+      if (w.lines_count) b.push('линий: ' + w.lines_count);
+      return b;
+    }
+    var h = '', total = 0;
+    works.forEach(function (w) {
+      if (gp && gwWorkGroup(w) !== gp) return;
+      total++;
+      var cur = w.id === curWid;
+      var b = badgesOf(w);
+      h += '<button type="button" data-ewp="' + esc(w.id) + '"' +
+        ' style="display:block;width:100%;text-align:left;padding:9px 12px;border:1.5px solid ' + (cur ? '#16a34a' : 'var(--line)') + ';border-radius:10px;background:' + (cur ? '#f0fdf4' : 'var(--card)') + ';cursor:pointer;font-family:inherit">' +
+        '<div style="font-size:12.5px;font-weight:700;color:var(--ink)">' + (cur ? '✓ ' : '') + esc(w.name) + '</div>' +
+        '<div style="font-size:11px;color:var(--muted);margin-top:3px">' + fmtH(w.norm) + ' ч/' + esc(w.unit) + (b.length ? ' · ' + esc(b.join(' · ')) : '') + '</div>' +
+        '</button>';
+    });
+    if (!total) h = '<div class="empty" style="padding:16px 12px;font-size:12.5px">Нет работ ' + (gp ? 'в этой группе' : 'на участке') + '.</div>';
+    return h;
+  }
+  /* Окно — ОТДЕЛЬНЫЙ оверлей поверх карточки задачи/периодичности (их модалка
+     не перекрывается — закрытие вернёт к ней). Выбор: onPick(wid). */
+  function openExactWorkPickModal(area, gp, curWid, onPick) {
+    var prev = document.getElementById('ewp-overlay');
+    if (prev && prev.parentNode) prev.parentNode.removeChild(prev);
+    var ov = document.createElement('div');
+    ov.id = 'ewp-overlay';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:1300;display:flex;align-items:center;justify-content:center;padding:18px';
+    var box = document.createElement('div');
+    box.style.cssText = 'background:var(--card);border-radius:14px;box-shadow:0 18px 46px rgba(15,23,42,.35);width:100%;max-width:560px;max-height:84vh;display:flex;flex-direction:column;overflow:hidden';
+    box.innerHTML = '<div style="display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)">' +
+      '<h3 style="margin:0;font-size:15px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">🎯 Точный выбор работы' + (gp ? ' · <span style="color:var(--muted);font-weight:600">' + esc(gp) + '</span>' : '') + '</h3>' +
+      '<button type="button" id="ewp-close" style="border:none;background:transparent;font-size:20px;cursor:pointer;color:var(--muted);line-height:1;flex:0 0 auto">×</button></div>' +
+      '<div style="padding:10px 16px 0;font-size:11.5px;color:var(--muted)">Выбранная здесь работа заменяет автовыбор по параметрам объекта' + (gp ? ' в этой группе' : '') + '.</div>' +
+      '<div id="ewp-list" style="padding:12px 16px 16px;display:flex;flex-direction:column;gap:8px;overflow-y:auto">' + exactWorkPickHtml(area, gp, curWid) + '</div>';
+    ov.appendChild(box);
+    document.body.appendChild(ov);
+    function close() { if (ov && ov.parentNode) ov.parentNode.removeChild(ov); }
+    ov.addEventListener('click', function (e) {
+      if (e.target === ov || (e.target && e.target.closest && e.target.closest('#ewp-close'))) { close(); return; }
+      var btn = e.target && e.target.closest ? e.target.closest('[data-ewp]') : null;
+      if (!btn) return;
+      var wid = btn.getAttribute('data-ewp');
+      close();
+      if (typeof onPick === 'function') { try { onPick(wid); } catch (e2) {} }
+    });
+  }
+  /* 22.09-147: переподобрать АВТОвыбранные работы строк карточки под объект.
+     worksArr/autoArr — параллельные массивы (autoArr[i]: значение автовыбрано
+     и должно следовать за объектом; false — закреплено, не трогаем).
+     Возвращает число изменённых строк. */
+  function taskReautoWorks(area, worksArr, autoArr, objId) {
+    if (!area || !Array.isArray(worksArr)) return 0;
+    var changed = 0;
+    for (var i = 0; i < worksArr.length; i++) {
+      if (!autoArr || !autoArr[i]) continue;
+      var w = null;
+      try { w = worksArr[i] ? WORK.getWork(area, worksArr[i]) : null; } catch (e) {}
+      var gp = gwWorkGroup(w);
+      if (!gp) continue; // у работ без группы автовыбора нет
+      var w2 = taskGroupAutopick(area, gp, objId);
+      if (w2 && w2.id !== worksArr[i]) { worksArr[i] = w2.id; changed++; }
+    }
+    return changed;
+  }
   /* Опции списка работ карточки задачи: по ГРУППЕ на строку. На виду — название
      группы; во всплывающей подсказке опции/списка — какая работа выбрана в этой
      группе (ранее выбранная сохраняется; новая — автовыбором). Работы без
@@ -14548,8 +14625,11 @@
       if (t.works && t.works.length > 0) S.taskModalWorks = t.works.slice();
       else if (t.w) S.taskModalWorks = [t.w];
       else S.taskModalWorks = [''];
+      // 22.09-147: сохранённые виды — закреплены: автовыбор при смене объекта их не трогает
+      S.taskModalWorksAuto = S.taskModalWorks.map(function () { return false; });
     } else {
       S.taskModalWorks = [''];
+      S.taskModalWorksAuto = [true]; // 22.09-147: новая строка — автовыбранная, идёт за объектом
     }
     // Объём работ — СВОЙ у каждого вида работ (параллельный массив)
     if (isEdit && t && t.volumes && t.volumes.length === S.taskModalWorks.length) {
@@ -14602,6 +14682,15 @@
     modal.innerHTML = html;
     overlay.classList.add('show');
 
+    /* 22.09-147: объект выбран/сменился — АВТОвыбранные строки переподбираем
+       под его параметры (линии редуцирования, телеметрия и др. — как автоподбор
+       графика). Загруженные из сохранённой задачи виды закреплены и не меняются. */
+    function reautoTaskWorks() {
+      var midEl = document.getElementById('f-master');
+      var m = midEl ? masterById(midEl.value) : null;
+      var ch = taskReautoWorks(m ? m.area : null, S.taskModalWorks, S.taskModalWorksAuto, S.taskModalObjId);
+      if (ch) toast('ok', '🔁 Виды работ переподобраны под объект: ' + ch + ' шт.');
+    }
     function renderTaskWorksList(highlightIdx) {
       var cont = document.getElementById('f-work-list'); if (!cont) return;
       var mid = document.getElementById('f-master').value;
@@ -14622,7 +14711,7 @@
       }
       S.taskModalWorks.forEach(function(selectedWid, idx) {
         var widOk = works.some(function(w) { return w.id === selectedWid; });
-        if ((!selectedWid || !widOk) && works.length > 0) { selectedWid = works[0].id; S.taskModalWorks[idx] = selectedWid; }
+        if ((!selectedWid || !widOk) && works.length > 0) { selectedWid = works[0].id; S.taskModalWorks[idx] = selectedWid; if (S.taskModalWorksAuto) S.taskModalWorksAuto[idx] = true; }
         // Объём этой работы (свой у каждого вида)
         var volVal = 1;
         if (S.taskModalVols && S.taskModalVols.length > idx) {
@@ -14639,6 +14728,7 @@
         htmlStr += '<select class="task-work-sel" data-idx="' + idx + '" title="' + esc(wSel ? wSel.name : '') + '" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;background:var(--card);font-family:inherit;">';
         htmlStr += taskWorkOptionsHtml(area, works, selectedWid, S.taskModalObjId);
         htmlStr += '</select>';
+        htmlStr += '<button type="button" class="btn sm ghost work-pick-btn" data-idx="' + idx + '" title="Точный выбор работы в этой группе: весь список работ группы с полными названиями" style="flex:0 0 auto;padding:7px 8px">🎯</button>';
         htmlStr += '<button type="button" class="work-add-btn" data-idx="' + idx + '" title="Добавить ещё один вид работ на этот адрес">+</button>';
         htmlStr += '<button type="button" class="btn sm ghost del-work-item" data-idx="' + idx + '" style="color:var(--red);border-color:transparent;padding:4px 8px;font-size:14px;font-weight:bold;" title="Убрать этот вид работ">×</button>';
         htmlStr += '</div>';
@@ -14653,6 +14743,7 @@
         sel.addEventListener('change', function(e) {
           var i = parseInt(e.target.dataset.idx, 10);
           S.taskModalWorks[i] = e.target.value;
+          if (S.taskModalWorksAuto) S.taskModalWorksAuto[i] = true; // 22.09-147: из группы — автовыбор, следует за объектом
           renderTaskWorksList(); // перерисовка: обновится единица измерения у объёма
         });
       });
@@ -14668,7 +14759,22 @@
           var i = parseInt(e.currentTarget.dataset.idx, 10);
           S.taskModalWorks.splice(i, 1);
           if (S.taskModalVols) S.taskModalVols.splice(i, 1);
+          if (S.taskModalWorksAuto) S.taskModalWorksAuto.splice(i, 1); // 22.09-147
           renderTaskWorksList();
+        });
+      });
+      // 22.09-148: 🎯 — точный выбор работы в группе (закрепляется: за объектом
+      // уже не переподбирается, пока группу не сменили заново)
+      cont.querySelectorAll('.work-pick-btn').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+          var i = parseInt(e.currentTarget.dataset.idx, 10);
+          var wid = S.taskModalWorks[i] || '';
+          var wCur = null; try { wCur = wid ? WORK.getWork(area, wid) : null; } catch (err) {}
+          openExactWorkPickModal(area, gwWorkGroup(wCur), wid, function (newWid) {
+            S.taskModalWorks[i] = newWid;
+            if (S.taskModalWorksAuto) S.taskModalWorksAuto[i] = false;
+            renderTaskWorksList();
+          });
         });
       });
       cont.querySelectorAll('.work-add-btn').forEach(function(btn) {
@@ -14698,6 +14804,7 @@
           if (!nextWid && works.length) nextWid = works[0].id;
           S.taskModalWorks.splice(i + 1, 0, nextWid);
           if (S.taskModalVols) S.taskModalVols.splice(i + 1, 0, 1); // у нового вида — свой объём
+          if (S.taskModalWorksAuto) S.taskModalWorksAuto.splice(i + 1, 0, true); // 22.09-147
           renderTaskWorksList(i + 1);
           var sels = cont.querySelectorAll('.task-work-sel');
           if (sels[i + 1]) sels[i + 1].focus();
@@ -14971,7 +15078,8 @@
         objPickMapDestroy();
         closeObjectPicker();
         updateObjPickUI();
-        recalc();
+        reautoTaskWorks();   // 22.09-147
+        renderTaskWorksList();
       }
       // Применить «просто адрес» (точка на карте без объекта): адрес + точные координаты
       function objMapApplyPoint(addr, lat, lng) {
@@ -14982,7 +15090,8 @@
         objPickMapDestroy();
         closeObjectPicker();
         updateObjPickUI();
-        recalc();
+        reautoTaskWorks();   // 22.09-147: объект снят — автовыбор без фильтров
+        renderTaskWorksList();
       }
       // Облачко объекта: наименование + адрес + «Выбрать»
       function objMapShowObjectTip(o, evt) {
@@ -15155,7 +15264,8 @@
           }
           closeObjectPicker();
           updateObjPickUI();
-          recalc();
+          reautoTaskWorks();   // 22.09-147: переподбор под объект
+          renderTaskWorksList();
           return;
         }
         if (e.target.id === 'obj-pick-close' || e.target === ov) { closeObjectPicker(); }
@@ -15180,6 +15290,9 @@
       // и точку, выбранную на карте (адрес изменился — координаты устарели)
       if (S.taskModalObjId || S.taskModalMapCoords) {
         S.taskModalObjId = null; S.taskModalMapCoords = null; updateObjPickUI();
+        reautoTaskWorks();   // 22.09-147
+        renderTaskWorksList();
+        return;
       }
       recalc();
     });
@@ -17532,6 +17645,19 @@
         }
         var add = e.target.closest('[data-gpr-add]');
         if (add) { gprAddRow(area, parseInt(add.getAttribute('data-gpr-add'), 10)); return; }
+        var pick = e.target.closest('[data-gpr-pick]'); // 22.09-148: 🎯 точный выбор в группе
+        if (pick) {
+          var pRow = pick.closest('.gpr-wrow');
+          var pSel = pRow ? pRow.querySelector('select[data-gpr-w]') : null;
+          var pw = null; try { pw = (pSel && pSel.value) ? WORK.getWork(area, pSel.value) : null; } catch (errP) {}
+          openExactWorkPickModal(area, gwWorkGroup(pw), pSel ? pSel.value : '', function (newWid) {
+            if (!pSel) return;
+            pSel.value = newWid; // опция на каждую работу есть (145: текст=группа, значение=id)
+            try { var wN = WORK.getWork(area, newWid); pSel.title = wN ? wN.name : ''; } catch (errN) {}
+            try { pSel.dispatchEvent(new Event('change', { bubbles: true })); } catch (errD) {} // подтянуть периодичность из карточки
+          });
+          return;
+        }
         var del = e.target.closest('[data-gpr-del]');
         if (del) {
           var row = del.closest('.gpr-wrow');
@@ -17623,6 +17749,7 @@
       '<input class="gpr-inp" type="number" min="0" step="1" placeholder="—" value="' + (wrk.period || '') + '" data-gpr-p="' + id + '" title="Периодичность, месяцев">' +
       '<input class="gpr-inp" type="number" min="0" step="1" placeholder="—" value="' + (wrk.dev || '') + '" data-gpr-d="' + id + '" title="Отклонение, дней (шаг = периодичность − отклонение)">' +
       '<input class="gpr-inp" type="date" value="' + esc(wrk.first || '') + '" data-gpr-f="' + id + '">' +
+      '<button type="button" class="gpr-del" data-gpr-pick="' + id + '" title="Точный выбор работы в этой группе: весь список работ группы с полными названиями" style="color:var(--blue)">🎯</button>' +
       '<button type="button" class="gpr-del" data-gpr-del="' + id + '" title="Убрать эту работу у объекта">×</button>' +
       '</div>';
   }
