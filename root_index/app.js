@@ -738,7 +738,7 @@
 
   var TITLES = {
     dashboard: ['Панель мониторинга', 'Сборка 22.09-141 · у плашки «Нет соединения» убрана тень; меню слева выше затемнений; окна — 80% ширины, по центру'],
-    calendar: ['Планирование / Календарь', 'Сборка 22.09-150 · автовыбор работ в задаче: всегда по виду/линиям/ТМ объекта + сезон графика по дате задачи (Лето/Зима)'],
+    calendar: ['Планирование / Календарь', 'Сборка 22.09-151 · карточка задачи: 🎯 внутри блока справа от списка, зелёная «+» — во всю высоту блока вида работ'],
     graphs: ['Планирование / График работ', 'Сборка 22.09-149 · периодичность: 🎯 сразу после списка групп, строки в одну линию (grid-auto-flow: column); в задаче 🎯 над «+»'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
     objmap: ['Карта объектов', 'Сборка 22.09-137 · вид телеметрии «ПТК "Эксорт"» переименован в «ПТК "Эскорт"» — объекты и работы обновлены автоматически'],
@@ -14760,24 +14760,24 @@
         var wSel = null;
         works.forEach(function(w) { if (w.id === selectedWid) wSel = w; });
         var unitSel = wSel ? wSel.unit : 'объект';
-        // Блок: строка вида работ + свой объём под ней
-        htmlStr += '<div class="work-item' + (idx === highlightIdx ? ' work-row-new' : '') + '">';
+        // 22.09-151: блок вида работ: слева строка списка (🎯 СРАЗУ СПРАВА от списка)
+        // и объём под ней; зелёная «+» — на ВСЮ высоту блока справа, рядом «×»
+        htmlStr += '<div class="work-item' + (idx === highlightIdx ? ' work-row-new' : '') + '" style="display:flex;gap:8px;align-items:stretch">';
+        htmlStr += '<div style="flex:1;min-width:0">';
         htmlStr += '<div class="work-row">';
         // 22.09-146: выбор между ГРУППАМИ работ; в подсказке списка — выбранная работа
         htmlStr += '<select class="task-work-sel" data-idx="' + idx + '" title="' + esc(wSel ? wSel.name : '') + '" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;background:var(--card);font-family:inherit;">';
         htmlStr += taskWorkOptionsHtml(area, works, selectedWid, S.taskModalObjId, taskFormDateISO());
         htmlStr += '</select>';
-        // 22.09-149: 🎯 НАД кнопкой «+ вида работ» — вертикальным столбиком
-        htmlStr += '<div style="display:flex;flex-direction:column;gap:3px;align-items:stretch;flex:0 0 auto">';
-        htmlStr += '<button type="button" class="btn sm ghost work-pick-btn" data-idx="' + idx + '" title="Точный выбор работы в этой группе: весь список работ группы с полными названиями" style="height:15px;padding:0 6px;font-size:10px;line-height:1">🎯</button>';
-        htmlStr += '<button type="button" class="work-add-btn" data-idx="' + idx + '" title="Добавить ещё один вид работ на этот адрес">+</button>';
-        htmlStr += '</div>';
-        htmlStr += '<button type="button" class="btn sm ghost del-work-item" data-idx="' + idx + '" style="color:var(--red);border-color:transparent;padding:4px 8px;font-size:14px;font-weight:bold;" title="Убрать этот вид работ">×</button>';
+        htmlStr += '<button type="button" class="btn sm ghost work-pick-btn" data-idx="' + idx + '" title="Точный выбор работы в этой группе: весь список работ группы с полными названиями" style="flex:0 0 auto;padding:7px 8px">🎯</button>';
         htmlStr += '</div>';
         htmlStr += '<div class="vol-input" title="Объём работ для этого вида">' +
           '<input class="task-vol-input" data-idx="' + idx + '" type="number" step="0.01" min="0.01" value="' + volVal + '" placeholder="Объём">' +
           '<span class="vol-unit">' + esc(unitSel) + '</span>' +
           '</div>';
+        htmlStr += '</div>';
+        htmlStr += '<button type="button" class="work-add-btn" data-idx="' + idx + '" title="Добавить ещё один вид работ на этот адрес" style="height:auto;align-self:stretch">+</button>';
+        htmlStr += '<button type="button" class="btn sm ghost del-work-item" data-idx="' + idx + '" style="color:var(--red);border-color:transparent;padding:4px 8px;font-size:14px;font-weight:bold;align-self:flex-start" title="Убрать этот вид работ">×</button>';
         htmlStr += '</div>';
       });
       cont.innerHTML = htmlStr;
