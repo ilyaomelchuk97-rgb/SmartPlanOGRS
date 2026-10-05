@@ -191,6 +191,55 @@ window.SP_USERS_DB = (function () {
     }
     return Promise.resolve();
   }
+  /* 22.09-161: УВОЛЬНЕНИЕ. Запись НЕ удаляется (ФИО нужны истории задач
+     и истории ответственных за объекты): вход закрывается (active=false),
+     логин заменяется служебным «fired_<id>» (прежний логин освобождается
+     для нового работника), пароль затирается. */
+  function fireUser(id, firedDate) {
+    var db = init(), u = getUser(id);
+    if (!u) throw new Error('Пользователь не найден');
+    if (u.id === 'u_seogs') throw new Error('Аккаунт «Начальник СЭОГС» — системный. Увольнение запрещено.');
+    if (u.role === 'admin' && countAdmins() <= 1) throw new Error('Нельзя уволить последнего администратора');
+    if (u.fired === true) throw new Error('Работник уже уволен');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(firedDate || '')) throw new Error('Некорректная дата увольнения');
+    u.active = false;
+    u.fired = true;
+    u.fired_date = firedDate;
+    u.login = 'fired_' + id;
+    u.password = 'disabled_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    u.plain_password = '';
+    save(db);
+    if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
+      window.SP_API.upsert('users', { id: id, login: u.login, active: false, fired: true, fired_date: firedDate, password: undefined, plain_password: undefined }).catch(function (e) {
+        try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log("warn", "sync", "sync failed", { err: String(e && e.err || e), where: "users_db.js" }); } catch(_){ }
+      });
+    }
+    return u;
+  }
+  // Восстановление из уволенных: новый логин и пароль, запись снова активна.
+  function restoreUser(id, login, password) {
+    var db = init(), u = getUser(id);
+    if (!u) return Promise.reject(new Error('Пользователь не найден'));
+    if (u.fired !== true) return Promise.reject(new Error('Работник не в списке уволенных'));
+    login = (login || '').trim();
+    if (!login) return Promise.reject(new Error('Укажите логин'));
+    if (!password) return Promise.reject(new Error('Укажите пароль'));
+    var taken = getUserByLogin(login);
+    if (taken && taken.id !== id) return Promise.reject(new Error('Логин «' + login + '» уже занят'));
+    return hash(password).then(function (h) {
+      u.login = login; u.password = h; u.plain_password = password;
+      u.active = true; u.fired = false; delete u.fired_date;
+      save(db);
+      if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
+        var safeU = { id: id, login: login, active: true, fired: false, password: undefined, plain_password: undefined };
+        window.SP_API.upsert('users', safeU).catch(function (e) {
+          try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log("warn", "sync", "sync failed", { err: String(e && e.err || e), where: "users_db.js" }); } catch(_){ }
+        });
+      }
+      return u;
+    });
+  }
+
   function authenticate(login, password) {
     login = (login || '').trim().toLowerCase();
     password = (password || '').trim();
@@ -213,6 +262,7 @@ window.SP_USERS_DB = (function () {
     ensureSeed: ensureSeed, getUsers: getUsers, getUser: getUser,
     getUserByLogin: getUserByLogin, getMasters: getMasters, countAdmins: countAdmins,
     count: count, addUser: addUser, updateUser: updateUser, deleteUser: deleteUser,
-    authenticate: authenticate, resetSeed: resetSeed, reloadFromCloud: reloadFromCloud
+    authenticate: authenticate, resetSeed: resetSeed, reloadFromCloud: reloadFromCloud,
+    fireUser: fireUser, restoreUser: restoreUser
   };
 })();

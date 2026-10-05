@@ -166,6 +166,10 @@
   function addDays(d, n) { var x = new Date(d); x.setDate(x.getDate() + n); return x; }
   function offToDate(off) { return addDays(TODAY, off); }
   function key(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  function fmtDmyIso(iso) { // 'YYYY-MM-DD' → 'DD.MM.YYYY' (22.09-161)
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+    return m ? m[3] + '.' + m[2] + '.' + m[1] : (iso || '—');
+  }
   function sameDay(a, b) { return key(a) === key(b); }
   function dateToOff(d) { return Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - TODAY) / 86400000); }
   function mondayOf(d) { var x = new Date(d); var day = (x.getDay() + 6) % 7; x.setDate(x.getDate() - day); return x; }
@@ -746,10 +750,10 @@
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
     perms: ['Разрешения', 'Система разрешений на производство работ'],
-    refs: ['Справочники', 'Сборка 22.09-159 · карточка работы ГРП: в «Проводится совместно» и «отсчёт от работ» не предлагается и не сохраняется сама эта работа'],
+    refs: ['Справочники', 'Сборка 22.09-162 · карточка работы ГРП: «Проводится совместно» теперь выбирается в отдельном окне (кнопка «📋 Выбор работ») — галочки, «Сохранить»/«Отмена»'],
     workers: ['Работники', 'Графики работы (8 ч → 5/2, 12 ч → 2/2), бригады и отсутствия'],
     schedules: ['Графики смен', 'Сводный календарь по бригадам: кто работает / отдыхает / отсутствует'],
-    users: ['Пользователи', 'Учётные записи, роли и доступ к системе'],
+    users: ['Пользователи', 'Сборка 22.09-161 · увольнение работников: кнопка «Уволить» с датой, блок «Уволенные» с восстановлением; в истории задач ФИО остаются'],
     reports: ['Отчёты', 'Печатные формы для подписи у руководства'],
     logs: ['Журнал действий', 'Действия пользователей системы'],
     backup: ['Бэкапы баз данных', 'Сборка 22.09-139 · резервные копии всех баз: каждая отдельным файлом (2+ — ZIP) + восстановление без потерь']
@@ -11853,6 +11857,13 @@
       var lbl = u.prof || (ROLE_INFO[u.role] ? ROLE_INFO[u.role].label : u.role);
       respOpts += '<option value="' + esc(u.id) + '"' + (o && o.respId === u.id ? ' selected' : '') + '>' + esc(u.full_name) + ' · ' + esc(lbl) + '</option>';
     });
+    // 22.09-161: текущий ответственный может быть уволен (до даты увольнения он ещё отвечает)
+    // или отключён — оставляем его выбранным, иначе сохранение карточки снимет его раньше срока
+    if (o && o.respId && !respUsers.some(function (u) { return u.id === o.respId; })) {
+      var _curU = DB.getUser(o.respId);
+      var _curLbl = _curU ? (_curU.full_name + (_curU.fired ? ' · уволен с ' + fmtDmyIso(_curU.fired_date || '') : ' · отключён')) : (o.respName || o.respId);
+      respOpts += '<option value="' + esc(o.respId) + '" selected>' + esc(_curLbl) + '</option>';
+    }
     // форма объекта: точка или область (для ГРП/ШРП — всегда точка)
     S.objKind = (!isGasType(type) && o && o.poly && o.poly.length >= 3) ? 'area' : 'point';
     var html = '<div class="modal-h"><h3>' + (mode === 'edit' ? 'Изменение объекта' : 'Новый объект') + '</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">';
@@ -12274,6 +12285,71 @@
     renderRefs();
   }
 
+  /* 22.09-162: ПРОВОДИТСЯ СОВМЕСТНО — выбор работ в отдельном окне (overlay2).
+     wmJointSelBoxHtml — компактный список выбранных (в карточке работы);
+     openWmJointPickModal — окно с чекбоксами; saveWmJointPick — перенос в список. */
+  function wmJointSelBoxHtml(area, wid) {
+    var sel = (S.wmJointSel || []).filter(function (x) { return x !== wid; });
+    if (!sel.length) return '<div style="color:#94a3b8;font-size:12px;padding:5px 2px">— работы не выбраны — нажмите «📋 Выбор работ»</div>';
+    var allW = [];
+    try { if (WORK && WORK.getWorks) allW = WORK.getWorks(area) || []; } catch (e) {}
+    var byId = {};
+    allW.forEach(function (ww) { if (ww) byId[ww.id] = ww; });
+    var h2 = '';
+    sel.forEach(function (id) {
+      var ww = byId[id];
+      if (ww) {
+        h2 += '<div style="display:flex;align-items:center;gap:6px;padding:3px 2px;font-size:12px;border-bottom:1px dashed var(--line)"><span style="flex:1"><b style="color:var(--ink)">' + esc(ww.name) + '</b><span style="color:#64748b"> · ' + esc(ww.group || '') + '</span></span></div>';
+      } else {
+        var lw = null; try { lw = WORK.getWorkById && WORK.getWorkById(id); } catch (e) {}
+        h2 += '<div style="display:flex;align-items:center;gap:6px;padding:3px 2px;font-size:12px;border-bottom:1px dashed var(--line)"><span style="flex:1"><b style="color:#92400e">' + esc(lw ? lw.name : id) + '</b><span style="color:#b45309"> · ⚠ нет среди работ ГРП</span></span></div>';
+      }
+    });
+    return h2;
+  }
+  function openWmJointPickModal() {
+    var overlay2 = document.getElementById('overlay2'), modal2 = document.getElementById('modal2');
+    if (!overlay2 || !modal2) return;
+    var area = S.workArea, wid = S.workModalWid;
+    var allWorks = [];
+    try { if (WORK && WORK.getWorks) allWorks = (WORK.getWorks(area) || []).filter(function (ww) { return ww.id !== wid; }); } catch (e) {}
+    var sel = S.wmJointSel || [];
+    var h = '<div class="modal-h"><h3>Проводится совместно — выбор работ</h3><button class="x" data-action="close-modal2">×</button></div><div class="modal-b">';
+    h += '<div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;line-height:1.5">Отметьте галочками работы участка ГРП, которые проводятся совместно с этой (можно одну или несколько), затем нажмите «Сохранить» — выбранные появятся в списке «Проводится совместно».</div>';
+    h += '<div style="max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:6px;background:#fff">';
+    if (!allWorks.length && !sel.length) {
+      h += '<div style="color:#94a3b8;font-size:12.5px;padding:14px;text-align:center">На участке ГРП нет других работ</div>';
+    } else {
+      allWorks.forEach(function (ww) {
+        var on = sel.indexOf(ww.id) >= 0;
+        h += '<label class="cb" style="display:flex;align-items:center;gap:7px;padding:5px 6px;border-radius:6px;font-size:12.5px;cursor:pointer">';
+        h += '<input type="checkbox" data-j2="' + esc(ww.id) + '"' + (on ? ' checked' : '') + '><span style="flex:1"><b style="color:var(--ink)">' + esc(ww.name) + '</b><span style="color:#64748b"> · ' + esc(ww.group || '') + '</span></span></label>';
+      });
+      // legacy: выбранные ранее id, которых уже нет среди работ участка — строка с ⚠, галочку можно снять
+      sel.forEach(function (id) {
+        for (var i = 0; i < allWorks.length; i++) if (allWorks[i].id === id) return;
+        var lw = null; try { lw = WORK.getWorkById && WORK.getWorkById(id); } catch (e) {}
+        h += '<label class="cb" style="display:flex;align-items:center;gap:7px;padding:5px 6px;border-radius:6px;font-size:12.5px;cursor:pointer">';
+        h += '<input type="checkbox" data-j2="' + esc(id) + '" checked><span style="flex:1"><b style="color:#92400e">' + esc(lw ? lw.name : id) + '</b><span style="color:#b45309"> · ⚠ нет среди работ ГРП</span></span></label>';
+      });
+    }
+    h += '</div></div>';
+    h += '<div class="modal-f"><button class="btn" data-action="close-modal2">Отмена</button><button class="btn primary" data-action="save-joint-pick">Сохранить</button></div>';
+    modal2.innerHTML = h;
+    overlay2.classList.add('show');
+  }
+  function saveWmJointPick() {
+    var overlay2 = document.getElementById('overlay2'), modal2 = document.getElementById('modal2');
+    var sel = [];
+    if (modal2) modal2.querySelectorAll('[data-j2]').forEach(function (n) { if (n.checked) sel.push(n.getAttribute('data-j2')); });
+    S.wmJointSel = sel;
+    if (overlay2) overlay2.classList.remove('show');
+    // перерисовать компактный список в карточке работы
+    var box = document.getElementById('wm-joint-sel');
+    if (box) box.innerHTML = wmJointSelBoxHtml(S.workArea, S.workModalWid);
+    toast('ok', '✓ Совместных работ выбрано: ' + sel.length);
+  }
+
   function openWorkModal(mode, wid) {
     var area = S.workArea;
     var w = mode === 'edit' ? WORK.getWork(area, wid) : null;
@@ -12393,31 +12469,24 @@
     }
     h += '</div></div>';
 
-    // 6. Проводится совместно (22.09-134: мульти-чекбоксы, как «отсчёт
-    //    периодичности» — работы участка ГРП, можно выбрать несколько;
-    //    в базе joint_with теперь массив id, старая строка читается как [строка])
+    /* 6. Проводится совместно.
+       22.09-162: инлайн-чекбоксы заменены на компактный список выбранных +
+       кнопку «📋 Выбор работ», открывающую отдельное окно поверх карточки:
+       в нём — те же чекбоксы; «Сохранить» переносит выбор в список ниже,
+       «Отмена» — закрывает без изменений. */
     var curJoint = [];
     try {
       var _jwOld = w && w.joint_with;
       if (Array.isArray(_jwOld)) curJoint = _jwOld.slice();
       else if (_jwOld) curJoint = [_jwOld];
-      /* 22.09-159: сама работа не может быть совместной сама себе — выкидываем
-         её id (раннее сохранённое самоссылочное значение показывалось строкой
-         с ⚠ и сохранялось вечно — теперь исчезает и при пересохранении) */
+      // 22.09-159: сама работа не может быть совместной сама себе
       if (wid) curJoint = curJoint.filter(function (x) { return x !== wid; });
     } catch (e) {}
+    S.wmJointSel = curJoint.slice(); // выбор правится через окно; saveWork читает его
     h += '<div class="fld"><label>Проводится совместно <span style="color:#94a3b8;font-weight:500">(Справочник Виды работ — участок ГРП, можно выбрать несколько)</span></label>';
-    h += '<div id="wm-joint-list" style="max-height:120px;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:6px;background:#fff;">';
-    if (!allWorks.length) {
-      h += '<div style="color:#94a3b8;font-size:12px;padding:6px">На участке ГРП нет других работ</div>';
-    } else {
-      allWorks.forEach(function (ww) {
-        var on = curJoint.indexOf(ww.id) >= 0;
-        h += '<label class="cb" style="display:flex;align-items:center;gap:6px;padding:3px 4px;border-radius:4px;font-size:12px;">';
-        h += '<input type="checkbox" data-joint="' + esc(ww.id) + '"' + (on ? ' checked' : '') + '><span style="flex:1"><b style="color:var(--ink)">' + esc(ww.name) + '</b><span style="color:#64748b"> · ' + esc(ww.group || '') + '</span></span></label>';
-      });
-      legacyWorkIds(curJoint).forEach(function (id) { h += legacyRowHtml(id, 'joint'); });
-    }
+    h += '<div style="display:flex;gap:8px;align-items:flex-start">';
+    h += '<div id="wm-joint-sel" style="flex:1;min-height:38px;max-height:120px;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:4px 6px;background:#fff;">' + wmJointSelBoxHtml(area, wid) + '</div>';
+    h += '<button type="button" data-action="wm-joint-pick" style="flex:0 0 auto;white-space:nowrap;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer" title="Открыть окно выбора совместных работ — галочками отметить одну или несколько, затем «Сохранить»">📋 Выбор работ</button>';
     h += '</div></div>';
 
     // 7. Операции (список значений — через запятую)
@@ -12549,7 +12618,9 @@
       data.periodicity_unit = val('wm-period-unit') || 'мес';
       data.periodicity_depends_on = arrFromAttr('perioddep').filter(function (x) { return x !== wid; }); // 22.09-159: без самой работы
       data.periodicity_basis = val('wm-period-basis') || 'prev_date';
-      data.joint_with = arrFromAttr('joint').filter(function (x) { return x !== wid; }); // 22.09-159: без самой работы
+      // 22.09-162: совместные собираются в окне выбора (S.wmJointSel);
+      // запас — старые инлайн-чекбоксы data-joint, если их разметка вдруг есть
+      data.joint_with = (Array.isArray(S.wmJointSel) ? S.wmJointSel.slice() : arrFromAttr('joint')).filter(function (x) { return x !== wid; }); // 22.09-159: без самой работы
       data.operations = val('wm-operations').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
       data.indicators = val('wm-indicators').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
       data.print_forms = val('wm-printforms').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
@@ -12782,7 +12853,10 @@
 
   function renderUsers() {
     try {
-      var users = DB.getUsers() || [];
+      var allUsers = DB.getUsers() || [];
+      // 22.09-161: уволенные — отдельным блоком внизу (без логина/пароля)
+      var firedUsers = allUsers.filter(function (u) { return u && u.fired === true; });
+      var users = allUsers.filter(function (u) { return u && u.fired !== true; });
       var html = '<div class="card"><div class="card-h"><h2>Пользователи системы</h2><span class="sub">' + users.length + ' учётных записей</span><div class="spacer"></div>' + (S.role === 'admin' ? '<button class="btn sm" data-action="demo-seed" title="Заполнить локальную базу демо-данными для тестов: объекты ГРП/ШРП Минска, бригада слесарей, задачи на сегодня/завтра, график работ. Данные живут в localStorage и НЕ теряются при замене файлов сайта">🧪 Демо-данные</button>' : '') + (S.role === 'admin' ? '<button class="btn sm" data-action="download-backup" title="Скачать полную резервную копию локальной базы (JSON) — работает без сервера">' + IC.download + ' 💾 Бэкап базы</button>' : '') + (S.role === 'admin' ? '<button class="btn sm" data-action="restore-backup" title="Восстановить базу из файла бэкапа (JSON)">♻ Восстановить</button>' : '') + '<button class="btn sm" data-action="export-db" title="Сохранить базу в Excel">' + IC.download + ' Экспорт в Excel</button>' + (S.role === 'admin' ? '<button class="btn sm" data-action="import-db" title="Загрузить базу из Excel">' + IC.upload + ' Импорт из Excel</button>' : '') + '<input type="file" id="import-file" accept=".xlsx,.xls,.csv" style="display:none"><input type="file" id="restore-file" accept=".json,application/json" style="display:none">';
       if (S.role === 'admin') {
         html += '<button class="btn primary" data-action="new-user">' + IC.plus + ' Добавить пользователя</button>';
@@ -12796,12 +12870,22 @@
         if (!u) return;
         var me = (S.user && u.id === S.user.id) ? ' <span style="color:var(--green);font-size:11px">(вы)</span>' : '';
         var delBtn = (u.id === 'u_seogs') ? '' : (u.role === 'admin' && DB.countAdmins() <= 1 ? '' : '<button class="btn sm" data-action="del-user" data-uid="' + u.id + '" style="color:var(--red)">Удалить</button>');
+        var fireBtn = (u.id === 'u_seogs' || (u.role === 'admin' && DB.countAdmins() <= 1) || (S.user && u.id === S.user.id)) ? '' : '<button class="btn sm" data-action="fire-user" data-uid="' + u.id + '" style="color:#b45309" title="Уволить: вход закрывается, логин и пароль убираются, со страницы «Работники» исчезает; в выполненных задачах и истории ФИО сохраняется">Уволить</button> ';
         var displayPass = u.plain_password || 'admin123';
         var passLabel = '<span style="font-family:monospace;background:var(--panel-3);padding:2px 6px;border-radius:4px;color:var(--navy);font-weight:700;">' + esc(displayPass) + '</span>';
-        var actionsHtml = (S.role === 'admin') ? '<button class="btn sm" data-action="edit-user" data-uid="' + u.id + '">Изменить</button> ' + delBtn : '<span style="color:#94a3b8;font-size:11.5px;">Доступно админу</span>';
+        var actionsHtml = (S.role === 'admin') ? '<button class="btn sm" data-action="edit-user" data-uid="' + u.id + '">Изменить</button> ' + fireBtn + delBtn : '<span style="color:#94a3b8;font-size:11.5px;">Доступно админу</span>';
         html += '<tr><td><b>' + esc(u.full_name) + '</b>' + me + '</td><td style="font-family:monospace;font-weight:700;color:var(--blue);">' + esc(u.login) + '</td><td>' + passLabel + '</td><td>' + roleChip(u.role) + (u.prof ? '<div style="font-size:10.5px;color:var(--muted);margin-top:3px">' + esc(u.prof) + '</div>' : '') + '</td><td>' + esc(u.area || '—') + '</td><td>' + (u.active ? '<span class="chip" style="background:#dcfce7;color:#15803d">активен</span>' : '<span class="chip" style="background:#fee2e2;color:#b91c1c">отключён</span>') + '</td><td style="white-space:nowrap;text-align:right">' + actionsHtml + '</td></tr>';
       });
       html += '</tbody></table></div></div>';
+      // 22.09-161: уволенные — без логина/пароля, с восстановлением (для истории задач запись остаётся)
+      if (firedUsers.length) {
+        html += '<div class="card" style="margin-top:14px"><div class="card-h"><h2>👤 Уволенные</h2><span class="sub">' + firedUsers.length + ' чел. · вход закрыт, логин/пароль убраны · в истории задач ФИО сохраняются</span></div><div class="card-b">';
+        html += '<table class="dt"><thead><tr><th>ФИО</th><th>Дата увольнения</th><th>Роль</th><th>Участок</th>' + (S.role === 'admin' ? '<th style="text-align:right">Действия</th>' : '') + '</tr></thead><tbody>';
+        firedUsers.forEach(function (u) {
+          html += '<tr style="opacity:.78"><td><b>' + esc(u.full_name) + '</b></td><td>' + esc(fmtDmyIso(u.fired_date)) + '</td><td>' + roleChip(u.role) + '</td><td>' + esc(u.area || '—') + '</td>' + (S.role === 'admin' ? '<td style="white-space:nowrap;text-align:right"><button class="btn sm" data-action="restore-user" data-uid="' + u.id + '" title="Вернуть в штат: задаются новые логин и пароль">↩ Восстановить</button></td>' : '') + '</tr>';
+        });
+        html += '</tbody></table></div></div>';
+      }
       var view = document.getElementById('view');
       if (view) view.innerHTML = html;
       var finput = document.getElementById('import-file');
@@ -13369,6 +13453,94 @@
     if (!window.confirm('Удалить пользователя «' + u.full_name + '»?')) return;
     try { DB.deleteUser(uid); toast('ok', 'Пользователь удалён'); refresh(); }
     catch (e) { toast('err', e.message); }
+  }
+
+  /* ---------- 22.09-161: УВОЛЬНЕНИЕ / ВОССТАНОВЛЕНИЕ ---------- */
+  function openFireUserModal(uid) {
+    var u = DB.getUser(uid); if (!u) return;
+    S.fireModalUid = uid;
+    var roleLbl = (ROLE_INFO[u.role] || { label: u.role }).label;
+    var todayIso = key(new Date());
+    // объекты, за которые он сейчас ответственный (снимется с них в дату увольнения)
+    var respObjs = [];
+    try { if (window.SP_OBJECTS && SP_OBJECTS.getObjects) respObjs = SP_OBJECTS.getObjects().filter(function (o) { return o && o.respId === uid; }); } catch (e) {}
+    var h = '<div class="modal-h"><h3>Увольнение работника</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">';
+    h += '<div class="fld"><label>Работник</label><input value="' + esc(u.full_name + ' · ' + (u.prof || roleLbl)) + '" disabled></div>';
+    h += '<div class="fld"><label>Дата увольнения</label><input id="fu-date" type="date" value="' + todayIso + '"></div>';
+    h += '<div style="background:var(--panel-3);border:1px solid var(--line);border-radius:10px;padding:11px 13px;font-size:12.5px;color:#475569;line-height:1.55">' +
+      'После увольнения:<br>• вход в систему закрывается, логин и пароль убираются;<br>• работник исчезает со страницы «Работники» и не предлагается в новые задачи и графики;<br>• в выполненных задачах и в истории ответственных его ФИО сохраняется;<br>• внизу списка пользователей появится блок «Уволенные» — оттуда работника можно восстановить.</div>';
+    if (respObjs.length) {
+      var names = respObjs.slice(0, 5).map(function (o) { return String(o.type || '') + (o.num ? '-' + o.num : ''); }).join(', ');
+      h += '<div style="margin-top:12px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:11px 13px;font-size:12.5px;color:#92400e;line-height:1.55">⚠ <b>' + esc(u.full_name) + '</b> — ответственный за объектов: <b>' + respObjs.length + '</b>' + (names ? ' (' + esc(names) + (respObjs.length > 5 ? ' и др.' : '') + ')' : '') + '.<br>До даты увольнения включительно он остаётся ответственным (либо пока вы не назначите другого в карточке объекта), затем снимается автоматически — объект остаётся без ответственного до назначения нового.</div>';
+    }
+    h += '</div><div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="confirm-fire-user" style="background:#dc2626;border-color:#dc2626">Уволить</button></div>';
+    modal.style.maxWidth = '';
+    modal.innerHTML = h; overlay.classList.add('show');
+  }
+  function confirmFireUser() {
+    var uid = S.fireModalUid, u = uid ? DB.getUser(uid) : null;
+    if (!u) { overlay.classList.remove('show'); return; }
+    var el = document.getElementById('fu-date');
+    var d = el ? el.value : '';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) { toast('err', 'Укажите дату увольнения'); return; }
+    try { DB.fireUser(uid, d); }
+    catch (e) { toast('err', e.message); return; }
+    S.fireModalUid = null;
+    overlay.classList.remove('show');
+    var removed = reconcileFiredResponsibles();
+    logAction('Увольнение работника', u.full_name + ' · дата ' + fmtDmyIso(d));
+    toast('ok', '✓ ' + u.full_name + ' уволен с ' + fmtDmyIso(d) + (removed ? ' · снят с объектов: ' + removed : ''));
+    refresh();
+  }
+  function openRestoreUserModal(uid) {
+    var u = DB.getUser(uid); if (!u) return;
+    S.restoreModalUid = uid;
+    var roleLbl = (ROLE_INFO[u.role] || { label: u.role }).label;
+    var h = '<div class="modal-h"><h3>Восстановление работника</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">';
+    h += '<div class="fld"><label>Работник</label><input value="' + esc(u.full_name + ' · ' + (u.prof || roleLbl)) + '" disabled></div>';
+    h += '<div class="fld"><label>Новый логин</label><input id="ru-login" placeholder="например, ivanov"></div>';
+    h += '<div class="fld"><label>Новый пароль</label><input id="ru-pass" type="text" placeholder="например, ivanov123"></div>';
+    h += '<div style="font-size:12px;color:var(--muted);line-height:1.5">После восстановления работник снова появится на странице «Работники», сможет входить в систему и выбираться в задачи. Роль, участок и профессия сохранены прежними.</div>';
+    h += '</div><div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="confirm-restore-user">Восстановить</button></div>';
+    modal.style.maxWidth = '';
+    modal.innerHTML = h; overlay.classList.add('show');
+  }
+  function confirmRestoreUser() {
+    var uid = S.restoreModalUid, u = uid ? DB.getUser(uid) : null;
+    if (!u) { overlay.classList.remove('show'); return; }
+    function val(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; }
+    var login = val('ru-login'), pw = val('ru-pass');
+    if (!login || !pw) { toast('err', 'Заполните логин и пароль'); return; }
+    DB.restoreUser(uid, login, pw).then(function () {
+      S.restoreModalUid = null;
+      overlay.classList.remove('show');
+      logAction('Восстановление работника', u.full_name + ' · логин «' + login + '»');
+      toast('ok', '✓ ' + u.full_name + ' восстановлен (логин «' + login + '»)');
+      refresh();
+    }, function (e) { toast('err', (e && e.message) || String(e)); });
+  }
+  // 22.09-161: снятие уволенных мастеров с объектов ПО ДАТЕ увольнения —
+  // до даты (или ручной замены) остаются ответственными, в дату снимаются,
+  // запись в истории закрывается датой увольнения. Вызывается при обновлении экрана.
+  function reconcileFiredResponsibles() {
+    var changed = 0;
+    try {
+      if (!window.SP_OBJECTS || !SP_OBJECTS.getObjects || !SP_OBJECTS.updateObject) return 0;
+      var todayIso = key(new Date());
+      SP_OBJECTS.getObjects().forEach(function (o) {
+        if (!o || !o.respId) return;
+        var u = DB.getUser(o.respId);
+        if (!u || u.fired !== true || !u.fired_date || u.fired_date > todayIso) return;
+        var hist = (Array.isArray(o.respHistory) ? o.respHistory : []).map(function (x) { return Object.assign({}, x); });
+        // закрыть открытую запись этого работника датой увольнения
+        hist.forEach(function (x) { if (x.to == null && x.uid === o.respId) x.to = u.fired_date; });
+        // updateObject сам обновит плоские respId/respName: текущим станет
+        // другая открытая запись (если есть) или «не назначен»
+        SP_OBJECTS.updateObject(o.id, { respHistory: hist });
+        changed++;
+      });
+    } catch (e) {}
+    return changed;
   }
 
   /* ---------- ЭКСПОРТ / ИМПОРТ БАЗЫ УЧЁТОК (Excel) ---------- */
@@ -15895,6 +16067,7 @@
   }
   function refresh() {
     window.reRenderCurrentScreen = refresh;
+    reconcileFiredResponsibles(); // 22.09-161: уволенных мастеров снять с объектов по дате увольнения
     // Мягкое обновление при синхронизации — только данные, без мигания экрана
     window.onSyncUpdate = function() {
       if (window.SP_TASKS) S.tasks = window.SP_TASKS.getTasks();
@@ -16119,7 +16292,10 @@
       drawCalendarGrid();
       toast('ok', nowDone ? '✓ Отмечено выполненным' : 'Возвращено в план');
     }
-    else if (a === 'close-modal') { closeTaskObjectPickers(); overlay.classList.remove('show'); modal.style.maxWidth = ''; modal.style.width = ''; if (S.wkModalUid && S.screen === 'workers') renderWorkers(); S.wkModalUid = null; }
+    else if (a === 'close-modal') { closeTaskObjectPickers(); overlay.classList.remove('show'); modal.style.maxWidth = ''; modal.style.width = ''; if (S.wkModalUid && S.screen === 'workers') renderWorkers(); S.wkModalUid = null; S.wmJointSel = null; /* 22.09-162 */ }
+    else if (a === 'close-modal2') { var ov2 = document.getElementById('overlay2'); if (ov2) ov2.classList.remove('show'); } // 22.09-162
+    else if (a === 'wm-joint-pick') { openWmJointPickModal(); } // 22.09-162
+    else if (a === 'save-joint-pick') { saveWmJointPick(); } // 22.09-162
     // ===== Страница «Графики» (Планирование / Графики) =====
     else if (a === 'graphs-new') { openGraphsNewModal(); }
     else if (a === 'graphs-list') { openGraphsListModal(); }
@@ -16235,6 +16411,10 @@
     else if (a === 'pwd-user') { openUserModal('pwd', el.dataset.uid); }
     else if (a === 'save-user') { saveUser(); }
     else if (a === 'del-user') { delUser(el.dataset.uid); }
+    else if (a === 'fire-user') { openFireUserModal(el.dataset.uid); }
+    else if (a === 'confirm-fire-user') { confirmFireUser(); }
+    else if (a === 'restore-user') { openRestoreUserModal(el.dataset.uid); }
+    else if (a === 'confirm-restore-user') { confirmRestoreUser(); }
     else if (a === 'download-backup') { downloadBackup(); }
     else if (a === 'demo-seed') { seedDemoData(); }
     else if (a === 'restore-backup') { var rf = document.getElementById('restore-file'); if (rf) rf.click(); }

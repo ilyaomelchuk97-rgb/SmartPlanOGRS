@@ -277,6 +277,20 @@ window.SP_OBJ_ATTRS = (function () {
         s3 += '<option value="' + esc(u.id) + '"' + (cur === u.id ? ' selected' : '') + '>' +
           esc(u.full_name) + ' · ' + esc(role) + '</option>';
       });
+      // 22.09-161: текущий ответственный уволен (до даты увольнения ещё отвечает) или отключён —
+      // оставляем его выбранным, иначе простое сохранение карточки снимет его раньше срока
+      if (cur && !active.some(function (u) { return u.id === cur; })) {
+        var _cu = null;
+        (users || []).forEach(function (u) { if (u && u.id === cur) _cu = u; });
+        if (_cu) {
+          var _fd = ' · отключён';
+          if (_cu.fired && _cu.fired_date) {
+            var _fm = /^(\d{4})-(\d{2})-(\d{2})$/.exec(_cu.fired_date);
+            _fd = ' · уволен с ' + (_fm ? _fm[3] + '.' + _fm[2] + '.' + _fm[1] : _cu.fired_date);
+          }
+          s3 += '<option value="' + esc(cur) + '" selected>' + esc(_cu.full_name + _fd) + '</option>';
+        }
+      }
       s3 += '</select>';
       // Если был назначен ранее — рядом с выбором покажем дату начала (если известна)
       var cur0 = getRespCurrent(o || {});
