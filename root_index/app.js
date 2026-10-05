@@ -741,12 +741,12 @@
   }
 
   var TITLES = {
-    dashboard: ['Панель мониторинга', 'Сборка 22.09-166 · блок «Загрузка мастеров сегодня» убран; вместо него — «⚡ КПД мастеров» из панели аналитики, в виде обычных карточек'],
+    dashboard: ['Панель мониторинга', 'Сборка 22.09-168 · блоки «📈 Выполнение по дням» и «Сегодня» поменялись местами: первый ряд — «Сегодня» + «⚡ КПД мастеров», второй — «Выполнение по дням» + «Красная зона»'],
     calendar: ['Планирование / Календарь', 'Сборка 22.09-159 · карточка задачи: у строки вида работ (work-row) запас справа 34px'],
     graphs: ['Планирование / График работ', 'Сборка 22.09-164 · кнопка «Трудоёмкость графика» — слева от «Фильтра»; «Праздничные дни» перенесены в «Графики смен»'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
     objmap: ['Карта объектов', 'Сборка 22.09-137 · вид телеметрии «ПТК "Эксорт"» переименован в «ПТК "Эскорт"» — объекты и работы обновлены автоматически'],
-    testmap: ['Тест проезда', 'Сборка 22.09-163 · кнопка «🌍 Google Earth» — скачивание построенного маршрута файлом .kml (база, пронумерованные точки, линия) для просмотра в Google Earth'],
+    testmap: ['Тест проезда', 'Сборка 22.09-167 · выбор подложки карты: схема Яндекс или спутник Google Earth (с названиями улиц / чистый спутник); экспорт маршрута в .kml для Google Earth сохранён'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
     perms: ['Разрешения', 'Система разрешений на производство работ'],
@@ -2886,6 +2886,7 @@
 
     // === ГРАФИКИ (SVG, без библиотек; учитывают выбранный участок — dashTasks/dashMasters) ===
     // 1) План/факт по дням текущего месяца; 2) КПД мастеров (22.09-166)
+    var _dashCardDays = '', _dashCardKpd = ''; // 22.09-168: карточки собирает dashCharts, а расставляем блоки ниже («Сегодня» ⇄ «Выполнение по дням»)
     (function dashCharts() {
       var dim = new Date(TODAY.getFullYear(), TODAY.getMonth() + 1, 0).getDate();
       var plan = [], fact = [];
@@ -2951,10 +2952,9 @@
             '</div></div></div>' +
         '<div style="margin-top:10px;font-size:11.5px;color:var(--muted)">🚗 В пути за ' + esc(dashMonthLabel().toLowerCase()) + ': <b style="color:var(--ink)">' + (kTotalH > 0 ? kDec(kPctRoad) : '0') + '%</b> от всего времени (' + fmtH(kTotalH) + ' ч) · Среднее время переезда: <b style="color:var(--ink)">≈ ' + kAvgTravel + ' мин</b></div>';
 
-      html += '<div class="dash-grid">';
-      html += '<div class="card"><div class="card-h"><h2>📈 Выполнение по дням</h2><span class="sub">' + MON_NOM[TODAY.getMonth()] + ' ' + TODAY.getFullYear() + ' · <span style="color:#2563eb;font-weight:700">■ план</span> <span style="color:#16a34a;font-weight:700">■ выполнено</span></span></div><div class="card-b">' + svg1 + '</div></div>';
-      html += '<div class="card"><div class="card-h"><h2>⚡ КПД мастеров</h2><span class="sub">Работа vs дорога · ' + esc(dashMonthLabel()) + '</span></div><div class="card-b">' + kpdBody + '</div></div>';
-      html += '</div>';
+      // 22.09-168: карточки не выводим напрямую — их порядок собирается ниже
+      _dashCardDays = '<div class="card"><div class="card-h"><h2>📈 Выполнение по дням</h2><span class="sub">' + MON_NOM[TODAY.getMonth()] + ' ' + TODAY.getFullYear() + ' · <span style="color:#2563eb;font-weight:700">■ план</span> <span style="color:#16a34a;font-weight:700">■ выполнено</span></span></div><div class="card-b">' + svg1 + '</div></div>';
+      _dashCardKpd = '<div class="card"><div class="card-h"><h2>⚡ КПД мастеров</h2><span class="sub">Работа vs дорога · ' + esc(dashMonthLabel()) + '</span></div><div class="card-b">' + kpdBody + '</div></div>';
     })();
 
     html += '<div class="dash-grid">';
@@ -2975,7 +2975,11 @@
       if (mt.length > 4) html += '<div class="taskline" style="color:var(--muted)">и ещё ' + (mt.length - 4) + '…</div>';
     });
     html += '</div></div>';
+    html += _dashCardKpd; // 22.09-168: КПД мастеров — рядом с «Сегодня»
+    html += '</div>';
 
+    html += '<div class="dash-grid">';
+    html += _dashCardDays; // 22.09-168: «Выполнение по дням» — вторым рядом, на место «Сегодня»
     html += '<div class="card"><div class="card-h"><h2>Красная зона</h2><span class="sub">предельный срок истекает</span></div><div class="card-b">';
     if (!redzone.length) html += '<div class="empty">Просрочек нет 🎉</div>';
     redzone.forEach(function (t) {
@@ -19414,7 +19418,7 @@
          время маршрутов (saveRouteTime), кэш планирования — tFindTask
          всегда возвращает null, поэтому блоки записи не срабатывают.
      Рабочие страницы («Карта маршрутов» и остальные) работают как раньше. */
-  var TS = { off: 0, master: null, provider: 'yandex', sel: {}, traffic: false, router: 'osrm', mapEngine: 'yandex' }; // 22.09-126: роутеры теста проезда — только автомобильные // mapEngine: 'yandex' | 'osm' — выбор карты в Тесте проезда
+  var TS = { off: 0, master: null, provider: 'yandex', sel: {}, traffic: false, router: 'osrm', mapEngine: 'yandex', mapKind: 'yandex' }; // 22.09-126: роутеры теста проезда — только автомобильные // mapEngine: 'yandex' | 'osm' — движок // 22.09-167: mapKind: 'yandex' | 'ghyb' | 'gsat' — подложка (Яндекс-схема / спутник Google)
   // Восстанавливаем выбор роутера из localStorage, чтобы между сессиями работал.
   try {
     var _savedRouter = localStorage.getItem('smartplan_test_router');
@@ -19424,6 +19428,11 @@
     var _savedMap = localStorage.getItem('smartplan_test_map_engine');
     if (_savedMap && /^(yandex|osm)$/.test(_savedMap)) {
       TS.mapEngine = _savedMap;
+    }
+    // 22.09-167: подложка тестовой карты (Яндекс-схема / спутник Google Earth)
+    var _savedKind = localStorage.getItem('smartplan_test_mapkind');
+    if (_savedKind && /^(yandex|gsat|ghyb)$/.test(_savedKind)) {
+      TS.mapKind = _savedKind;
     }
   } catch (e) {}
   /* КАЛИБРОВКА ВРЕМЕНИ ПО ЯНДЕКС.КАРТАМ: свободное время роутера Яндекса
@@ -19507,8 +19516,13 @@
       return { id: t.id, lat: lat, lng: lng, addr: addrOf(t), addr_be: t.addr_be || addrOf(t), type: o ? o.type : '—', work: w ? w.name : '?', master: m ? m.name : '?', mcol: m ? m.color : '#94a3b8', hours: taskHours(t), norm: w ? w.norm : 0, travelMin: travelMin, travelText: travelText, travelKm: travelKm, travelKmText: travelKmText };
     });
 
-    var prov = 'yandex'; // ТЕСТ: только Яндекс-карта
-    var provSelHTML = '<div style="display:flex;align-items:center;gap:6px;margin-left:auto;"><span style="font-size:12px;color:var(--ink);font-weight:700;">Карта:</span><span class="tag ok" style="font-size:11.5px" title="Яндекс.Карты с подписями на русском языке">Яндекс (русский)</span></div>';
+    // 22.09-167: выбор подложки карты — схема Яндекс или спутник Google Earth
+    var provSelHTML = '<div style="display:flex;align-items:center;gap:6px;margin-left:auto;"><span style="font-size:12px;color:var(--ink);font-weight:700;">Карта:</span>' +
+      '<select id="t-map-kind-sel" title="Подложка карты: схема Яндекс.Карт или спутниковый снимок Google (Google Earth)" style="padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;background:var(--card);color:var(--ink);font-weight:700;cursor:pointer;height:32px;max-width:210px">' +
+        '<option value="yandex" ' + (TS.mapKind !== 'gsat' && TS.mapKind !== 'ghyb' ? 'selected' : '') + '>Яндекс (схема)</option>' +
+        '<option value="ghyb" ' + (TS.mapKind === 'ghyb' ? 'selected' : '') + '>🌍 Google спутник + названия</option>' +
+        '<option value="gsat" ' + (TS.mapKind === 'gsat' ? 'selected' : '') + '>🌍 Google Earth (спутник)</option>' +
+      '</select></div>';
 
     var html = '<div class="cal-head"><div class="seg">' +
       '<button class="' + (off === -1 ? 'on' : '') + '" data-action="t-map-off" data-off="-1">Вчера</button>' +
@@ -19759,12 +19773,16 @@
         try { toast('info', '🚦 Роутер: ' + (labels[TS.router] || TS.router)); } catch (er) {}
       });
     }
-    // Выбор карты удалён — в Тесте проезда только Яндекс.Карты (русский язык)
-    var mapSel = document.getElementById('t-map-engine-sel');
-    if (mapSel && !mapSel.__wired) {
-      mapSel.__wired = true;
-      // Селектор больше не отображается; этот код оставлен на случай,
-      // если пользователь захочет вернуть переключатель.
+    // 22.09-167: выбор подложки карты (Яндекс-схема / спутник Google Earth)
+    var kindSel = document.getElementById('t-map-kind-sel');
+    if (kindSel) {
+      kindSel.addEventListener('change', function (e) {
+        var v = /^(yandex|gsat|ghyb)$/.test(e.target.value) ? e.target.value : 'yandex';
+        TS.mapKind = v;
+        try { localStorage.setItem('smartplan_test_mapkind', v); } catch (er) {}
+        tApplyMapKind();
+        try { toast('ok', v === 'yandex' ? '🗺 Подложка: Яндекс (схема)' : (v === 'ghyb' ? '🌍 Подложка: спутник Google с названиями улиц' : '🌍 Подложка: Google Earth (спутник)')); } catch (er) {}
+      });
     }
     } catch (err) {
       console.error('renderTestMap error:', err);
@@ -20412,6 +20430,54 @@
   // ЯНДЕКС-КАРТА ТЕСТ-СТРАНИЦЫ: настоящая карта (тайлы Яндекса), маркеры базы
   // и объектов, линия маршрута. Все гео-объекты прозрачны для событий, без
   // балунов — паттерн анти-зависания.
+  // 22.09-167: подложки тестовой карты - Яндекс (web_mercator-рендерер) и
+  // спутник Google Earth. Карта создаётся в сферической проекции (та же сетка,
+  // что у тайлов Google), поэтому и Яндекс-подложка рисуется официальным
+  // рендерером тайлов с параметром projection=web_mercator - как на странице
+  // карты объектов (omEnsureBasemapTypes).
+  function tEnsureMapKindTypes() {
+    if (!window.ymaps || !ymaps.mapType || !ymaps.mapType.storage) return;
+    try {
+      if (!ymaps.mapType.storage.get('sp#yandex')) {
+        var yaFactory = function () {
+          var layer = new ymaps.Layer('https://core-renderer-tiles.maps.yandex.net/tiles?l=map&lang=ru_RU&projection=web_mercator&x=%x&y=%y&z=%z&scale=1', { tileTransparent: false });
+          layer.getZoomRange = function () { return Promise.resolve([0, 21]); };
+          return layer;
+        };
+        ymaps.mapType.storage.add('sp#yandex', new ymaps.MapType('Яндекс', [yaFactory]));
+      }
+    } catch (e) { console.error('Яндекс-подложка (тест-карта):', e); }
+    try {
+      if (!ymaps.mapType.storage.get('sp#gsat')) {
+        var gsFactory = function () {
+          var layer = new ymaps.Layer('https://mt1.google.com/vt/lyrs=s&x=%x&y=%y&z=%z', { tileTransparent: false });
+          layer.getZoomRange = function () { return Promise.resolve([0, 20]); };
+          return layer;
+        };
+        ymaps.mapType.storage.add('sp#gsat', new ymaps.MapType('Google спутник', [gsFactory]));
+      }
+      if (!ymaps.mapType.storage.get('sp#ghyb')) {
+        var ghFactory = function () {
+          var layer = new ymaps.Layer('https://mt1.google.com/vt/lyrs=y&x=%x&y=%y&z=%z', { tileTransparent: false });
+          layer.getZoomRange = function () { return Promise.resolve([0, 20]); };
+          return layer;
+        };
+        ymaps.mapType.storage.add('sp#ghyb', new ymaps.MapType('Google спутник + названия', [ghFactory]));
+      }
+    } catch (e) { console.error('Google Earth-подложка (тест-карта):', e); }
+  }
+  function tMapKindTypeKey() {
+    return TS.mapKind === 'gsat' ? 'sp#gsat' : (TS.mapKind === 'ghyb' ? 'sp#ghyb' : 'sp#yandex');
+  }
+  function tApplyMapKind() {
+    try {
+      var map = tState.ymap;
+      if (!map || !tState._mkOk) return;
+      tEnsureMapKindTypes();
+      map.setType(tMapKindTypeKey());
+    } catch (e) { console.error('Подложка тест-карты не переключилась:', e); }
+  }
+
   function drawTestMap(pts) {
     tState.allPts = pts;
     var sel = pts.filter(function (p) { return TS.sel[p.id]; });
@@ -20446,13 +20512,27 @@
           mapDiv.style.cssText = 'position:absolute;inset:0';
           holder.innerHTML = '';
           holder.appendChild(mapDiv);
-          tState.ymap = new ymaps.Map(mapDiv, { center: [53.9023, 27.5619], zoom: 11, controls: ['zoomControl'] }, { suppressMapOpenBlock: true });
+          // 22.09-167: карта - в сферической проекции (сетка тайлов Google),
+          // подложка - по выбору в поле «Карта:». Не удалось зарегистрировать
+          // типы - старое поведение (дефолтная схема Яндекса).
+          var _mkOk = false;
+          try {
+            tEnsureMapKindTypes();
+            _mkOk = !!(window.ymaps && ymaps.mapType && ymaps.mapType.storage && ymaps.mapType.storage.get(tMapKindTypeKey()) && ymaps.projection && ymaps.projection.sphericalMercator);
+          } catch (e) { _mkOk = false; }
+          tState._mkOk = _mkOk;
+          if (_mkOk) {
+            tState.ymap = new ymaps.Map(mapDiv, { center: [53.9023, 27.5619], zoom: 11, type: tMapKindTypeKey(), controls: ['zoomControl'] }, { projection: ymaps.projection.sphericalMercator, suppressMapOpenBlock: true });
+          } else {
+            tState.ymap = new ymaps.Map(mapDiv, { center: [53.9023, 27.5619], zoom: 11, controls: ['zoomControl'] }, { suppressMapOpenBlock: true });
+          }
           // слой Яндекс.Пробок: цвета загруженности + события (аварии, ремонты)
           try {
             tState.traffic = new ymaps.traffic.provider.Actual({}, { infoLayerShown: true });
             if (TS.traffic) tState.traffic.setMap(tState.ymap); // включаются кнопкой «🚦 Пробки»
           } catch (e) { tState.traffic = null; }
         }
+        tApplyMapKind();
         tDrawTestMarkers();
         tSyncTrafficBtn();
       } catch (e) { /* карта не может ломать страницу */ }
