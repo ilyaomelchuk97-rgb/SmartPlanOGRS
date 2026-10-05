@@ -741,18 +741,18 @@
   }
 
   var TITLES = {
-    dashboard: ['Панель мониторинга', 'Сборка 22.09-141 · у плашки «Нет соединения» убрана тень; меню слева выше затемнений; окна — 80% ширины, по центру'],
+    dashboard: ['Панель мониторинга', 'Сборка 22.09-166 · блок «Загрузка мастеров сегодня» убран; вместо него — «⚡ КПД мастеров» из панели аналитики, в виде обычных карточек'],
     calendar: ['Планирование / Календарь', 'Сборка 22.09-159 · карточка задачи: у строки вида работ (work-row) запас справа 34px'],
-    graphs: ['Планирование / График работ', 'Сборка 22.09-159 · совместные работы одного объекта, попавшие в один месяц, встают в один день (позднее — на день раннего; задачи переносятся)'],
+    graphs: ['Планирование / График работ', 'Сборка 22.09-164 · кнопка «Трудоёмкость графика» — слева от «Фильтра»; «Праздничные дни» перенесены в «Графики смен»'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
     objmap: ['Карта объектов', 'Сборка 22.09-137 · вид телеметрии «ПТК "Эксорт"» переименован в «ПТК "Эскорт"» — объекты и работы обновлены автоматически'],
-    testmap: ['Тест проезда', 'Сборка 22.09-131 · OptMap удалён: память сервера освобождена, роутеры — только внешние (OSRM / BRouter / Valhalla)'],
+    testmap: ['Тест проезда', 'Сборка 22.09-163 · кнопка «🌍 Google Earth» — скачивание построенного маршрута файлом .kml (база, пронумерованные точки, линия) для просмотра в Google Earth'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
     perms: ['Разрешения', 'Система разрешений на производство работ'],
     refs: ['Справочники', 'Сборка 22.09-162 · карточка работы ГРП: «Проводится совместно» теперь выбирается в отдельном окне (кнопка «📋 Выбор работ») — галочки, «Сохранить»/«Отмена»'],
     workers: ['Работники', 'Графики работы (8 ч → 5/2, 12 ч → 2/2), бригады и отсутствия'],
-    schedules: ['Графики смен', 'Сводный календарь по бригадам: кто работает / отдыхает / отсутствует'],
+    schedules: ['Графики смен', 'Сборка 22.09-164 · добавлена кнопка «🎉 Праздничные дни» (из графика работ) — слева от выбора месяца'],
     users: ['Пользователи', 'Сборка 22.09-161 · увольнение работников: кнопка «Уволить» с датой, блок «Уволенные» с восстановлением; в истории задач ФИО остаются'],
     reports: ['Отчёты', 'Печатные формы для подписи у руководства'],
     logs: ['Журнал действий', 'Действия пользователей системы'],
@@ -2885,7 +2885,7 @@
     }
 
     // === ГРАФИКИ (SVG, без библиотек; учитывают выбранный участок — dashTasks/dashMasters) ===
-    // 1) План/факт по дням текущего месяца; 2) загрузка мастеров сегодня
+    // 1) План/факт по дням текущего месяца; 2) КПД мастеров (22.09-166)
     (function dashCharts() {
       var dim = new Date(TODAY.getFullYear(), TODAY.getMonth() + 1, 0).getDate();
       var plan = [], fact = [];
@@ -2917,39 +2917,43 @@
       }
       var svg1 = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block" xmlns="http://www.w3.org/2000/svg">' + grid + bars + '</svg>';
 
-      // фонд времени у каждого мастера свой (8/12 ч, 2/2, отсутствия — страница «Работники»)
-      var loads = mastersToday.map(function (m) {
-        var ld = loadForDay(m.id, 0);
-        var cp = masterCapacity(m.id, 0);
-        return { m: m, load: ld, cap: cp, over: ld > cp };
+      /* 22.09-166: вместо «Загрузка мастеров сегодня» — карточка «⚡ КПД мастеров»
+         (та же метрика, что в панели аналитики — выбранный там месяц, —
+         но в светлом виде соседних блоков «Выполнение по дням»/«Сегодня») */
+      var kMY = getDashMY();
+      var kTasks = vt.filter(function (t) { var dd = offToDate(t.d); return dd.getMonth() === kMY.m && dd.getFullYear() === kMY.y; });
+      var kWorkH = 0, kTravelMin = 0, kTravelCnt = 0;
+      kTasks.forEach(function (t) {
+        kWorkH += taskHours(t);
+        var tmin = taskTravelMin(t);
+        if (tmin <= 0) tmin = estimateTravelMin(t);   // нет расчёта маршрута — оценка по расстоянию
+        if (tmin > 0) { kTravelMin += tmin; kTravelCnt++; }
       });
-      var W2 = 760, rowH = 27, L2 = 152, H2 = Math.max(70, loads.length * rowH + 22);
-      var barW = W2 - L2 - 64; // стандартная длина полосы (запас справа — под подпись часов)
-      var rows = '';
-      loads.forEach(function (x, xi) {
-        var y = 12 + xi * rowH;
-        // контур фонда = стандартная полная длина полосы; загрузка сверх фонда
-        // НЕ растягивает полосу — просто заполняет её целиком (и краснеет)
-        var wCap = x.cap > 0 ? barW : 2;
-        var frac = x.cap > 0 ? Math.min(x.load, x.cap) / x.cap : (x.load > 0 ? 1 : 0);
-        var wLoad = x.load > 0 ? Math.max(2, barW * frac) : 0;
-        var nm = x.m.name.length > 22 ? x.m.name.slice(0, 21) + '…' : x.m.name;
-        var lbl = fmtH(x.load) + ' ч' + (x.cap > 0 && x.over ? ' (+' + fmtH(x.load - x.cap) + ')' : '');
-        var lblInside = wLoad >= barW - 58; // полоса почти полная — подпись внутри, белым
-        rows += '<text x="0" y="' + (y + 13) + '" font-size="11.5" fill="#0f2740" font-weight="700">' + esc(nm) + '</text>' +
-          '<rect x="' + L2 + '" y="' + (y + 2) + '" width="' + wCap.toFixed(1) + '" height="14" rx="4" fill="#eef2f7" stroke="#64748b" stroke-opacity=".35"><title>Фонд рабочего времени: ' + fmtH(x.cap) + ' ч' + (x.cap === 0 ? ' — не работает в этот день' : '') + '</title></rect>' +
-          '<rect x="' + L2 + '" y="' + (y + 2) + '" width="' + wLoad.toFixed(1) + '" height="14" rx="4" fill="' + (x.over ? '#dc2626' : '#2563eb') + '"><title>' + esc(x.m.name) + ' (' + esc(x.m.area) + '): ' + fmtH(x.load) + ' ч из ' + fmtH(x.cap) + ' ч' + (x.over ? ' — перегрузка +' + fmtH(x.load - x.cap) + ' ч' : '') + '</title></rect>' +
-          (lblInside
-            ? '<text x="' + (L2 + wLoad - 5).toFixed(1) + '" y="' + (y + 13) + '" font-size="10.5" fill="#ffffff" font-weight="700" text-anchor="end">' + lbl + '</text>'
-            : '<text x="' + (L2 + wLoad + 6).toFixed(1) + '" y="' + (y + 13) + '" font-size="10.5" fill="' + (x.over ? '#dc2626' : '#475569') + '" font-weight="700">' + lbl + '</text>');
-      });
-      var svg2 = loads.length
-        ? '<svg viewBox="0 0 ' + W2 + ' ' + H2 + '" style="width:100%;height:auto;display:block" xmlns="http://www.w3.org/2000/svg">' + rows + '</svg>'
-        : '<div class="empty">Нет мастеров</div>';
+      var kTravelH = kTravelMin / 60;
+      var kTotalH = kWorkH + kTravelH;
+      var kPctObj = kTotalH > 0 ? (kWorkH / kTotalH * 100) : 0;
+      var kPctRoad = kTotalH > 0 ? (kTravelH / kTotalH * 100) : 0;
+      var kAvgTravel = kTravelCnt > 0 ? Math.round(kTravelMin / kTravelCnt) : 0;
+      var kDec = function (x) { return (Math.round(x * 10) / 10).toString().replace('.', ','); };
+      var kpdBar = (kTotalH > 0)
+        ? '<div style="display:flex;height:16px;border-radius:8px;overflow:hidden;background:#eef2f7;border:1px solid #cbd5e1">' +
+          '<div style="width:' + kPctObj.toFixed(1) + '%;background:#2563eb" title="Работа на объектах: ' + kDec(kPctObj) + '%"></div>' +
+          '<div style="width:' + kPctRoad.toFixed(1) + '%;background:#f59e0b" title="В пути: ' + kDec(kPctRoad) + '%"></div></div>'
+        : '<div style="height:16px;border-radius:8px;background:#eef2f7;border:1px dashed #cbd5e1"></div>';
+      var kpdBody =
+        '<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">' +
+          '<div style="text-align:center;min-width:96px"><div style="font-size:30px;font-weight:800;color:#1d4ed8;line-height:1.05">' + (kTotalH > 0 ? kDec(kPctObj) : '—') + '%</div>' +
+          '<div style="font-size:11px;font-weight:600;color:var(--muted);margin-top:2px">на объектах</div></div>' +
+          '<div style="flex:1;min-width:190px">' + kpdBar +
+            '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px;font-size:11px;font-weight:700">' +
+              '<span style="color:#1d4ed8">■ Работа на объектах: ' + fmtH(kWorkH) + ' ч</span>' +
+              '<span style="color:#b45309">■ В пути: ' + fmtH(kTravelH) + ' ч</span>' +
+            '</div></div></div>' +
+        '<div style="margin-top:10px;font-size:11.5px;color:var(--muted)">🚗 В пути за ' + esc(dashMonthLabel().toLowerCase()) + ': <b style="color:var(--ink)">' + (kTotalH > 0 ? kDec(kPctRoad) : '0') + '%</b> от всего времени (' + fmtH(kTotalH) + ' ч) · Среднее время переезда: <b style="color:var(--ink)">≈ ' + kAvgTravel + ' мин</b></div>';
 
       html += '<div class="dash-grid">';
       html += '<div class="card"><div class="card-h"><h2>📈 Выполнение по дням</h2><span class="sub">' + MON_NOM[TODAY.getMonth()] + ' ' + TODAY.getFullYear() + ' · <span style="color:#2563eb;font-weight:700">■ план</span> <span style="color:#16a34a;font-weight:700">■ выполнено</span></span></div><div class="card-b">' + svg1 + '</div></div>';
-      html += '<div class="card"><div class="card-h"><h2>👷 Загрузка мастеров сегодня</h2></div><div class="card-b">' + svg2 + '</div></div>';
+      html += '<div class="card"><div class="card-h"><h2>⚡ КПД мастеров</h2><span class="sub">Работа vs дорога · ' + esc(dashMonthLabel()) + '</span></div><div class="card-b">' + kpdBody + '</div></div>';
       html += '</div>';
     })();
 
@@ -6219,6 +6223,76 @@
     return "https://www.google.com/maps/dir/" + pts.map(encodeURIComponent).join("/");
   }
 
+  /* 22.09-163: ЭКСПОРТ МАРШРУТА «ТЕСТА ПРОЕЗДА» В GOOGLE EARTH (.kml).
+     Сам Google Earth маршруты не считает (у него нет такого сервиса для сайтов),
+     поэтому маршрут строится как обычно (OSRM / Valhalla / BRouter), а скачанный
+     файл .kml открывается в Google Earth на компьютере или телефоне:
+     база (флажок), пронумерованные точки объезда и линия маршрута на глобусе. */
+  function kmlEscape(s2) {
+    return String(s2 == null ? '' : s2).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function buildTestRouteKml(items, geom) {
+    var dateIso = key(offToDate(TS.off));
+    // точки без возможного повторного вхождения базы в конце
+    var baseIt = items[0];
+    // база в конце — совпадает с первой точкой (по ссылке или по координатам)
+    var _last = items[items.length - 1];
+    var backBase = items.length >= 2 && baseIt && _last && (_last === baseIt ||
+      (+_last.lat) === (+baseIt.lat) && (+_last.lng) === (+baseIt.lng));
+    var mid = backBase ? items.slice(1, items.length - 1) : items.slice(1);
+    mid = mid.filter(function (it) { return it && it.lat != null && it.lng != null; });
+    var x = '';
+    x += '<?xml version="1.0" encoding="UTF-8"?>\n';
+    x += '<kml xmlns="http://www.opengis.net/kml/2.2"><Document>\n';
+    x += '<name>SmartPlan — маршрут на ' + kmlEscape(dateIso) + '</name>\n';
+    x += '<description>Маршрут объезда заданий из SmartPlan: база → точки в оптимизированном порядке → база.</description>\n';
+    // стили: база — зелёный флажок; точки — пронумерованные пины (1..10), дальше — точка; линия — синяя
+    x += '<Style id="ge-base"><IconStyle><scale>1.2</scale><Icon><href>http://maps.google.com/mapfiles/kml/paddle/grn-flag.png</href></Icon></IconStyle></Style>\n';
+    for (var si = 1; si <= Math.min(10, mid.length); si++) {
+      x += '<Style id="ge-p' + si + '"><IconStyle><scale>1.1</scale><Icon><href>http://maps.google.com/mapfiles/kml/paddle/' + si + '.png</href></Icon></IconStyle></Style>\n';
+    }
+    x += '<Style id="ge-pt"><IconStyle><scale>1.0</scale><Icon><href>http://maps.google.com/mapfiles/kml/paddle/red-circle.png</href></Icon></IconStyle></Style>\n';
+    x += '<Style id="ge-line"><LineStyle><color>ffff8c1a</color><width>4</width></LineStyle></Style>\n';
+    function ptPm(it, name, styleId, descr) {
+      return '<Placemark><name>' + kmlEscape(name) + '</name>' +
+        (descr ? '<description>' + kmlEscape(descr) + '</description>' : '') +
+        '<styleUrl>#' + styleId + '</styleUrl><Point><coordinates>' + (+it.lng).toFixed(6) + ',' + (+it.lat).toFixed(6) + ',0</coordinates></Point></Placemark>\n';
+    }
+    if (baseIt && baseIt.lat != null && baseIt.lng != null) x += ptPm(baseIt, 'База — ' + (baseIt.name || baseIt.addr || 'база'), 'ge-base', baseIt.addr || '');
+    mid.forEach(function (it, i) {
+      var st = (i < 10) ? 'ge-p' + (i + 1) : 'ge-pt';
+      var descr = (it.work ? it.work + (it.addr ? ' · ' : '') : '') + (it.addr || '');
+      x += ptPm(it, (i + 1) + '. ' + (it.addr || it.name || ('Точка ' + (i + 1))), st, descr);
+    });
+    // линия: реальная геометрия роутера, иначе — прямые между точками (база → точки → база)
+    var linePts = [baseIt].concat(mid).concat(backBase && baseIt ? [baseIt] : []);
+    var line = (geom && geom.length >= 2) ? geom
+      : linePts.filter(function (it) { return it && it.lat != null && it.lng != null; }).map(function (it) { return [it.lat, it.lng]; });
+    if (line && line.length >= 2) {
+      var coords = line.map(function (c) { return (+c[1]).toFixed(6) + ',' + (+c[0]).toFixed(6) + ',0'; }).join(' ');
+      x += '<Placemark><name>Маршрут объезда</name><styleUrl>#ge-line</styleUrl><LineString><tessellate>1</tessellate><coordinates>' + coords + '</coordinates></LineString></Placemark>\n';
+    }
+    x += '</Document></kml>\n';
+    return x;
+  }
+  function exportTestRouteToKml() {
+    var items = tState.routeItems;
+    if (!items || items.length < 2) { toast('warn', 'Сначала постройте маршрут (кнопка «Оптимизация маршрутов»)'); return; }
+    try {
+      var dateIso = key(offToDate(TS.off));
+      var kml = buildTestRouteKml(items, tState.routeGeom);
+      var fname = 'Маршрут_SmartPlan_' + dateIso + '.kml';
+      var blob = new Blob(['\ufeff' + kml], { type: 'application/vnd.google-earth.kml+xml' });
+      var url = URL.createObjectURL(blob);
+      var aEl = document.createElement('a');
+      aEl.href = url; aEl.download = fname;
+      document.body.appendChild(aEl); aEl.click(); aEl.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+      toast('ok', '🌍 Скачан ' + fname + ' — откройте его в Google Earth на компьютере или телефоне');
+      logAction('Экспорт маршрута в Google Earth', fname + ' · точек: ' + Math.max(0, items.length - 2));
+    } catch (e) { toast('err', 'Не удалось создать .kml'); }
+  }
+
   function buildOsmWidgetUrl(items) {
     if (!items || !items.length) return "https://www.openstreetmap.org/export/embed.html";
     var minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
@@ -8948,7 +9022,9 @@
 
     var html = '<div class="card"><div class="card-h"><h2>📅 Графики смен</h2>';
     html += '<span class="sub">' + masters.length + ' бригад · ' + slesars.length + ' слесарей · ' + users.length + ' чел.</span><div class="spacer"></div>';
-    // Управление: переключатель месяца + режим отображения
+    // Управление: переключатель месяца + режим отображения.
+    // 22.09-164: «Праздничные дни» перенесены сюда из графика работ — слева от выбора месяца
+    html += '<button type="button" class="btn sm" data-action="sch-holidays" style="margin-right:8px" title="Праздничные дни (РБ) — список нерабочих дней; учитываются в графиках работ">🎉 Праздничные дни</button>';
     html += '<span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">';
     html += '<button type="button" class="btn sm" data-action="sch-month-prev" title="Предыдущий месяц">‹</button>';
     html += '<b data-action="sch-month-label" style="font-size:13px;color:var(--ink);min-width:140px;text-align:center">' + MON_NOM[wm.m] + ' ' + wm.y + '</b>';
@@ -14420,27 +14496,10 @@
     // Инициализация: подсветить текущий час
     setHour(HOURLY.hour, true);
 
-    // === «Живая» автопрокрутка при открытии окна погоды ===
-    // Только для сегодняшнего дня: плавно прокручиваем ползунок на 3 часа
-    // (HOURLY.hour - 1 → HOURLY.hour + 2 → HOURLY.hour), анимация сцены сама
-    // отрабатывает cross-fade. Ползунок сам ползёт — пользователь видит, что
-    // погода анимируется. Через ~2.5с возвращаемся на текущий час.
-    if (off === 0 && HOURLY.hour >= 0) {
-      var startH = HOURLY.hour;
-      var seq = [startH, startH + 1, startH + 2, startH + 1, startH];
-      var idx = 0;
-      var playOnce = setInterval(function () {
-        idx++;
-        if (idx >= seq.length) {
-          clearInterval(playOnce);
-          var slEnd = modal.querySelector('#hly-slider');
-          if (slEnd) slEnd.value = startH;
-          return;
-        }
-        var nh = ((seq[idx] % 24) + 24) % 24;
-        setHour(nh, true);
-      }, 650);
-    }
+    /* 22.09-165: автопрокрутка при открытии УБРАНА (дёргала часы +2/−2 при
+       открытии карточки дня; её интервал также «переезжал» на следующую
+       открытую карточку, если закрыть окно раньше времени). Анимация суток
+       по-прежнему запускается вручную кнопкой ▶ справа от ползунка. */
   }
 
   // Окошко "Погода в точке" — ввод координат + запрос Open-Meteo для выбранного часа
@@ -16637,17 +16696,17 @@
     copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>'
   };
   function graphsToolbarHtml(g) {
-    // 22.09-124: «Сезоны» (бывш. «Настройка периодов») — после «Настроить периодичность»;
-    // «Праздничные дни» — перед «Фильтр»
+    // 22.09-124: «Сезоны» (бывш. «Настройка периодов») — после «Настроить периодичность».
+    // 22.09-164: «Трудоёмкость графика» — слева от «Фильтра»; «Праздничные дни»
+    // перенесены на страницу «Графики смен» (слева от выбора месяца).
     var left = [
       { tool: 'newobj', tip: 'Добавить объекты в график', cls: 'gt-green', icon: 'plus' },
       { tool: 'period', tip: 'Настроить периодичность', cls: 'gt-violet', icon: 'repeat' },
       { tool: 'winter', tip: 'Сезоны', cls: 'gt-sky', icon: 'snow' },
-      { tool: 'legend', tip: 'Обозначения работ', cls: 'gt-rose', icon: 'legend' },
-      { tool: 'labor', tip: 'Трудоёмкость графика (за год, по месяцам, по объектам)', cls: 'gt-green', icon: 'bars' }
+      { tool: 'legend', tip: 'Обозначения работ', cls: 'gt-rose', icon: 'legend' }
     ];
     var right = [
-      { tool: 'holidays', tip: 'Праздничные дни', cls: 'gt-amber', icon: 'gift' },
+      { tool: 'labor', tip: 'Трудоёмкость графика (за год, по месяцам, по объектам)', cls: 'gt-green', icon: 'bars' },
       { tool: 'filter', tip: 'Фильтр', cls: 'gt-slate', icon: 'funnel' },
       { tool: 'print', tip: 'Печать графика (в Excel)', cls: 'gt-amber', icon: 'printer' },
       { tool: 'delworks', tip: 'Удалить работы', cls: 'gt-red', icon: 'trash' }
@@ -19463,6 +19522,7 @@
       '<button class="btn sm" id="t-btn-traffic" title="Слой Яндекс.Пробок: загруженность дорог и события (аварии, ремонт) на карте">🚦 Пробки</button>' +
       '<button class="btn sm" id="t-btn-yandex" style="display:none;background:#c8102e;border-color:#c8102e;color:#fff" title="Открыть построенный маршрут в Яндекс.Картах (новая вкладка)">↗ Яндекс.Карты</button>' +
       '<button class="btn sm" id="t-btn-google" style="display:none;background:#1a73e8;border-color:#1a73e8;color:#fff" title="Открыть построенный маршрут в Google Maps (новая вкладка) — реальное время в пути от Google">🌐 Google Maps</button>' +
+      '<button class="btn sm" id="t-btn-gearth" style="display:none;background:#0b8043;border-color:#0b8043;color:#fff" title="Скачать построенный маршрут файлом .kml — открывается в Google Earth (компьютер или телефон): база, пронумерованные точки объезда и линия маршрута на спутниковом глобусе">🌍 Google Earth</button>' +
       (S.role === 'viewer' ? '<span style="font-size:12px;color:var(--muted);font-weight:600;">👁 Режим просмотра</span>' :
         '<select id="t-route-router-sel" title="Роутер для построения основного маршрута" style="padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;background:var(--card);color:var(--ink);font-weight:700;cursor:pointer;height:32px">' +
           '<option value="osrm" ' + (TS.router === 'osrm' ? 'selected' : '') + '>🚗 OSRM</option>' +
@@ -19536,6 +19596,9 @@
       var url = buildGoogleDirUrl(items);
       window.open(url, '_blank', 'noopener');
     });
+    // 22.09-163: «Google Earth» — скачать маршрут файлом .kml
+    var tGEBtn = document.getElementById('t-btn-gearth');
+    if (tGEBtn) tGEBtn.addEventListener('click', function () { exportTestRouteToKml(); });
 
     var tTrBtn = document.getElementById('t-btn-traffic');
     if (tTrBtn) tTrBtn.title = 'Слой Яндекс.Пробок: включается по вашему выбору (по умолчанию выключен)';
@@ -20512,6 +20575,7 @@
   }
   // линия маршрута на Яндекс-карте (координаты [[lat,lng],…])
   function tDrawTestRouteLine(geom) {
+    tState.routeGeom = geom || null; // 22.09-163: геометрия линии — для экспорта в Google Earth (.kml)
     // OSM-вариант: маршрут рисуется на Leaflet
     if (TS.mapEngine === 'osm') { tDrawTestRouteLineOSM(geom); return; }
     var map = tState.ymap;
@@ -22082,6 +22146,8 @@
           if (yaBtn && ordered.length) yaBtn.style.display = '';
           var gBtn = document.getElementById('t-btn-google');
           if (gBtn && ordered.length) gBtn.style.display = '';
+          var geBtn = document.getElementById('t-btn-gearth');
+          if (geBtn && ordered.length) geBtn.style.display = ''; // 22.09-163
           var howOpt = (res.by === 'yandex') ? 'порядок «ближайший сосед»' : 'многостартовая оптимизация OSRM Trip';
           // Оценка с пробками по часу суток (Минск) — для случая, когда
           // живые тайлы пробок не удалось получить (CORS/нет ключа).
@@ -22398,6 +22464,8 @@
         var k = typeof jamFactorByHour === 'function' ? jamFactorByHour(h) : 1.0;
         var mnJammed = Math.max(1, Math.round(mn * k));
 
+        // 22.09-163: порядок точек — для экспорта в Google Earth (.kml)
+        tState.routeItems = [base].concat(orderedPts).concat([base]);
         // Рисуем маршрут на карте
         tDrawTestRouteLine(geom);
 
@@ -22435,6 +22503,8 @@
         var gBtn = document.getElementById('t-btn-google');
         if (yaBtn) yaBtn.style.display = 'none';
         if (gBtn) gBtn.style.display = 'none';
+        var geBtn = document.getElementById('t-btn-gearth');
+        if (geBtn && orderedPts.length) geBtn.style.display = ''; // 22.09-163
 
         try { toast('ok', '✓ BRouter ' + profile + ': ' + km.toFixed(1).replace('.', ',') + ' км · ' + fmtDuration(mn) + ' (с пробками ~' + fmtDuration(mnJammed) + ')'); } catch (e) {}
         restoreBtn();
