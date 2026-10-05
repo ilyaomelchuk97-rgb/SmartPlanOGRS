@@ -747,7 +747,7 @@
     graphs: ['Планирование / График работ', 'Сборка 22.09-164 · кнопка «Трудоёмкость графика» — слева от «Фильтра»; «Праздничные дни» перенесены в «Графики смен»'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
     objmap: ['Карта объектов', 'Сборка 22.09-137 · вид телеметрии «ПТК "Эксорт"» переименован в «ПТК "Эскорт"» — объекты и работы обновлены автоматически'],
-    testmap: ['Тест проезда', 'Сборка 22.09-173 · новый режим карты «🏙 Google Earth 3D (здания)»: спутник+схема города Google и объёмные дома (высота из OpenStreetMap), поворот правой кнопкой мыши; маркеры и маршрут сохраняются'],
+    testmap: ['Тест проезда', 'Сборка 22.09-175 · в списке движков маршрута появился «🌐 Google»: «Оптимизация маршрутов» раскладывает точки в порядок объезда и открывает новую вкладку, где маршрут строит сам Google'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
     perms: ['Разрешения', 'Система разрешений на производство работ'],
@@ -19411,7 +19411,7 @@
   // Восстанавливаем выбор роутера из localStorage, чтобы между сессиями работал.
   try {
     var _savedRouter = localStorage.getItem('smartplan_test_router');
-    if (_savedRouter && /^(osrm|brouter-car|valhalla)$/.test(_savedRouter)) {
+    if (_savedRouter && /^(osrm|brouter-car|valhalla|google)$/.test(_savedRouter)) { // 22.09-175
       TS.router = _savedRouter;
     }
     var _savedMap = localStorage.getItem('smartplan_test_map_engine');
@@ -19511,7 +19511,7 @@
         '<option value="yandex" ' + (TS.mapKind !== 'gsat' && TS.mapKind !== 'ghyb' ? 'selected' : '') + '>Яндекс (схема)</option>' +
         '<option value="ghyb" ' + (TS.mapKind === 'ghyb' ? 'selected' : '') + '>🌍 Google спутник + названия</option>' +
         '<option value="gsat" ' + (TS.mapKind === 'gsat' ? 'selected' : '') + '>🌍 Google Earth (спутник)</option>' +
-        '<option value="g3d" ' + (TS.mapKind === 'g3d' ? 'selected' : '') + '>🏙 Google Earth 3D (здания)</option>' +
+        '<option value="g3d" ' + (TS.mapKind === 'g3d' ? 'selected' : '') + '>🌍 Google Earth — планета 3D (дороги, дома)</option>' + // 22.09-174
       '</select></div>';
 
     var html = '<div class="cal-head"><div class="seg">' +
@@ -19532,6 +19532,7 @@
           '<option value="osrm" ' + (TS.router === 'osrm' ? 'selected' : '') + '>🚗 OSRM</option>' +
           '<option value="brouter-car" ' + (TS.router === 'brouter-car' ? 'selected' : '') + '>🚗 BRouter car-fast</option>' +
           '<option value="valhalla" ' + (TS.router === 'valhalla' ? 'selected' : '') + '>🟧 Valhalla</option>' +
+          '<option value="google" ' + (TS.router === 'google' ? 'selected' : '') + '>🌐 Google (маршрут строит сам Google)</option>' + // 22.09-175
         '</select>' +
         '<button class="btn primary" id="t-btn-build-route" data-action="t-build-route" disabled style="opacity:.5;cursor:not-allowed;">' + IC.route + ' Оптимизация маршрутов</button>' + '<button class="btn sm" id="t-btn-compare" data-action="t-build-compare" style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;font-weight:700" title="Сравнить автомобильные роутеры (OSRM demo / FOSSGIS car / Valhalla public / osm.ch / BRouter car / Прямая линия ×1.4)">🔀 Сравнить</button>') +
       '<div class="spacer"></div>' +
@@ -19758,7 +19759,8 @@
         var labels = {
           'osrm': 'OSRM (автомобильный, дорожная сеть OSM)',
           'brouter-car': 'BRouter car-fast (авто, энергоэффективный)',
-          'valhalla': 'Valhalla public (авто, с проверкой закрытий)'
+          'valhalla': 'Valhalla public (авто, с проверкой закрытий)',
+          'google': 'Google — маршрут откроется в новой вкладке, строит сам Google' // 22.09-175
         };
         try { toast('info', '🚦 Роутер: ' + (labels[TS.router] || TS.router)); } catch (er) {}
       });
@@ -19774,7 +19776,7 @@
         // 22.09-173: в/из «Google Earth 3D» — другая технология (MapLibre), перерисовываем карту целиком
         if (v === 'g3d' || _prevKind === 'g3d') { try { drawTestMap(tState.allPts || []); } catch (er) {} }
         else tApplyMapKind();
-        try { toast('ok', v === 'yandex' ? '🗺 Подложка: Яндекс (схема)' : (v === 'ghyb' ? '🌍 Подложка: спутник Google с названиями улиц' : (v === 'g3d' ? '🏙 Режим: Google Earth 3D — объёмные дома. Вращайте карту правой кнопкой мыши' : '🌍 Подложка: Google Earth (спутник)'))); } catch (er) {}
+        try { toast('ok', v === 'yandex' ? '🗺 Подложка: Яндекс (схема)' : (v === 'ghyb' ? '🌍 Подложка: спутник Google с названиями улиц' : (v === 'g3d' ? '🌍 Режим: Google Earth — планета 3D. При отдалении — глобус со схемой дорог, вблизи — объёмные дома. Вращайте правой кнопкой мыши' : '🌍 Подложка: Google Earth (спутник)'))); } catch (er) {}
       });
     }
     } catch (err) {
@@ -20383,6 +20385,9 @@
     } else if (info.error) {
       el.innerHTML = "⚠ маршрут не построен";
       el.style.color = "var(--red)";
+    } else if (info.google) { // 22.09-175: движок «Google» — считает сам Google в новой вкладке
+      el.innerHTML = "🌐 маршрут на " + (info.count || 0) + " точек открыт в Google — время и пробки покажет сам Google в новой вкладке";
+      el.style.color = "#1a73e8";
     } else if (info.km != null) {
       /* ТЕСТ: данные маршрута — из нашего расчёта (OSRM Trip × калибровка + пробки).
          Если jamsMin === freeMin — это была «честная» Яндекс-калибровка без пробок;
@@ -20494,12 +20499,12 @@
         var link = document.createElement('link');
         link.id = 'mlgl-css';
         link.rel = 'stylesheet';
-        link.href = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css';
+        link.href = 'https://unpkg.com/maplibre-gl@6.11.2/dist/maplibre-gl.css'; // 22.09-174: v6 — нужна проекция «глобус» (появилась в v5)
         document.head.appendChild(link);
       }
       var sc = document.createElement('script');
       sc.id = 'mlgl-js';
-      sc.src = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js';
+      sc.src = 'https://unpkg.com/maplibre-gl@6.11.2/dist/maplibre-gl.js';
       sc.onload = function () { _fin(!!window.maplibregl); };
       sc.onerror = function () { mlState.loading = false; _fin(false); };
       document.head.appendChild(sc);
@@ -20509,12 +20514,16 @@
   function tG3DStyleDef() {
     return {
       version: 8,
+      // 22.09-174: ПЛАНЕТА — при отдалении глобус, при приближении — обычная плоская карта
+      projection: { type: ['interpolate', ['linear'], ['zoom'], 5, 'vertical-perspective', 7, 'mercator'] },
+      // голубое свечение атмосферы вокруг планеты, как в Google Earth
+      sky: { 'atmosphere-blend': ['interpolate', ['linear'], ['zoom'], 0, 1, 5, 1, 7, 0] },
       sources: {
-        'g-lyrs': { type: 'raster', tiles: ['https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}'], tileSize: 256, attribution: '© Google (спутник + схема города)' },
+        'g-lyrs': { type: 'raster', tiles: ['https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}'], tileSize: 256, attribution: '© Google (схема дорог)' }, // 22.09-174: НЕ спутник — нарисованные дороги Google
         'osm-bld': { type: 'vector', tiles: ['https://tiles.openfreemap.org/planet/{z}/{x}/{y}.pbf'], attribution: 'Здания: © участники OpenStreetMap' }
       },
       layers: [
-        { id: 'bg', type: 'background', paint: { 'background-color': '#0b1c2c' } },
+        { id: 'bg', type: 'background', paint: { 'background-color': '#04070d' } }, // тёмный космос за диском планеты
         { id: 'gsat', type: 'raster', source: 'g-lyrs' },
         { id: 'b3d', type: 'fill-extrusion', source: 'osm-bld', 'source-layer': 'building',
           paint: {
@@ -20545,11 +20554,12 @@
             container: mlDiv,
             style: tG3DStyleDef(),
             center: [27.5619, 53.9023],
-            zoom: 15.5, pitch: 62, bearing: -18, maxPitch: 75,
+            zoom: 1.7, pitch: 0, bearing: 0, maxPitch: 75, // 22.09-174: старт — вся планета (глобус), как в Google Earth
             attributionControl: { compact: true }
           });
           try {
             tState.mlmap.addControl(new maplibregl.NavigationControl(), 'top-right');
+            if (typeof maplibregl.GlobeControl === 'function') tState.mlmap.addControl(new maplibregl.GlobeControl(), 'top-right'); // быстрый переключатель глобус/плоская
             tState.mlmap.dragRotate.enable();       // поворот: правая кнопка / Ctrl+левая
             tState.mlmap.touchZoomRotate.enableRotation();
           } catch (e) {}
@@ -22290,6 +22300,31 @@
     });
   }
 
+  /* 22.09-175: движок «Google» — маршрут строит САМ GOOGLE в новой вкладке.
+     Порядок точек — как у дорожных роутеров («ближайший сосед» от базы),
+     чтобы нумерация в списке/карте совпадала с тем, что построит Google. */
+  function buildTestRouteOpenGoogle(sel, base, restoreBtn) {
+    try {
+      var raw = (sel || []).filter(function (p) { return p.lat != null && p.lng != null; });
+      if (!raw.length) { try { toast('warn', 'У выбранных заданий нет координат'); } catch (e) {} if (restoreBtn) restoreBtn(); return; }
+      var ordered = lmNearestOrder(raw.map(function (p) { return { id: p.id, lat: p.lat, lng: p.lng, addr: p.addr, mcol: p.mcol }; }), base);
+      tState.pts = ordered.slice();
+      refreshTestCards(ordered);
+      tDrawTestMarkers();
+      tState.routeItems = [base].concat(ordered).concat([base]);
+      var url = buildGoogleDirUrl(tState.routeItems);
+      window.open(url, '_blank', 'noopener');
+      setTestRouteInfo({ google: true, count: ordered.length });
+      ['t-btn-yandex', 't-btn-google', 't-btn-gearth'].forEach(function (id) {
+        var b = document.getElementById(id); if (b && ordered.length) b.style.display = '';
+      });
+      try { toast('ok', '🌐 Маршрут (' + ordered.length + ' точек) открыт в новой вкладке — его строит сам Google'); } catch (e) {}
+      try { logAction('Маршрут открыт в Google', 'точек: ' + ordered.length); } catch (e) {}
+    } catch (e) {
+      try { toast('err', 'Не удалось открыть маршрут в Google'); } catch (er) {}
+    } finally { if (restoreBtn) restoreBtn(); }
+  }
+
   function buildTestRoute(noJam) {
     TS.noJam = !!noJam;
     var routerKey = TS.router || 'osrm';
@@ -22309,6 +22344,8 @@
       buildTestRouteBRouter(profile, restoreBtn);
       return;
     }
+    // === 22.09-175: движок «Google» — маршрут строит сам Google (новая вкладка) ===
+    if (routerKey === 'google') { buildTestRouteOpenGoogle(sel, base, restoreBtn); return; }
     var ri = document.getElementById('t-route-info');
     if (ri) ri.textContent = '⏳ Оптимизируем порядок объезда…';
     var pts = sel.map(function (p) { return { id: p.id, lat: p.lat, lng: p.lng, addr: p.addr }; });
