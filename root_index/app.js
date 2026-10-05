@@ -201,6 +201,7 @@
     userModalMode: 'new', userModalUid: null,
     reportMonth: null, // {year, month} — выбранный отчётный месяц; null = текущий
     dashMonth: null,   // {year, month} — выбранный месяц для панели аналитики; null = текущий
+    dashDayOff: 0,     // 22.09-171: выбранный день блока «Сегодня» на панели мониторинга (0 = сегодня)
     tasks: TASKS_DB ? TASKS_DB.getTasks() : (D.TASK_SEED || []).map(function (t, i) {
       var o = OBJ_MAP[t.o] || null;
       var tm = 15;
@@ -741,7 +742,7 @@
   }
 
   var TITLES = {
-    dashboard: ['Панель мониторинга', 'Сборка 22.09-170 · «Красная зона» — компактная строка «Красная зона · N» (как «ордеров истекает»), список задач в зоне раскрывается по нажатию и запоминается'],
+    dashboard: ['Панель мониторинга', 'Сборка 22.09-171 · «Красная зона» — кнопкой в ряду KPI (список — по нажатию); в блоке «Сегодня» — календарик выбора даты; «КПД мастеров» — календарик месяца (общий с графиком по дням), график тянется на всю высоту'],
     calendar: ['Планирование / Календарь', 'Сборка 22.09-159 · карточка задачи: у строки вида работ (work-row) запас справа 34px'],
     graphs: ['Планирование / График работ', 'Сборка 22.09-164 · кнопка «Трудоёмкость графика» — слева от «Фильтра»; «Праздничные дни» перенесены в «Графики смен»'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
@@ -751,7 +752,7 @@
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
     perms: ['Разрешения', 'Система разрешений на производство работ'],
     refs: ['Справочники', 'Сборка 22.09-162 · карточка работы ГРП: «Проводится совместно» теперь выбирается в отдельном окне (кнопка «📋 Выбор работ») — галочки, «Сохранить»/«Отмена»'],
-    workers: ['Работники', 'Графики работы (8 ч → 5/2, 12 ч → 2/2), бригады и отсутствия'],
+    workers: ['Работники', 'Сборка 22.09-172 · окно карточки работника — ровно по ширине карточки (560px): без пустого места справа; панель и календарь — на всю ширину окна'],
     schedules: ['Графики смен', 'Сборка 22.09-164 · добавлена кнопка «🎉 Праздничные дни» (из графика работ) — слева от выбора месяца'],
     users: ['Пользователи', 'Сборка 22.09-161 · увольнение работников: кнопка «Уволить» с датой, блок «Уволенные» с восстановлением; в истории задач ФИО остаются'],
     reports: ['Отчёты', 'Печатные формы для подписи у руководства'],
@@ -843,6 +844,20 @@
     openKpiPopup('Ордера и разрешения (' + vt.length + ')', '#f59e0b', body);
   }
 
+  // 22.09-171: «Красная зона» — всплывающий список задач (срок ≤ 2 дн или просрочено)
+  function kpiRedzone() {
+    var vt = visibleTasks().filter(function (t) { return !isDone(t) && (t.dl <= 2 || t.d < 0); });
+    vt.sort(function (a, b) { return a.dl - b.dl; });
+    if (!vt.length) { openKpiPopup('Красная зона', '#dc2626', '<div class="empty">Просрочек нет 🎉</div>'); return; }
+    var body = '';
+    vt.forEach(function (t) {
+      var w = workOf(t), m = masterById(t.m);
+      var col = taskColor(t);
+      body += '<div class="rz-item"><div class="rz-bar" style="background:' + (col === 'red' ? 'var(--red)' : 'var(--yellow)') + '"></div><div class="rz-main"><div class="rz-t">' + esc(w ? w.name : '?') + ' — ' + esc(addrOf(t)) + '</div><div class="rz-s">' + esc(m ? m.name : '?') + ' · ' + esc(m ? m.area : '') + ' · ' + statusLabel(t) + '</div></div><div class="rz-dl ' + (col === 'red' ? 'red' : 'yel') + '">' + (t.dl < 0 ? 'просрочка ' + (-t.dl) + ' дн' : t.dl === 0 ? 'сегодня!' : 'осталось ' + t.dl + ' дн') + '</div></div>';
+    });
+    openKpiPopup('Красная зона (' + vt.length + ')', '#dc2626', body);
+  }
+
   /* =====================================================================
      РЕНДЕР: ДАШБОРД
      ===================================================================== */
@@ -881,14 +896,14 @@
     return { y: TODAY.getFullYear(), m: TODAY.getMonth() };
   }
   function dashMonthLabel() { var p = getDashMY(); return MON_NOM[p.m] + ' ' + p.y; }
-  function toggleDashMonthPicker() {
+  function toggleDashMonthPicker(btnEl) {
     var dd = document.getElementById('dash-month-dropdown');
     if (!dd) return;
     if (dd.classList.contains('open')) { dd.classList.remove('open'); return; }
     var p = getDashMY();
     dmState.viewYear = p.y;
     renderDashMonthPicker();
-    var btn = document.querySelector('[data-action="dash-month-toggle"]');
+    var btn = btnEl || document.querySelector('[data-action="dash-month-toggle"]');
     if (btn) {
       var rect = btn.getBoundingClientRect();
       dd.style.top = (rect.bottom + 6) + 'px';
@@ -2805,6 +2820,8 @@
     var permitCount = vt.filter(function(t) { return t.needs_permit && !isDone(t); }).length;
     var weatherCount = vt.filter(function(t) { var w = workOf(t); var wf = getWeatherForecast(t.d); return w && w.min_temp > -50 && wf && wf.temp != null && wf.temp < w.min_temp; }).length;
     html += kpi(permitCount, 'Ордеров истекает', 'работы с разрешениями', '#f59e0b', 'kpi-permits');
+    // 22.09-171: «Красная зона» — пятая кнопка в ряду KPI (как прочие — по нажатию список задач зоны)
+    html += kpi(redzone.length, 'Красная зона', 'предельный срок ≤ 2 дн', '#dc2626', 'kpi-redzone');
     html += '</div>';
 
     // Оповещения УБиРОГС
@@ -2888,10 +2905,11 @@
     // 1) План/факт по дням текущего месяца; 2) КПД мастеров (22.09-166)
     var _dashJoin = ''; // 22.09-169: одна общая карточка «⚡ КПД мастеров + 📈 Выполнение по дням» (собирает dashCharts)
     (function dashCharts() {
-      var dim = new Date(TODAY.getFullYear(), TODAY.getMonth() + 1, 0).getDate();
+      var cmy = getDashMY(); // 22.09-171: график по дням — за месяц, выбранный календариком КПД
+      var dim = new Date(cmy.y, cmy.m + 1, 0).getDate();
       var plan = [], fact = [];
       for (var dd = 1; dd <= dim; dd++) {
-        var dOff = dateToOff(new Date(TODAY.getFullYear(), TODAY.getMonth(), dd));
+        var dOff = dateToOff(new Date(cmy.y, cmy.m, dd));
         var dts = vt.filter(function (t) { return t.d === dOff; });
         plan.push(dts.length);
         fact.push(dts.filter(isDone).length);
@@ -2910,13 +2928,13 @@
         var hP = Math.round((H - T - B) * plan[bi] / maxV);
         var hF = Math.round((H - T - B) * fact[bi] / maxV);
         var bwid = Math.max(1, bw - 2).toFixed(1);
-        bars += '<rect x="' + (bx + 1).toFixed(1) + '" y="' + (H - B - hP) + '" width="' + bwid + '" height="' + Math.max(hP, 0) + '" rx="2" fill="#bfdbfe"><title>' + (bi + 1) + ' ' + MON[TODAY.getMonth()] + ': план ' + plan[bi] + ' задач</title></rect>';
-        if (fact[bi] > 0) bars += '<rect x="' + (bx + 1).toFixed(1) + '" y="' + (H - B - hF) + '" width="' + bwid + '" height="' + Math.max(hF, 0) + '" rx="2" fill="#16a34a"><title>' + (bi + 1) + ' ' + MON[TODAY.getMonth()] + ': выполнено ' + fact[bi] + '</title></rect>';
+        bars += '<rect x="' + (bx + 1).toFixed(1) + '" y="' + (H - B - hP) + '" width="' + bwid + '" height="' + Math.max(hP, 0) + '" rx="2" fill="#bfdbfe"><title>' + (bi + 1) + ' ' + MON[cmy.m] + ': план ' + plan[bi] + ' задач</title></rect>';
+        if (fact[bi] > 0) bars += '<rect x="' + (bx + 1).toFixed(1) + '" y="' + (H - B - hF) + '" width="' + bwid + '" height="' + Math.max(hF, 0) + '" rx="2" fill="#16a34a"><title>' + (bi + 1) + ' ' + MON[cmy.m] + ': выполнено ' + fact[bi] + '</title></rect>';
         // цифра количества задач дня — над столбиком (только дни с задачами)
         if (plan[bi] > 0) bars += '<text x="' + (bx + bw / 2).toFixed(1) + '" y="' + (H - B - hP - 5) + '" font-size="10.5" font-weight="800" fill="#1e40af" text-anchor="middle">' + plan[bi] + '</text>';
         if ((bi + 1) % 5 === 0 || bi === 0) bars += '<text x="' + (bx + bw / 2).toFixed(1) + '" y="' + (H - 6) + '" font-size="10" fill="#64748b" text-anchor="middle">' + (bi + 1) + '</text>';
       }
-      var svg1 = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block" xmlns="http://www.w3.org/2000/svg">' + grid + bars + '</svg>';
+      var svg1 = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" style="width:100%;height:100%;display:block" xmlns="http://www.w3.org/2000/svg">' + grid + bars + '</svg>';
 
       /* 22.09-166: вместо «Загрузка мастеров сегодня» — карточка «⚡ КПД мастеров»
          (та же метрика, что в панели аналитики — выбранный там месяц, —
@@ -2954,23 +2972,32 @@
 
       // 22.09-169: «КПД мастеров» и «Выполнение по дням» — ОДНА карточка:
       // сверху метрика КПД, под ней через разделитель — график по дням
-      _dashJoin = '<div class="card"><div class="card-h"><h2>⚡ КПД мастеров</h2><span class="sub">Работа vs дорога · ' + esc(dashMonthLabel()) + '</span></div><div class="card-b">' + kpdBody +
-        '<div style="margin-top:14px;padding-top:11px;border-top:1px dashed var(--line)">' +
-          '<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px"><span style="font-size:13.5px;font-weight:800;color:var(--ink)">📈 Выполнение по дням</span><span style="font-size:11.5px;color:var(--muted);font-weight:600">' + MON_NOM[TODAY.getMonth()] + ' ' + TODAY.getFullYear() + ' · <span style="color:#2563eb;font-weight:700">■ план</span> <span style="color:#16a34a;font-weight:700">■ выполнено</span></span></div>' + svg1 +
+      // 22.09-171: в заголовке — календарик выбора месяца (та же кнопка, что в панели аналитики);
+      // «Выполнение по дням» — за тот же выбранный месяц; график занимает всю свободную высоту карточки
+      _dashJoin = '<div class="card" style="display:flex;flex-direction:column;height:100%"><div class="card-h" style="flex:none"><h2>⚡ КПД мастеров</h2><div class="spacer"></div><button type="button" data-action="dash-month-toggle" title="Выбрать месяц для расчёта КПД и графика по дням" style="display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-weight:700;font-family:inherit;border-radius:9px;padding:5px 12px;cursor:pointer;font-size:12.5px;white-space:nowrap">📅 ' + esc(dashMonthLabel()) + '</button></div><div class="card-b" style="flex:1;display:flex;flex-direction:column;min-height:0">' + kpdBody +
+        '<div style="margin-top:14px;padding-top:11px;border-top:1px dashed var(--line);flex:1;display:flex;flex-direction:column;min-height:0">' +
+          '<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px;flex:none"><span style="font-size:13.5px;font-weight:800;color:var(--ink)">📈 Выполнение по дням</span><span style="font-size:11.5px;color:var(--muted);font-weight:600">' + MON_NOM[cmy.m] + ' ' + cmy.y + ' · <span style="color:#2563eb;font-weight:700">■ план</span> <span style="color:#16a34a;font-weight:700">■ выполнено</span></span></div>' +
+          '<div style="flex:1;min-height:190px">' + svg1 + '</div>' +
         '</div></div></div>';
     })();
 
+    // 22.09-171: календарик выбора даты — блок показывает работы на любой выбранный день
+    var dayOff = (typeof S.dashDayOff === 'number' && isFinite(S.dashDayOff)) ? Math.round(S.dashDayOff) : 0;
+    var dayDate = offToDate(dayOff);
+    var dayTask = vt.filter(function (t) { return t.d === dayOff; });
+    var overloadsDay = mastersToday.filter(function (m) { return loadForDay(m.id, dayOff) > masterCapacity(m.id, dayOff); }).length;
+
     html += '<div class="dash-grid">';
-    html += '<div class="card"><div class="card-h"><h2>Сегодня</h2><span class="sub">' + fmt(TODAY) + '</span><div class="spacer"></div><span class="badge tag ' + (overloads ? 'over' : 'ok') + '">' + (overloads ? 'Есть перегрузки' : 'Без перегрузок') + '</span></div><div class="card-b">';
-    if (!today.length) html += '<div class="empty">На сегодня задач нет</div>';
+    html += '<div class="card"><div class="card-h"><h2>' + (dayOff === 0 ? 'Сегодня' : esc(fmt(dayDate))) + '</h2><span class="sub" style="display:flex;align-items:center;gap:6px"><input type="date" id="dash-day-sel" value="' + key(dayDate) + '" title="Выбрать дату для просмотра работ" style="padding:4px 8px;border:1px solid var(--line);border-radius:8px;font-size:12px;font-family:inherit;background:var(--card);color:var(--ink)">' + (dayOff !== 0 ? '<button type="button" class="btn sm" data-action="dash-day-today" title="Вернуться на сегодня">Сегодня</button>' : '') + '</span><div class="spacer"></div><span class="badge tag ' + (overloadsDay ? 'over' : 'ok') + '">' + (overloadsDay ? 'Есть перегрузки' : 'Без перегрузок') + '</span></div><div class="card-b">';
+    if (!dayTask.length) html += '<div class="empty">' + (dayOff === 0 ? 'На сегодня задач нет' : 'На ' + esc(fmt(dayDate)) + ' задач нет') + '</div>';
     mastersToday.forEach(function (m) {
-      var mt = today.filter(function (t) { return t.m === m.id; });
+      var mt = dayTask.filter(function (t) { return t.m === m.id; });
       var load = mt.reduce(function (s, t) { return s + (isDone(t) ? 0 : taskHours(t)); }, 0);
-      var _mc = masterCapacity(m.id, 0);
+      var _mc = masterCapacity(m.id, dayOff);
       var over = load > _mc;
       html += '<div class="today-mstr"><span class="dot" style="background:' + m.color + '"></span><div><div class="nm">' + esc(m.name) + '</div><div class="ar">' + esc(m.area) + '</div></div><div class="meta"><div class="h" style="color:' + (over ? 'var(--red)' : 'var(--ink)') + '">' + fmtH(load) + ' ч / ' + fmtH(_mc) + ' ч</div><span class="tag ' + (over ? 'over' : 'ok') + '">' + (over ? '⚠ Перегрузка +' + fmtH(load - _mc) + ' ч' : mt.length + ' заданий') + '</span></div></div>';
       // гант-шкала дня: 8:00–20:00, задачи и переезды
-      html += ganttDayHtml(m, 0);
+      html += ganttDayHtml(m, dayOff);
       mt.slice(0, 4).forEach(function (t) {
         var o = OBJ_MAP[t.o], w = workOf(t);
         html += '<div class="taskline"><span class="pill">' + esc(w ? w.name : '?') + '</span><span>' + esc(addrOf(t)) + '</span><span style="margin-left:auto;color:var(--muted)">' + fmtH(taskHours(t)) + ' ч</span></div>';
@@ -2981,33 +3008,6 @@
     html += _dashJoin; // 22.09-169: общая карточка «КПД мастеров + Выполнение по дням» — рядом с «Сегодня»
     html += '</div>';
 
-    // 22.09-170: «Красная зона» — компактная сворачиваемая строка «Красная зона · N»
-    // (стиль — как «ордеров истекает» справа в ордерах); список задач — по нажатию,
-    // состояние (открыто/свернуто) запоминается между заходами
-    var rzOpen = false;
-    try { rzOpen = localStorage.getItem('smartplan_dash_rz_open') === '1'; } catch (e) {}
-    if (!redzone.length) {
-      html += '<div class="card" style="margin-bottom:16px"><div class="card-h"><h2>Красная зона</h2><span class="sub">предельный срок истекает</span></div><div class="card-b"><div class="empty">Просрочек нет 🎉</div></div></div>';
-    } else {
-      html += '<div class="card" data-action="dash-rz-toggle" style="margin-bottom:16px;cursor:pointer;border-color:#fecaca" title="' + (rzOpen ? 'Нажмите, чтобы свернуть список задач в красной зоне' : 'Нажмите, чтобы увидеть задачи в красной зоне') + '">' +
-        '<div class="card-h" style="' + (rzOpen ? '' : 'border-bottom:none') + '">' +
-          '<h2 style="display:flex;align-items:center;gap:8px">🔴 Красная зона <span class="tag over" style="font-size:12px;margin-top:0">' + redzone.length + '</span></h2>' +
-          '<span class="sub">предельный срок истекает</span>' +
-          '<div class="spacer"></div>' +
-          '<span style="color:var(--red);font-weight:800;font-size:12px;white-space:nowrap">' + (rzOpen ? '▲ Скрыть список' : '▼ Показать задачи (' + redzone.length + ')') + '</span>' +
-        '</div>';
-      if (rzOpen) {
-        html += '<div class="card-b" style="padding-top:8px">';
-        redzone.forEach(function (t) {
-          var o = OBJ_MAP[t.o], w = workOf(t), m = masterById(t.m);
-          var col = taskColor(t);
-          html += '<div class="rz-item"><div class="rz-bar" style="background:' + (col === 'red' ? 'var(--red)' : 'var(--yellow)') + '"></div><div class="rz-main"><div class="rz-t">' + esc(w ? w.name : '?') + ' — ' + esc(addrOf(t)) + '</div><div class="rz-s">' + esc(m ? m.name : '?') + ' · ' + esc(m ? m.area : '') + ' · ' + statusLabel(t) + '</div></div><div class="rz-dl ' + (col === 'red' ? 'red' : 'yel') + '">' + (t.dl < 0 ? 'просрочка ' + (-t.dl) + ' дн' : t.dl === 0 ? 'сегодня!' : 'осталось ' + t.dl + ' дн') + '</div></div>';
-        });
-        html += '</div>';
-      }
-      html += '</div>';
-    }
-
     view.innerHTML = html;
     animKpiNumbers(); // цифры KPI «накручиваются»
     document.getElementById('rz-badge').textContent = redzone.length;
@@ -3015,6 +3015,15 @@
     // привязка селектора участка (для админа)
     var dashAreaSel = document.getElementById('dash-area');
     if (dashAreaSel) dashAreaSel.addEventListener('change', function (e) { S.dashArea = e.target.value || null; renderDashboard(); });
+    // 22.09-171: календарик выбора даты в блоке «Сегодня»
+    var dashDaySel = document.getElementById('dash-day-sel');
+    if (dashDaySel) dashDaySel.addEventListener('change', function (e) {
+      var v = e.target.value;
+      if (!v) { S.dashDayOff = 0; renderDashboard(); return; }
+      var parts = v.split('-');
+      S.dashDayOff = dateToOff(new Date(+parts[0], +parts[1] - 1, +parts[2]));
+      renderDashboard();
+    });
     // Запуск случайных вспышек молний, если сегодня гроза (сцена содержит #wx-bolts)
     setupLightning();
   }
@@ -8512,7 +8521,7 @@
       var bm = masters.filter(function (m) { return m.id === wd.brigade; })[0];
       if (bm) brigadeName = 'Бригада мастера ' + bm.full_name;
     }
-    var s = '<div style="border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--card);width:min(500px,100%)">';
+    var s = '<div style="border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--card);width:100%;box-sizing:border-box">';
     s += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">';
     s += '<span style="width:12px;height:12px;border-radius:50%;background:' + (u.color || '#94a3b8') + ';flex:0 0 auto"></span>';
     s += '<b style="font-size:14px;color:var(--ink)">' + esc(u.full_name) + '</b>';
@@ -8722,7 +8731,7 @@
     S.wkModalUid = uid;
     var isRO = S.wkCardROUid === uid;
     var masters = wkVisibleUsers().filter(function (x) { return x.role === 'master'; });
-    modal.style.maxWidth = '';
+    modal.style.maxWidth = '560px'; // 22.09-172: окно — ровно по ширине карточки работника (как карточка задачи); базовая 80%-ширина прочих окон не меняется
     modal.innerHTML = '<div class="modal-h"><h3>' + esc(u.full_name) + ' · ' + wkRoleLabel(u.role) + (isRO ? ' <span class="tag" style="background:#eff6ff;color:#1d4ed8;font-weight:800;font-size:10px;vertical-align:2px">просмотр</span>' : '') + '</h3><button class="x" data-action="close-modal">×</button></div>' +
       '<div class="modal-b">' + wkPanelHtml(u, masters) + '</div>';
     overlay.classList.add('show');
@@ -16316,6 +16325,7 @@
     else if (a === 'cal-next') { shiftCal(1); }
     else if (a === 'cal-today') { S.weekShift = 0; S.monthShift = 0; S.dayShift = 0; renderCalendar(); }
     else if (a === 'dash-area-clear') { S.dashArea = null; renderDashboard(); }
+    else if (a === 'dash-day-today') { S.dashDayOff = 0; renderDashboard(); } // 22.09-171
     else if (a === 'open-weather') { toggleWeatherDropdown(); }
     else if (a === 'open-wx-map') { openWeatherMap(); }
     else if (a === 'close-wx-map') { closeWeatherMap(); }
@@ -16346,6 +16356,7 @@
     else if (a === 'kpi-overloads') { kpiOverloads(); }
     else if (a === 'kpi-month') { kpiMonth(); }
     else if (a === 'kpi-permits') { kpiPermits(); }
+    else if (a === 'kpi-redzone') { kpiRedzone(); } // 22.09-171
     else if (a === 'new-task') { openTaskModal('new'); }
     else if (a === 'edit-task') {
       if (e.target.closest('.tile-chk') || e.target.closest('[data-action="toggle-done"]')) return;
@@ -16617,11 +16628,7 @@
     else if (a === 'rm-next-year') { e.stopPropagation(); rmState.viewYear++; renderReportMonthPicker(); }
     else if (a === 'rm-pick') { e.stopPropagation(); pickReportMonth(parseInt(el.dataset.year, 10), parseInt(el.dataset.month, 10)); }
     else if (a === 'rm-close') { e.stopPropagation(); var dd = document.getElementById('report-month-dropdown'); if (dd) dd.classList.remove('open'); }
-    else if (a === 'dash-month-toggle') { e.stopPropagation(); toggleDashMonthPicker(); }
-    else if (a === 'dash-rz-toggle') { // 22.09-170: свернуть/развернуть «Красную зону»
-      try { localStorage.setItem('smartplan_dash_rz_open', localStorage.getItem('smartplan_dash_rz_open') === '1' ? '0' : '1'); } catch (er) {}
-      renderDashboard();
-    }
+    else if (a === 'dash-month-toggle') { e.stopPropagation(); toggleDashMonthPicker(el); } // 22.09-171: позиционировать у нажатой кнопки
     else if (a === 'dm-prev-year') { e.stopPropagation(); dmState.viewYear--; renderDashMonthPicker(); }
     else if (a === 'dm-next-year') { e.stopPropagation(); dmState.viewYear++; renderDashMonthPicker(); }
     else if (a === 'dm-pick') { e.stopPropagation(); pickDashMonth(parseInt(el.dataset.year, 10), parseInt(el.dataset.month, 10)); }
