@@ -215,7 +215,7 @@
   // Восстанавливаем выбор роутера (дашборд) из localStorage
   try {
     var _savedProv = localStorage.getItem('smartplan_map_provider');
-    if (_savedProv && /^(osrm|brouter-car|brouter-trek|valhalla)$/.test(_savedProv)) {
+    if (_savedProv && /^(osrm|brouter-car|brouter-car-eco|brouter-velomobile|brouter-trek|valhalla)$/.test(_savedProv)) {
       S.mapProvider = _savedProv;
     }
   } catch (e) {}
@@ -745,7 +745,7 @@
     dashboard: ['Панель мониторинга', 'Сборка 22.09-173 · блок «Панель аналитики» удалён; выбор месяца для КПД и графика по дням — кнопкой-календарём в карточке «⚡ КПД мастеров»'],
     calendar: ['Планирование / Календарь', 'Сборка 22.09-159 · карточка задачи: у строки вида работ (work-row) запас справа 34px'],
     graphs: ['Планирование / График работ', 'Сборка 22.09-164 · кнопка «Трудоёмкость графика» — слева от «Фильтра»; «Праздничные дни» перенесены в «Графики смен»'],
-    map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
+    map: ['Карта маршрутов', 'Сборка 22.09-177 · новые роутеры «🚗 BRouter car (economic)» и «🚴 BRouter velomobile»; постоянная кнопка «↗ Открыть в Яндекс карте» — маршрут база → задания → база в новой вкладке'],
     objmap: ['Карта объектов', 'Сборка 22.09-137 · вид телеметрии «ПТК "Эксорт"» переименован в «ПТК "Эскорт"» — объекты и работы обновлены автоматически'],
     testmap: ['Тест проезда', 'Сборка 22.09-176 · исправлена загрузка 3D-планеты (был ошибочный адрес библиотеки карты) + добавлен запасной сервер, если первый не отвечает'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
@@ -4011,6 +4011,8 @@
       '<select id="map-provider-sel" title="Сервис построения маршрута" style="padding:5px 10px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;background:var(--card);color:var(--ink);font-weight:700;cursor:pointer;">' +
         '<option value="brouter-trek" ' + (prov === 'brouter-trek' || !prov ? 'selected' : '') + '>🥾 BRouter trekking</option>' +
         '<option value="brouter-car" ' + (prov === 'brouter-car' ? 'selected' : '') + '>🚗 BRouter car-fast</option>' +
+        '<option value="brouter-car-eco" ' + (prov === 'brouter-car-eco' ? 'selected' : '') + '>🚗 BRouter car (economic)</option>' + // 22.09-177
+        '<option value="brouter-velomobile" ' + (prov === 'brouter-velomobile' ? 'selected' : '') + '>🚴 BRouter velomobile</option>' + // 22.09-177
         '<option value="osrm" ' + (prov === 'osrm' ? 'selected' : '') + '>OSRM (авто)</option>' +
         '<option value="valhalla" ' + (prov === 'valhalla' ? 'selected' : '') + '>Valhalla</option>' +
       '</select>' +
@@ -4059,7 +4061,7 @@
       '</div></div>';
     html += '</div></div></div>';
 
-    html += '<div><div class="map-box" id="mapbox"><div class="map-stats" id="map-stats" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;"><span>Объектов: <b>' + pts.length + '</b></span><span style="display:flex;align-items:center;gap:6px;border-left:1px solid var(--line);padding-left:12px;margin-left:4px;"><span style="color:var(--txt);font-weight:600;">Общее время и километраж:</span> <span id="route-info" style="color:var(--muted);font-weight:700;">нажмите «Оптимизировать маршрут» для расчета</span></span><span style="margin-left:auto;color:var(--muted)">🚩 ' + esc(currentBase().name) + '</span></div><div id="map-canvas" style="width:100%;height:calc(100vh - 210px);min-height:400px"></div></div></div></div>';
+    html += '<div><div class="map-box" id="mapbox"><div class="map-stats" id="map-stats" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;"><span>Объектов: <b>' + pts.length + '</b></span><span style="display:flex;align-items:center;gap:6px;border-left:1px solid var(--line);padding-left:12px;margin-left:4px;"><span style="color:var(--txt);font-weight:600;">Общее время и километраж:</span> <span id="route-info" style="color:var(--muted);font-weight:700;">нажмите «Оптимизировать маршрут» для расчета</span></span><span style="margin-left:auto;color:var(--muted)">🚩 ' + esc(currentBase().name) + '</span><button class="btn sm" id="btn-open-route-yandex" data-action="open-route-yandex" title="Открыть маршрут в Яндекс.Картах (новая вкладка): с базы → все включённые задания списка в их текущем порядке → обратно на базу" style="background:#fc3f1d;border-color:#fc3f1d;color:#fff;font-weight:700;white-space:nowrap">↗ Открыть в Яндекс карте</button></div><div id="map-canvas" style="width:100%;height:calc(100vh - 210px);min-height:400px"></div></div></div></div>';
 
     view.innerHTML = html;
     S.mapSel = {}; pts.forEach(function (p) { S.mapSel[p.id] = true; });
@@ -4320,6 +4322,29 @@
     // Включаем слой трафика для просмотра закрытых участков
     url += '&l=map';
     return url;
+  }
+
+  /* 22.09-177: кнопка «↗ Открыть в Яндекс карте» (карта маршрутов) — открывает полные
+     Яндекс.Карты в новой вкладке: с базы → включённые задания в порядке списка слева
+     (как видит диспетчер, с учётом ручного перетаскивания и оптимизации) → обратно на базу. */
+  function openMapRouteInYandex() {
+    var base = currentBase();
+    var all = (ymState && (ymState.allPts || ymState.pts)) || [];
+    if (!all.length) { toast('warn', 'Список заданий пуст — нечего открывать'); return; }
+    var byId = {}; all.forEach(function (p) { byId[p.id] = p; });
+    var order = [];
+    try {
+      var cards = document.querySelectorAll('#mlist .mtask[data-mid]');
+      for (var i = 0; i < cards.length; i++) { var p0 = byId[cards[i].dataset.mid]; if (p0) order.push(p0); }
+    } catch (e) {}
+    if (!order.length) order = all.slice();
+    var sel = order.filter(function (p) { return S.mapSel[p.id]; });
+    if (!sel.length) { toast('warn', 'Все задания выключены — включите хотя бы одно задание в списке'); return; }
+    var items = [base].concat(sel).concat([base]);
+    var url = buildYandexDirUrl(items, false);
+    try { logAction('Карта маршрутов: маршрут открыт в Яндекс.Картах (база → ' + sel.length + ' точек → база)'); } catch (e) {}
+    window.open(url, '_blank', 'noopener');
+    toast('ok', '↗ Открываю Яндекс.Карты: база → ' + sel.length + ' точек → база');
   }
 
   // 2. Отображение начальной карты при заходе на страницу (БЕЗ изменения порядка заданий!)
@@ -5572,8 +5597,8 @@
     if (!tasks.length) { toast("warn", "В заданиях не указаны адреса."); return; }
 
     var prov = S.mapProvider || "brouter-trek";
-    if (!/^(osrm|brouter-car|brouter-trek|valhalla)$/.test(prov)) prov = "osrm"; // 22.09-127: только авто-роутеры со слоем поверх Яндекс.Карты
-    var provName = prov === "google" ? "Google Maps" : prov === "valhalla" ? "Valhalla" : prov === "osrm" ? "OSRM (авто)" : prov === "brouter-trek" ? "BRouter trekking" : prov === "brouter-car" ? "BRouter car-fast" : prov === "graphhopper" ? "GraphHopper" : prov === "ors" ? "OpenRouteService" : prov === "osm" ? "OpenStreetMap" : prov === "2gis" ? "2ГИС" : "Яндекс.Карт";
+    if (!/^(osrm|brouter-car|brouter-car-eco|brouter-velomobile|brouter-trek|valhalla)$/.test(prov)) prov = "osrm"; // 22.09-127: только авто-роутеры со слоем поверх Яндекс.Карты; 22.09-177: + car-eco и velomobile
+    var provName = prov === "google" ? "Google Maps" : prov === "valhalla" ? "Valhalla" : prov === "osrm" ? "OSRM (авто)" : prov === "brouter-trek" ? "BRouter trekking" : prov === "brouter-car" ? "BRouter car-fast" : prov === "brouter-car-eco" ? "BRouter car (economic)" : prov === "brouter-velomobile" ? "BRouter velomobile" : prov === "graphhopper" ? "GraphHopper" : prov === "ors" ? "OpenRouteService" : prov === "osm" ? "OpenStreetMap" : prov === "2gis" ? "2ГИС" : "Яндекс.Карт";
 
     setRouteInfo({ km: 0, count: tasks.length, building: true });
     toast("ok", "⏳ Оптимизирую маршрут для сервиса " + provName + "…");
@@ -5606,10 +5631,11 @@
       updateFallbackRouteInfo(ordered);
     }, 2800);
 
-    if (prov === 'brouter-trek' || prov === 'brouter-car') {
-      // === BRouter trekking / car-fast для основной карты маршрутов ===
-      var brProfile = prov === 'brouter-car' ? 'car-fast' : 'trekking';
-      var brLabel = prov === 'brouter-car' ? 'BRouter car-fast' : 'BRouter trekking';
+    if (prov === 'brouter-trek' || prov === 'brouter-car' || prov === 'brouter-car-eco' || prov === 'brouter-velomobile') {
+      // === BRouter trekking / car-fast / car(eco) / velomobile для основной карты маршрутов ===
+      // 22.09-177: velomobile — рабочее серверное имя профиля «vm-forum-velomobil-schnell» (из списка brouter-web)
+      var brProfile = prov === 'brouter-car' ? 'car-fast' : prov === 'brouter-car-eco' ? 'car-eco' : prov === 'brouter-velomobile' ? 'vm-forum-velomobil-schnell' : 'trekking';
+      var brLabel = prov === 'brouter-car' ? 'BRouter car-fast' : prov === 'brouter-car-eco' ? 'BRouter car (economic)' : prov === 'brouter-velomobile' ? 'BRouter velomobile' : 'BRouter trekking';
       setRouteInfo({ km: 0, count: tasks.length, building: true });
       toast('ok', '⏳ ' + brLabel + ': оптимизация по матрице OSRM…');
       clearTimeout(fallbackTimeoutId);
@@ -16509,6 +16535,7 @@
     else if (a === 't-build-compare') { buildTestRouteCompare(); }
     else if (a === 'build-route-no-jam') { buildYandexRoute(true); }
     else if (a === 'map-off') { S.mapOff = parseInt(el.dataset.off, 10); renderMap(); }
+    else if (a === 'open-route-yandex') { openMapRouteInYandex(); } // 22.09-177
     else if (a === 'refs-tab') { S.refsTab = el.dataset.tab; renderRefs(); }
     else if (a === 'obj-subtab') { S.objTab = el.dataset.sub; renderRefs(); }
     else if (a === 'dl-works-tpl') { downloadRefTemplate('works'); }
