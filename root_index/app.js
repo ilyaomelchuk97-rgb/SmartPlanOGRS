@@ -742,12 +742,12 @@
   }
 
   var TITLES = {
-    dashboard: ['Панель мониторинга', 'Сборка 22.09-171 · «Красная зона» — кнопкой в ряду KPI (список — по нажатию); в блоке «Сегодня» — календарик выбора даты; «КПД мастеров» — календарик месяца (общий с графиком по дням), график тянется на всю высоту'],
+    dashboard: ['Панель мониторинга', 'Сборка 22.09-173 · блок «Панель аналитики» удалён; выбор месяца для КПД и графика по дням — кнопкой-календарём в карточке «⚡ КПД мастеров»'],
     calendar: ['Планирование / Календарь', 'Сборка 22.09-159 · карточка задачи: у строки вида работ (work-row) запас справа 34px'],
     graphs: ['Планирование / График работ', 'Сборка 22.09-164 · кнопка «Трудоёмкость графика» — слева от «Фильтра»; «Праздничные дни» перенесены в «Графики смен»'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
     objmap: ['Карта объектов', 'Сборка 22.09-137 · вид телеметрии «ПТК "Эксорт"» переименован в «ПТК "Эскорт"» — объекты и работы обновлены автоматически'],
-    testmap: ['Тест проезда', 'Сборка 22.09-167 · выбор подложки карты: схема Яндекс или спутник Google Earth (с названиями улиц / чистый спутник); экспорт маршрута в .kml для Google Earth сохранён'],
+    testmap: ['Тест проезда', 'Сборка 22.09-173 · новый режим карты «🏙 Google Earth 3D (здания)»: спутник+схема города Google и объёмные дома (высота из OpenStreetMap), поворот правой кнопкой мыши; маркеры и маршрут сохраняются'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
     perms: ['Разрешения', 'Система разрешений на производство работ'],
@@ -2858,48 +2858,7 @@
     // Отступ перед панелью аналитики
     html += '<div style="height:16px;"></div>';
 
-    // === Панель аналитики (админ / начальник / ст.мастер / Начальник СЭОГС) ===
-    if (canPlan() || S.role === 'viewer') {
-      var dMY = getDashMY();
-      var dmTasks = vt.filter(function(t) { var dd = offToDate(t.d); return dd.getMonth() === dMY.m && dd.getFullYear() === dMY.y; });
-      var aWorkH = 0, aTravelMin = 0, aTravelCnt = 0;
-      dmTasks.forEach(function(t) {
-        aWorkH += taskHours(t);
-        var tmin = taskTravelMin(t);
-        if (tmin <= 0) tmin = estimateTravelMin(t);   // нет расчёта маршрута — оценка по расстоянию
-        if (tmin > 0) { aTravelMin += tmin; aTravelCnt++; }
-      });
-      var aTravelH = aTravelMin / 60;
-      var aTotalH = aWorkH + aTravelH;
-      var aPctObj = aTotalH > 0 ? (aWorkH / aTotalH * 100) : 0;
-      var aPctRoad = aTotalH > 0 ? (aTravelH / aTotalH * 100) : 0;
-      var aAvgTravel = aTravelCnt > 0 ? Math.round(aTravelMin / aTravelCnt) : 0;
-      var dmRed = dmTasks.filter(function(t) { return !isDone(t) && (t.dl <= 2 || t.d < 0); });
-      var dmOverdue = dmTasks.filter(function(t) { return !isDone(t) && (t.dl < 0 || t.d < 0); });
-      var dmWorkDays = countWorkDays(dMY.y, dMY.m);
-      var dmCapacity = 0;
-      dashMasters().forEach(function (dm) {
-        for (var _d = 1, _dim = new Date(dMY.y, dMY.m + 1, 0).getDate(); _d <= _dim; _d++) {
-          dmCapacity += masterCapacity(dm.id, dateToOff(new Date(dMY.y, dMY.m, _d)));
-        }
-      });
-      var dmReserve = dmCapacity - aWorkH;
-      var hasOverdue = dmOverdue.length > 0;
-      var dec = function(x) { return (Math.round(x * 10) / 10).toString().replace('.', ','); };
-      var sgn = function(x) { return (x >= 0 ? '+' : '') + fmtH(x); };
-      var reserveColor = dmReserve >= 0 ? '#4ade80' : '#f87171';
-      var statusColor = hasOverdue ? '#f87171' : '#4ade80';
-      var statusTxt = hasOverdue ? '\u26a0 Риск просрочки есть' : '\u2713 Риска просрочки нет';
-
-      html += '<div class="card" style="margin-bottom:16px;background:linear-gradient(135deg, #0f2740 0%, #1a3a5c 100%);color:#fff;border:1px solid rgba(255,255,255,0.15);">';
-      html += '<div class="card-h" style="border-bottom:1px solid rgba(255,255,255,0.12);position:relative;"><h2 style="color:#fff;display:flex;align-items:center;gap:8px;">\ud83d\udcca Панель аналитики</h2><div class="spacer"></div><button type="button" data-action="dash-month-toggle" title="Выбрать месяц для расчёта" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.08);color:#fff;font-weight:700;font-family:inherit;border-radius:9px;padding:6px 14px;cursor:pointer;font-size:13px;">\ud83d\udcc5 <span id="dash-month-label">' + dashMonthLabel() + '</span></button></div>';
-      html += '<div class="card-b" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));gap:16px;padding:16px;">';
-      // КПД мастеров
-      html += '<div style="background:rgba(255,255,255,0.06);padding:12px 14px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);"><div style="font-size:11px;color:#94a3b8;text-transform:uppercase;margin-bottom:4px;font-weight:600;">\u26a1 КПД Мастеров (Работа vs Дорога)</div><div style="font-size:22px;font-weight:800;color:#38bdf8;margin-bottom:4px;">' + (aTotalH > 0 ? dec(aPctObj) : '\u2014') + '% <span style="font-size:13px;font-weight:500;color:#94a3b8;">на объектах</span></div><div style="font-size:11.5px;color:#cbd5e1;">\ud83d\ude97 В пути: <b>' + (aTotalH > 0 ? dec(aPctRoad) : '0') + '%</b> \u00b7 На объектах: <b>' + dec(aPctObj) + '%</b><br>Всего в пути за месяц: <b>' + fmtH(aTravelH) + ' ч</b> \u00b7 Среднее время переезда: <b>\u2248 ' + aAvgTravel + ' мин</b></div></div>';
-      // Сводка по дедлайнам
-      html += '<div style="background:rgba(255,255,255,0.06);padding:12px 14px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);"><div style="font-size:11px;color:#94a3b8;text-transform:uppercase;margin-bottom:4px;font-weight:600;">\u23f0 Сводка по дедлайнам (\u2264 3 дня)</div><div style="font-size:22px;font-weight:800;color:#facc15;margin-bottom:4px;">' + dmRed.length + ' <span style="font-size:13px;font-weight:500;color:#94a3b8;">задач в зоне</span></div><div style="font-size:11.5px;color:#cbd5e1;">Резерв ресурса: <b style="color:' + reserveColor + ';">' + sgn(dmReserve) + ' чел/ч</b><br>Статус: <b style="color:' + statusColor + ';">' + statusTxt + '</b></div></div>';
-      html += '</div></div>';
-    }
+    // 22.09-173: «Панель аналитики» удалена с панели мониторинга (выбор месяца — кнопкой-календарём в «⚡ КПД мастеров»)
 
     // === ГРАФИКИ (SVG, без библиотек; учитывают выбранный участок — dashTasks/dashMasters) ===
     // 1) План/факт по дням текущего месяца; 2) КПД мастеров (22.09-166)
@@ -19461,7 +19420,7 @@
     }
     // 22.09-167: подложка тестовой карты (Яндекс-схема / спутник Google Earth)
     var _savedKind = localStorage.getItem('smartplan_test_mapkind');
-    if (_savedKind && /^(yandex|gsat|ghyb)$/.test(_savedKind)) {
+    if (_savedKind && /^(yandex|gsat|ghyb|g3d)$/.test(_savedKind)) {
       TS.mapKind = _savedKind;
     }
   } catch (e) {}
@@ -19552,6 +19511,7 @@
         '<option value="yandex" ' + (TS.mapKind !== 'gsat' && TS.mapKind !== 'ghyb' ? 'selected' : '') + '>Яндекс (схема)</option>' +
         '<option value="ghyb" ' + (TS.mapKind === 'ghyb' ? 'selected' : '') + '>🌍 Google спутник + названия</option>' +
         '<option value="gsat" ' + (TS.mapKind === 'gsat' ? 'selected' : '') + '>🌍 Google Earth (спутник)</option>' +
+        '<option value="g3d" ' + (TS.mapKind === 'g3d' ? 'selected' : '') + '>🏙 Google Earth 3D (здания)</option>' +
       '</select></div>';
 
     var html = '<div class="cal-head"><div class="seg">' +
@@ -19807,11 +19767,14 @@
     var kindSel = document.getElementById('t-map-kind-sel');
     if (kindSel) {
       kindSel.addEventListener('change', function (e) {
-        var v = /^(yandex|gsat|ghyb)$/.test(e.target.value) ? e.target.value : 'yandex';
+        var v = /^(yandex|gsat|ghyb|g3d)$/.test(e.target.value) ? e.target.value : 'yandex';
+        var _prevKind = TS.mapKind;
         TS.mapKind = v;
         try { localStorage.setItem('smartplan_test_mapkind', v); } catch (er) {}
-        tApplyMapKind();
-        try { toast('ok', v === 'yandex' ? '🗺 Подложка: Яндекс (схема)' : (v === 'ghyb' ? '🌍 Подложка: спутник Google с названиями улиц' : '🌍 Подложка: Google Earth (спутник)')); } catch (er) {}
+        // 22.09-173: в/из «Google Earth 3D» — другая технология (MapLibre), перерисовываем карту целиком
+        if (v === 'g3d' || _prevKind === 'g3d') { try { drawTestMap(tState.allPts || []); } catch (er) {} }
+        else tApplyMapKind();
+        try { toast('ok', v === 'yandex' ? '🗺 Подложка: Яндекс (схема)' : (v === 'ghyb' ? '🌍 Подложка: спутник Google с названиями улиц' : (v === 'g3d' ? '🏙 Режим: Google Earth 3D — объёмные дома. Вращайте карту правой кнопкой мыши' : '🌍 Подложка: Google Earth (спутник)'))); } catch (er) {}
       });
     }
     } catch (err) {
@@ -20499,13 +20462,177 @@
   function tMapKindTypeKey() {
     return TS.mapKind === 'gsat' ? 'sp#gsat' : (TS.mapKind === 'ghyb' ? 'sp#ghyb' : 'sp#yandex');
   }
+  function tIsG3D() { return TS.mapKind === 'g3d'; } // 22.09-173: режим «Google Earth 3D» (объёмные дома, MapLibre)
   function tApplyMapKind() {
     try {
+      if (tIsG3D()) return; // в 3D-режиме Яндекс-карты нет
       var map = tState.ymap;
       if (!map || !tState._mkOk) return;
       tEnsureMapKindTypes();
       map.setType(tMapKindTypeKey());
     } catch (e) { console.error('Подложка тест-карты не переключилась:', e); }
+  }
+
+  /* ============ 22.09-173: «GOOGLE EARTH 3D» — ОБЪЁМНЫЕ ДОМА ============
+     Отдельная технология: MapLibre GL (грузится с CDN только при выборе этого
+     режима). Подложка — спутник+схема города Google (vt lyrs=y), здания —
+     объёмные по тегу высоты OpenStreetMap (векторные тайлы OpenFreeMap).
+     Маркеры базы/задач и линия маршрута рисуются теми же данными, что и на
+     Яндекс-карте (tDrawTestMarkers/tDrawTestRouteLine просто ветвятся). */
+  var mlState = { loading: false, cbs: [] };
+  function ensureMapLibre(ok, fail) {
+    if (window.maplibregl) { try { ok(); } catch (e) {} return; }
+    mlState.cbs.push({ ok: ok, fail: fail });
+    if (mlState.loading) return;
+    mlState.loading = true;
+    function _fin(isOk) {
+      var cbs = mlState.cbs.slice(); mlState.cbs = [];
+      cbs.forEach(function (c) { try { isOk ? c.ok() : (c.fail && c.fail()); } catch (e) {} });
+    }
+    try {
+      if (!document.getElementById('mlgl-css')) {
+        var link = document.createElement('link');
+        link.id = 'mlgl-css';
+        link.rel = 'stylesheet';
+        link.href = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css';
+        document.head.appendChild(link);
+      }
+      var sc = document.createElement('script');
+      sc.id = 'mlgl-js';
+      sc.src = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js';
+      sc.onload = function () { _fin(!!window.maplibregl); };
+      sc.onerror = function () { mlState.loading = false; _fin(false); };
+      document.head.appendChild(sc);
+    } catch (e) { mlState.loading = false; _fin(false); }
+  }
+  // Стиль 3D-карты: спутник+подписи Google + объёмные дома OSM (высота render_height)
+  function tG3DStyleDef() {
+    return {
+      version: 8,
+      sources: {
+        'g-lyrs': { type: 'raster', tiles: ['https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}'], tileSize: 256, attribution: '© Google (спутник + схема города)' },
+        'osm-bld': { type: 'vector', tiles: ['https://tiles.openfreemap.org/planet/{z}/{x}/{y}.pbf'], attribution: 'Здания: © участники OpenStreetMap' }
+      },
+      layers: [
+        { id: 'bg', type: 'background', paint: { 'background-color': '#0b1c2c' } },
+        { id: 'gsat', type: 'raster', source: 'g-lyrs' },
+        { id: 'b3d', type: 'fill-extrusion', source: 'osm-bld', 'source-layer': 'building',
+          paint: {
+            'fill-extrusion-color': ['interpolate', ['linear'], ['coalesce', ['get', 'render_height'], 12], 0, '#c9ccd1', 40, '#a5bfcf', 120, '#7fa9c4'],
+            'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 12],
+            'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
+            'fill-extrusion-opacity': 0.92,
+            'fill-extrusion-vertical-gradient': true
+          } }
+      ]
+    };
+  }
+  function tG3DDraw(holder) {
+    // Яндекс-карта из прошлого режима не нужна — убираем (пересоздастся при возврате)
+    if (tState.ymap) { try { tState.ymap.destroy(); } catch (e) {} tState.ymap = null; }
+    tState.route = null;
+    tState.leafletMarkers = [];
+    ensureMapLibre(function () {
+      if (!document.getElementById('t-canvas')) return; // страницу уже сменили
+      try {
+        if (!tState.mlmap) {
+          holder.innerHTML = '';
+          var mlDiv = document.createElement('div');
+          mlDiv.id = 't-ml3d';
+          mlDiv.style.cssText = 'position:absolute;inset:0';
+          holder.appendChild(mlDiv);
+          tState.mlmap = new maplibregl.Map({
+            container: mlDiv,
+            style: tG3DStyleDef(),
+            center: [27.5619, 53.9023],
+            zoom: 15.5, pitch: 62, bearing: -18, maxPitch: 75,
+            attributionControl: { compact: true }
+          });
+          try {
+            tState.mlmap.addControl(new maplibregl.NavigationControl(), 'top-right');
+            tState.mlmap.dragRotate.enable();       // поворот: правая кнопка / Ctrl+левая
+            tState.mlmap.touchZoomRotate.enableRotation();
+          } catch (e) {}
+          // когда стиль догрузится — дорисовать маркеры и маршрут
+          tState.mlmap.on('load', function () {
+            try { tG3DSyncMarkers(); tG3DSyncRoute(tState.routeGeom); } catch (e) {}
+          });
+        }
+        tG3DSyncMarkers();
+        tG3DSyncRoute(tState.routeGeom);
+      } catch (e) { console.error('3D-карта (тест проезда):', e); }
+    }, function () {
+      holder.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--red);font-weight:700">3D-карта недоступна — проверьте интернет</div>';
+    });
+  }
+  function tG3DDestroy() {
+    if (tState.mlmap) { try { tState.mlmap.remove(); } catch (e) {} tState.mlmap = null; }
+    tState.mlMarkers = [];
+    var d = document.getElementById('t-ml3d');
+    if (d && d.parentNode) d.parentNode.removeChild(d);
+  }
+  function tG3DSyncMarkers() {
+    var map = tState.mlmap;
+    if (!map || !window.maplibregl) return;
+    (tState.mlMarkers || []).forEach(function (mk) { try { mk.remove(); } catch (e) {} });
+    tState.mlMarkers = [];
+    var base = currentBase();
+    function mkEl(label, bg, size) {
+      var d = document.createElement('div');
+      d.style.cssText = 'background:' + bg + ';color:#fff;border-radius:50%;width:' + size + 'px;height:' + size + 'px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:' + Math.round(size * 0.42) + 'px;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.45);cursor:pointer';
+      d.textContent = label;
+      return d;
+    }
+    function addM(lat, lng, label, bg, size, taskId) {
+      try {
+        var el = mkEl(label, bg, size);
+        var mk = new maplibregl.Marker({ element: el }).setLngLat([+lng, +lat]).addTo(map);
+        tState.mlMarkers.push(mk);
+        if (taskId && taskId !== 'BASE') {
+          el.addEventListener('click', function (ev) {
+            try { ev.stopPropagation(); } catch (er) {}
+            tUnmarkAllPicked();
+            var card = document.querySelector('#t-mlist .mtask[data-mid="' + taskId + '"]');
+            if (card) { card.classList.add('t-picked'); try { card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (er) {} }
+            try { map.flyTo({ center: [+lng, +lat], zoom: Math.max(map.getZoom(), 16), duration: 450 }); } catch (er) {}
+          });
+        }
+      } catch (e) {}
+    }
+    addM(base.lat, base.lng, 'Б', '#0f2740', 38, 'BASE');
+    (tState.pts || []).forEach(function (p, i) { if (p.lat != null) addM(p.lat, p.lng, String(i + 1), p.mcol || '#2563eb', 34, p.id); });
+    (tState.inactivePts || []).forEach(function (p) { if (p.lat != null) addM(p.lat, p.lng, '\u00b7', '#94a3b8', 20, null); });
+    var all = [{ lat: base.lat, lng: base.lng }].concat(tState.pts || []).filter(function (p) { return p.lat != null; });
+    if (all.length > 1) {
+      var b1 = [Infinity, Infinity], b2 = [-Infinity, -Infinity];
+      all.forEach(function (p) { b1[0] = Math.min(b1[0], +p.lng); b1[1] = Math.min(b1[1], +p.lat); b2[0] = Math.max(b2[0], +p.lng); b2[1] = Math.max(b2[1], +p.lat); });
+      try { map.fitBounds([b1, b2], { padding: 70, pitch: 62, duration: 600 }); } catch (e) {}
+    }
+  }
+  function tG3DSyncRoute(geom) {
+    var map = tState.mlmap;
+    if (!map) return;
+    var run = function () {
+      try { if (map.getLayer('t-route')) map.removeLayer('t-route'); } catch (e) {}
+      try { if (map.getSource('t-route')) map.removeSource('t-route'); } catch (e) {}
+      if (!geom || geom.length < 2) return;
+      try {
+        // Цвет по пробкам — тот же алгоритм, что на Яндекс-карте
+        var h = (typeof currentHourForJam === 'function') ? currentHourForJam() : new Date().getHours();
+        var k = (typeof jamFactorByHour === 'function') ? jamFactorByHour(h) : 1.0;
+        var stroke = '#2563eb';
+        if (k >= 1.45) stroke = '#dc2626';
+        else if (k >= 1.30) stroke = '#f59e0b';
+        else if (k >= 1.10) stroke = '#10b981';
+        var coords = geom.map(function (c) { return [+c[1], +c[0]]; }); // [lat,lng] -> [lng,lat]
+        map.addSource('t-route', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: coords } } });
+        map.addLayer({ id: 't-route', type: 'line', source: 't-route', paint: { 'line-color': stroke, 'line-width': 5, 'line-opacity': 0.95 }, layout: { 'line-cap': 'round', 'line-join': 'round' } });
+      } catch (e) { /* линия не может ломать карту */ }
+    };
+    try {
+      if (map.loaded && map.loaded()) run();
+      else map.once('load', run);
+    } catch (e) {}
   }
 
   function drawTestMap(pts) {
@@ -20525,7 +20652,10 @@
     // === Выбор движка карты: 'yandex' (по умолчанию) или 'osm' ===
     var useOSM = TS.mapEngine === 'osm';
     var trafBtnHide = document.getElementById('t-btn-traffic');
+    // 22.09-173: «Google Earth 3D» — объёмные дома: рисуем MapLibre, Яндекс-карту не создаём
+    if (tIsG3D()) { if (trafBtnHide) trafBtnHide.style.display = 'none'; tG3DDraw(holder); return; }
     if (trafBtnHide) trafBtnHide.style.display = '';
+    tG3DDestroy(); // не 3D-режим — если холст MapLibre остался, убираем
 
     ensureYandex(function () {
       if (!document.getElementById('t-canvas')) return; // страницу уже сменили
@@ -20572,6 +20702,8 @@
   }
   // маркеры базы и объектов (нумерованные кружки); tState.leafletMarkers — хранилище (имя историческое)
   function tDrawTestMarkers() {
+    // 22.09-173: в «Google Earth 3D» маркеры рисуются на MapLibre
+    if (tIsG3D()) { tG3DSyncMarkers(); return; }
     // OSM-вариант: маркеры рисуются на Leaflet
     if (TS.mapEngine === 'osm') { tDrawTestMarkersOSM(); return; }
     var map = tState.ymap;
@@ -20686,6 +20818,8 @@
   // линия маршрута на Яндекс-карте (координаты [[lat,lng],…])
   function tDrawTestRouteLine(geom) {
     tState.routeGeom = geom || null; // 22.09-163: геометрия линии — для экспорта в Google Earth (.kml)
+    // 22.09-173: в «Google Earth 3D» линия маршрута — слой на MapLibre
+    if (tIsG3D()) { tG3DSyncRoute(geom); return; }
     // OSM-вариант: маршрут рисуется на Leaflet
     if (TS.mapEngine === 'osm') { tDrawTestRouteLineOSM(geom); return; }
     var map = tState.ymap;
