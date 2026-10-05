@@ -741,7 +741,7 @@
   }
 
   var TITLES = {
-    dashboard: ['Панель мониторинга', 'Сборка 22.09-168 · блоки «📈 Выполнение по дням» и «Сегодня» поменялись местами: первый ряд — «Сегодня» + «⚡ КПД мастеров», второй — «Выполнение по дням» + «Красная зона»'],
+    dashboard: ['Панель мониторинга', 'Сборка 22.09-170 · «Красная зона» — компактная строка «Красная зона · N» (как «ордеров истекает»), список задач в зоне раскрывается по нажатию и запоминается'],
     calendar: ['Планирование / Календарь', 'Сборка 22.09-159 · карточка задачи: у строки вида работ (work-row) запас справа 34px'],
     graphs: ['Планирование / График работ', 'Сборка 22.09-164 · кнопка «Трудоёмкость графика» — слева от «Фильтра»; «Праздничные дни» перенесены в «Графики смен»'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
@@ -2886,7 +2886,7 @@
 
     // === ГРАФИКИ (SVG, без библиотек; учитывают выбранный участок — dashTasks/dashMasters) ===
     // 1) План/факт по дням текущего месяца; 2) КПД мастеров (22.09-166)
-    var _dashCardDays = '', _dashCardKpd = ''; // 22.09-168: карточки собирает dashCharts, а расставляем блоки ниже («Сегодня» ⇄ «Выполнение по дням»)
+    var _dashJoin = ''; // 22.09-169: одна общая карточка «⚡ КПД мастеров + 📈 Выполнение по дням» (собирает dashCharts)
     (function dashCharts() {
       var dim = new Date(TODAY.getFullYear(), TODAY.getMonth() + 1, 0).getDate();
       var plan = [], fact = [];
@@ -2952,9 +2952,12 @@
             '</div></div></div>' +
         '<div style="margin-top:10px;font-size:11.5px;color:var(--muted)">🚗 В пути за ' + esc(dashMonthLabel().toLowerCase()) + ': <b style="color:var(--ink)">' + (kTotalH > 0 ? kDec(kPctRoad) : '0') + '%</b> от всего времени (' + fmtH(kTotalH) + ' ч) · Среднее время переезда: <b style="color:var(--ink)">≈ ' + kAvgTravel + ' мин</b></div>';
 
-      // 22.09-168: карточки не выводим напрямую — их порядок собирается ниже
-      _dashCardDays = '<div class="card"><div class="card-h"><h2>📈 Выполнение по дням</h2><span class="sub">' + MON_NOM[TODAY.getMonth()] + ' ' + TODAY.getFullYear() + ' · <span style="color:#2563eb;font-weight:700">■ план</span> <span style="color:#16a34a;font-weight:700">■ выполнено</span></span></div><div class="card-b">' + svg1 + '</div></div>';
-      _dashCardKpd = '<div class="card"><div class="card-h"><h2>⚡ КПД мастеров</h2><span class="sub">Работа vs дорога · ' + esc(dashMonthLabel()) + '</span></div><div class="card-b">' + kpdBody + '</div></div>';
+      // 22.09-169: «КПД мастеров» и «Выполнение по дням» — ОДНА карточка:
+      // сверху метрика КПД, под ней через разделитель — график по дням
+      _dashJoin = '<div class="card"><div class="card-h"><h2>⚡ КПД мастеров</h2><span class="sub">Работа vs дорога · ' + esc(dashMonthLabel()) + '</span></div><div class="card-b">' + kpdBody +
+        '<div style="margin-top:14px;padding-top:11px;border-top:1px dashed var(--line)">' +
+          '<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px"><span style="font-size:13.5px;font-weight:800;color:var(--ink)">📈 Выполнение по дням</span><span style="font-size:11.5px;color:var(--muted);font-weight:600">' + MON_NOM[TODAY.getMonth()] + ' ' + TODAY.getFullYear() + ' · <span style="color:#2563eb;font-weight:700">■ план</span> <span style="color:#16a34a;font-weight:700">■ выполнено</span></span></div>' + svg1 +
+        '</div></div></div>';
     })();
 
     html += '<div class="dash-grid">';
@@ -2975,19 +2978,35 @@
       if (mt.length > 4) html += '<div class="taskline" style="color:var(--muted)">и ещё ' + (mt.length - 4) + '…</div>';
     });
     html += '</div></div>';
-    html += _dashCardKpd; // 22.09-168: КПД мастеров — рядом с «Сегодня»
+    html += _dashJoin; // 22.09-169: общая карточка «КПД мастеров + Выполнение по дням» — рядом с «Сегодня»
     html += '</div>';
 
-    html += '<div class="dash-grid">';
-    html += _dashCardDays; // 22.09-168: «Выполнение по дням» — вторым рядом, на место «Сегодня»
-    html += '<div class="card"><div class="card-h"><h2>Красная зона</h2><span class="sub">предельный срок истекает</span></div><div class="card-b">';
-    if (!redzone.length) html += '<div class="empty">Просрочек нет 🎉</div>';
-    redzone.forEach(function (t) {
-      var o = OBJ_MAP[t.o], w = workOf(t), m = masterById(t.m);
-      var col = taskColor(t);
-      html += '<div class="rz-item"><div class="rz-bar" style="background:' + (col === 'red' ? 'var(--red)' : 'var(--yellow)') + '"></div><div class="rz-main"><div class="rz-t">' + esc(w ? w.name : '?') + ' — ' + esc(addrOf(t)) + '</div><div class="rz-s">' + esc(m ? m.name : '?') + ' · ' + esc(m ? m.area : '') + ' · ' + statusLabel(t) + '</div></div><div class="rz-dl ' + (col === 'red' ? 'red' : 'yel') + '">' + (t.dl < 0 ? 'просрочка ' + (-t.dl) + ' дн' : t.dl === 0 ? 'сегодня!' : 'осталось ' + t.dl + ' дн') + '</div></div>';
-    });
-    html += '</div></div></div>';
+    // 22.09-170: «Красная зона» — компактная сворачиваемая строка «Красная зона · N»
+    // (стиль — как «ордеров истекает» справа в ордерах); список задач — по нажатию,
+    // состояние (открыто/свернуто) запоминается между заходами
+    var rzOpen = false;
+    try { rzOpen = localStorage.getItem('smartplan_dash_rz_open') === '1'; } catch (e) {}
+    if (!redzone.length) {
+      html += '<div class="card" style="margin-bottom:16px"><div class="card-h"><h2>Красная зона</h2><span class="sub">предельный срок истекает</span></div><div class="card-b"><div class="empty">Просрочек нет 🎉</div></div></div>';
+    } else {
+      html += '<div class="card" data-action="dash-rz-toggle" style="margin-bottom:16px;cursor:pointer;border-color:#fecaca" title="' + (rzOpen ? 'Нажмите, чтобы свернуть список задач в красной зоне' : 'Нажмите, чтобы увидеть задачи в красной зоне') + '">' +
+        '<div class="card-h" style="' + (rzOpen ? '' : 'border-bottom:none') + '">' +
+          '<h2 style="display:flex;align-items:center;gap:8px">🔴 Красная зона <span class="tag over" style="font-size:12px;margin-top:0">' + redzone.length + '</span></h2>' +
+          '<span class="sub">предельный срок истекает</span>' +
+          '<div class="spacer"></div>' +
+          '<span style="color:var(--red);font-weight:800;font-size:12px;white-space:nowrap">' + (rzOpen ? '▲ Скрыть список' : '▼ Показать задачи (' + redzone.length + ')') + '</span>' +
+        '</div>';
+      if (rzOpen) {
+        html += '<div class="card-b" style="padding-top:8px">';
+        redzone.forEach(function (t) {
+          var o = OBJ_MAP[t.o], w = workOf(t), m = masterById(t.m);
+          var col = taskColor(t);
+          html += '<div class="rz-item"><div class="rz-bar" style="background:' + (col === 'red' ? 'var(--red)' : 'var(--yellow)') + '"></div><div class="rz-main"><div class="rz-t">' + esc(w ? w.name : '?') + ' — ' + esc(addrOf(t)) + '</div><div class="rz-s">' + esc(m ? m.name : '?') + ' · ' + esc(m ? m.area : '') + ' · ' + statusLabel(t) + '</div></div><div class="rz-dl ' + (col === 'red' ? 'red' : 'yel') + '">' + (t.dl < 0 ? 'просрочка ' + (-t.dl) + ' дн' : t.dl === 0 ? 'сегодня!' : 'осталось ' + t.dl + ' дн') + '</div></div>';
+        });
+        html += '</div>';
+      }
+      html += '</div>';
+    }
 
     view.innerHTML = html;
     animKpiNumbers(); // цифры KPI «накручиваются»
@@ -16599,6 +16618,10 @@
     else if (a === 'rm-pick') { e.stopPropagation(); pickReportMonth(parseInt(el.dataset.year, 10), parseInt(el.dataset.month, 10)); }
     else if (a === 'rm-close') { e.stopPropagation(); var dd = document.getElementById('report-month-dropdown'); if (dd) dd.classList.remove('open'); }
     else if (a === 'dash-month-toggle') { e.stopPropagation(); toggleDashMonthPicker(); }
+    else if (a === 'dash-rz-toggle') { // 22.09-170: свернуть/развернуть «Красную зону»
+      try { localStorage.setItem('smartplan_dash_rz_open', localStorage.getItem('smartplan_dash_rz_open') === '1' ? '0' : '1'); } catch (er) {}
+      renderDashboard();
+    }
     else if (a === 'dm-prev-year') { e.stopPropagation(); dmState.viewYear--; renderDashMonthPicker(); }
     else if (a === 'dm-next-year') { e.stopPropagation(); dmState.viewYear++; renderDashMonthPicker(); }
     else if (a === 'dm-pick') { e.stopPropagation(); pickDashMonth(parseInt(el.dataset.year, 10), parseInt(el.dataset.month, 10)); }
