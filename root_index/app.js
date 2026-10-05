@@ -747,7 +747,7 @@
     graphs: ['Планирование / График работ', 'Сборка 22.09-164 · кнопка «Трудоёмкость графика» — слева от «Фильтра»; «Праздничные дни» перенесены в «Графики смен»'],
     map: ['Карта маршрутов', 'Оптимизация пути между объектами и выбор картографического сервиса'],
     objmap: ['Карта объектов', 'Сборка 22.09-137 · вид телеметрии «ПТК "Эксорт"» переименован в «ПТК "Эскорт"» — объекты и работы обновлены автоматически'],
-    testmap: ['Тест проезда', 'Сборка 22.09-175 · в списке движков маршрута появился «🌐 Google»: «Оптимизация маршрутов» раскладывает точки в порядок объезда и открывает новую вкладку, где маршрут строит сам Google'],
+    testmap: ['Тест проезда', 'Сборка 22.09-176 · исправлена загрузка 3D-планеты (был ошибочный адрес библиотеки карты) + добавлен запасной сервер, если первый не отвечает'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
     perms: ['Разрешения', 'Система разрешений на производство работ'],
@@ -20485,6 +20485,14 @@
      Маркеры базы/задач и линия маршрута рисуются теми же данными, что и на
      Яндекс-карте (tDrawTestMarkers/tDrawTestRouteLine просто ветвятся). */
   var mlState = { loading: false, cbs: [] };
+  /* 22.09-176: ПРИЧИНА СБОЯ — раньше стояла версия библиотеки «6.11.2», которой не существует
+     (а в новых 6.x вообще нет обычного js-файла, только модули), поэтому сервер отвечал «не найдено».
+     Теперь: проверенная существующая 5.24.0 (в ней есть и глобус, и объёмные дома) + ЗАПАСНОЙ
+     адрес на другом сервере: если первый молчит или отвечает ошибкой — грузим со второго. */
+  var ML_CDNS = [
+    'https://unpkg.com/maplibre-gl@5.24.0/dist/',
+    'https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/'
+  ];
   function ensureMapLibre(ok, fail) {
     if (window.maplibregl) { try { ok(); } catch (e) {} return; }
     mlState.cbs.push({ ok: ok, fail: fail });
@@ -20492,23 +20500,35 @@
     mlState.loading = true;
     function _fin(isOk) {
       var cbs = mlState.cbs.slice(); mlState.cbs = [];
+      mlState.loading = false;
       cbs.forEach(function (c) { try { isOk ? c.ok() : (c.fail && c.fail()); } catch (e) {} });
     }
-    try {
-      if (!document.getElementById('mlgl-css')) {
-        var link = document.createElement('link');
-        link.id = 'mlgl-css';
-        link.rel = 'stylesheet';
-        link.href = 'https://unpkg.com/maplibre-gl@6.11.2/dist/maplibre-gl.css'; // 22.09-174: v6 — нужна проекция «глобус» (появилась в v5)
-        document.head.appendChild(link);
+    function _tryCdn(idx) {
+      if (idx >= ML_CDNS.length) { _fin(false); return; }
+      var base = ML_CDNS[idx], done = false, to = 0;
+      function _next(okNow) {
+        if (done) return; done = true;
+        try { clearTimeout(to); } catch (e) {}
+        if (okNow) { _fin(true); } else { _tryCdn(idx + 1); }
       }
-      var sc = document.createElement('script');
-      sc.id = 'mlgl-js';
-      sc.src = 'https://unpkg.com/maplibre-gl@6.11.2/dist/maplibre-gl.js';
-      sc.onload = function () { _fin(!!window.maplibregl); };
-      sc.onerror = function () { mlState.loading = false; _fin(false); };
-      document.head.appendChild(sc);
-    } catch (e) { mlState.loading = false; _fin(false); }
+      try {
+        if (!document.getElementById('mlgl-css')) {
+          var link = document.createElement('link');
+          link.id = 'mlgl-css';
+          link.rel = 'stylesheet';
+          link.href = base + 'maplibre-gl.css';
+          document.head.appendChild(link);
+        }
+        var sc = document.createElement('script');
+        if (idx === 0) sc.id = 'mlgl-js';
+        sc.src = base + 'maplibre-gl.js';
+        to = setTimeout(function () { _next(false); }, 25000); // 25 сек на один сервер, потом запасной
+        sc.onload = function () { _next(!!window.maplibregl); };
+        sc.onerror = function () { _next(false); };
+        document.head.appendChild(sc);
+      } catch (e) { _next(false); }
+    }
+    _tryCdn(0);
   }
   // Стиль 3D-карты: спутник+подписи Google + объёмные дома OSM (высота render_height)
   function tG3DStyleDef() {
