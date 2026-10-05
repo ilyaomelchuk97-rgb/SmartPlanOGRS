@@ -742,13 +742,13 @@
 
   var TITLES = {
     dashboard: ['Панель мониторинга', 'Сборка 22.09-173 · блок «Панель аналитики» удалён; выбор месяца для КПД и графика по дням — кнопкой-календарём в карточке «⚡ КПД мастеров»'],
-    calendar: ['Планирование / Календарь', 'Сборка 22.09-159 · карточка задачи: у строки вида работ (work-row) запас справа 34px'],
+    calendar: ['Планирование / Календарь', 'Сборка 22.09-180 · плашки «🚗 время · км» к заданию считает единый роутер BRouter car (economic), время — с учётом пробок: совпадает с картой маршрутов'],
     graphs: ['Планирование / График работ', 'Сборка 22.09-164 · кнопка «Трудоёмкость графика» — слева от «Фильтра»; «Праздничные дни» перенесены в «Графики смен»'],
-    map: ['Карта маршрутов', 'Сборка 22.09-179 · роутер один — «🚗 BRouter car (economic)», настройки роутера удалены; исправлен баг: карточка 🏁 базы пропадала из списка (перестройка списка её стирала) + после оптимизации показывает возврат от последнего задания'],
+    map: ['Карта маршрутов', 'Сборка 22.09-180 · шапка: километраж и ОДНО общее время — с учётом пробок (без лишних подписей); карточки заданий, планирование, карта местоположения и Гант-шкала считаются тем же единым роутером — цифры везде совпадают'],
     objmap: ['Карта объектов', 'Сборка 22.09-137 · вид телеметрии «ПТК "Эксорт"» переименован в «ПТК "Эскорт"» — объекты и работы обновлены автоматически'],
     testmap: ['Тест проезда', 'Сборка 22.09-176 · исправлена загрузка 3D-планеты (был ошибочный адрес библиотеки карты) + добавлен запасной сервер, если первый не отвечает'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
-    livemap: ['Карта местоположения', 'Маршруты всех мастеров на сегодня — на одной Яндекс-карте'],
+    livemap: ['Карта местоположения', 'Сборка 22.09-180 · маршруты, «весь маршрут ~N мин» и расписание дня считает единый роутер BRouter car (economic), время — с учётом пробок: совпадает с картой маршрутов'],
     perms: ['Разрешения', 'Система разрешений на производство работ'],
     refs: ['Справочники', 'Сборка 22.09-162 · карточка работы ГРП: «Проводится совместно» теперь выбирается в отдельном окне (кнопка «📋 Выбор работ») — галочки, «Сохранить»/«Отмена»'],
     workers: ['Работники', 'Сборка 22.09-172 · окно карточки работника — ровно по ширине карточки (560px): без пустого места справа; панель и календарь — на всю ширину окна'],
@@ -3002,10 +3002,11 @@
     return '<span style="position:absolute;top:2px;bottom:2px;left:' + l.toFixed(2) + '%;width:' + Math.max(0.4, w).toFixed(2) + '%;border-radius:3px;background:' + color + (op != null ? ';opacity:' + op : '') + '" title="' + esc(title) + '"></span>';
   }
   /* Гант-шкала дня мастера — ТОТ ЖЕ движок, что и карта местоположения:
-     порядок объезда (ближайший сосед → waypoints OSRM) и реальные времена
-     переездов из OSRM (кэш sessionStorage). Если кэша нет — оценка по
-     расстояниям и фоновый запрос OSRM: когда придёт, дашборд перерисуется
-     и числа совпадут с картой местоположения точно. Выезд с базы в 8:30. */
+     порядок объезда (ближайший сосед от базы) и реальные времена переездов
+     от единого роутера BRouter car (economic) с учётом пробок (кэш sessionStorage).
+     Если кэша нет — оценка по расстояниям и фоновый запрос роутера: когда придёт,
+     дашборд перерисуется и числа совпадут с картой местоположения точно.
+     Выезд с базы в 8:30. */
   function ganttDayHtml(m, dayOff) {
     try {
       var tasks = S.tasks.filter(function (t) { return t.m === m.id && t.d === dayOff; });
@@ -4329,6 +4330,34 @@
   }
 
   // 2. Отображение начальной карты при заходе на страницу (БЕЗ изменения порядка заданий!)
+  /* 22.09-180: первичная статистика маршрута дня (ДО кнопки «Оптимизация») —
+     тем же единым роутером BRouter car (economic), порядок — как в списке заданий;
+     время в карточках заданий и в шапке — С ПРОБКАМИ (как после «Оптимизации»).
+     Задания без координат в расчёт не попадают. Повторный вызов с тем же набором
+     точек запроса не делает (подпись). */
+  function mapPrimaryRouteStats(sel, base) {
+    if (!sel || !sel.length) return;
+    var geoSel = sel.filter(function (p) { return p.lat != null && p.lng != null; });
+    if (!geoSel.length) return;
+    var sig = geoSel.map(function (p) { return p.id + ':' + (+p.lat).toFixed(5) + ',' + (+p.lng).toFixed(5); }).join('|');
+    if (ymState.statsSig === sig) return; // уже считали для этих точек
+    brouterCarDayRoute(geoSel, base, function(result) {
+      if (!result || !result.ok || !result.geometry || !result.geometry.length) return;
+      if (ymState.pts !== sel) return; // день/список уже сменился — устаревший ответ игнорируем
+      ymState.statsSig = sig;
+      setRouteInfo({ km: result.km, jamsMin: result.jamMin, freeMin: result.min, count: sel.length });
+      geoSel.forEach(function (p, idx) {
+        if (idx < result.legs.length) {
+          var leg = result.legs[idx];
+          var legKm = (leg.distance || 0) / 1000;
+          p.travelKm = legKm; p.travelKmText = legKm.toFixed(1).replace('.', ',') + ' км';
+          p.travelMin = Math.max(1, Math.round((leg.duration || 0) / 60)); p.travelText = fmtDuration(p.travelMin);
+        }
+      });
+      refreshMapCards(sel);
+    });
+  }
+
   function drawMap(pts) {
     // Храним ВСЕ задания (вкл и выкл)
     ymState.allPts = pts;
@@ -4351,32 +4380,18 @@
     if (brBtn) { brBtn.disabled = false; brBtn.style.opacity = ''; brBtn.style.cursor = ''; }
 
     if (sel.length >= 1) {
+      ymState.statsSig = null; // 22.09-180: новый набор точек — статистику считать заново
       // Яндекс.Карта + оверлей-маркеры; недостающие координаты доопределяет Яндекс
       ymRoutesMapEnsure(canvas, function () {
         geocodePointsViaYandex(sel.concat(inactive || [])).then(function () {
           if (!ymState.ymap) return;
           ymDrawRouteMarkers(sel);
+          // 22.09-180: адреса доопределены — пересчитать статистику со ВСЕМИ точками
+          mapPrimaryRouteStats(sel, base);
         });
       });
-      // Статистика маршрута через OSRM (бесплатно, без ключа) — подставляем в карточки заданий
-      fetchOSMRouteGeometry('osrm', sel, base, function(result) {
-        if (result.ok && result.geometry.length > 0) {
-          var jamsMin = result.min;
-          var freeMin = Math.round(result.min * 0.85);
-          setRouteInfo({ km: result.km, jamsMin: jamsMin, freeMin: freeMin, count: sel.length });
-          if (result.legs && result.legs.length > 0) {
-            sel.forEach(function(p, idx) {
-              if (idx < result.legs.length) {
-                var leg = result.legs[idx];
-                var legKm = (leg.distance || 0) / 1000;
-                p.travelKm = legKm; p.travelKmText = legKm.toFixed(1).replace('.', ',') + ' км';
-                p.travelMin = Math.max(1, Math.round((leg.duration || 0) / 60)); p.travelText = fmtDuration(p.travelMin);
-              }
-            });
-            refreshMapCards(sel);
-          }
-        }
-      });
+      // 22.09-180: первичная статистика маршрута (не ждём геокодер — по точкам с координатами)
+      mapPrimaryRouteStats(sel, base);
     } else {
       // Только база — тоже на карте Яндекс
       ymRoutesMapEnsure(canvas, function () { ymDrawRouteMarkers([]); });
@@ -4925,47 +4940,35 @@
       processAutoRouteQueue();
       return;
     }
-    // Координаты: база -> задачи (roundtrip сам вернёт на базу)
-    var coords = [[base.lng, base.lat]];
-    routeTasks.forEach(function(r) { coords.push([r.lng, r.lat]); });
-    var coordStr = coords.map(function(c) { return c.join(','); }).join(';');
-    fetch('https://router.project-osrm.org/trip/v1/driving/' + coordStr + '?roundtrip=true&source=first&overview=false')
-      .then(function(r) { return r.json(); })
-      .then(function(res) {
-        if (res && res.trips && res.trips[0]) {
-          var trip = res.trips[0];
-          var wps = res.waypoints || [];
-          var legs = trip.legs || [];
-          var minutes = Math.round(trip.duration / 60);
-          var km = trip.distance / 1000;
-          // Пер-задача: время и км ДО этой задачи в оптимизированном порядке
-          var taskLegs = {};
-          routeTasks.forEach(function(r, idx) {
-            var wp = wps[idx + 1];               // входной индекс (0 = база)
-            if (!wp || wp.waypoint_index == null) return;
-            var pos = wp.waypoint_index;         // позиция посещения (1..N)
-            if (pos < 1 || pos > legs.length) return;
-            var leg = legs[pos - 1];             // отрезок, ЗАКАНЧИВАЮЩИЙСЯ у этой задачи
-            if (!leg) return;
-            taskLegs[r.t.id] = {
-              min: Math.max(1, Math.round((leg.duration || 0) / 60)),
-              km: (leg.distance || 0) / 1000
-            };
-          });
-          autoRouteCache[cacheKey] = { status: 'done', minutes: minutes, km: km, legs: taskLegs };
-          saveRouteTime(job.masterId, job.off, minutes, km, 0, 0, taskLegs);
-          // Обновляем «🚗 до объекта» внутри плашек задач (без перерисовки)
-          updateTaskLegBadges(job.masterId, job.off, taskLegs);
-        } else {
-          autoRouteCache[cacheKey] = { status: 'error' };
-        }
-        autoRouteRunning = false;
-        setTimeout(processAutoRouteQueue, 500);
-      }).catch(function() {
+    // 22.09-180: расчёт — единым роутером BRouter car (economic) (brouterCarDayRoute):
+    // те же цифры, что на карте маршрутов; время С ПРОБКАМИ — как в шапке карты.
+    // Порядок объезда — ближайший сосед от базы (как на карте местоположения и Гант-шкале).
+    var nnPts = lmNearestOrder(routeTasks.map(function(r) { return { _t: r.t, lat: r.lat, lng: r.lng }; }), base);
+    brouterCarDayRoute(nnPts, base, function(res) {
+      if (res && res.ok && res.legs && res.legs.length) {
+        // Пер-задача: километры и время С ПРОБКАМИ до этой задачи (от предыдущей точки)
+        var taskLegs = {};
+        nnPts.forEach(function(pt, idx) {
+          var leg = res.legs[idx];
+          if (!leg || !(leg.distance > 0)) return;
+          taskLegs[pt._t.id] = {
+            min: Math.max(1, Math.round((leg.duration || 0) / 60)),
+            km: leg.distance / 1000
+          };
+        });
+        var retLeg = res.legs[res.legs.length - 1];
+        var retMin = retLeg ? Math.max(1, Math.round((retLeg.duration || 0) / 60)) : 0;
+        var retKm = retLeg ? retLeg.distance / 1000 : 0;
+        autoRouteCache[cacheKey] = { status: 'done', minutes: res.jamMin, km: res.km, legs: taskLegs };
+        saveRouteTime(job.masterId, job.off, res.jamMin, res.km, retMin, retKm, taskLegs);
+        // Обновляем «🚗 до объекта» внутри плашек задач (без перерисовки)
+        updateTaskLegBadges(job.masterId, job.off, taskLegs);
+      } else {
         autoRouteCache[cacheKey] = { status: 'error' };
-        autoRouteRunning = false;
-        setTimeout(processAutoRouteQueue, 500);
-      });
+      }
+      autoRouteRunning = false;
+      setTimeout(processAutoRouteQueue, 500);
+    });
   }
 
 
@@ -5640,97 +5643,62 @@
         // Обновим карточки слева — новые номера
         updateDayListCards(brOrdered);
         refreshMapCards(brOrdered);
-        // Запрос BRouter
-        var lonlatsBR = [];
-        [base].concat(brOrdered).concat([base]).forEach(function (p) {
-          if (p && typeof p.lng === 'number' && typeof p.lat === 'number') {
-            lonlatsBR.push(p.lng.toFixed(6) + ',' + p.lat.toFixed(6));
+        // 22.09-180: расчёт — единым модулем brouterCarDayRoute (BRouter car economic):
+        // время в шапке, в карточках заданий и в карточке базы — С ПРОБКАМИ и согласовано между собой.
+        brouterCarDayRoute(brOrdered, base, function (res) {
+          if (!res || !res.ok || !res.geometry || res.geometry.length < 2) {
+            toast('err', '⚠ ' + brLabel + ': ' + ((res && res.msg) || 'маршрут не построен'));
+            updateFallbackRouteInfo(ordered);
+            ymDrawFallbackLine([base].concat(brOrdered).concat([base])); // 22.09-127
+            return;
           }
-        });
-        if (lonlatsBR.length < 2) {
-          toast('err', '⚠ BRouter: недостаточно валидных координат');
-          updateFallbackRouteInfo(ordered);
-          ymDrawFallbackLine([base].concat(ordered).concat([base])); // 22.09-127: роутер не ответил — прямая пунктирная ломаная поверх Яндекс.Карты
-          return;
-        }
-        var brUrl = 'https://brouter.de/brouter?lonlats=' + encodeURIComponent(lonlatsBR.join('|')) +
-          '&profile=' + encodeURIComponent(brProfile) + '&alternativeidx=0&format=geojson';
-        var brCtrl = (typeof AbortController === 'function') ? new AbortController() : null;
-        var brTimer = setTimeout(function () { try { if (brCtrl) brCtrl.abort(); } catch (e) {} }, 30000);
-        fetch(brUrl, brCtrl ? { signal: brCtrl.signal } : {})
-          .then(function (r) {
-            clearTimeout(brTimer);
-            if (!r.ok) return r.text().then(function (txt) { throw new Error('HTTP ' + r.status + ' — ' + (txt ? txt.slice(0, 200) : '')); });
-            var ct = (r.headers && r.headers.get && r.headers.get('content-type')) || '';
-            if (ct.indexOf('json') < 0) return r.text().then(function (txt) { throw new Error('BRouter вернул не-JSON (' + ct + '): ' + txt.slice(0, 200)); });
-            return r.json();
-          })
-          .then(function (res) {
-            if (!res || !res.features || !res.features[0] || !res.features[0].properties) {
-              toast('err', '⚠ BRouter: пустой ответ');
-              ymDrawFallbackLine([base].concat(ordered).concat([base])); // 22.09-127: роутер не ответил — прямая пунктирная ломаная поверх Яндекс.Карты
-              return;
-            }
-            var pp = res.features[0].properties;
-            var brKm = parseFloat(pp['track-length']) / 1000;
-            var brMin = Math.round((parseFloat(pp['total-time']) || 0) / 60);
-            if (!(brKm > 0)) {
-              toast('err', '⚠ BRouter: точки недостижимы');
-              ymDrawFallbackLine([base].concat(ordered).concat([base])); // 22.09-127: роутер не ответил — прямая пунктирная ломаная поверх Яндекс.Карты
-              return;
-            }
-            // Обновим карточки с временем и км
-            brOrdered.forEach(function (pt, idx) {
-              pt.travelKm = brKm / Math.max(1, brOrdered.length);
-              pt.travelKmText = (brKm / Math.max(1, brOrdered.length)).toFixed(1).replace('.', ',') + ' км';
-              pt.travelMin = Math.round(brMin / Math.max(1, brOrdered.length));
-              pt.travelText = fmtDuration(pt.travelMin);
-            });
-            updateDayListCards(brOrdered);
-            refreshMapCards(brOrdered);
-            var h = (typeof currentHourForJam === 'function') ? currentHourForJam() : new Date().getHours();
-            var jamK = (typeof jamFactorByHour === 'function') ? jamFactorByHour(h) : 1.0;
-            var mnJammed = Math.max(1, Math.round(brMin * jamK));
-            setRouteInfo({ km: brKm, jamsMin: mnJammed, freeMin: brMin, count: brOrdered.length });
-            // 22.09-179: карточка 🏁 базы — обратное плечо (последнее задание → база) по геометрии трека
-            (function () {
-              try {
-                var g = (res.features[0].geometry && res.features[0].geometry.coordinates) || null;
-                var lastPt = brOrdered[brOrdered.length - 1];
-                var lastLeg = lastLegFromGeometry(g, lastPt);
-                if (!lastLeg || !(lastLeg.km > 0) || !(brKm > 0)) return;
-                var retMin = Math.max(1, Math.round(brMin * (lastLeg.km / brKm)));
-                var bcEl = document.getElementById('base-return-info');
-                if (bcEl) {
-                  var lastAddr = (lastPt && lastPt.addr) || '?'; if (lastAddr.length > 28) lastAddr = lastAddr.substring(0, 28) + '…';
-                  bcEl.innerHTML = '🛣 От «' + esc(lastAddr) + '» до базы: <b style="color:#fff">' + fmtDuration(retMin) + '</b> · ' + lastLeg.km.toFixed(1).replace('.', ',') + ' км';
-                }
-                saveRouteTime(S.mapMaster, S.mapOff, mnJammed, brKm, retMin, lastLeg.km); // запоминаем для планирования
-              } catch (e) { console.warn('return-leg:', e); }
-            })();
-            // Прячем «Открыть в Яндекс.Картах» / «Google Maps» — не подходит для BRouter
-            var yaBtnD = document.getElementById('btn-route-yandex');
-            var gBtnD = document.getElementById('btn-route-google');
-            if (yaBtnD) yaBtnD.style.display = 'none';
-            if (gBtnD) gBtnD.style.display = 'none';
-            // 22.09-127: линия BRouter — слоем поверх подложки Яндекс.Карты, точки — нумерованные кружки
-            (function () {
-              var brGeom = (res.features[0].geometry && res.features[0].geometry.coordinates) || null;
-              if (brGeom && brGeom.length >= 2) {
-                ymDrawRouteLine(brGeom.map(function (c) { return [c[1], c[0]]; }));
-              } else {
-                ymDrawFallbackLine([base].concat(brOrdered).concat([base]));
-              }
-              ymDrawRouteMarkers(brOrdered);
-            })();
-            toast('ok', '✓ ' + brLabel + ': ' + brKm.toFixed(1).replace('.', ',') + ' км · ' + fmtDuration(brMin) + ' (с пробками ~' + fmtDuration(mnJammed) + ')');
-          })
-          .catch(function (e) {
-            clearTimeout(brTimer);
-            console.error('BRouter error:', e);
-            toast('err', '⚠ ' + brLabel + ' недоступен: ' + (e.message || 'ошибка сети'));
-            ymDrawFallbackLine([base].concat(ordered).concat([base])); // 22.09-127: роутер не ответил — прямая пунктирная ломаная поверх Яндекс.Карты
+          var brKm = res.km, brMin = res.min, mnJammed = res.jamMin;
+          var brGeom = res.geometry;
+          var legs = res.legs || [];
+          // Карточки заданий: километры и время С ПРОБКАМИ до этого задания (от предыдущей точки маршрута)
+          var legsMap = {};
+          brOrdered.forEach(function (pt, idx) {
+            var leg = legs[idx];
+            if (!leg || !(leg.distance > 0)) return;
+            var lKm = leg.distance / 1000;
+            var lMin = Math.max(1, Math.round((leg.duration || 0) / 60));
+            pt.travelKm = lKm; pt.travelKmText = lKm.toFixed(1).replace('.', ',') + ' км';
+            pt.travelMin = lMin; pt.travelText = fmtDuration(lMin);
+            legsMap[pt.id] = { min: lMin, km: lKm };
           });
+          updateDayListCards(brOrdered);
+          refreshMapCards(brOrdered);
+          setRouteInfo({ km: brKm, jamsMin: mnJammed, freeMin: brMin, count: brOrdered.length });
+          // Карточка 🏁 базы — обратное плечо (последнее задание → база), время тоже С ПРОБКАМИ
+          (function () {
+            try {
+              var ret = legs[legs.length - 1];
+              if (!ret || !(ret.distance > 0)) return;
+              var retKm = ret.distance / 1000;
+              var retMin = Math.max(1, Math.round((ret.duration || 0) / 60));
+              var bcEl = document.getElementById('base-return-info');
+              if (bcEl) {
+                var lastAddr = (brOrdered[brOrdered.length - 1] && brOrdered[brOrdered.length - 1].addr) || '?';
+                if (lastAddr.length > 28) lastAddr = lastAddr.substring(0, 28) + '…';
+                bcEl.innerHTML = '🛣 От «' + esc(lastAddr) + '» до базы: <b style="color:#fff">' + fmtDuration(retMin) + '</b> · ' + retKm.toFixed(1).replace('.', ',') + ' км';
+              }
+              saveRouteTime(S.mapMaster, S.mapOff, mnJammed, brKm, retMin, retKm, legsMap); // запоминаем для планирования
+            } catch (e) { console.warn('return-leg:', e); }
+          })();
+          // Прячем «Открыть в Яндекс.Картах» / «Google Maps» — не подходит для BRouter
+          var yaBtnD = document.getElementById('btn-route-yandex');
+          var gBtnD = document.getElementById('btn-route-google');
+          if (yaBtnD) yaBtnD.style.display = 'none';
+          if (gBtnD) gBtnD.style.display = 'none';
+          // 22.09-127: линия BRouter — слоем поверх подложки Яндекс.Карты, точки — нумерованные кружки
+          if (brGeom && brGeom.length >= 2) {
+            ymDrawRouteLine(brGeom.map(function (c) { return [c[1], c[0]]; }));
+          } else {
+            ymDrawFallbackLine([base].concat(brOrdered).concat([base]));
+          }
+          ymDrawRouteMarkers(brOrdered);
+          toast('ok', '✓ ' + brLabel + ': ' + brKm.toFixed(1).replace('.', ',') + ' км · ' + fmtDuration(mnJammed));
+        });
       });
     } else if (prov === "osrm" || prov === "graphhopper" || prov === "ors" || prov === "valhalla") {
       var provName = prov === "valhalla" ? "Valhalla" : prov === "osrm" ? "OpenStreetMap" : prov === "graphhopper" ? "GraphHopper" : "OpenRouteService";
@@ -5994,6 +5962,96 @@
     return { km: km, idx: bi };
   }
 
+  /* ===== 22.09-180: ЕДИНЫЙ РОУТЕР ПРИЛОЖЕНИЯ — BRouter car (economic) =====
+     Во ВСЕХ местах (карта маршрутов, карточки заданий на день, планирование
+     в задачах, карта местоположения, Гант-шкала дня) километры и время считает
+     ЭТОТ роутер. Время, которое видит пользователь — «с пробками». */
+
+  // Час для коэффициента пробок: сегодня — текущий час суток, любой другой день — 10:00 (дневной)
+  function jamHourForOff(off) {
+    try { if (off === 0 || off == null) return new Date().getHours(); } catch (e) {}
+    return 10;
+  }
+  // Коэффициент пробок для выбранного дня (1.0 — если таблица пробок недоступна)
+  function jamKForOff(off) {
+    var h = jamHourForOff(off);
+    return (typeof jamFactorByHour === 'function') ? jamFactorByHour(h) : 1.0;
+  }
+
+  /* Длины отрезков маршрута по геометрии трека [[lng,lat],…]: для каждой точки
+     маршрута (база → задания → база, порядок wps) ищется ближайшая вершина трека
+     (монотонно по ходу пути); длина отрезка — сумма длин сегментов между вершинами.
+     Возврат: массив длин отрезков в МЕТРАХ, длина = wps.length-1. */
+  function trackLegMeters(geom, wps) {
+    if (!geom || geom.length < 2 || !wps || wps.length < 2) return null;
+    var cum = [0], i, w;
+    for (i = 1; i < geom.length; i++) {
+      cum.push(cum[i - 1] + distKm({ lat: geom[i - 1][1], lng: geom[i - 1][0] }, { lat: geom[i][1], lng: geom[i][0] }) * 1000);
+    }
+    var prev = 0, idx = [];
+    for (w = 0; w < wps.length; w++) {
+      var cosLat = Math.cos(wps[w][1] * Math.PI / 180), bd = Infinity, bi = prev;
+      for (i = prev; i < geom.length; i++) {
+        var dLat = geom[i][1] - wps[w][1], dLng = (geom[i][0] - wps[w][0]) * cosLat;
+        var dd = dLat * dLat + dLng * dLng;
+        if (dd < bd) { bd = dd; bi = i; }
+      }
+      idx.push(bi); prev = bi;
+    }
+    var out = [];
+    for (w = 1; w < idx.length; w++) out.push(Math.max(0, cum[idx[w]] - cum[idx[w - 1]]));
+    return out;
+  }
+
+  /* Запрос к единому роутеру BRouter car (economic): база → pts (в переданном порядке) → база.
+     Колбэк получает объект формы, совместимой с fetchOSMRouteGeometry:
+       { ok:true, by:'brouter-car-eco', km, min, jamMin, geometry:[[lng,lat]…], legs:[{distance,duration}…] }
+     km — километры по дорогам; min — «чистое» время BRouter (мин);
+     jamMin — время С ПРОБКАМИ (то, что показывается пользователю);
+     legs[i] — отрезок до i-й точки (0-based), legs[pts.length] — возврат на базу;
+     duration в legs УЖЕ с пробками (секунды). */
+  function brouterCarDayRoute(pts, base, cb, dayOff) {
+    var wps = [[base.lng, base.lat]];
+    (pts || []).forEach(function (p) { if (p && p.lat != null && p.lng != null) wps.push([p.lng, p.lat]); });
+    wps.push([base.lng, base.lat]);
+    if (wps.length < 3) { cb({ ok: false, msg: 'BRouter: нет точек с координатами' }); return; }
+    var url = 'https://brouter.de/brouter?lonlats=' + encodeURIComponent(
+      wps.map(function (c) { return c[0].toFixed(6) + ',' + c[1].toFixed(6); }).join('|')
+    ) + '&profile=car-eco&alternativeidx=0&format=geojson';
+    var ctrl = (typeof AbortController === 'function') ? new AbortController() : null;
+    var timer = setTimeout(function () { try { if (ctrl) ctrl.abort(); } catch (e) {} }, 30000);
+    fetch(url, ctrl ? { signal: ctrl.signal } : {})
+      .then(function (r) {
+        clearTimeout(timer);
+        if (!r.ok) return r.text().then(function (txt) { throw new Error('HTTP ' + r.status + (txt ? ' — ' + txt.slice(0, 120) : '')); });
+        return r.json();
+      })
+      .then(function (res) {
+        var f = res && res.features && res.features[0];
+        var pp = f && f.properties;
+        var km = pp ? (parseFloat(pp['track-length']) || 0) / 1000 : 0;
+        var min = pp ? Math.round((parseFloat(pp['total-time']) || 0) / 60) : 0;
+        var geom = (f && f.geometry && f.geometry.coordinates) || [];
+        if (!(km > 0) || geom.length < 2) { cb({ ok: false, msg: 'BRouter: пустой или неполный ответ' }); return; }
+        var jamK = jamKForOff(dayOff);
+        var jamMin = Math.max(1, Math.round(min * jamK));
+        // Доли отрезков по треку → legs в формате OSRM (distance — метры, duration — секунды С ПРОБКАМИ)
+        var legsM = trackLegMeters(geom, wps) || [];
+        var sumM = 0; legsM.forEach(function (v) { sumM += v; });
+        var legs = [];
+        for (var i = 0; i < wps.length - 1; i++) {
+          var share = (sumM > 0 && legsM[i] != null) ? (legsM[i] / sumM) : (1 / (wps.length - 1));
+          var lm = (legsM[i] != null) ? legsM[i] : (km * 1000 * share);
+          legs.push({ distance: lm, duration: Math.max(30, min * 60 * share * jamK) });
+        }
+        cb({ ok: true, by: 'brouter-car-eco', km: km, min: min, jamMin: jamMin, geometry: geom, legs: legs });
+      })
+      .catch(function (e) {
+        clearTimeout(timer);
+        cb({ ok: false, msg: 'BRouter: ' + ((e && e.message) ? e.message : 'ошибка сети') });
+      });
+  }
+
   function updateDayListCards(orderedTasks) {
     var pts = ymState.pts;
     if (pts) {
@@ -6051,64 +6109,8 @@
     mlist.innerHTML = html + mapBaseCardHtml(); // 22.09-179: карточка базы — всегда в конце списка
   }
 
-  // Извлечение данных об общем километраже и времени пути напрямую из элемента map-widget-content-view__frame / div[role="dialog"] Яндекс.Карт
-  function extractFromYandexDialog() {
-    try {
-      var selectors = ['.map-widget-content-view__frame', '[class*="content-view__frame"]', 'div[role="dialog"]', '[class*="dialog"]', '[class*="route-summary"]'];
-      var el = null;
-      for (var s = 0; s < selectors.length; s++) {
-        el = document.querySelector(selectors[s]);
-        if (el && el.textContent && el.textContent.indexOf('км') !== -1) break;
-        el = null;
-      }
-      if (!el) {
-        var frames = document.querySelectorAll('iframe');
-        for (var i = 0; i < frames.length; i++) {
-          try {
-            var doc = frames[i].contentDocument || frames[i].contentWindow.document;
-            if (doc) {
-              for (var s2 = 0; s2 < selectors.length; s2++) {
-                el = doc.querySelector(selectors[s2]);
-                if (el && el.textContent && el.textContent.indexOf('км') !== -1) break;
-                el = null;
-              }
-              if (el) break;
-            }
-          } catch(e) {}
-        }
-      }
-      if (el) {
-        var text = el.textContent || "";
-        var kmMatch = text.match(/([0-9.,]+)\s*(?:км|km)/i);
-        var hourMatch = text.match(/([0-9]+)\s*(?:ч|ч\.|h)/i);
-        var minMatch = text.match(/([0-9]+)\s*(?:мин|мин\.|min|м)/i);
-        if (kmMatch) {
-          var kmVal = parseFloat(kmMatch[1].replace(',', '.'));
-          var totalMin = 0;
-          if (hourMatch) totalMin += parseInt(hourMatch[1], 10) * 60;
-          if (minMatch) totalMin += parseInt(minMatch[1], 10);
-          if (kmVal > 0) {
-            return { km: kmVal, min: totalMin > 0 ? totalMin : Math.max(1, Math.round(kmVal / 35 * 60)) };
-          }
-        }
-      }
-    } catch(e) {}
-    return null;
-  }
+  // 22.09-180: чтение цифр из виджета Яндекс.Карт удалено — шапка карты показывает ТОЛЬКО данные единого роутера (BRouter car economic), сторонние числа её больше не перезаписывают
 
-  setInterval(function() {
-    var el = document.getElementById("route-info");
-    if (!el || el.textContent.indexOf("нажмите") !== -1 || el.textContent.indexOf("идёт запрос") !== -1) return;
-    var dialogData = extractFromYandexDialog();
-    if (dialogData && dialogData.km > 0) {
-      var kmStr = dialogData.km.toFixed(1).replace(".", ",") + " км";
-      var str = '<b style="color:var(--ink);font-size:13.5px;">' + kmStr + '</b> · общее время: <b style="color:#2563eb;">' + fmtDuration(dialogData.min) + ' (напрямую из карты)</b>';
-      if (el.innerHTML !== str) {
-        el.innerHTML = str;
-        el.style.color = "var(--ink)";
-      }
-    }
-  }, 1000);
 
   function setRouteInfo(info) {
     var el = document.getElementById("route-info"); if (!el) return;
@@ -6122,28 +6124,19 @@
       el.innerHTML = "⚠ маршрут не построен";
       el.style.color = "var(--red)";
     } else if (info.km != null) {
-      var dialogData = extractFromYandexDialog();
-      if (dialogData && dialogData.km > 0) {
-        info.km = dialogData.km;
-        if (dialogData.min > 0) {
-          info.jamsMin = dialogData.min;
-          info.freeMin = dialogData.min;
-        }
-      }
       if (info.km <= 0) {
         info.km = Math.max(5.0, (info.count || 3) * 4.5);
         if (!info.jamsMin || info.jamsMin <= 1) info.jamsMin = calculateYandexMinskTime(info.km, true);
         if (!info.freeMin || info.freeMin <= 1) info.freeMin = calculateYandexMinskTime(info.km, false);
       }
       var kmStr = info.km.toFixed(1).replace(".", ",") + " км";
+      // 22.09-180: километраж + ОДНО общее время — с учётом пробок (без подписи «с пробками»)
+      var tMin = (info.jamsMin != null && info.jamsMin > 0) ? info.jamsMin : info.freeMin;
       var str = "";
-      if (info.jamsMin && info.freeMin && info.jamsMin !== info.freeMin) {
-        str = '<b style="color:var(--ink);font-size:13.5px;">' + kmStr + '</b> · общее время: <b style="color:#dc2626;">' + fmtDuration(info.jamsMin) + ' (с пробками)</b> <span style="color:var(--muted);font-weight:600;">/</span> <b style="color:#16a34a;">' + fmtDuration(info.freeMin) + ' (без пробок)</b>';
-      } else if (info.jamsMin || info.freeMin) {
-        var m = info.jamsMin || info.freeMin;
-        str = '<b style="color:var(--ink);font-size:13.5px;">' + kmStr + '</b> · общее время: <b style="color:#2563eb;">' + fmtDuration(m) + ' (по дорогам)</b>';
+      if (tMin != null && tMin > 0) {
+        str = '<b style="color:var(--ink);font-size:13.5px;">' + kmStr + '</b> · общее время: <b style="color:#2563eb;">' + fmtDuration(tMin) + '</b>';
       } else {
-        str = '<b style="color:var(--ink);font-size:13.5px;">' + kmStr + '</b> (напрямую из карты)';
+        str = '<b style="color:var(--ink);font-size:13.5px;">' + kmStr + '</b>';
       }
       el.innerHTML = str;
       el.style.color = "var(--ink)";
@@ -7440,7 +7433,7 @@
 
     setTimeout(function () { lmHideLoading(); }, 12000); // страховка: скелетон не висит вечно
     var refreshBtn = document.getElementById('lm-refresh');
-    if (refreshBtn) refreshBtn.addEventListener('click', function () { lmOsrmCacheClear(); renderLiveMap(true); }); // обновить = свежие данные у OSRM
+    if (refreshBtn) refreshBtn.addEventListener('click', function () { lmOsrmCacheClear(); renderLiveMap(true); }); // обновить = свежие данные от роутера
 
     // Смена даты: строим маршруты выбранного дня (время суток сохраняется)
     var dateInp = document.getElementById('lm-date-inp');
@@ -7556,7 +7549,8 @@
 
   // Построение маршрута одного мастера: ТОЧКИ ЗАДАНИЙ ВСЕГДА на карте,
   // поверх — оптимизация OSRM trip + расписание дня
-  /* ===== Кэш геометрии OSRM (sessionStorage) =====
+  /* ===== Кэш геометрии единого роутера BRouter car (economic) (sessionStorage) =====
+     22.09-180: префикс ключей сменился на lmBr_ — старые числа OSRM из кэша не используются.
      Подпись = мастер + день + точки + база: повторное открытие карты
      местоположения не дёргает OSRM (лимиты!), маршруты появляются мгновенно.
      Кнопка «⟳ Обновить» сбрасывает кэш и берёт свежие данные. */
@@ -7564,7 +7558,7 @@
     if (dayOff == null) dayOff = (S.lmDay != null) ? S.lmDay : 0; // по умолчанию — день карты местоположения
     var s = m.id + '|' + dayOff + '|' + (base ? (+base.lat).toFixed(5) + ',' + (+base.lng).toFixed(5) : '');
     pts.forEach(function (p) { s += '|' + (+p.lat).toFixed(5) + ',' + (+p.lng).toFixed(5); });
-    return 'lmOsrm_' + s;
+    return 'lmBr_' + s; // 22.09-180: кэш единого роутера
   }
   function lmOsrmCached(m, pts, base, cb, dayOff) {
     var key = lmOsrmCacheKey(m, pts, base, dayOff);
@@ -7575,15 +7569,17 @@
         if (c && c.res && (Date.now() - c.ts) < 6 * 3600 * 1000) { cb(c.res); return; }
       }
     } catch (e) {}
-    fetchOSMRouteGeometry('osrm', pts, base, function (res) {
+    // 22.09-180: единый роутер BRouter car (economic) — те же числа, что на карте маршрутов
+    brouterCarDayRoute(pts, base, function (res) {
       try { if (res && res.ok) sessionStorage.setItem(key, JSON.stringify({ ts: Date.now(), res: res })); } catch (e) {}
       cb(res);
-    });
+    }, dayOff);
   }
   function lmOsrmCacheClear() {
     try {
       var del = [];
-      for (var i = 0; i < sessionStorage.length; i++) { var k = sessionStorage.key(i); if (k && k.indexOf('lmOsrm_') === 0) del.push(k); }
+      // 22.09-180: чистим оба поколения кэша (старый OSRM и новый единого роутера)
+      for (var i = 0; i < sessionStorage.length; i++) { var k = sessionStorage.key(i); if (k && (k.indexOf('lmBr_') === 0 || k.indexOf('lmOsrm_') === 0)) del.push(k); }
       del.forEach(function (k) { sessionStorage.removeItem(k); });
     } catch (e) {}
   }
@@ -7714,7 +7710,7 @@
         }
         if (statusEl) {
           if (coords) {
-            statusEl.innerHTML = '🚗 <b>' + String(Math.round(res.km * 10) / 10).replace('.', ',') + ' км</b> · весь маршрут ~' + res.min + ' мин' + (skipped ? ' · ⚠ ' + skipped + ' точка(и) без координат' : '');
+            statusEl.innerHTML = '🚗 <b>' + String(Math.round(res.km * 10) / 10).replace('.', ',') + ' км</b> · весь маршрут ~' + (res.jamMin || res.min) + ' мин' + (skipped ? ' · ⚠ ' + skipped + ' точка(и) без координат' : ''); // 22.09-180: время с пробками
             statusEl.style.color = 'var(--green)';
           } else {
             statusEl.innerHTML = '📍 Точки на карте · ⚠ ' + esc(res.msg || 'маршрут не построен');
@@ -7741,7 +7737,7 @@
     var legKm = [], legMin = [], sumKm = 0;
     for (var l = 0; l < nLegs; l++) {
       var lk = (legs[l] && legs[l].distance != null) ? legs[l].distance / 1000 : ((res && res.km) || 0) / nLegs;
-      var lv = (legs[l] && legs[l].duration != null) ? legs[l].duration / 60 : ((res && res.min) || 0) / nLegs;
+      var lv = (legs[l] && legs[l].duration != null) ? legs[l].duration / 60 : (((res && (res.jamMin || res.min)) || 0) / nLegs); // 22.09-180
       legKm.push(lk); legMin.push(Math.max(0.5, lv)); sumKm += lk;
     }
     var pk = polyKm || sumKm || 1e-9;
