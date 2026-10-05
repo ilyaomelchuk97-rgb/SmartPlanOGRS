@@ -193,6 +193,8 @@
     weekShift: 0, monthShift: 0, dayShift: 0,
     mapOff: 0,
     mapProvider: 'brouter-trek',
+    mapRouterOpts: null, // 22.09-178: {unpaved,toll,motorways} — настройки BRouter car-профилей
+    mapRouterOptsOpen: false, // 22.09-178: панель настроек роутера открыта?
     mapSel: {},
     baseId: 'b1',
     dashArea: null, // выбранный участок на панели мониторинга: действует во всех вкладках (кроме карты местоположения); null = все участки
@@ -219,6 +221,12 @@
       S.mapProvider = _savedProv;
     }
   } catch (e) {}
+  // 22.09-178: восстанавливаем настройки роутера из localStorage
+  try {
+    var _savedOpts = localStorage.getItem('smartplan_map_router_opts_v1');
+    if (_savedOpts) { var _oj = JSON.parse(_savedOpts); S.mapRouterOpts = { unpaved: !!_oj.unpaved, toll: !!_oj.toll, motorways: !!_oj.motorways }; }
+  } catch (e) {}
+  if (!S.mapRouterOpts) S.mapRouterOpts = { unpaved: false, toll: false, motorways: false };
   var CAP = 8; // ФРВ: рабочий день = 8 ч (Пн–Чт)
   function dayCapacity(off) { return offToDate(off).getDay() === 5 ? 7.25 : 8; } // Пт=7.25, остальное=8
 
@@ -745,7 +753,7 @@
     dashboard: ['Панель мониторинга', 'Сборка 22.09-173 · блок «Панель аналитики» удалён; выбор месяца для КПД и графика по дням — кнопкой-календарём в карточке «⚡ КПД мастеров»'],
     calendar: ['Планирование / Календарь', 'Сборка 22.09-159 · карточка задачи: у строки вида работ (work-row) запас справа 34px'],
     graphs: ['Планирование / График работ', 'Сборка 22.09-164 · кнопка «Трудоёмкость графика» — слева от «Фильтра»; «Праздничные дни» перенесены в «Графики смен»'],
-    map: ['Карта маршрутов', 'Сборка 22.09-177 · новые роутеры «🚗 BRouter car (economic)» и «🚴 BRouter velomobile»; постоянная кнопка «↗ Открыть в Яндекс карте» — маршрут база → задания → база в новой вкладке'],
+    map: ['Карта маршрутов', 'Сборка 22.09-178 · настройки роутера — кнопка ⚙ рядом с выбором роутера: галочки «избегать грунтовые / платные (БелТолл) / автомагистрали» (для BRouter car-fast и car-economic)'],
     objmap: ['Карта объектов', 'Сборка 22.09-137 · вид телеметрии «ПТК "Эксорт"» переименован в «ПТК "Эскорт"» — объекты и работы обновлены автоматически'],
     testmap: ['Тест проезда', 'Сборка 22.09-176 · исправлена загрузка 3D-планеты (был ошибочный адрес библиотеки карты) + добавлен запасной сервер, если первый не отвечает'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
@@ -4016,6 +4024,7 @@
         '<option value="osrm" ' + (prov === 'osrm' ? 'selected' : '') + '>OSRM (авто)</option>' +
         '<option value="valhalla" ' + (prov === 'valhalla' ? 'selected' : '') + '>Valhalla</option>' +
       '</select>' +
+      '<button class="btn sm' + (S.mapRouterOptsOpen ? ' on' : '') + '" id="btn-router-opts" type="button" title="Настройки роутера: избегать грунтовые / платные / автомагистрали — действует для BRouter car-fast и car (economic)" style="font-weight:700">' + (S.mapRouterOptsOpen ? '⚙×' : '⚙') + '</button>' + // 22.09-178
       '<button class="btn sm" id="btn-traffic-main" title="Слой Яндекс.Пробок: цвета загруженности и события (аварии, ремонт) на карте" style="background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;border-color:#16a34a;font-weight:700">🚦 Пробки</button>' +
     '</div>';
 
@@ -4032,6 +4041,15 @@
       '<div class="spacer"></div>' +
       provSelHTML +
       '</div>';
+    // 22.09-178: раскрывающаяся панель настроек роутера
+    var _ro = S.mapRouterOpts || {};
+    html += '<div id="router-opts-row" style="display:' + (S.mapRouterOptsOpen ? 'flex' : 'none') + ';align-items:center;gap:16px;flex-wrap:wrap;padding:8px 12px;margin-top:6px;background:var(--card);border:1px solid var(--line);border-radius:10px;">' +
+      '<span style="font-size:12px;font-weight:700;color:var(--ink);">⚙ Настройки роутера:</span>' +
+      '<label title="Запретить проезд по грунтовым дорогам (грейдерам)" style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--ink);cursor:pointer;"><input type="checkbox" data-router-opt="unpaved" ' + (_ro.unpaved ? 'checked' : '') + ' style="width:15px;height:15px;cursor:pointer;">🚫 Грунтовые дороги — избегать</label>' +
+      '<label title="Строить маршрут в объезд платных дорог (БелТолл)" style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--ink);cursor:pointer;"><input type="checkbox" data-router-opt="toll" ' + (_ro.toll ? 'checked' : '') + ' style="width:15px;height:15px;cursor:pointer;">💰 Платные дороги — избегать</label>' +
+      '<label title="Строить маршрут без автомагистралей" style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--ink);cursor:pointer;"><input type="checkbox" data-router-opt="motorways" ' + (_ro.motorways ? 'checked' : '') + ' style="width:15px;height:15px;cursor:pointer;">🛣 Автомагистрали — избегать</label>' +
+      '<span style="font-size:11px;color:var(--muted);font-weight:600;">действует для роутеров «🚗 car-fast» и «🚗 car (economic)»; стиль «быстрый/экономный» выбирается самим роутером</span>' +
+    '</div>';
 
     var masterSelHTML = '<select id="map-master-sel" style="padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:var(--card);color:var(--ink);font-weight:600;width:100%;max-width:none;margin-top:8px;">';
     if (masters.length > 1) {
@@ -4086,6 +4104,28 @@
       try { localStorage.setItem('smartplan_map_provider', S.mapProvider); } catch (er) {}
       renderMap();
     });
+
+    // 22.09-178: кнопка ⚙ — показать/спрятать панель настроек роутера
+    var roBtn = document.getElementById('btn-router-opts');
+    if (roBtn) roBtn.addEventListener('click', function(e) {
+      e.preventDefault(); e.stopPropagation();
+      S.mapRouterOptsOpen = !S.mapRouterOptsOpen;
+      roBtn.classList.toggle('on', S.mapRouterOptsOpen);
+      roBtn.textContent = S.mapRouterOptsOpen ? '⚙×' : '⚙';
+      var roRow = document.getElementById('router-opts-row');
+      if (roRow) roRow.style.display = S.mapRouterOptsOpen ? 'flex' : 'none';
+    });
+    // 22.09-178: галочки настроек — сохраняем (применятся при следующем расчёте маршрута)
+    var roCbs = document.querySelectorAll('#router-opts-row input[data-router-opt]');
+    for (var _ri = 0; _ri < roCbs.length; _ri++) {
+      roCbs[_ri].addEventListener('change', function(e) {
+        var k = e.target.dataset.routerOpt;
+        if (!S.mapRouterOpts) S.mapRouterOpts = { unpaved: false, toll: false, motorways: false };
+        S.mapRouterOpts[k] = !!e.target.checked;
+        try { localStorage.setItem('smartplan_map_router_opts_v1', JSON.stringify(S.mapRouterOpts)); } catch (er) {}
+        try { toast('ok', '⚙ Настройка роутера сохранена — новый маршрут посчитается уже с ней'); } catch (er) {}
+      });
+    }
 
     var mlist = document.getElementById('mlist');
 
@@ -4345,6 +4385,21 @@
     try { logAction('Карта маршрутов: маршрут открыт в Яндекс.Картах (база → ' + sel.length + ' точек → база)'); } catch (e) {}
     window.open(url, '_blank', 'noopener');
     toast('ok', '↗ Открываю Яндекс.Карты: база → ' + sel.length + ' точек → база');
+  }
+
+  /* 22.09-178: фрагмент запроса BRouter с настройками роутера.
+     Сервер BRouter умеет переопределять параметры профиля прямо в URL (profile:имя=значение) —
+     проверено живым запросом (официальный пример avoid_unsafe меняет маршрут: 1165 → 1455).
+     Действует только для car-профилей (car-fast / car-eco): в них есть
+     assign avoid_unpaved / avoid_toll / avoid_motorways. */
+  function mapRouterOptsQuery(prov) {
+    if (prov !== 'brouter-car' && prov !== 'brouter-car-eco') return '';
+    var o = S.mapRouterOpts || {};
+    var q = '';
+    if (o.unpaved) q += '&profile:avoid_unpaved=1';
+    if (o.toll) q += '&profile:avoid_toll=1';
+    if (o.motorways) q += '&profile:avoid_motorways=1';
+    return q;
   }
 
   // 2. Отображение начальной карты при заходе на страницу (БЕЗ изменения порядка заданий!)
@@ -5673,7 +5728,7 @@
           return;
         }
         var brUrl = 'https://brouter.de/brouter?lonlats=' + encodeURIComponent(lonlatsBR.join('|')) +
-          '&profile=' + encodeURIComponent(brProfile) + '&alternativeidx=0&format=geojson';
+          '&profile=' + encodeURIComponent(brProfile) + '&alternativeidx=0&format=geojson' + mapRouterOptsQuery(prov); // 22.09-178: настройки роутера (profile:*)
         var brCtrl = (typeof AbortController === 'function') ? new AbortController() : null;
         var brTimer = setTimeout(function () { try { if (brCtrl) brCtrl.abort(); } catch (e) {} }, 30000);
         fetch(brUrl, brCtrl ? { signal: brCtrl.signal } : {})
