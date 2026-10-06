@@ -742,7 +742,7 @@
 
   var TITLES = {
     dashboard: ['Панель мониторинга', 'Сборка 22.09-173 · блок «Панель аналитики» удалён; выбор месяца для КПД и графика по дням — кнопкой-календарём в карточке «⚡ КПД мастеров»'],
-    calendar: ['Планирование / Календарь', 'Сборка 22.09-180 · плашки «🚗 время · км» к заданию считает единый роутер BRouter car (economic), время — с учётом пробок: совпадает с картой маршрутов'],
+    calendar: ['Планирование / Календарь', 'Сборка 22.09-181 · при отметке задачи выполненной (галочка) проставляется дата закрытия — закрытые задачи собраны на новой странице «Списания»'],
     graphs: ['Планирование / График работ', 'Сборка 22.09-164 · кнопка «Трудоёмкость графика» — слева от «Фильтра»; «Праздничные дни» перенесены в «Графики смен»'],
     map: ['Карта маршрутов', 'Сборка 22.09-180 · шапка: километраж и ОДНО общее время — с учётом пробок (без лишних подписей); карточки заданий, планирование, карта местоположения и Гант-шкала считаются тем же единым роутером — цифры везде совпадают'],
     objmap: ['Карта объектов', 'Сборка 22.09-137 · вид телеметрии «ПТК "Эксорт"» переименован в «ПТК "Эскорт"» — объекты и работы обновлены автоматически'],
@@ -751,6 +751,7 @@
     livemap: ['Карта местоположения', 'Сборка 22.09-180 · маршруты, «весь маршрут ~N мин» и расписание дня считает единый роутер BRouter car (economic), время — с учётом пробок: совпадает с картой маршрутов'],
     perms: ['Разрешения', 'Система разрешений на производство работ'],
     refs: ['Справочники', 'Сборка 22.09-162 · карточка работы ГРП: «Проводится совместно» теперь выбирается в отдельном окне (кнопка «📋 Выбор работ») — галочки, «Сохранить»/«Отмена»'],
+    writeoffs: ['Списания', 'Сборка 22.09-181 · закрытые в планировании задачи списком: плановая дата и дата закрытия, поиск сверху; клик по карточке — окно с адресом, работой, мастером, слесарями и видами работ'],
     workers: ['Работники', 'Сборка 22.09-172 · окно карточки работника — ровно по ширине карточки (560px): без пустого места справа; панель и календарь — на всю ширину окна'],
     schedules: ['Графики смен', 'Сборка 22.09-164 · добавлена кнопка «🎉 Праздничные дни» (из графика работ) — слева от выбора месяца'],
     users: ['Пользователи', 'Сборка 22.09-161 · увольнение работников: кнопка «Уволить» с датой, блок «Уволенные» с восстановлением; в истории задач ФИО остаются'],
@@ -15793,6 +15794,7 @@
             ex.m = document.getElementById('f-master').value; ex.d = off; ex.dl = dl;
             ex.volume = volume; ex.volumes = volsArr; ex.slesari = slesariArr; ex.brigade = brigadeFlag; ex.dl_date = dlDate; ex.needs_permit = needsPermit; ex.depends_on_snow = snowDep;
             ex.lat = lat; ex.lng = lng; ex.coord_src = coordSrc;
+            if ((ex.s || ex.status) === 'done') stampTaskDoneDate(ex, true); // 22.09-181: закрытая без даты — проставить
             var _opEl = document.getElementById('f-offplan');
             if (_opEl && _opEl.checked) ex.offplan = true; else delete ex.offplan;
             if (TASKS_DB) { TASKS_DB.updateTask(ex.id, ex); S.tasks = TASKS_DB.getTasks(); }
@@ -16168,6 +16170,146 @@
     document.getElementById('sidebar').classList.remove('open');
     refresh();
   }
+  /* =====================================================================
+     РЕНДЕР: СПИСАНИЯ (закрытые в планировании задачи)
+     22.09-181: страница в меню под «Справочниками» — список закрытых задач
+     с плановой датой и датой закрытия, поиск сверху; клик по карточке —
+     окно с адресом, работой, мастером, слесарями и видами работ.
+     ===================================================================== */
+
+  // 22.09-181: проставить/снять дату закрытия задачи (вызывается при отметке «выполнено»)
+  function stampTaskDoneDate(t, nowDone) {
+    if (!t) return;
+    if (nowDone) { if (!t.done_date) t.done_date = key(new Date()); }
+    else { delete t.done_date; }
+  }
+
+  // Плановая дата задачи ISO ('YYYY-MM-DD'), '' если дня нет
+  function writeoffPlanIso(t) { return (t && t.d != null) ? key(offToDate(t.d)) : ''; }
+  // Дата закрытия ISO: записанная при закрытии; для старых задач без неё — плановая
+  function writeoffCloseIso(t) { return (t && t.done_date) ? t.done_date : writeoffPlanIso(t); }
+
+  // Названия видов работ задачи (для списка и окна списания)
+  function writeoffWorkNames(t) {
+    if (!t) return [];
+    var m = masterById(t.m);
+    var area = (t.garea != null && t.garea !== '') ? t.garea : (m ? m.area : null);
+    var ids = (t.works && t.works.length) ? t.works : (t.w ? [t.w] : []);
+    return ids.map(function (wid) {
+      var w = area ? WORK.getWork(area, wid) : WORK_MAP[wid];
+      return w ? w.name : String(wid || '?');
+    });
+  }
+
+  // Слесаря задачи строкой: конкретные ФИО или «Вся бригада участка»
+  function writeoffSlesariNames(t) {
+    if (!t) return '—';
+    if (t.brigade) return 'Вся бригада участка';
+    if (t.slesari && t.slesari.length) {
+      return t.slesari.map(function (id) { var u = DB.getUser(id); return u ? u.full_name : String(id); }).join(', ');
+    }
+    return '—';
+  }
+
+  // Закрытые задачи, видимые текущей роли: свежие закрытия сверху
+  function writeoffDoneTasks() {
+    return visibleTasks().filter(function (t) { return isDone(t); }).sort(function (a, b) {
+      var ka = writeoffCloseIso(a), kb = writeoffCloseIso(b);
+      if (ka !== kb) return ka < kb ? 1 : -1;
+      var pa = writeoffPlanIso(a), pb = writeoffPlanIso(b);
+      if (pa !== pb) return pa < pb ? 1 : -1;
+      return String(a.id).localeCompare(String(b.id));
+    });
+  }
+
+  function renderWriteoffs() {
+    var view = document.getElementById('view'); if (!view) return;
+    if (S.woQuery == null) S.woQuery = '';
+    var html = '<div class="card" style="margin-bottom:12px"><div class="card-b">' +
+      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
+        '<input id="wo-search" type="text" value="' + esc(S.woQuery) + '" placeholder="🔍 Поиск: адрес, работа, мастер, слесарь, дата…" style="flex:1;min-width:220px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;background:var(--card);color:var(--ink)">' +
+        '<span id="wo-count" style="font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap"></span>' +
+      '</div></div></div>' +
+      '<div id="wo-list"></div>';
+    view.innerHTML = html;
+    woRenderList();
+    var inp = document.getElementById('wo-search');
+    if (inp) inp.addEventListener('input', function () { S.woQuery = inp.value; woRenderList(); });
+  }
+
+  // Список закрытых задач с учётом строки поиска (перерисовывается без потери фокуса в поле)
+  function woRenderList() {
+    var host = document.getElementById('wo-list'); if (!host) return;
+    var q = (S.woQuery || '').trim().toLowerCase();
+    var all = writeoffDoneTasks();
+    var items = all;
+    if (q) {
+      items = all.filter(function (t) {
+        var m = masterById(t.m), w = workOf(t);
+        var hay = [addrOf(t), w ? w.name : '', m ? m.name : '', writeoffSlesariNames(t),
+          writeoffWorkNames(t).join(' '), fmtDmyIso(writeoffPlanIso(t)), fmtDmyIso(writeoffCloseIso(t)),
+          writeoffPlanIso(t), writeoffCloseIso(t)].join('\n').toLowerCase();
+        return hay.indexOf(q) !== -1;
+      });
+    }
+    var cnt = document.getElementById('wo-count');
+    if (cnt) cnt.textContent = q ? ('Найдено: ' + items.length + ' из ' + all.length) : ('Всего: ' + all.length);
+    if (!all.length) {
+      host.innerHTML = '<div class="card"><div class="card-b"><div class="empty">Закрытых задач пока нет.<br><span style="font-size:12px">Отметьте задачу выполненной в «Планировании» — она появится здесь с датой закрытия.</span></div></div></div>';
+      return;
+    }
+    if (!items.length) {
+      host.innerHTML = '<div class="card"><div class="card-b"><div class="empty">По запросу «' + esc(S.woQuery) + '» ничего не найдено.</div></div></div>';
+      return;
+    }
+    var html = '';
+    items.forEach(function (t) {
+      var w = workOf(t), m = masterById(t.m);
+      var planIso = writeoffPlanIso(t), closeIso = writeoffCloseIso(t);
+      var legacy = !t.done_date; // задача закрыта до появления даты закрытия — дата по плановой
+      html += '<div class="card" style="margin-bottom:10px"><div class="card-b" data-action="wo-open" data-tid="' + esc(t.id) + '" style="cursor:pointer;display:flex;align-items:center;gap:14px;flex-wrap:wrap" title="Нажмите — подробности списания">' +
+        '<div style="flex:1;min-width:220px">' +
+          '<div style="font-weight:700;color:var(--ink);font-size:13.5px;margin-bottom:3px">📍 ' + esc(addrOf(t)) + '</div>' +
+          '<div style="font-size:12px;color:var(--txt);margin-bottom:2px">🔧 ' + esc(w ? w.name : '?') + '</div>' +
+          '<div style="font-size:11.5px;color:var(--muted)">👷 ' + esc(m ? m.name : '?') + ' · ' + esc(m ? m.area : '') + '</div>' +
+        '</div>' +
+        '<div style="text-align:right;font-size:12px;line-height:1.6;white-space:nowrap">' +
+          '<div style="color:var(--muted);font-weight:600">📅 План: <b style="color:var(--ink)">' + esc(fmtDmyIso(planIso)) + '</b></div>' +
+          '<div style="color:var(--muted);font-weight:600">✅ Закрыта: <b style="color:#16a34a">' + esc(fmtDmyIso(closeIso)) + '</b>' + (legacy ? ' <span style="color:var(--muted)" title="Задача закрыта до появления даты закрытия — показана плановая дата">≈</span>' : '') + '</div>' +
+        '</div></div></div>';
+    });
+    host.innerHTML = html;
+  }
+
+  // Окно подробностей списания: адрес, работа, мастер, слесаря, даты, виды работ
+  function openWriteoffModal(tid) {
+    var t = findTask(tid); if (!t) return;
+    var w = workOf(t), m = masterById(t.m);
+    var planIso = writeoffPlanIso(t), closeIso = writeoffCloseIso(t);
+    function row(lbl, valHtml) {
+      return '<div style="display:flex;justify-content:space-between;gap:14px;padding:8px 0;border-bottom:1px dashed var(--line)">' +
+        '<div style="font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap">' + lbl + '</div>' +
+        '<div style="font-size:13px;color:var(--ink);font-weight:600;text-align:right">'+ valHtml + '</div></div>';
+    }
+    var workRows = writeoffWorkNames(t).map(function (name) {
+      return '<div style="padding:6px 10px;border:1px solid var(--line);border-radius:7px;background:var(--card);font-size:12.5px;color:var(--ink);font-weight:600;margin-bottom:5px">🔧 ' + esc(name) + '</div>';
+    }).join('') || '<div style="color:var(--muted);font-size:12.5px">—</div>';
+    var h = '<div class="modal-h" style="background:#16a34a;color:#fff"><h3 style="color:#fff">✅ Списание задачи</h3><button class="x" data-action="close-modal" style="color:#fff">×</button></div>';
+    h += '<div class="modal-b">';
+    h += row('📍 Адрес', esc(addrOf(t)));
+    h += row('🔧 Работа', esc(w ? w.name : '?'));
+    h += row('👷 Мастер', esc(m ? m.name : '?') + (m && m.area ? ' <span style="color:var(--muted);font-weight:600">(' + esc(m.area) + ')</span>' : ''));
+    h += row('🧰 Слесаря', esc(writeoffSlesariNames(t)));
+    h += row('📅 Плановая дата', esc(fmtDmyIso(planIso)));
+    h += row('✅ Дата закрытия', '<b style="color:#16a34a">' + esc(fmtDmyIso(closeIso)) + '</b>');
+    h += '<div style="margin:14px 0 7px;font-size:12px;color:var(--muted);font-weight:700">Виды работ (из этой задачи):</div>' + workRows;
+    h += '</div>';
+    h += '<div class="modal-f"><button class="btn" data-action="close-modal">Закрыть</button></div>';
+    modal.style.maxWidth = '';
+    modal.innerHTML = h;
+    overlay.classList.add('show');
+  }
+
   function refresh() {
     window.reRenderCurrentScreen = refresh;
     reconcileFiredResponsibles(); // 22.09-161: уволенных мастеров снять с объектов по дате увольнения
@@ -16240,6 +16382,7 @@
     else if (S.screen === 'workers') renderWorkers();
     else if (S.screen === 'schedules') renderSchedules();
     else if (S.screen === 'refs') renderRefs();
+    else if (S.screen === 'writeoffs') renderWriteoffs(); // 22.09-181
     else if (S.screen === 'users') renderUsers();
     else if (S.screen === 'reports') renderReports();
     else if (S.screen === 'logs') renderLogs();
@@ -16392,11 +16535,13 @@
       var nowDone = el.checked;
       tdTask.s = nowDone ? 'done' : 'plan';
       tdTask.status = nowDone ? 'done' : 'plan';
+      stampTaskDoneDate(tdTask, nowDone); // 22.09-181: дата закрытия для страницы «Списания»
       if (TASKS_DB) { TASKS_DB.updateTask(tdTask.id, tdTask); }
       invalidateRouteCache(tdTask.m, tdTask.d);
       drawCalendarGrid();
       toast('ok', nowDone ? '✓ Отмечено выполненным' : 'Возвращено в план');
     }
+    else if (a === 'wo-open') { openWriteoffModal(el.dataset.tid); } // 22.09-181
     else if (a === 'close-modal') { closeTaskObjectPickers(); overlay.classList.remove('show'); modal.style.maxWidth = ''; modal.style.width = ''; if (S.wkModalUid && S.screen === 'workers') renderWorkers(); S.wkModalUid = null; S.wmJointSel = null; /* 22.09-162 */ }
     else if (a === 'close-modal2') { var ov2 = document.getElementById('overlay2'); if (ov2) ov2.classList.remove('show'); } // 22.09-162
     else if (a === 'wm-joint-pick') { openWmJointPickModal(); } // 22.09-162
