@@ -751,7 +751,7 @@
     livemap: ['Карта местоположения', 'Сборка 22.09-180 · маршруты, «весь маршрут ~N мин» и расписание дня считает единый роутер BRouter car (economic), время — с учётом пробок: совпадает с картой маршрутов'],
     perms: ['Разрешения', 'Система разрешений на производство работ'],
     refs: ['Справочники', 'Сборка 22.09-162 · карточка работы ГРП: «Проводится совместно» теперь выбирается в отдельном окне (кнопка «📋 Выбор работ») — галочки, «Сохранить»/«Отмена»'],
-    writeoffs: ['Списания', 'Сборка 22.09-183 · окно списания: виды работ с переключением (по 2), справа материалы из 1С (тестово), снизу блок списания — перенос кнопкой «+» или перетаскиванием'],
+    writeoffs: ['Списания', 'Сборка 22.09-185 · окно списания: у каждого вида работ свой список материалов — виды работ переключаются тэгами (со счётчиками), справа материалы из 1С (тестово), перенос кнопкой «+» или перетаскиванием, итог по работе и по задаче'],
     workers: ['Работники', 'Сборка 22.09-172 · окно карточки работника — ровно по ширине карточки (560px): без пустого места справа; панель и календарь — на всю ширину окна'],
     schedules: ['Графики смен', 'Сборка 22.09-164 · добавлена кнопка «🎉 Праздничные дни» (из графика работ) — слева от выбора месяца'],
     users: ['Пользователи', 'Сборка 22.09-161 · увольнение работников: кнопка «Уволить» с датой, блок «Уволенные» с восстановлением; в истории задач ФИО остаются'],
@@ -15224,11 +15224,13 @@
   }
 
   /* =====================================================================
-     22.09-183: ОКНО СПИСАНИЯ — материалы
+     22.09-185: ОКНО СПИСАНИЯ — материалы ПО ВИДАМ РАБОТ
      Справа — широкий столбец с материалами из 1С (пока тестовые данные):
-     материал, количество, ед. изм., стоимость. Снизу под видами работ —
-     блок «Материалы к списанию»: что и сколько списываем. Перенос —
-     кнопкой «+» или перетаскиванием строки (как задачи в планировании).
+     материал, количество, ед. изм., стоимость. Виды работ задачи —
+     переключаемые кнопки-тэги: у каждой работы СВОЙ список списания.
+     Снизу — блок «Материалы к списанию» выбранной работы: что и сколько
+     списываем. Перенос — кнопкой «+» или перетаскиванием строки (как
+     задачи в планировании) — материал попадает в выбранную работу.
      ===================================================================== */
 
   // Тестовые материалы «из 1С» — потом заменятся на реальную выгрузку
@@ -15237,13 +15239,13 @@
       { id: 'wm1',  name: 'Труба ПЭ100 SDR11 63 мм',            qty: 48,  unit: 'м',  price: 14.25 },
       { id: 'wm2',  name: 'Труба ПЭ100 SDR17,6 110 мм',         qty: 24,  unit: 'м',  price: 28.60 },
       { id: 'wm3',  name: 'Муфта электросварная 63 мм',         qty: 14,  unit: 'шт', price: 9.80 },
-      { id: 'wm4',  name: 'Отвод ПЭ 90\u00B0 63 мм',          qty: 8,   unit: 'шт', price: 11.40 },
+      { id: 'wm4',  name: 'Отвод ПЭ 90° 63 мм',                 qty: 8,   unit: 'шт', price: 11.40 },
       { id: 'wm5',  name: 'Кран шаровой ПЭ Ду 63',              qty: 2,   unit: 'шт', price: 240.00 },
-      { id: 'wm6',  name: 'Седелка сварная 110\u00D763',      qty: 6,   unit: 'шт', price: 17.95 },
-      { id: 'wm7',  name: 'Лента сигнальная \u00ABГаз\u00BB 250 мм',      qty: 180, unit: 'м',  price: 0.42 },
+      { id: 'wm6',  name: 'Седелка сварная 110×63',             qty: 6,   unit: 'шт', price: 17.95 },
+      { id: 'wm7',  name: 'Лента сигнальная «Газ» 250 мм',      qty: 180, unit: 'м',  price: 0.42 },
       { id: 'wm8',  name: 'Проволока сопроводительная (медь)',  qty: 180, unit: 'м',  price: 0.85 },
       { id: 'wm9',  name: 'Манжета резиновая 110 мм',           qty: 10,  unit: 'шт', price: 6.30 },
-      { id: 'wm10', name: 'Паста уплотнительная \u00ABУнипак\u00BB',      qty: 3,   unit: 'шт', price: 5.55 }
+      { id: 'wm10', name: 'Паста уплотнительная «Унипак»',      qty: 3,   unit: 'шт', price: 5.55 }
     ];
   }
 
@@ -15267,7 +15269,22 @@
     return String(v).replace('.', ',');
   }
 
-  // Итого по выбранным к списанию материалам (руб.)
+  // Список списания конкретного вида работ текущей задачи (создаётся по требованию)
+  function woSelGroup(wi) {
+    if (!S.woTid) return [];
+    if (!S.woSelByWork) S.woSelByWork = {};
+    var g = S.woSelByWork[S.woTid] || (S.woSelByWork[S.woTid] = {});
+    return g[wi] || (g[wi] = []);
+  }
+
+  // Выбрать вид работ для списания (активный тэг): его список — живая ссылка в S.woSelMats
+  function woPickWork(wi) {
+    S.woWorkIdx = wi;
+    S.woSelMats = woSelGroup(wi);
+    woRenderWorks(); woRenderMats(); woRenderSel();
+  }
+
+  // Итого по выбранному виду работ (руб.)
   function woSelTotal() {
     var tot = 0;
     (S.woSelMats || []).forEach(function (it) {
@@ -15277,34 +15294,40 @@
     return tot;
   }
 
+  // Итого по всей задаче — сумма списаний всех видов работ (руб.)
+  function woGrandTotal() {
+    var tot = 0;
+    var g = (S.woSelByWork && S.woTid) ? S.woSelByWork[S.woTid] : null;
+    if (g) for (var k in g) {
+      (g[k] || []).forEach(function (it) {
+        var mat = woMatById(it.id);
+        if (mat) tot += mat.price * (+it.qty || 0);
+      });
+    }
+    return tot;
+  }
+
   function woSelHas(id) {
     return (S.woSelMats || []).some(function (it) { return it.id === id; });
   }
 
-  // Виды работ: по 2 на экран, если больше — стрелки переключения
+  // Виды работ задачи — переключаемые кнопки-тэги; у активной зелёная подсветка, на каждой счётчик позиций
   function woRenderWorks() {
     var host = document.getElementById('wo-works'); if (!host) return;
     var t = findTask(S.woTid); if (!t) return;
     var names = writeoffWorkNames(t);
     if (!names.length) { host.innerHTML = '<div style="color:var(--muted);font-size:12.5px">—</div>'; return; }
-    var pages = Math.ceil(names.length / 2);
-    if (S.woWorkPage == null) S.woWorkPage = 0;
-    if (S.woWorkPage > pages - 1) S.woWorkPage = pages - 1;
-    if (S.woWorkPage < 0) S.woWorkPage = 0;
-    var from = S.woWorkPage * 2;
-    var slice = names.slice(from, from + 2);
+    if (S.woWorkIdx == null || S.woWorkIdx < 0 || S.woWorkIdx > names.length - 1) S.woWorkIdx = 0;
+    if (!S.woSelMats) S.woSelMats = woSelGroup(S.woWorkIdx);
     var html = '';
-    slice.forEach(function (name) {
-      html += '<div style="padding:6px 10px;border:1px solid var(--line);border-radius:7px;background:var(--card);font-size:12.5px;color:var(--ink);font-weight:600;margin-bottom:5px">\uD83D\uDD27 ' + esc(name) + '</div>';
+    names.forEach(function (name, wi) {
+      var cnt = woSelGroup(wi).length;
+      var on = wi === S.woWorkIdx;
+      html += '<button type="button" data-action="wo-work-pick" data-idx="' + wi + '" title="Списывать материалы по этой работе" style="display:inline-flex;align-items:center;gap:5px;margin:0 6px 6px 0;padding:5px 11px;border:' + (on ? '2px solid #16a34a' : '1px solid var(--line)') + ';border-radius:999px;background:' + (on ? '#dcfce7' : 'var(--card)') + ';color:var(--ink);font-size:12px;font-weight:' + (on ? '800' : '600') + ';cursor:pointer;font-family:inherit">' +
+        '🔧 ' + esc(name) +
+        '<span style="min-width:17px;text-align:center;background:' + (cnt ? '#16a34a' : '#e2e8f0') + ';color:' + (cnt ? '#fff' : 'var(--muted)') + ';border-radius:999px;padding:1px 5px;font-size:10px;font-weight:800">' + cnt + '</span>' +
+      '</button>';
     });
-    if (pages > 1) {
-      var bs = 'width:30px;height:26px;border:1px solid var(--line);border-radius:6px;background:var(--card);cursor:pointer;font-size:14px;line-height:1;display:inline-flex;align-items:center;justify-content:center;color:var(--ink);padding:0';
-      html += '<div style="display:flex;align-items:center;gap:8px;margin-top:2px">' +
-        '<button type="button" style="' + bs + (S.woWorkPage <= 0 ? ';opacity:.35;cursor:default' : '') + '"' + (S.woWorkPage > 0 ? ' data-action="wo-work-prev" title="Предыдущие"' : ' disabled') + '>\u2039</button>' +
-        '<span style="font-size:11.5px;color:var(--muted);font-weight:700">' + (from + 1) + '\u2013' + (from + slice.length) + ' из ' + names.length + '</span>' +
-        '<button type="button" style="' + bs + (S.woWorkPage >= pages - 1 ? ';opacity:.35;cursor:default' : '') + '"' + (S.woWorkPage < pages - 1 ? ' data-action="wo-work-next" title="Следующие"' : ' disabled') + '>\u203A</button>' +
-      '</div>';
-    }
     host.innerHTML = html;
   }
 
@@ -15314,28 +15337,38 @@
     var grid = 'display:grid;grid-template-columns:minmax(0,1fr) 78px 96px 32px;gap:6px;align-items:center';
     var html = '<div style="' + grid + ';padding:6px 10px;background:#f1f5f9;border:1px solid var(--line);border-radius:8px 8px 0 0;font-size:10.5px;color:var(--muted);font-weight:800;letter-spacing:.4px">' +
       '<div>МАТЕРИАЛ (ИЗ 1С)</div><div style="text-align:right">КОЛ-ВО</div><div style="text-align:right">ЦЕНА</div><div></div></div>';
-    wo1cMaterials().forEach(function (mat, mi) {
-      var added = woSelHas(mat.id);
-      html += '<div draggable="true" data-wmat="' + mat.id + '" style="' + grid + ';padding:8px 10px;border:1px solid var(--line);border-top:none;background:var(--card);cursor:grab' + (added ? ';opacity:.55' : '') + (mi === wo1cMaterials().length - 1 ? ';border-radius:0 0 8px 8px' : '') + '" title="Перетащите в блок \u00ABМатериалы к списанию\u00BB или нажмите +">' +
-        '<div style="font-size:12.5px;color:var(--ink);font-weight:600;line-height:1.3">\u283F ' + esc(mat.name) + '</div>' +
+    var mats = wo1cMaterials();
+    mats.forEach(function (mat, mi) {
+      var added = woSelHas(mat.id); // галочка — если материал уже есть в ВЫБРАННОЙ работе (в других работах он может быть тоже)
+      html += '<div draggable="true" data-wmat="' + mat.id + '" style="' + grid + ';padding:8px 10px;border:1px solid var(--line);border-top:none;background:var(--card);cursor:grab' + (added ? ';opacity:.55' : '') + (mi === mats.length - 1 ? ';border-radius:0 0 8px 8px' : '') + '" title="Перетащите в блок «Материалы к списанию» или нажмите +">' +
+        '<div style="font-size:12.5px;color:var(--ink);font-weight:600;line-height:1.3">⠿ ' + esc(mat.name) + '</div>' +
         '<div style="font-size:12px;color:var(--ink);font-weight:600;text-align:right;white-space:nowrap">' + woFmtQty(mat.qty) + ' ' + esc(mat.unit) + '</div>' +
         '<div style="font-size:12px;color:var(--ink);text-align:right;white-space:nowrap">' + esc(woFmtMoney(mat.price)) + '</div>' +
         (added
-          ? '<div style="text-align:center;color:#16a34a;font-weight:800" title="Уже в списке списания">\u2713</div>'
-          : '<button type="button" data-action="wo-mat-add" data-mid="' + mat.id + '" title="Добавить к списанию" style="width:28px;height:28px;border:1px solid #16a34a;border-radius:7px;background:#f0fdf4;color:#16a34a;font-size:16px;font-weight:800;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center;padding:0">+</button>') +
+          ? '<div style="text-align:center;color:#16a34a;font-weight:800" title="Уже есть в списании выбранной работы">✓</div>'
+          : '<button type="button" data-action="wo-mat-add" data-mid="' + mat.id + '" title="Добавить к списанию выбранной работы" style="width:28px;height:28px;border:1px solid #16a34a;border-radius:7px;background:#f0fdf4;color:#16a34a;font-size:16px;font-weight:800;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center;padding:0">+</button>') +
       '</div>';
     });
     host.innerHTML = html;
     woBindMatsDnD();
   }
 
-  // Нижний блок: материалы к списанию (что и сколько списываем)
+  // Нижний блок: материалы к списанию ВЫБРАННОЙ работы (что и сколько списываем)
   function woRenderSel() {
     var host = document.getElementById('wo-sel'); if (!host) return;
+    var t = findTask(S.woTid);
+    var names = t ? writeoffWorkNames(t) : [];
+    var actName = names.length ? names[S.woWorkIdx || 0] : '';
+    var tit = document.getElementById('wo-sel-title');
+    if (tit) tit.innerHTML = names.length
+      ? 'Материалы к списанию — работа <b style="color:#16a34a">«' + esc(actName) + '»</b>:'
+      : 'Материалы к списанию (что и сколько списываем):';
     var sel = S.woSelMats || [];
     var html = '';
     if (!sel.length) {
-      html = '<div style="padding:16px 10px;text-align:center;color:var(--muted);font-size:12.5px;line-height:1.5">Пока пусто.<br>Нажмите <b style="color:#16a34a">+</b> у материала в правом блоке<br>или перетащите его сюда.</div>';
+      html = '<div style="padding:16px 10px;text-align:center;color:var(--muted);font-size:12.5px;line-height:1.5">' +
+        (names.length ? 'По этой работе пока пусто.<br>' : 'Пока пусто.<br>') +
+        'Нажмите <b style="color:#16a34a">+</b> у материала в правом блоке<br>или перетащите его сюда' + (names.length > 1 ? ' — попадёт именно в эту работу.' : '.') + '</div>';
     } else {
       sel.forEach(function (it) {
         var mat = woMatById(it.id); if (!mat) return;
@@ -15343,16 +15376,27 @@
           '<div style="font-size:12.5px;color:var(--ink);font-weight:600;line-height:1.3">' + esc(mat.name) + '</div>' +
           '<div style="display:flex;align-items:center;gap:4px"><input type="number" min="0" step="0.01" value="' + String(+it.qty || 0) + '" data-woqty="' + it.id + '" style="width:60px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;font-family:inherit;background:var(--card);color:var(--ink);text-align:right"><span style="font-size:11px;color:var(--muted);font-weight:700">' + esc(mat.unit) + '</span></div>' +
           '<div id="wo-sum-' + it.id + '" style="font-size:11.5px;color:var(--ink);font-weight:700;text-align:right;white-space:nowrap">' + esc(woFmtMoney(mat.price * (+it.qty || 0))) + '</div>' +
-          '<button type="button" data-action="wo-mat-del" data-mid="' + it.id + '" title="Убрать из списания" style="width:24px;height:24px;border:none;border-radius:6px;background:transparent;color:#dc2626;font-size:15px;font-weight:800;cursor:pointer;line-height:1;padding:0">\u00D7</button>' +
+          '<button type="button" data-action="wo-mat-del" data-mid="' + it.id + '" title="Убрать из списания" style="width:24px;height:24px;border:none;border-radius:6px;background:transparent;color:#dc2626;font-size:15px;font-weight:800;cursor:pointer;line-height:1;padding:0">×</button>' +
         '</div>';
       });
-      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 2px 0;font-size:12.5px;font-weight:800;color:var(--ink)"><span style="color:var(--muted);font-weight:700">Итого к списанию:</span><span id="wo-total">' + esc(woFmtMoney(woSelTotal())) + '</span></div>';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 2px 0;font-size:12.5px;font-weight:800;color:var(--ink)"><span style="color:var(--muted);font-weight:700">Итого по работе:</span><span id="wo-total">' + esc(woFmtMoney(woSelTotal())) + '</span></div>';
     }
     host.innerHTML = html;
+    // Сводка по всей задаче — только когда видов работ больше одного
+    var gr = document.getElementById('wo-grand');
+    if (gr) {
+      if (names.length > 1) {
+        gr.style.display = '';
+        gr.innerHTML = '<span style="color:var(--muted);font-weight:700">Всего по задаче (все виды работ):</span> <b id="wo-grand-total" style="color:var(--ink)">' + esc(woFmtMoney(woGrandTotal())) + '</b>';
+      } else {
+        gr.style.display = 'none';
+        gr.innerHTML = '';
+      }
+    }
     woBindQty();
   }
 
-  // Пересчёт суммы строки и итога при изменении количества
+  // Пересчёт суммы строки, итога по работе и общего итога при изменении количества
   function woBindQty() {
     var host = document.getElementById('wo-sel'); if (!host || !host.querySelectorAll) return;
     var inps = host.querySelectorAll('input[data-woqty]');
@@ -15369,23 +15413,25 @@
         if (cell && mat) cell.textContent = woFmtMoney(mat.price * it.qty);
         var tot = document.getElementById('wo-total');
         if (tot) tot.textContent = woFmtMoney(woSelTotal());
+        var gr = document.getElementById('wo-grand-total');
+        if (gr) gr.textContent = woFmtMoney(woGrandTotal());
       });
     });
   }
 
-  // Добавить материал к списанию (кнопка «+» или перетаскивание)
+  // Добавить материал к списанию ВЫБРАННОЙ работы (кнопка «+» или перетаскивание)
   function woMatAdd(mid) {
     var mat = woMatById(mid); if (!mat) return;
-    if (!S.woSelMats) S.woSelMats = [];
-    if (woSelHas(mid)) { toast('ok', '\u00AB' + mat.name + '\u00BB уже в списке списания'); return; }
+    if (!S.woSelMats) S.woSelMats = woSelGroup(S.woWorkIdx || 0);
+    if (woSelHas(mid)) { toast('ok', '«' + mat.name + '» уже в списании по этой работе'); return; }
     S.woSelMats.push({ id: mid, qty: mat.qty });
-    woRenderMats(); woRenderSel();
+    woRenderWorks(); woRenderMats(); woRenderSel();
   }
 
   function woMatDel(mid) {
     S.woSelMats = (S.woSelMats || []).filter(function (it) { return it.id !== mid; });
-    if (S.woTid && S.woSelByTask) S.woSelByTask[S.woTid] = S.woSelMats;
-    woRenderMats(); woRenderSel();
+    if (S.woTid && S.woSelByWork && S.woSelByWork[S.woTid]) S.woSelByWork[S.woTid][S.woWorkIdx || 0] = S.woSelMats;
+    woRenderWorks(); woRenderMats(); woRenderSel();
   }
 
   // Перетаскивание строк из блока 1С в блок «Материалы к списанию» (как карточки в планировании)
@@ -15432,9 +15478,8 @@
     var w = workOf(t), m = masterById(t.m);
     var planIso = writeoffPlanIso(t), closeIso = writeoffCloseIso(t);
     S.woTid = t.id;
-    S.woWorkPage = 0;
-    if (!S.woSelByTask) S.woSelByTask = {}; // выбранные материалы помнит по задаче, пока открыта страница
-    S.woSelMats = S.woSelByTask[t.id] || (S.woSelByTask[t.id] = []);
+    S.woWorkIdx = 0; // 22.09-185: активный вид работ — первый
+    S.woSelMats = woSelGroup(0); // список списания КАЖДОГО вида работ помнится по задаче, пока открыта страница
     function row(lbl, valHtml) {
       return '<div style="display:flex;justify-content:space-between;gap:14px;padding:8px 0;border-bottom:1px dashed var(--line)">' +
         '<div style="font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap">' + lbl + '</div>' +
@@ -15451,16 +15496,17 @@
     h += row('\uD83E\uDDF0 Слесаря', esc(writeoffSlesariNames(t)));
     h += row('\uD83D\uDCC5 Плановая дата', esc(fmtDmyIso(planIso)));
     h += row('\u2705 Дата закрытия', '<b style="color:#16a34a">' + esc(fmtDmyIso(closeIso)) + '</b>');
-    h += '<div style="margin:14px 0 7px;font-size:12px;color:var(--muted);font-weight:700">Виды работ (из этой задачи):</div>';
+    h += '<div style="margin:14px 0 7px;font-size:12px;color:var(--muted);font-weight:700">Виды работ — выберите, к какой списывать материалы:</div>';
     h += '<div id="wo-works"></div>';
-    h += '<div style="margin:16px 0 7px;font-size:12px;color:var(--muted);font-weight:700">Материалы к списанию (что и сколько списываем):</div>';
+    h += '<div id="wo-sel-title" style="margin:14px 0 7px;font-size:12px;color:var(--muted);font-weight:700">Материалы к списанию:</div>';
     h += '<div id="wo-sel" style="border:2px dashed var(--line);border-radius:10px;padding:8px;min-height:76px"></div>';
+    h += '<div id="wo-grand" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--line);font-size:13px;font-weight:800"></div>';
     h += '</div>';
     // правая широкая колонка — материалы из 1С построчно
     h += '<div style="flex:1.45;min-width:340px">';
     h += '<div style="margin:0 0 7px;font-size:12px;color:var(--muted);font-weight:700">Материалы из 1С (пока тестовые данные):</div>';
     h += '<div id="wo-mats"></div>';
-    h += '<div style="margin-top:7px;font-size:11px;color:var(--muted);line-height:1.45">Перенос: нажмите <b style="color:#16a34a">+</b> рядом с материалом или перетащите строку в блок \u00ABМатериалы к списанию\u00BB. Количество для списания можно изменить в нижнем блоке.</div>';
+    h += '<div style="margin-top:7px;font-size:11px;color:var(--muted);line-height:1.45">Перенос: нажмите <b style="color:#16a34a">+</b> рядом с материалом или перетащите строку в блок слева — материал попадёт в работу, которая выбрана (подсвечена зелёным). Количество можно изменить в нижнем блоке.</div>';
     h += '</div>';
     h += '</div>';
     h += '</div>';
@@ -15708,8 +15754,7 @@
     else if (a === 'wo-open') { openWriteoffModal(el.dataset.tid); } // 22.09-181
     else if (a === 'wo-mat-add') { woMatAdd(el.dataset.mid); } // 22.09-183: материал из 1С — в списание (кнопка «+»)
     else if (a === 'wo-mat-del') { woMatDel(el.dataset.mid); } // 22.09-183: убрать материал из списания
-    else if (a === 'wo-work-prev') { S.woWorkPage = (S.woWorkPage || 0) - 1; woRenderWorks(); } // 22.09-183
-    else if (a === 'wo-work-next') { S.woWorkPage = (S.woWorkPage || 0) + 1; woRenderWorks(); } // 22.09-183
+    else if (a === 'wo-work-pick') { woPickWork(parseInt(el.dataset.idx, 10) || 0); } // 22.09-185: выбор вида работ для списания
     else if (a === 'close-modal') { closeTaskObjectPickers(); overlay.classList.remove('show'); modal.style.maxWidth = ''; modal.style.width = ''; if (S.wkModalUid && S.screen === 'workers') renderWorkers(); S.wkModalUid = null; S.wmJointSel = null; /* 22.09-162 */ }
     else if (a === 'close-modal2') { var ov2 = document.getElementById('overlay2'); if (ov2) ov2.classList.remove('show'); } // 22.09-162
     else if (a === 'wm-joint-pick') { openWmJointPickModal(); } // 22.09-162
