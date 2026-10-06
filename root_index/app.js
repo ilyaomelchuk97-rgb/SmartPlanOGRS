@@ -343,7 +343,7 @@
   function roleMasters() {
     var all = getMasters();
     if (S.role === 'admin' || S.role === 'viewer' || S.role === 'nach') return all;
-    if (S.role === 'master') return all.filter(function (m) { return S.user && m.id === S.user.id; });
+    if (S.role === 'master') return all.filter(function (m) { return S.user && String(m.id) === String(S.user.id); }); // 22.09-188: id сравниваем строками — иначе при смешанных типах мастер терял свои работы
     return all.filter(function (m) { return S.user && m.area === S.user.area; }); // smaster, slesar
   }
   // Действует ли фильтр участка с панели мониторинга (админ / начальник участка / нач. СЭОГС)
@@ -359,7 +359,7 @@
     var all = getMasters();
     var list;
     if (S.role === 'admin' || S.role === 'viewer') list = all;
-    else if (S.role === 'master') list = all.filter(function (m) { return S.user && m.id === S.user.id; });
+    else if (S.role === 'master') list = all.filter(function (m) { return S.user && String(m.id) === String(S.user.id); }); // 22.09-188
     else list = all.filter(function (m) { return S.user && m.area === S.user.area; }); // nach, smaster, slesar
     if (dashAreaActive()) list = all.filter(function (m) { return m.area === S.dashArea; });
     return list;
@@ -741,7 +741,7 @@
   }
 
   var TITLES = {
-    dashboard: ['Панель мониторинга', 'Сборка 22.09-184 · блок «Панель аналитики» удалён; выбор месяца для КПД и графика по дням — кнопкой-календарём в карточке «⚡ КПД мастеров»'],
+    dashboard: ['Панель мониторинга', 'Сборка 22.09-188 · «Выполнение по дням»: цифры больше не растягиваются (HTML-слой поверх графика); исправлено: мастер не видел свои работы — сравнение id теперь строковое'],
     calendar: ['Планирование / Календарь', 'Сборка 22.09-181 · при отметке задачи выполненной (галочка) проставляется дата закрытия — закрытые задачи собраны на новой странице «Списания»'],
     graphs: ['Планирование / График работ', 'Сборка 22.09-164 · кнопка «Трудоёмкость графика» — слева от «Фильтра»; «Праздничные дни» перенесены в «Графики смен»'],
     map: ['Карта маршрутов', 'Сборка 22.09-182 · техническая чистка кода: удалён недостижимый код старых роутеров и виджетов (страница стала легче, поведение не изменилось)'],
@@ -751,7 +751,7 @@
     livemap: ['Карта местоположения', 'Сборка 22.09-180 · маршруты, «весь маршрут ~N мин» и расписание дня считает единый роутер BRouter car (economic), время — с учётом пробок: совпадает с картой маршрутов'],
     perms: ['Разрешения', 'Система разрешений на производство работ'],
     refs: ['Справочники', 'Сборка 22.09-162 · карточка работы ГРП: «Проводится совместно» теперь выбирается в отдельном окне (кнопка «📋 Выбор работ») — галочки, «Сохранить»/«Отмена»'],
-    writeoffs: ['Списания', 'Сборка 22.09-185 · окно списания: у каждого вида работ свой список материалов — виды работ переключаются тэгами (со счётчиками), справа материалы из 1С (тестово), перенос кнопкой «+» или перетаскиванием, итог по работе и по задаче'],
+    writeoffs: ['Списания', 'Сборка 22.09-186 · в окне списания кнопки «Сохранить» и «Закрыть» — обе записывают списания в задачу (по видам работ), закрыть ещё и закрывает карточку'],
     workers: ['Работники', 'Сборка 22.09-172 · окно карточки работника — ровно по ширине карточки (560px): без пустого места справа; панель и календарь — на всю ширину окна'],
     schedules: ['Графики смен', 'Сборка 22.09-164 · добавлена кнопка «🎉 Праздничные дни» (из графика работ) — слева от выбора месяца'],
     users: ['Пользователи', 'Сборка 22.09-161 · увольнение работников: кнопка «Уволить» с датой, блок «Уволенные» с восстановлением; в истории задач ФИО остаются'],
@@ -2803,7 +2803,7 @@
     }
 
     html += '<div class="kpi-row">';
-    html += kpi(today.length, 'Задач на сегодня', 'по ' + mastersToday.length + ' мастера(ам)', '#2563eb', 'kpi-today');
+    html += kpi(today.length, 'Задач на сегодня', 'по ' + mastersToday.filter(function (m) { return today.some(function (t) { return String(t.m) === String(m.id); }); }).length + ' мастера(ам)', '#2563eb', 'kpi-today'); // 22.09-187: мастера без задач сегодня не считаем
     html += kpi(overloads, 'Перегрузок сегодня', 'превышение фонда рабочего времени', '#dc2626', 'kpi-overloads');
     html += kpi(pct + '%', 'Выполнено за месяц', doneMonth + ' из ' + totalMonth + ' работ', '#16a34a', 'kpi-month');
     // KPI УБиРОГС
@@ -2866,24 +2866,28 @@
       var maxV = Math.max.apply(null, plan.concat(fact, [1]));
       var W = 760, H = 210, L = 30, B = 20, T = 22; // T — запас над столбиками под цифры
       var bw = (W - L - 8) / dim;
-      var bars = '', grid = '';
+      var bars = '', grid = '', nums = '';
+      // 22.09-188: график растягивается по высоте карточки (SVG с preserveAspectRatio="none"),
+      // поэтому ВСЕ цифры — HTML-слой поверх SVG с %-позициями: шрифт больше не искажается
       [0, 0.5, 1].forEach(function (f) {
         var gy = T + Math.round((H - T - B) * (1 - f));
-        grid += '<line x1="' + L + '" y1="' + gy + '" x2="' + (W - 4) + '" y2="' + gy + '" stroke="#64748b" stroke-opacity=".35" stroke-width="1"/>' +
-          '<text x="' + (L - 6) + '" y="' + (gy + 3) + '" font-size="10" fill="#94a3b8" text-anchor="end">' + Math.round(maxV * f) + '</text>';
+        grid += '<line x1="' + L + '" y1="' + gy + '" x2="' + (W - 4) + '" y2="' + gy + '" stroke="#64748b" stroke-opacity=".35" stroke-width="1"/>';
+        nums += '<span style="position:absolute;left:0;width:' + (L - 4) + 'px;text-align:right;bottom:' + ((H - gy - 4) / H * 100).toFixed(2) + '%;font-size:10px;color:#94a3b8;line-height:1">' + Math.round(maxV * f) + '</span>';
       });
       for (var bi = 0; bi < dim; bi++) {
         var bx = L + bi * bw;
         var hP = Math.round((H - T - B) * plan[bi] / maxV);
         var hF = Math.round((H - T - B) * fact[bi] / maxV);
         var bwid = Math.max(1, bw - 2).toFixed(1);
+        var xC = ((bx + bw / 2) / W * 100).toFixed(3);
         bars += '<rect x="' + (bx + 1).toFixed(1) + '" y="' + (H - B - hP) + '" width="' + bwid + '" height="' + Math.max(hP, 0) + '" rx="2" fill="#bfdbfe"><title>' + (bi + 1) + ' ' + MON[cmy.m] + ': план ' + plan[bi] + ' задач</title></rect>';
         if (fact[bi] > 0) bars += '<rect x="' + (bx + 1).toFixed(1) + '" y="' + (H - B - hF) + '" width="' + bwid + '" height="' + Math.max(hF, 0) + '" rx="2" fill="#16a34a"><title>' + (bi + 1) + ' ' + MON[cmy.m] + ': выполнено ' + fact[bi] + '</title></rect>';
-        // цифра количества задач дня — над столбиком (только дни с задачами)
-        if (plan[bi] > 0) bars += '<text x="' + (bx + bw / 2).toFixed(1) + '" y="' + (H - B - hP - 5) + '" font-size="10.5" font-weight="800" fill="#1e40af" text-anchor="middle">' + plan[bi] + '</text>';
-        if ((bi + 1) % 5 === 0 || bi === 0) bars += '<text x="' + (bx + bw / 2).toFixed(1) + '" y="' + (H - 6) + '" font-size="10" fill="#64748b" text-anchor="middle">' + (bi + 1) + '</text>';
+        // цифра количества задач дня — над столбиком (только дни с задачами); HTML — не растягивается
+        if (plan[bi] > 0) nums += '<span style="position:absolute;left:' + xC + '%;transform:translateX(-50%);bottom:' + ((B + hP + 5) / H * 100).toFixed(2) + '%;font-size:10.5px;font-weight:800;color:#1e40af;line-height:1;pointer-events:none">' + plan[bi] + '</span>';
+        if ((bi + 1) % 5 === 0 || bi === 0) nums += '<span style="position:absolute;left:' + xC + '%;transform:translateX(-50%);bottom:2px;font-size:10px;color:#64748b;line-height:1;pointer-events:none">' + (bi + 1) + '</span>';
       }
-      var svg1 = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" style="width:100%;height:100%;display:block" xmlns="http://www.w3.org/2000/svg">' + grid + bars + '</svg>';
+      var svg1 = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" style="position:absolute;left:0;top:0;width:100%;height:100%;display:block" xmlns="http://www.w3.org/2000/svg">' + grid + bars + '</svg>';
+      var chart1 = '<div style="position:relative;flex:1;min-height:190px">' + svg1 + nums + '</div>';
 
       /* 22.09-166: вместо «Загрузка мастеров сегодня» — карточка «⚡ КПД мастеров»
          (та же метрика, что в панели аналитики — выбранный там месяц, —
@@ -2926,7 +2930,7 @@
       _dashJoin = '<div class="card" style="display:flex;flex-direction:column;height:100%"><div class="card-h" style="flex:none"><h2>⚡ КПД мастеров</h2><div class="spacer"></div><button type="button" data-action="dash-month-toggle" title="Выбрать месяц для расчёта КПД и графика по дням" style="display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-weight:700;font-family:inherit;border-radius:9px;padding:5px 12px;cursor:pointer;font-size:12.5px;white-space:nowrap">📅 ' + esc(dashMonthLabel()) + '</button></div><div class="card-b" style="flex:1;display:flex;flex-direction:column;min-height:0">' + kpdBody +
         '<div style="margin-top:14px;padding-top:11px;border-top:1px dashed var(--line);flex:1;display:flex;flex-direction:column;min-height:0">' +
           '<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px;flex:none"><span style="font-size:13.5px;font-weight:800;color:var(--ink)">📈 Выполнение по дням</span><span style="font-size:11.5px;color:var(--muted);font-weight:600">' + MON_NOM[cmy.m] + ' ' + cmy.y + ' · <span style="color:#2563eb;font-weight:700">■ план</span> <span style="color:#16a34a;font-weight:700">■ выполнено</span></span></div>' +
-          '<div style="flex:1;min-height:190px">' + svg1 + '</div>' +
+          chart1 +
         '</div></div></div>';
     })();
 
@@ -2934,13 +2938,14 @@
     var dayOff = (typeof S.dashDayOff === 'number' && isFinite(S.dashDayOff)) ? Math.round(S.dashDayOff) : 0;
     var dayDate = offToDate(dayOff);
     var dayTask = vt.filter(function (t) { return t.d === dayOff; });
-    var overloadsDay = mastersToday.filter(function (m) { return loadForDay(m.id, dayOff) > masterCapacity(m.id, dayOff); }).length;
+    var mastersDay = mastersToday.filter(function (m) { return dayTask.some(function (t) { return String(t.m) === String(m.id); }); }); // 22.09-187: только мастера С задачами; 22.09-188: id — строками
+    var overloadsDay = mastersDay.filter(function (m) { return loadForDay(m.id, dayOff) > masterCapacity(m.id, dayOff); }).length;
 
     html += '<div class="dash-grid">';
     html += '<div class="card"><div class="card-h"><h2>' + (dayOff === 0 ? 'Сегодня' : esc(fmt(dayDate))) + '</h2><span class="sub" style="display:flex;align-items:center;gap:6px"><input type="date" id="dash-day-sel" value="' + key(dayDate) + '" title="Выбрать дату для просмотра работ" style="padding:4px 8px;border:1px solid var(--line);border-radius:8px;font-size:12px;font-family:inherit;background:var(--card);color:var(--ink)">' + (dayOff !== 0 ? '<button type="button" class="btn sm" data-action="dash-day-today" title="Вернуться на сегодня">Сегодня</button>' : '') + '</span><div class="spacer"></div><span class="badge tag ' + (overloadsDay ? 'over' : 'ok') + '">' + (overloadsDay ? 'Есть перегрузки' : 'Без перегрузок') + '</span></div><div class="card-b">';
     if (!dayTask.length) html += '<div class="empty">' + (dayOff === 0 ? 'На сегодня задач нет' : 'На ' + esc(fmt(dayDate)) + ' задач нет') + '</div>';
-    mastersToday.forEach(function (m) {
-      var mt = dayTask.filter(function (t) { return t.m === m.id; });
+    mastersDay.forEach(function (m) {
+      var mt = dayTask.filter(function (t) { return String(t.m) === String(m.id); }); // 22.09-188: id — строками
       var load = mt.reduce(function (s, t) { return s + (isDone(t) ? 0 : taskHours(t)); }, 0);
       var _mc = masterCapacity(m.id, dayOff);
       var over = load > _mc;
@@ -15434,6 +15439,22 @@
     woRenderWorks(); woRenderMats(); woRenderSel();
   }
 
+  // Сохранить списания задачи — в саму задачу (t.writeoffs: {индекс вида работ: [{id, qty}]});
+  // изменение задачи уходит в общее облако (синхронизация), переживает перезагрузку
+  function woSaveWriteoff() {
+    var t = findTask(S.woTid); if (!t) return false;
+    var g = (S.woSelByWork && S.woSelByWork[S.woTid]) || {};
+    var out = {};
+    Object.keys(g).forEach(function (k) {
+      var list = (g[k] || []).map(function (it) { return { id: it.id, qty: +it.qty || 0 }; }).filter(function (it) { return !!it.id; });
+      if (list.length) out[k] = list;
+    });
+    if (Object.keys(out).length) t.writeoffs = out; else delete t.writeoffs;
+    if (TASKS_DB) TASKS_DB.updateTask(t.id, t);
+    toast('ok', '\uD83D\uDCBE Списание сохранено' + (Object.keys(out).length ? '' : ' (пустое — по задаче ничего не выбрано)'));
+    return true;
+  }
+
   // Перетаскивание строк из блока 1С в блок «Материалы к списанию» (как карточки в планировании)
   function woBindMatsDnD() {
     var src = document.getElementById('wo-mats');
@@ -15479,13 +15500,20 @@
     var planIso = writeoffPlanIso(t), closeIso = writeoffCloseIso(t);
     S.woTid = t.id;
     S.woWorkIdx = 0; // 22.09-185: активный вид работ — первый
+    if (!S.woSelByWork) S.woSelByWork = {};
+    if (!S.woSelByWork[t.id]) { // 22.09-186: сессионных правок нет — поднять СОХРАНЁННОЕ списание задачи
+      S.woSelByWork[t.id] = {};
+      if (t.writeoffs) Object.keys(t.writeoffs).forEach(function (k) {
+        S.woSelByWork[t.id][k] = (t.writeoffs[k] || []).map(function (it) { return { id: it.id, qty: +it.qty || 0 }; });
+      });
+    }
     S.woSelMats = woSelGroup(0); // список списания КАЖДОГО вида работ помнится по задаче, пока открыта страница
     function row(lbl, valHtml) {
       return '<div style="display:flex;justify-content:space-between;gap:14px;padding:8px 0;border-bottom:1px dashed var(--line)">' +
         '<div style="font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap">' + lbl + '</div>' +
         '<div style="font-size:13px;color:var(--ink);font-weight:600;text-align:right">'+ valHtml + '</div></div>';
     }
-    var h = '<div class="modal-h" style="background:#16a34a;color:#fff"><h3 style="color:#fff">\u2705 Списание задачи</h3><button class="x" data-action="close-modal" style="color:#fff">×</button></div>';
+    var h = '<div class="modal-h" style="background:#16a34a;color:#fff"><h3 style="color:#fff">\u2705 Списание задачи</h3><button class="x" data-action="wo-save-close" style="color:#fff">×</button></div>';
     h += '<div class="modal-b">';
     h += '<div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start">';
     // левая колонка — данные задачи, виды работ, материалы к списанию
@@ -15510,7 +15538,7 @@
     h += '</div>';
     h += '</div>';
     h += '</div>';
-    h += '<div class="modal-f"><button class="btn" data-action="close-modal">Закрыть</button></div>';
+    h += '<div class="modal-f" style="display:flex;gap:10px;justify-content:flex-end"><button class="btn primary" data-action="wo-save">\uD83D\uDCBE Сохранить</button><button class="btn" data-action="wo-save-close">Закрыть</button></div>';
     modal.style.width = '94%';
     modal.style.maxWidth = '1100px'; // 22.09-183: окно шире — справа столбец с материалами из 1С
     modal.innerHTML = h;
@@ -15754,6 +15782,8 @@
     else if (a === 'wo-open') { openWriteoffModal(el.dataset.tid); } // 22.09-181
     else if (a === 'wo-mat-add') { woMatAdd(el.dataset.mid); } // 22.09-183: материал из 1С — в списание (кнопка «+»)
     else if (a === 'wo-mat-del') { woMatDel(el.dataset.mid); } // 22.09-183: убрать материал из списания
+    else if (a === 'wo-save') { woSaveWriteoff(); } // 22.09-186: сохранить списания (окно остаётся открытым)
+    else if (a === 'wo-save-close') { woSaveWriteoff(); closeTaskObjectPickers(); overlay.classList.remove('show'); modal.style.maxWidth = ''; modal.style.width = ''; S.wkModalUid = null; S.wmJointSel = null; } // 22.09-186: сохранить и закрыть карточку
     else if (a === 'wo-work-pick') { woPickWork(parseInt(el.dataset.idx, 10) || 0); } // 22.09-185: выбор вида работ для списания
     else if (a === 'close-modal') { closeTaskObjectPickers(); overlay.classList.remove('show'); modal.style.maxWidth = ''; modal.style.width = ''; if (S.wkModalUid && S.screen === 'workers') renderWorkers(); S.wkModalUid = null; S.wmJointSel = null; /* 22.09-162 */ }
     else if (a === 'close-modal2') { var ov2 = document.getElementById('overlay2'); if (ov2) ov2.classList.remove('show'); } // 22.09-162
@@ -16239,7 +16269,7 @@
     if (!masters.length) resp = '<option value="">— нет мастеров —</option>';
     else {
       var defId = masters[0].id;
-      masters.forEach(function (m) { if (S.user && m.id === S.user.id) defId = m.id; });
+      masters.forEach(function (m) { if (S.user && String(m.id) === String(S.user.id)) defId = m.id; }); // 22.09-188
       masters.forEach(function (m) {
         var lbl = ROLE_INFO[m.role] ? ROLE_INFO[m.role].label : m.role;
         resp += '<option value="' + esc(m.id) + '"' + (m.id === defId ? ' selected' : '') + '>' + esc(m.name) + ' · ' + esc(lbl) + '</option>';
