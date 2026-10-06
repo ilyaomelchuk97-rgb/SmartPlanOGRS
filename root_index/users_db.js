@@ -108,7 +108,7 @@ window.SP_USERS_DB = (function () {
   }
 
   function getUsers() { return init().users.slice(); }
-  function getUser(id) { var db = init(); for (var i = 0; i < db.users.length; i++) if (db.users[i].id === id) return db.users[i]; return null; }
+  function getUser(id) { var db = init(); for (var i = 0; i < db.users.length; i++) if (String(db.users[i].id) === String(id)) return db.users[i]; return null; } // 22.09-189: id — строками
   function getUserByLogin(login) {
     var db = init(); login = (login || '').toLowerCase();
     for (var i = 0; i < db.users.length; i++) if (db.users[i].login.toLowerCase() === login) return db.users[i];

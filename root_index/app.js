@@ -343,7 +343,11 @@
   function roleMasters() {
     var all = getMasters();
     if (S.role === 'admin' || S.role === 'viewer' || S.role === 'nach') return all;
-    if (S.role === 'master') return all.filter(function (m) { return S.user && String(m.id) === String(S.user.id); }); // 22.09-188: id сравниваем строками — иначе при смешанных типах мастер терял свои работы
+    if (S.role === 'master') {
+      var rml = all.filter(function (m) { return S.user && String(m.id) === String(S.user.id); }); // 22.09-188: id сравниваем строками
+      if (!rml.length) rml = [woSelfMaster()]; // 22.09-189: страховка — вошедший мастер видит себя даже при устаревшей базе
+      return rml;
+    }
     return all.filter(function (m) { return S.user && m.area === S.user.area; }); // smaster, slesar
   }
   // Действует ли фильтр участка с панели мониторинга (админ / начальник участка / нач. СЭОГС)
@@ -362,7 +366,16 @@
     else if (S.role === 'master') list = all.filter(function (m) { return S.user && String(m.id) === String(S.user.id); }); // 22.09-188
     else list = all.filter(function (m) { return S.user && m.area === S.user.area; }); // nach, smaster, slesar
     if (dashAreaActive()) list = all.filter(function (m) { return m.area === S.dashArea; });
+    // 22.09-189: СТРАХОВКА — вошедший мастер всегда видит себя, даже если локальная
+    // база пользователей устарела или его записи в ней нет (иначе — «мастер не видит свои работы»)
+    if (S.user && S.role === 'master' && !dashAreaActive() && !list.some(function (m) { return String(m.id) === String(S.user.id); })) {
+      list = list.concat([woSelfMaster()]);
+    }
     return list;
+  }
+  // Псевдо-карточка вошедшего мастера из данных сессии (когда его записи нет в локальной базе)
+  function woSelfMaster() {
+    return { id: S.user.id, name: S.user.full_name || S.user.login || '?', full_name: S.user.full_name || S.user.login || '?', role: S.user.role, area: S.user.area || '', color: S.user.color || '#2563eb', active: true };
   }
   function visibleTasks() {
     var ids = {}; visibleMasters().forEach(function (m) { ids[m.id] = 1; });
@@ -741,7 +754,7 @@
   }
 
   var TITLES = {
-    dashboard: ['Панель мониторинга', 'Сборка 22.09-188 · «Выполнение по дням»: цифры больше не растягиваются (HTML-слой поверх графика); исправлено: мастер не видел свои работы — сравнение id теперь строковое'],
+    dashboard: ['Панель мониторинга', 'Сборка 22.09-189 · «мастер не видит свои работы» — тройная защита: мастер всегда в списке (страховка из данных сессии); автоочистка задач с ошибочной датой дальше 3 лет (их наставил график из-за опечатки в годе якоря); график больше не примет якорь серии «не того года»'],
     calendar: ['Планирование / Календарь', 'Сборка 22.09-181 · при отметке задачи выполненной (галочка) проставляется дата закрытия — закрытые задачи собраны на новой странице «Списания»'],
     graphs: ['Планирование / График работ', 'Сборка 22.09-164 · кнопка «Трудоёмкость графика» — слева от «Фильтра»; «Праздничные дни» перенесены в «Графики смен»'],
     map: ['Карта маршрутов', 'Сборка 22.09-182 · техническая чистка кода: удалён недостижимый код старых роутеров и виджетов (страница стала легче, поведение не изменилось)'],
@@ -15034,9 +15047,49 @@
       tryLocal();
     }
   }
+  /* 22.09-189: САМОЛЕЧЕНИЕ ДАННЫХ — задачи с ошибочной датой далеко в будущем.
+     Появлялись из-за якоря серии с опечаткой в годе («20039-08-01» вместо
+     «2026-08-01»): генератор графика, не проверяя год, наставил сотни задач на
+     десятки тысячи лет вперёд — реальные работы мастера тонули в мусоре.
+     Годовые графики дальше ~3 лет не планируют никогда, поэтому всё за этим
+     горизонтом — гарантированный мусор: убираем автоматически при входе. */
+  function purgeFarFutureTasks() {
+    if (!TASKS_DB) return 0;
+    var arr = [];
+    try { arr = TASKS_DB.getTasks() || []; } catch (e) { return 0; }
+    var maxOff = 1100; // ~3 года — с запасом за пределами любого годового графика
+    var maxYear = TODAY.getFullYear() + 3;
+    var badIds = [], keep = [];
+    arr.forEach(function (t) {
+      var bad = false;
+      if (t && !isDone(t)) {
+        if (typeof t.d === 'number' && isFinite(t.d) && t.d > maxOff) bad = true;
+        else { var md = /^(\d{4,})-/.exec(String(t.dl_date || '')); if (md && +md[1] > maxYear) bad = true; }
+      }
+      if (bad) badIds.push(t.id); else keep.push(t);
+    });
+    if (!badIds.length) return 0;
+    // ОДНО пересохранение всей базы (не сотни одиночных — каждое из них
+    // толкнуло бы на сервер всю базу по записи за раз)
+    try { TASKS_DB.reloadFromCloud({ schema: 3, tasks: keep }); } catch (e) {}
+    // на сервере — мягкое удаление мусорных записей фоном, небольшими порциями
+    badIds.forEach(function (id, i) {
+      setTimeout(function () {
+        try { if (window.SP_API && SP_API.getToken && SP_API.getToken()) SP_API.del('tasks', id).catch(function () {}); } catch (e) {}
+      }, 120 * (i % 25));
+    });
+    try { S.tasks = TASKS_DB.getTasks(); } catch (e) {}
+    try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log('warn', 'repair', 'auto-purge: удалено задач с ошибочной датой (дальше 3 лет вперёд): ' + badIds.length, {}); } catch (e) {}
+    return badIds.length;
+  }
+
   function enterApp(u) {
     S.user = u; S.role = u.role; S.curMaster = u.id;
     S.dashArea = null; // фильтр участка не должен «протекать» между пользователями
+    // 22.09-189: автоочистка «битых» задач (дата дальше 3 лет — след опечатки в якоре серии графика)
+    var _purged = 0;
+    try { _purged = purgeFarFutureTasks(); } catch (ePu) { try { console.error('purgeFarFutureTasks:', ePu); } catch (_e) {} }
+    if (_purged) setTimeout(function () { toast('warn', '🧹 Автоочистка базы: удалено «битых» задач с ошибочной датой далеко в будущем: ' + _purged + '. Они остались от опечатки в дате графика — теперь такие даты блокируются автоматически.'); }, 1800);
     document.body.classList.add('logged-in');
     var bs = document.getElementById('base-select'); if (bs) bs.value = S.baseId;
     applyUser();
@@ -15562,7 +15615,7 @@
       }
       if (S.user) {
         var fu = DB.getUser(S.user.id);
-        if (fu && fu.id === S.user.id) S.user = fu;
+        if (fu && String(fu.id) === String(S.user.id)) S.user = fu; // 22.09-189
       }
       // Мягкое обновление данных текущего экрана без полной перерисовки
       var rzBadge = document.getElementById('rz-badge');
@@ -15605,7 +15658,7 @@
     // Защита сессии: проверяем что текущий пользователь всё ещё активен
     if (S.user) {
       var freshUser = DB.getUser(S.user.id);
-      if (freshUser && freshUser.id === S.user.id) {
+      if (freshUser && String(freshUser.id) === String(S.user.id)) { // 22.09-189
         S.user = freshUser; // обновляем данные пользователя, но НЕ меняем сессию
       }
     }
@@ -17139,11 +17192,16 @@
     var st = { created: 0, shifted: 0, fail: 0 };
     wrk.occs = [];
     if (!(g && wrk && wrk.wid && wrk.first && wrk.period > 0)) return st;
+    // 22.09-189: якорь серии обязан быть валидной датой не позже года графика
+    // (опечатка вида «20039-08-01» строковым сравнением «проходила»: '20039' < '2026' —
+    // и цикл наставлял сотни задач на десятки тысяч лет вперёд)
+    var anchorYear = gwFromISO(wrk.first).getFullYear();
+    if (isNaN(anchorYear) || anchorYear > g.year || anchorYear < 2000) { st.fail++; return st; }
     var endISO = g.year + '-12-31';
     var iso = wrk.first, guard = 0;
     var brigIds = [];
     try { brigIds = wkBrigadeOf(g.respId).map(function (u) { return u.id; }); } catch (e) {}
-    while (iso <= endISO && guard < 400) {
+    while (iso <= endISO && gwFromISO(iso).getFullYear() <= g.year && guard < 400) { // 22.09-189: стоп по году числом
       var occIso = gwOccDate(g.respId, iso, g.year);
       if (occIso !== iso) st.shifted++;
       var isPast = gwFromISO(occIso) < TODAY;
@@ -17187,7 +17245,8 @@
       gwObjWorks(ob).forEach(function (wrk) {
         if (!wrk || !wrk.wid) return;
         var occs = wrk.occs || [];
-        var canHave = !!(wrk.first && (wrk.period || 0) > 0 && String(wrk.first) <= endISO);
+        var anchorY2 = gwFromISO(wrk.first).getFullYear(); // 22.09-189: год числом, не строкой — опечатка «20039» иначе «меньше» «2026»
+        var canHave = !!(wrk.first && (wrk.period || 0) > 0 && !isNaN(anchorY2) && anchorY2 <= g.year && anchorY2 >= 2000);
         if (mode !== 'all') {
           if (!occs.length || !canHave) return;
           var hasYear = false;
@@ -17666,12 +17725,18 @@
         if (old) killSeries(old); // серия изменилась — старые задачи убираем
         var w = { sid: r.sid || gwNewSid(), wid: r.wid, period: r.period, dev: r.dev, first: r.first, occs: [] };
         if (r.wid && r.first && r.period > 0) {
-          if (gwFromISO(r.first).getFullYear() > g.year) yearWarn++;
+          var firstYear = gwFromISO(r.first).getFullYear();
+          // 22.09-189: якорь вне года графика (опечатка вида «20039-08-01») — серию
+          // НЕ рассчитываем: раньше строковое сравнение ('20039' < '2026') пускало
+          // такой якорь в цикл, и он наставлял сотни задач на тысячи лет вперёд
+          if (isNaN(firstYear) || firstYear > g.year || firstYear < 2000) {
+            yearWarn++;
+          } else {
           var endISO = g.year + '-12-31';
           var iso = r.first, guard = 0;
           // слесаря бригады мастера (вкладка «Работники») — исполнители задачи
           var brigIds = wkBrigadeOf(g.respId).map(function (u) { return u.id; });
-          while (iso <= endISO && guard < 400) {
+          while (iso <= endISO && gwFromISO(iso).getFullYear() <= g.year && guard < 400) { // 22.09-189: стоп по году числом
             // Дата выполнения = якорь серии, сдвинутый НАЗАД до рабочего дня
             // мастера графика (график смен «Работники»). Шаг серии при этом
             // считается ОТ ЯКОРЯ — периодичность (минус отклонение) не плывёт.
@@ -17704,6 +17769,7 @@
             w.occs.push({ date: occIso, tid: tk ? tk.id : null, wid: r.wid });
             iso = gwNextISO(iso, r.period, r.dev); // шаг = периодичность − отклонение
             guard++;
+          }
           }
         }
         if (r.sid) usedSids[r.sid] = 1;
