@@ -57,8 +57,9 @@ window.SP_OBJ_ATTRS = (function () {
     { key: 'commissionOrder',  group: 'Документация', label: 'Номер и дата приказа о вводе в эксплуатацию', type: 'text', placeholder: '№ … от …', multiline: true },
     { key: 'pnrDate',          group: 'Документация', label: 'Дата ПНР', type: 'date' },
     { key: 'urgRef',           group: 'Документация', label: 'Ссылка на объект УРГ', type: 'text', placeholder: 'URL или ID' },
-    // Группа 4: «Ответственный» — особый случай: история + текущий
-    { key: 'respUid',          group: 'Ответственный', label: 'Ответственный за безопасную эксплуатацию', type: 'refUser', hint: 'В карточке отображается ответственный на момент просмотра. История — ниже.' },
+    // 22.09-203: блок «Ответственный» (строка «Ответственный за безопасную эксплуатацию», атрибут respUid)
+    // убран из карточки объекта по требованию. Ответственный задаётся полем «Ответственный» над атрибутами;
+    // история назначений по-прежнему ведётся в данных объекта (respHistory) и используется при увольнениях.
     // Группа 5: «Технические характеристики»
     { key: 'serviceKind',      group: 'Технические', label: 'Вид обслуживания', type: 'select', options: ['REGION-gaz','Без ИПК'] },
     { key: 'reduceLines',      group: 'Технические', label: 'Кол-во линий редуцирования', type: 'list', list: [1,2,3,4,5,6], unit: 'шт' },
@@ -173,7 +174,7 @@ window.SP_OBJ_ATTRS = (function () {
       if (f.hideFor && f.hideFor.indexOf(type) >= 0) return;
       (groups[f.group] = groups[f.group] || []).push(f);
     });
-    var groupOrder = ['Идентификация','Статус','Документация','Ответственный','Технические','Дополнительно'];
+    var groupOrder = ['Идентификация','Статус','Документация','Технические','Дополнительно']; // 22.09-203: группа «Ответственный» убрана из карточки
 
     var out = '';
     out += '<div id="oa-fields">';
@@ -195,24 +196,7 @@ window.SP_OBJ_ATTRS = (function () {
     });
     out += '</div>';
 
-    // История ответственного (если есть записи)
-    var hist = getRespHistory(o);
-    if (hist.length) {
-      out += '<fieldset style="border:1px solid #fef3c7;background:#fffbeb;border-radius:8px;padding:8px 12px 10px;margin:0 0 12px">';
-      out += '<legend style="font-size:11px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:0.4px;padding:0 6px">История ответственного</legend>';
-      out += '<div style="display:flex;flex-direction:column;gap:4px">';
-      hist.forEach(function (r) {
-        var cur = r.to == null;
-        out += '<div style="font-size:12px;padding:4px 8px;border-radius:6px;' +
-          (cur ? 'background:#dcfce7;color:#14532d;font-weight:700' : 'background:#f1f5f9;color:#475569') +
-          '">';
-        out += esc(r.name || r.uid || '—') + ' · ' +
-          (cur ? 'с ' + esc(r.from || '?') : esc((r.from || '?') + ' — ' + (r.to || '?')));
-        if (cur) out += ' <span style="font-size:10px;background:#16a34a;color:#fff;padding:1px 5px;border-radius:3px;margin-left:4px">сейчас</span>';
-        out += '</div>';
-      });
-      out += '</div></fieldset>';
-    }
+    // 22.09-203: блок «История ответственного» из формы карточки убран (записи в данных объекта сохраняются)
     return out;
   }
 

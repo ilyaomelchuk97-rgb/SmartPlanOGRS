@@ -759,19 +759,19 @@
   var TITLES = {
     dashboard: ['Панель мониторинга', 'Сборка 22.09-199 · выбор мастера для просмотра КПД перенесён внутрь блока «⚡ КПД мастеров»: выпадающий список — прямо в заголовке этой карточки, рядом с выбором месяца (вверху страницы его больше нет). Ранее, сборка 22.09-193 · выпадающий список «КПД мастеров» (админ, начальник СЭОГС, начальник участка, старший мастер): все показатели панели, списки по нажатию на цифры и блок «Сегодня» — по одному выбранному мастеру или по всем сразу. Ранее, сборка 22.09-190 · факт работы на объекте: кнопки «▶ Приступил» и «■ Закончил» в блоке «Сегодня» (пишут точное время, «Закончил» закрывает задачу); у мастера бейдж «🔨 на объекте с …»; время факта — в списаниях и в карточке задачи'],
     calendar: ['Планирование / Календарь', 'Сборка 22.09-198 · строки календаря — только мастера: начальники участков и старшие мастера в «Планировании» больше не показываются. Ранее, сборка 22.09-181 · при отметке задачи выполненной (галочка) проставляется дата закрытия — закрытые задачи собраны на новой странице «Списания»'],
-    graphs: ['Планирование / График работ', 'Сборка 22.09-200 · «Трудоёмкость графика»: часы в колонках трудоёмкости — до 3 знаков после запятой; таблица «По объектам» внизу убрана, осталась только кнопка «📍 По объектам» (переименована из «По объектам — новое окно») — открывает отдельное окно. Ранее, сборка 22.09-196 · в «Трудоёмкости графика» кнопка «📍 По объектам — новое окно»: трудоёмкость по каждому объекту за год / месяц / период месяцев; нажатие на объект — его карточка с работами, датами и часами выбранного периода. Ранее, сборка 22.09-195 · в окне «Настроить периодичность» убран АВТОМАТИЧЕСКИЙ подбор работ при открытии — работы на объект добавляются только вручную (кнопки «⚡» и «+ работа»). Ранее, сборка 22.09-164 · кнопка «Трудоёмкость графика» — слева от «Фильтра»; «Праздничные дни» перенесены в «Графики смен»'],
+    graphs: ['Планирование / График работ', 'Сборка 22.09-202 · подсказка при наведении на треугольник: только группа работ (без вида работ), для каждой работы — трудоёмкость; для выполненных — ещё и фактическая трудоёмкость. Ранее, сборка 22.09-201 · в настройке периодичности год в дате первого проведения нельзя ввести вручную длиннее 4 цифр. Ранее, сборка 22.09-200 · «Трудоёмкость графика»: часы в колонках трудоёмкости — до 3 знаков после запятой; таблица «По объектам» внизу убрана, осталась только кнопка «📍 По объектам» (переименована из «По объектам — новое окно») — открывает отдельное окно. Ранее, сборка 22.09-196 · в «Трудоёмкости графика» кнопка «📍 По объектам — новое окно»: трудоёмкость по каждому объекту за год / месяц / период месяцев; нажатие на объект — его карточка с работами, датами и часами выбранного периода. Ранее, сборка 22.09-195 · в окне «Настроить периодичность» убран АВТОМАТИЧЕСКИЙ подбор работ при открытии — работы на объект добавляются только вручную (кнопки «⚡» и «+ работа»). Ранее, сборка 22.09-164 · кнопка «Трудоёмкость графика» — слева от «Фильтра»; «Праздничные дни» перенесены в «Графики смен»'],
     map: ['Карта маршрутов', 'Сборка 22.09-197 · порядок заданий на день после «Оптимизации маршрутов» сохраняется — в том же порядке работы показываются и в «Планировании» на этот день (и в списке «Задания на день» при повторном входе). Ранее, сборка 22.09-182 · техническая чистка кода: удалён недостижимый код старых роутеров и виджетов (страница стала легче, поведение не изменилось)'],
-    objmap: ['Карта объектов', 'Сборка 22.09-184 · вид телеметрии «ПТК "Эксорт"» переименован в «ПТК "Эскорт"» — объекты и работы обновлены автоматически'],
+    objmap: ['Карта объектов', 'Сборка 22.09-203 · в карточке объекта убран блок «Ответственный» из атрибутов: строка «Ответственный за безопасную эксплуатацию» и история назначений больше не показываются (поле «Ответственный» под адресом осталось). Ранее, сборка 22.09-184 · вид телеметрии «ПТК "Эксорт"» переименован в «ПТК "Эскорт"» — объекты и работы обновлены автоматически'],
     testmap: ['Тест проезда', 'Сборка 22.09-176 · исправлена загрузка 3D-планеты (был ошибочный адрес библиотеки карты) + добавлен запасной сервер, если первый не отвечает'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Сборка 22.09-180 · маршруты, «весь маршрут ~N мин» и расписание дня считает единый роутер BRouter car (economic), время — с учётом пробок: совпадает с картой маршрутов'],
     perms: ['Разрешения', 'Система разрешений на производство работ'],
-    refs: ['Справочники', 'Сборка 22.09-162 · карточка работы ГРП: «Проводится совместно» теперь выбирается в отдельном окне (кнопка «📋 Выбор работ») — галочки, «Сохранить»/«Отмена»'],
+    refs: ['Справочники', 'Сборка 22.09-206 · карточка вида работ ГРП: удалён блок «Виды работ, от которых отсчёт периодичности»; «Проводится совместно» теперь выбирает группы работ (выравнивание совместных проведений в графике — по группам, старые записи по видам работ учитываются и видны с ⚠). Ранее, сборка 22.09-205 · карточка вида работ ГРП: добавлены поля «Норма времени» (чел/ч на единицу, можно с запятой) и «Единица измерения» (объект, шт, м, м2, км, компл., ч), значения сохраняются и участвуют в расчёте трудоёмкости. Ранее, сборка 22.09-162 · карточка работы ГРП: «Проводится совместно» теперь выбирается в отдельном окне (кнопка «📋 Выбор работ») — галочки, «Сохранить»/«Отмена»'],
     writeoffs: ['Списания', 'Сборка 22.09-194 · в окне списания убрана дублирующая строка «Работа» под адресом — работа, произведённая на объекте, выбирается кнопками в блоке «Виды работ». Ранее, сборка 22.09-190 · в списке и в карточке списания — фактическое время работы (⏱ начал / закончил / сколько часов) по кнопкам мастера «Приступил»/«Закончил» из панели мониторинга'],
     workcards: ['Карточки работ на день', 'Сборка 22.09-191 · клик по ФИО мастера в блоке «Сегодня» панели — страница с карточкой на каждую работу: адрес, виды работ, слесаря, план, крупные кнопки «Приступил»/«Закончил»'],
     factmonth: ['Факт работ по объектам', 'Сборка 22.09-192 · месячный отчёт по объектам: кто, когда и сколько фактически работал (по кнопкам «Приступил»/«Закончил»), фактические часы против плановых; перелистывание месяцев'],
     workers: ['Работники', 'Сборка 22.09-172 · окно карточки работника — ровно по ширине карточки (560px): без пустого места справа; панель и календарь — на всю ширину окна'],
-    schedules: ['Графики смен', 'Сборка 22.09-164 · добавлена кнопка «🎉 Праздничные дни» (из графика работ) — слева от выбора месяца'],
+    schedules: ['Графики смен', 'Сборка 22.09-204 · при наведении на рабочий квадратик видно, сколько часов человек работает в этот день: 12-часовая смена — мастер 12 ч, слесарь 11,5 ч; 8-часовая — пн–чт 8,25 ч, пт 7 ч. Ранее, сборка 22.09-164 · добавлена кнопка «🎉 Праздничные дни» (из графика работ) — слева от выбора месяца'],
     users: ['Пользователи', 'Сборка 22.09-161 · увольнение работников: кнопка «Уволить» с датой, блок «Уволенные» с восстановлением; в истории задач ФИО остаются'],
     reports: ['Отчёты', 'Печатные формы для подписи у руководства'],
     logs: ['Журнал действий', 'Действия пользователей системы'],
@@ -8253,13 +8253,23 @@
     html += '</tr>';
     return html;
   }
+  // 22.09-204: длительность рабочего дня по графику смен (подсказка ячейки «на работе»).
+  // 12-часовая смена: мастер — 12 ч, слесарь — 11,5 ч (в любой рабочий день, включая выходные);
+  // 8-часовая смена (5/2): мастер и слесарь — пн–чт 8,25 ч, пт 7 ч.
+  function schDayHours(user, ds) {
+    var wd = wkData(user.id);
+    if (+wd.hours === 12) return (user && user.role === 'slesar') ? 11.5 : 12;
+    var p = String(ds).split('-');
+    var dow = new Date(+p[0], +p[1] - 1, +p[2]).getDay(); // 5 — пятница
+    return (dow === 5) ? 7 : 8.25;
+  }
   function schCellHtml(user, ds, state, bg, bd, colW, wm, dd) {
     var can = wkCanEdit(user);
     var dt = new Date(wm.y, wm.m, dd);
     var isToday = sameDay(dt, TODAY);
     var _hol = holidayOn(ds); // 22.09-109: праздник — жёлтый поверх любого состояния
     if (_hol) { bg = '#fef9c3'; bd = '#eab308'; }
-    var title = state === 'work' ? (esc(ds) + ' · рабочий')
+    var title = state === 'work' ? (esc(ds) + ' · рабочий · ' + fmtH3(schDayHours(user, ds)) + ' ч') // 22.09-204
               : state === 'abs'  ? (esc(ds) + ' · отсутствие' + (wkData(user.id).abs[ds] ? ' (' + esc(wkData(user.id).abs[ds]) + ')' : ''))
               : (esc(ds) + ' · выходной');
     if (_hol) title += ' · 🎉 ' + esc(_hol) + ' (праздник)';
@@ -11426,24 +11436,38 @@
     renderRefs();
   }
 
-  /* 22.09-162: ПРОВОДИТСЯ СОВМЕСТНО — выбор работ в отдельном окне (overlay2).
-     wmJointSelBoxHtml — компактный список выбранных (в карточке работы);
+  /* 22.09-206: ПРОВОДИТСЯ СОВМЕСТНО — выбираются ГРУППЫ работ участка ГРП
+     (раньше, с 22.09-162, — отдельные виды работ). joint_with теперь хранит пути
+     групп «Группа / Подгруппа»; старые записи с id видов работ показываем с ⚠,
+     чтобы их можно было снять. Окно выбора — поверх карточки (overlay2).
+     wmJointGroups — список групп участка; wmJointLegacyName — подпись старой
+     записи; wmJointSelBoxHtml — компактный список выбранных в карточке работы;
      openWmJointPickModal — окно с чекбоксами; saveWmJointPick — перенос в список. */
+  function wmJointGroups(area) { // уникальные непустые группы работ участка, по алфавиту
+    var out = [];
+    try {
+      (WORK.getWorks(area) || []).forEach(function (ww) {
+        var g = (ww && ww.group != null) ? String(ww.group).trim() : '';
+        if (g && out.indexOf(g) < 0) out.push(g);
+      });
+    } catch (e) {}
+    out.sort();
+    return out;
+  }
+  function wmJointLegacyName(id) { // подпись старой записи (id вида работы)
+    var lw = null; try { lw = WORK.getWorkById && WORK.getWorkById(id); } catch (e) {}
+    return lw ? lw.name : String(id);
+  }
   function wmJointSelBoxHtml(area, wid) {
     var sel = (S.wmJointSel || []).filter(function (x) { return x !== wid; });
-    if (!sel.length) return '<div style="color:#94a3b8;font-size:12px;padding:5px 2px">— работы не выбраны — нажмите «📋 Выбор работ»</div>';
-    var allW = [];
-    try { if (WORK && WORK.getWorks) allW = WORK.getWorks(area) || []; } catch (e) {}
-    var byId = {};
-    allW.forEach(function (ww) { if (ww) byId[ww.id] = ww; });
+    if (!sel.length) return '<div style="color:#94a3b8;font-size:12px;padding:5px 2px">— группы не выбраны — нажмите «📋 Выбор групп»</div>';
+    var groups = wmJointGroups(area);
     var h2 = '';
-    sel.forEach(function (id) {
-      var ww = byId[id];
-      if (ww) {
-        h2 += '<div style="display:flex;align-items:center;gap:6px;padding:3px 2px;font-size:12px;border-bottom:1px dashed var(--line)"><span style="flex:1"><b style="color:var(--ink)">' + esc(ww.name) + '</b><span style="color:#64748b"> · ' + esc(ww.group || '') + '</span></span></div>';
+    sel.forEach(function (g) {
+      if (groups.indexOf(g) >= 0) {
+        h2 += '<div style="display:flex;align-items:center;gap:6px;padding:3px 2px;font-size:12px;border-bottom:1px dashed var(--line)"><span style="flex:1"><b style="color:var(--ink)">' + esc(g) + '</b><span style="color:#64748b"> · группа работ</span></span></div>';
       } else {
-        var lw = null; try { lw = WORK.getWorkById && WORK.getWorkById(id); } catch (e) {}
-        h2 += '<div style="display:flex;align-items:center;gap:6px;padding:3px 2px;font-size:12px;border-bottom:1px dashed var(--line)"><span style="flex:1"><b style="color:#92400e">' + esc(lw ? lw.name : id) + '</b><span style="color:#b45309"> · ⚠ нет среди работ ГРП</span></span></div>';
+        h2 += '<div style="display:flex;align-items:center;gap:6px;padding:3px 2px;font-size:12px;border-bottom:1px dashed var(--line)"><span style="flex:1"><b style="color:#92400e">' + esc(wmJointLegacyName(g)) + '</b><span style="color:#b45309"> · ⚠ старый выбор (вид работы)</span></span></div>';
       }
     });
     return h2;
@@ -11452,26 +11476,31 @@
     var overlay2 = document.getElementById('overlay2'), modal2 = document.getElementById('modal2');
     if (!overlay2 || !modal2) return;
     var area = S.workArea, wid = S.workModalWid;
-    var allWorks = [];
-    try { if (WORK && WORK.getWorks) allWorks = (WORK.getWorks(area) || []).filter(function (ww) { return ww.id !== wid; }); } catch (e) {}
-    var sel = S.wmJointSel || [];
-    var h = '<div class="modal-h"><h3>Проводится совместно — выбор работ</h3><button class="x" data-action="close-modal2">×</button></div><div class="modal-b">';
-    h += '<div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;line-height:1.5">Отметьте галочками работы участка ГРП, которые проводятся совместно с этой (можно одну или несколько), затем нажмите «Сохранить» — выбранные появятся в списке «Проводится совместно».</div>';
-    h += '<div style="max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:6px;background:#fff">';
-    if (!allWorks.length && !sel.length) {
-      h += '<div style="color:#94a3b8;font-size:12.5px;padding:14px;text-align:center">На участке ГРП нет других работ</div>';
-    } else {
-      allWorks.forEach(function (ww) {
-        var on = sel.indexOf(ww.id) >= 0;
-        h += '<label class="cb" style="display:flex;align-items:center;gap:7px;padding:5px 6px;border-radius:6px;font-size:12.5px;cursor:pointer">';
-        h += '<input type="checkbox" data-j2="' + esc(ww.id) + '"' + (on ? ' checked' : '') + '><span style="flex:1"><b style="color:var(--ink)">' + esc(ww.name) + '</b><span style="color:#64748b"> · ' + esc(ww.group || '') + '</span></span></label>';
+    var groups = wmJointGroups(area);
+    var gcnt = {};
+    try {
+      (WORK.getWorks(area) || []).forEach(function (ww) {
+        var g = (ww && ww.group != null) ? String(ww.group).trim() : '';
+        if (g) gcnt[g] = (gcnt[g] || 0) + 1;
       });
-      // legacy: выбранные ранее id, которых уже нет среди работ участка — строка с ⚠, галочку можно снять
-      sel.forEach(function (id) {
-        for (var i = 0; i < allWorks.length; i++) if (allWorks[i].id === id) return;
-        var lw = null; try { lw = WORK.getWorkById && WORK.getWorkById(id); } catch (e) {}
+    } catch (e) {}
+    var sel = (S.wmJointSel || []).filter(function (x) { return x !== wid; });
+    var h = '<div class="modal-h"><h3>Проводится совместно — выбор групп работ</h3><button class="x" data-action="close-modal2">×</button></div><div class="modal-b">';
+    h += '<div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;line-height:1.5">Отметьте галочками группы работ участка ГРП, которые проводятся совместно с этой работой (можно одну или несколько), затем нажмите «Сохранить» — выбранные появятся в списке «Проводится совместно».</div>';
+    h += '<div style="max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:6px;background:#fff">';
+    if (!groups.length && !sel.length) {
+      h += '<div style="color:#94a3b8;font-size:12.5px;padding:14px;text-align:center">На участке ГРП нет групп работ</div>';
+    } else {
+      groups.forEach(function (g) {
+        var on = sel.indexOf(g) >= 0;
         h += '<label class="cb" style="display:flex;align-items:center;gap:7px;padding:5px 6px;border-radius:6px;font-size:12.5px;cursor:pointer">';
-        h += '<input type="checkbox" data-j2="' + esc(id) + '" checked><span style="flex:1"><b style="color:#92400e">' + esc(lw ? lw.name : id) + '</b><span style="color:#b45309"> · ⚠ нет среди работ ГРП</span></span></label>';
+        h += '<input type="checkbox" data-j2="' + esc(g) + '"' + (on ? ' checked' : '') + '><span style="flex:1"><b style="color:var(--ink)">' + esc(g) + '</b><span style="color:#64748b"> · работ: ' + (gcnt[g] || 0) + '</span></span></label>';
+      });
+      // legacy: ранее выбранные ВИДЫ работ (старый формат записей) — строка с ⚠, галочку можно снять
+      sel.forEach(function (id) {
+        if (groups.indexOf(id) >= 0) return;
+        h += '<label class="cb" style="display:flex;align-items:center;gap:7px;padding:5px 6px;border-radius:6px;font-size:12.5px;cursor:pointer">';
+        h += '<input type="checkbox" data-j2="' + esc(id) + '" checked><span style="flex:1"><b style="color:#92400e">' + esc(wmJointLegacyName(id)) + '</b><span style="color:#b45309"> · ⚠ старый выбор (вид работы)</span></span></label>';
       });
     }
     h += '</div></div>';
@@ -11488,7 +11517,7 @@
     // перерисовать компактный список в карточке работы
     var box = document.getElementById('wm-joint-sel');
     if (box) box.innerHTML = wmJointSelBoxHtml(S.workArea, S.workModalWid);
-    toast('ok', '✓ Совместных работ выбрано: ' + sel.length);
+    toast('ok', '✓ Совместных групп выбрано: ' + sel.length);
   }
 
   function openWorkModal(mode, wid) {
@@ -11530,6 +11559,12 @@
     if (area === 'ГРП') {
     h += '<div style="background:#eef6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px;margin-bottom:14px;">';
     h += '<div style="font-size:12px;font-weight:700;color:#1d4ed8;margin-bottom:10px;">📋 Атрибуты ГРП</div>';
+    // 22.09-205: норма времени и единица измерения задаются прямо в карточке вида работ ГРП
+    // (текстовое поле нормы — чтобы принимать и запятую «0,15»; при сохранении приводится к числу)
+    h += '<div class="attr-row"><div class="fld"><label>Норма времени (чел/ч на единицу)</label><input id="wm-norm" type="text" inputmode="decimal" value="' + ((w && w.norm != null && w.norm !== '') ? w.norm : 1) + '" placeholder="напр.: 0,15"></div>' +
+      '<div class="fld"><label>Единица измерения</label><input id="wm-unit" list="wm-unit-dl" autocomplete="off" value="' + esc((w && w.unit) || 'объект') + '" placeholder="объект"><datalist id="wm-unit-dl">' +
+      ['объект', 'шт', 'м', 'м2', 'км', 'компл.', 'ч'].map(function (u) { return '<option value="' + u + '">'; }).join('') +
+      '</datalist></div></div>';
 
     // 1. Категория объекта обслуживания (мульти-чекбоксы)
     var curCats = (w && w.object_categories) || [];
@@ -11574,47 +11609,16 @@
       '<div style="font-size:10.5px;color:var(--muted);margin-top:4px">Шаг серии = периодичность − отклонение (как в настройке периодичности в графике работ)</div></div>';
     h += '<div class="fld" style="max-width:520px"><label>Реквизит отсчёта для выполнения работ</label><select id="wm-period-basis"><option value="prev_date"' + (w && w.periodicity_basis === 'prev_date' ? ' selected' : '') + '>Дата предыдущего выполнения</option><option value="commissioning_date"' + (w && w.periodicity_basis === 'commissioning_date' ? ' selected' : '') + '>Дата ввода в эксплуатацию</option></select></div>';
 
-    // 4. Виды работ, от которых отсчёт периодичности (мульти-чекбоксы);
-    // 22.09-134: ТОЛЬКО работы участка ГРП (раньше — работы всех участков).
-    var curDepends = ((w && w.periodicity_depends_on) || []).filter(function (x) { return x !== wid; }); // 22.09-159: сама работа — не зависимость
-    var allWorks = [];
-    try {
-      if (WORK && typeof WORK.getWorks === 'function') {
-        allWorks = (WORK.getWorks(area) || []).filter(function (ww) { return ww.id !== wid; });
-      }
-    } catch (e) {}
-    // id из старых записей, которых нет среди работ участка (работа перенесена
-    // или удалена): показываем строками с ⚠, чтобы значение не потерялось молча
-    function legacyWorkIds(ids) {
-      return (ids || []).filter(function (id) {
-        for (var i = 0; i < allWorks.length; i++) if (allWorks[i].id === id) return false;
-        return true;
-      });
-    }
-    function legacyRowHtml(id, attr) {
-      var lw = null; try { lw = WORK.getWorkById && WORK.getWorkById(id); } catch (e) {}
-      return '<label class="cb" style="display:flex;align-items:center;gap:6px;padding:3px 4px;border-radius:4px;font-size:12px;">' +
-        '<input type="checkbox" data-' + attr + '="' + esc(id) + '" checked><span style="flex:1"><b style="color:#92400e">' + esc(lw ? lw.name : id) + '</b><span style="color:#b45309"> · ⚠ нет среди работ ГРП</span></span></label>';
-    }
-    h += '<div class="fld"><label>Виды работ, от которых отсчёт периодичности <span style="color:#94a3b8;font-weight:500">(Справочник Виды работ — участок ГРП)</span></label>';
-    h += '<div id="wm-period-deps" style="max-height:120px;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:6px;background:#fff;">';
-    if (!allWorks.length) {
-      h += '<div style="color:#94a3b8;font-size:12px;padding:6px">На участке ГРП нет других работ</div>';
-    } else {
-      allWorks.forEach(function (ww) {
-        var on = curDepends.indexOf(ww.id) >= 0;
-        h += '<label class="cb" style="display:flex;align-items:center;gap:6px;padding:3px 4px;border-radius:4px;font-size:12px;">';
-        h += '<input type="checkbox" data-perioddep="' + esc(ww.id) + '"' + (on ? ' checked' : '') + '><span style="flex:1"><b style="color:var(--ink)">' + esc(ww.name) + '</b><span style="color:#64748b"> · ' + esc(ww.group || '') + '</span></span></label>';
-      });
-      legacyWorkIds(curDepends).forEach(function (id) { h += legacyRowHtml(id, 'perioddep'); });
-    }
-    h += '</div></div>';
+    // 22.09-206: блок «Виды работ, от которых отсчёт периодичности» удалён из
+    // карточки по требованию — параметр больше не редактируется; старые значения
+    // у существующих работ сохраняются (updateWork не затирает непереданные поля).
 
     /* 6. Проводится совместно.
        22.09-162: инлайн-чекбоксы заменены на компактный список выбранных +
        кнопку «📋 Выбор работ», открывающую отдельное окно поверх карточки:
        в нём — те же чекбоксы; «Сохранить» переносит выбор в список ниже,
-       «Отмена» — закрывает без изменений. */
+       «Отмена» — закрывает без изменений.
+       22.09-206: выбираются ГРУППЫ работ (раньше — отдельные виды работ). */
     var curJoint = [];
     try {
       var _jwOld = w && w.joint_with;
@@ -11624,10 +11628,10 @@
       if (wid) curJoint = curJoint.filter(function (x) { return x !== wid; });
     } catch (e) {}
     S.wmJointSel = curJoint.slice(); // выбор правится через окно; saveWork читает его
-    h += '<div class="fld"><label>Проводится совместно <span style="color:#94a3b8;font-weight:500">(Справочник Виды работ — участок ГРП, можно выбрать несколько)</span></label>';
+    h += '<div class="fld"><label>Проводится совместно <span style="color:#94a3b8;font-weight:500">(группы работ участка ГРП, можно выбрать несколько)</span></label>';
     h += '<div style="display:flex;gap:8px;align-items:flex-start">';
     h += '<div id="wm-joint-sel" style="flex:1;min-height:38px;max-height:120px;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:4px 6px;background:#fff;">' + wmJointSelBoxHtml(area, wid) + '</div>';
-    h += '<button type="button" data-action="wm-joint-pick" style="flex:0 0 auto;white-space:nowrap;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer" title="Открыть окно выбора совместных работ — галочками отметить одну или несколько, затем «Сохранить»">📋 Выбор работ</button>';
+    h += '<button type="button" data-action="wm-joint-pick" style="flex:0 0 auto;white-space:nowrap;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer" title="Открыть окно выбора совместных групп работ — галочками отметить одну или несколько, затем «Сохранить»">📋 Выбор групп</button>';
     h += '</div></div>';
 
     // 7. Операции (список значений — через запятую)
@@ -11725,6 +11729,7 @@
     // бы затёрлись дефолтами), при СОЗДАНИИ — дефолтные.
     var oldW = (mode === 'edit' && wid) ? WORK.getWork(area, wid) : null;
     // 22.09-95: полей нормы в карточке больше нет — значения сохраняем из старой
+    // 22.09-205: для участка ГРП поля нормы и единицы возвращены в карточку (см. блок «Атрибуты ГРП» и ветку сохранения ниже).
     // записи (правка), для новой работы — дефолт 1 ч/объект (обновится импортом).
     var data = {
       group: (function () { // 22.09-112: собираем «Группа / Подгруппа» с нормализацией разделителя
@@ -11753,14 +11758,20 @@
       data.object_categories = arrFromAttr('cat');
       data.departments = arrFromAttr('dep');
       data.season = val('wm-season') || 'Круглый год'; // 22.09-113: сезон в атрибутах ГРП
+      // 22.09-205: норма времени и единица — из полей карточки (принимаем и запятую)
+      var _normRaw = String(val('wm-norm')).replace(',', '.');
+      var _normV = parseFloat(_normRaw);
+      data.norm = (_normRaw !== '' && isFinite(_normV) && _normV >= 0) ? _normV : (oldW ? oldW.norm : 1);
+      data.unit = val('wm-unit') || (oldW ? oldW.unit : 'объект');
       data.periodicity_value = parseInt(val('wm-period-value')) || 0;
       data.periodicity_dev = parseInt(val('wm-period-dev'), 10);
       if (!isFinite(data.periodicity_dev) || data.periodicity_dev < 0) data.periodicity_dev = 0;
       data.periodicity_unit = val('wm-period-unit') || 'мес';
-      data.periodicity_depends_on = arrFromAttr('perioddep').filter(function (x) { return x !== wid; }); // 22.09-159: без самой работы
+      // 22.09-206: блок «Виды работ, от которых отсчёт периодичности» удалён из карточки —
+      // поле больше не собираем; старые значения у существующих работ сохраняются.
       data.periodicity_basis = val('wm-period-basis') || 'prev_date';
       // 22.09-162: совместные собираются в окне выбора (S.wmJointSel);
-      // запас — старые инлайн-чекбоксы data-joint, если их разметка вдруг есть
+      // 22.09-206: теперь это пути ГРУПП работ; запас — старые инлайн-чекбоксы data-joint
       data.joint_with = (Array.isArray(S.wmJointSel) ? S.wmJointSel.slice() : arrFromAttr('joint')).filter(function (x) { return x !== wid; }); // 22.09-159: без самой работы
       data.operations = val('wm-operations').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
       data.indicators = val('wm-indicators').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
@@ -16574,6 +16585,20 @@
     window.addEventListener('scroll', function () { var el = document.getElementById('gw-tip'); if (el) el.classList.remove('show'); }, true);
   })();
 
+  // 22.09-201: в окне «Настроить периодичность» год в «Дате первого проведения» — не длиннее 4 цифр.
+  // Поле type=date в части браузеров позволяет набрать год из 5–6 цифр — обрезаем до 4 при вводе и при изменении.
+  (function () {
+    function clampGprYear(e) {
+      var t = e && e.target;
+      if (!t || !t.getAttribute || !t.hasAttribute('data-gpr-f')) return;
+      var v = String(t.value || '');
+      var m = v.match(/^(\d{5,})(-.*)$/);
+      if (m) t.value = m[1].slice(0, 4) + m[2];
+    }
+    document.addEventListener('input', clampGprYear);
+    document.addEventListener('change', clampGprYear);
+  })();
+
   function drawGraphsBody() {
     var body = document.getElementById('graphs-body');
     if (!body) return;
@@ -18122,7 +18147,9 @@
      позднее (первое в месяце) переносится на день более раннего (тот же день;
      рабочий день уже обеспечен у исходной даты). Даты задач этих проведений
      переносятся тоже (выполненные не трогаем — это история). Отмечать
-     совместность достаточно у одной из пары. Возвращает число переносов. */
+     совместность достаточно у одной из пары. Возвращает число переносов.
+     22.09-206: совместность теперь по ГРУППАМ работ (joint_with = пути групп);
+     поддержаны и старые записи с id видов работ. */
   function gwJointAlign(newWorks, area) {
     var ws = (newWorks || []).filter(function (x) { return x && x.wid && x.occs && x.occs.length; });
     if (ws.length < 2) return 0;
@@ -18133,6 +18160,16 @@
         var j = w && w.joint_with;
         return Array.isArray(j) ? j : (j ? [j] : []);
       } catch (e) { return []; }
+    }
+    function groupOf(wid2) {
+      try { var w = WORK.getWork(area, wid2); return (w && w.group) ? String(w.group).trim() : ''; } catch (e) { return ''; }
+    }
+    // 22.09-206: пара совместная, если id или группа есть в списке совместных друг друга
+    function isJointPair(wa, wb) {
+      var ja = jointsOf(wa), jb = jointsOf(wb);
+      if (ja.indexOf(wb) >= 0 || jb.indexOf(wa) >= 0) return true; // старый формат — по id видов работ
+      var ga = groupOf(wa), gb = groupOf(wb);
+      return (gb && ja.indexOf(gb) >= 0) || (ga && jb.indexOf(ga) >= 0); // по группам работ
     }
     function monthOf(iso) { return +String(iso).slice(5, 7) - 1; }
     function firstOccOf(wrk, mi) {
@@ -18157,10 +18194,8 @@
       } catch (eU) {}
     }
     for (var a = 0; a < ws.length; a++) {
-      var ja = jointsOf(ws[a].wid);
-      if (!ja.length) continue;
       for (var b = 0; b < ws.length; b++) {
-        if (a === b || ja.indexOf(ws[b].wid) < 0) continue; // b — совместная с a
+        if (a === b || !isJointPair(ws[a].wid, ws[b].wid)) continue; // b — совместная с a
         for (var mi = 0; mi < 12; mi++) {
           var oa = firstOccOf(ws[a], mi), obb = firstOccOf(ws[b], mi);
           if (oa && obb) {
@@ -18968,20 +19003,28 @@
 
   /* Информация о работе для всплывающей подсказки при наведении на треугольник.
      22.09-146: заголовок — ГРУППА работ (коротко); полный вид работ — строкой ниже
-     светлее. У работ без группы заголовок — название, как раньше. */
+     светлее. У работ без группы заголовок — название, как раньше.
+     22.09-202: строка с видом работ убрана; трудоёмкость всегда, факт — у выполненных. */
   function gwWorkTipHtml(g, ob, wrk, oc) {
     var area = (g && g.area) || graphAreaDefault(g);
     var w = null;
     try { w = WORK.getWork(area, oc.wid || wrk.wid); } catch (e) {}
     var d = gwFromISO(oc.date);
     var _gp = gwWorkGroup(w);
+    // 22.09-202: вид работ в подсказке НЕ показываем — только наименование ГРУППЫ работ
+    // (у работ без группы заголовок — название работы, как раньше). Для каждой работы —
+    // трудоёмкость (норма из справочника); для выполненных — ещё и фактическая (время на объекте из задачи).
+    var _norm = (w && isFinite(+w.norm) && +w.norm > 0) ? +w.norm : 0;
+    var _dn = gwOccDone(oc);
+    var _fact = null;
+    if (_dn && oc.tid) { try { _fact = taskFactHours(findTask(oc.tid)); } catch (eF) {} }
     return '<b>' + esc(_gp || (w ? w.name : 'Работа графика')) + '</b>' +
-      (_gp && w ? '<br><span style="opacity:.78;font-size:.92em">' + esc(w.name) + '</span>' : '') +
       '<br>Объект: ' + esc(ob.name || '—') +
       '<br>Дата: ' + d.getDate() + ' ' + MONTHS_GEN[d.getMonth()] + ' ' + d.getFullYear() +
+      (_norm > 0 ? '<br>Трудоёмкость: ' + fmtH3(_norm) + ' чел/ч' : '') +
+      (_dn ? '<br>✔ Выполнена' + (_fact != null ? ' · факт: ' + fmtH3(_fact) + ' чел/ч' : '') : '') +
       (wrk.period ? '<br>Периодичность: ' + wrk.period + ' мес' + (wrk.dev ? ' − ' + wrk.dev + ' дн' : '') : '') +
-      (g && g.respName ? '<br>Мастер: ' + esc(g.respName) : '') +
-      (gwOccDone(oc) ? '<br>✔ Выполнена' : '');
+      (g && g.respName ? '<br>Мастер: ' + esc(g.respName) : '');
   }
 
   /* Подсказка для общего (разделённого по цветам) треугольника дня:
