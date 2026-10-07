@@ -767,6 +767,8 @@
     perms: ['Разрешения', 'Система разрешений на производство работ'],
     refs: ['Справочники', 'Сборка 22.09-162 · карточка работы ГРП: «Проводится совместно» теперь выбирается в отдельном окне (кнопка «📋 Выбор работ») — галочки, «Сохранить»/«Отмена»'],
     writeoffs: ['Списания', 'Сборка 22.09-190 · в списке и в карточке списания — фактическое время работы (⏱ начал / закончил / сколько часов) по кнопкам мастера «Приступил»/«Закончил» из панели мониторинга'],
+    workcards: ['Карточки работ на день', 'Сборка 22.09-191 · клик по ФИО мастера в блоке «Сегодня» панели — страница с карточкой на каждую работу: адрес, виды работ, слесаря, план, крупные кнопки «Приступил»/«Закончил»'],
+    factmonth: ['Факт работ по объектам', 'Сборка 22.09-192 · месячный отчёт по объектам: кто, когда и сколько фактически работал (по кнопкам «Приступил»/«Закончил»), фактические часы против плановых; перелистывание месяцев'],
     workers: ['Работники', 'Сборка 22.09-172 · окно карточки работника — ровно по ширине карточки (560px): без пустого места справа; панель и календарь — на всю ширину окна'],
     schedules: ['Графики смен', 'Сборка 22.09-164 · добавлена кнопка «🎉 Праздничные дни» (из графика работ) — слева от выбора месяца'],
     users: ['Пользователи', 'Сборка 22.09-161 · увольнение работников: кнопка «Уволить» с датой, блок «Уволенные» с восстановлением; в истории задач ФИО остаются'],
@@ -2965,7 +2967,7 @@
       var inProg = mt.filter(function (t) { return t.started_at && !isDone(t); })[0]; // 22.09-190: сейчас работает на объекте
       var _mc = masterCapacity(m.id, dayOff);
       var over = load > _mc;
-      html += '<div class="today-mstr"><span class="dot" style="background:' + m.color + '"></span><div><div class="nm">' + esc(m.name) + '</div><div class="ar">' + esc(m.area) + '</div></div><div class="meta"><div class="h" style="color:' + (over ? 'var(--red)' : 'var(--ink)') + '">' + fmtH(load) + ' ч / ' + fmtH(_mc) + ' ч</div><span class="tag ' + (over ? 'over' : 'ok') + '">' + (over ? '⚠ Перегрузка +' + fmtH(load - _mc) + ' ч' : mt.length + ' заданий') + '</span>' + (dayOff === 0 && inProg ? ' <span class="tag ok" style="background:#dcfce7;color:#166534" title="Работа начата в ' + fmtClock(inProg.started_at) + '">🔨 на объекте с ' + fmtClock(inProg.started_at) + '</span>' : '') + '</div></div>';
+      html += '<div class="today-mstr"><span class="dot" style="background:' + m.color + '"></span><div><div class="nm" data-action="wc-open" data-mid="' + esc(m.id) + '" style="cursor:pointer" title="Нажмите — откроются карточки всех работ на этот день">' + esc(m.name) + ' <span style="color:var(--muted);font-weight:600;font-size:11px">→</span></div><div class="ar">' + esc(m.area) + '</div></div><div class="meta"><div class="h" style="color:' + (over ? 'var(--red)' : 'var(--ink)') + '">' + fmtH(load) + ' ч / ' + fmtH(_mc) + ' ч</div><span class="tag ' + (over ? 'over' : 'ok') + '">' + (over ? '⚠ Перегрузка +' + fmtH(load - _mc) + ' ч' : mt.length + ' заданий') + '</span>' + (dayOff === 0 && inProg ? ' <span class="tag ok" style="background:#dcfce7;color:#166534" title="Работа начата в ' + fmtClock(inProg.started_at) + '">🔨 на объекте с ' + fmtClock(inProg.started_at) + '</span>' : '') + '</div></div>';
       // гант-шкала дня: 8:00–20:00, задачи и переезды
       html += ganttDayHtml(m, dayOff);
       mt.slice(0, 4).forEach(function (t) {
@@ -15235,6 +15237,189 @@
     return startedMark + '<button type="button" class="btn sm" data-action="task-finish" data-tid="' + esc(t.id) + '" title="Нажмите по окончании работ — запишется время конца и задача закроется" style="background:#fee2e2;border-color:#fca5a5;color:#b91c1c;font-weight:700;white-space:nowrap">■ Закончил</button>';
   }
 
+  /* ===== 22.09-191: КАРТОЧКИ РАБОТ НА ДЕНЬ =====
+     Клик по ФИО мастера в блоке «Сегодня» панели мониторинга — открывается
+     страница: по каждой работе мастера на этот день — своя карточка (адрес,
+     виды работ, слесаря, план, крупные кнопки «Приступил»/«Закончил»).
+     Мастер видит только свои работы (у него в панели одна строка — его). */
+  function wcOpen(mid, dayOff) {
+    S.wcMasterId = mid;
+    S.wcDayOff = (typeof dayOff === 'number' && isFinite(dayOff)) ? dayOff : 0;
+    S.wcBack = S.screen;
+    setScreen('workcards');
+  }
+  // Крупные кнопки факта — в карточке работы
+  function wcCtlHtml(t, dayOff) {
+    if (isDone(t)) {
+      var span = t.finished_at ? ((t.started_at ? fmtClock(t.started_at) + ' – ' : '') + fmtClock(t.finished_at)) : '';
+      var fh = taskFactHours(t);
+      return '<div style="display:flex;align-items:center;gap:8px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 14px;color:#166534;font-weight:800">✓ Работа закончена' + (span ? ' · ' + span : '') + (fh != null ? ' · ' + fmtH(fh) + ' ч' : '') + '</div>';
+    }
+    if (dayOff !== 0 || !canEditTask(t)) {
+      return t.started_at ? '<div style="color:#d97706;font-weight:700">⏳ Работа начата в ' + fmtClock(t.started_at) + '</div>' : '';
+    }
+    if (!t.started_at) return '<button type="button" class="btn primary" data-action="task-start" data-tid="' + esc(t.id) + '" style="width:100%;padding:13px;font-size:15px;font-weight:800;background:#16a34a;border-color:#16a34a" title="Нажмите, когда приступили к работе на объекте — запишется время начала">▶ Приступил к работе</button>';
+    return '<div style="display:flex;align-items:center;gap:10px"><span style="color:#d97706;font-weight:800;font-size:14px;white-space:nowrap">⏳ работа идёт с ' + fmtClock(t.started_at) + '</span><button type="button" class="btn primary" data-action="task-finish" data-tid="' + esc(t.id) + '" style="flex:1;padding:13px;font-size:15px;font-weight:800;background:#dc2626;border-color:#dc2626" title="Нажмите по окончании работ — запишется время конца и задача закроется">■ Закончил</button></div>';
+  }
+  function renderWorkCards() {
+    var view = document.getElementById('view'); if (!view) return;
+    var mid = S.wcMasterId;
+    var dayOff = (typeof S.wcDayOff === 'number' && isFinite(S.wcDayOff)) ? S.wcDayOff : 0;
+    var m = masterById(mid);
+    var mname = m ? m.name : (S.user && String(S.user.id) === String(mid) ? (S.user.full_name || S.user.login || 'я') : (mid || '?'));
+    var ts = S.tasks.filter(function (t) { return String(t.m) === String(mid) && t.d === dayOff; }); // 22.09-188: id — строками
+    // порядок: в работе → в плане → выполненные
+    ts.sort(function (ra, rb) {
+      var ka = isDone(ra) ? 2 : (ra.started_at ? 0 : 1);
+      var kb = isDone(rb) ? 2 : (rb.started_at ? 0 : 1);
+      return ka - kb;
+    });
+    var dayHtml = dayOff === 0 ? 'сегодня' : esc(fmt(offToDate(dayOff)));
+    var html = '<div class="card" style="margin-bottom:12px"><div class="card-b" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">' +
+      '<button type="button" class="btn" data-action="wc-back" title="Вернуться назад">← Назад</button>' +
+      '<div style="font-size:16px;font-weight:800;color:var(--ink)">📋 ' + esc(mname) + '</div>' +
+      '<div style="font-size:12.5px;color:var(--muted);font-weight:700">' + dayHtml + ' · работ: ' + ts.length + '</div></div></div>';
+    if (!ts.length) html += '<div class="card"><div class="card-b"><div class="empty">На ' + dayHtml + ' работ нет</div></div></div>';
+    ts.forEach(function (t) {
+      var w = workOf(t);
+      var stCol = isDone(t) ? '#16a34a' : (t.started_at ? '#d97706' : 'var(--muted)');
+      html += '<div class="card" style="margin-bottom:12px"><div class="card-b">' +
+        '<div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:8px">' +
+          '<div style="flex:1;min-width:200px;font-size:14.5px;font-weight:800;color:var(--ink)">🔧 ' + esc(w ? w.name : writeoffWorkNames(t).join(', ') || '?') + '</div>' +
+          '<span style="font-size:12px;font-weight:800;color:' + stCol + ';white-space:nowrap">' + esc(statusLabel(t)) + '</span></div>' +
+        '<div style="font-size:13px;color:var(--txt);margin-bottom:6px">📍 <b>' + esc(addrOf(t)) + '</b></div>' +
+        (t.works && t.works.length > 1 ? '<div style="font-size:12px;color:var(--muted);margin-bottom:6px">виды работ: ' + esc(writeoffWorkNames(t).join(' · ')) + '</div>' : '') +
+        '<div style="font-size:12px;color:var(--muted);margin-bottom:6px">👷 ' + esc(writeoffSlesariNames(t) || 'слесаря не указаны') + '</div>' +
+        '<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);font-weight:600;margin-bottom:10px">' +
+          '<span>⏱ план: <b style="color:var(--ink)">' + fmtH(taskHours(t)) + ' ч</b></span>' +
+          ((t.volume || 1) > 1 ? '<span>объём: <b style="color:var(--ink)">' + esc(String(t.volume)) + '</b></span>' : '') +
+          '<span>дедлайн: <b style="color:' + (t.dl <= 2 ? 'var(--red)' : 'var(--ink)') + '">' + esc(fmtShort(t.dl)) + '</b></span>' +
+        '</div>' +
+        wcCtlHtml(t, dayOff) +
+      '</div></div>';
+    });
+    view.innerHTML = html;
+  }
+
+  /* =====================================================================
+     22.09-192: МЕСЯЧНЫЙ ОТЧЁТ «ФАКТ РАБОТ ПО ОБЪЕКТАМ»
+     За выбранный месяц по каждому объекту: кто и когда работал (время по
+     кнопкам «Приступил»/«Закончил»), фактические часы против плановых.
+     Выезд попадает в месяц по отметкам времени или по закрытию задачи;
+     закрытые без отметок показаны пометкой «без факта времени».
+     ===================================================================== */
+
+  // Ключ месяца 'YYYY-MM' по году/месяцу
+  function fmMonthKey(y, m) { return y + '-' + String(m + 1).padStart(2, '0'); }
+  // Относится ли задача к месяцу: по отметкам времени или по закрытию (дата закрытия)
+  function fmTaskInMonth(t, mk) {
+    if (t.started_at && key(new Date(t.started_at)).slice(0, 7) === mk) return true;
+    if (t.finished_at && key(new Date(t.finished_at)).slice(0, 7) === mk) return true;
+    if (isDone(t) && writeoffCloseIso(t).slice(0, 7) === mk) return true;
+    return false;
+  }
+  // Имя мастера строкой (запасной вариант, когда записи нет в базе пользователей)
+  function fmMasterName(t) {
+    var m = masterById(t.m);
+    if (m) return m.name;
+    if (S.user && String(S.user.id) === String(t.m)) return S.user.full_name || S.user.login || 'я';
+    return '?';
+  }
+  // Перелистнуть месяц отчёта
+  function fmShift(d) {
+    if (S.fmYear == null || S.fmMonth == null) { S.fmYear = TODAY.getFullYear(); S.fmMonth = TODAY.getMonth(); }
+    var m = S.fmMonth + d, y = S.fmYear;
+    while (m < 0) { m += 12; y--; }
+    while (m > 11) { m -= 12; y++; }
+    S.fmYear = y; S.fmMonth = m;
+    renderFactMonth();
+  }
+
+  function renderFactMonth() {
+    var view = document.getElementById('view'); if (!view) return;
+    if (S.fmYear == null || S.fmMonth == null) { S.fmYear = TODAY.getFullYear(); S.fmMonth = TODAY.getMonth(); }
+    var mk = fmMonthKey(S.fmYear, S.fmMonth);
+    // Выезды месяца — сгруппированы по объектам
+    var groups = {}, order = [];
+    visibleTasks().forEach(function (t) {
+      if (!fmTaskInMonth(t, mk)) return;
+      var gk = t.o || ('addr:' + addrOf(t));
+      if (!groups[gk]) { groups[gk] = { addr: addrOf(t), rows: [], factH: 0, planH: 0 }; order.push(gk); }
+      var fh = taskFactHours(t);
+      groups[gk].rows.push({ t: t, fh: fh });
+      if (fh != null) groups[gk].factH += fh;
+      groups[gk].planH += taskHours(t);
+    });
+    order.sort(function (a, b) { return groups[a].addr.localeCompare(groups[b].addr, 'ru'); });
+    order.forEach(function (gk) {
+      groups[gk].rows.sort(function (ra, rb) {
+        var da = ra.t.started_at || (ra.t.done_date ? new Date(ra.t.done_date + 'T00:00:00').getTime() : 0);
+        var db = rb.t.started_at || (rb.t.done_date ? new Date(rb.t.done_date + 'T00:00:00').getTime() : 0);
+        if (da !== db) return da - db;
+        return fmMasterName(ra.t).localeCompare(fmMasterName(rb.t), 'ru');
+      });
+    });
+    // Итоги за месяц
+    var totFact = 0, totPlan = 0, totVisits = 0, totNoFact = 0;
+    order.forEach(function (gk) {
+      var g = groups[gk];
+      totFact += g.factH; totPlan += g.planH; totVisits += g.rows.length;
+      g.rows.forEach(function (r) { if (r.fh == null) totNoFact++; });
+    });
+    var html = '<div class="card" style="margin-bottom:12px"><div class="card-b">' +
+      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
+        '<button type="button" class="btn" data-action="fm-prev" title="Предыдущий месяц">‹</button>' +
+        '<div style="font-size:16px;font-weight:800;color:var(--ink);min-width:160px;text-align:center">📅 ' + esc(MON_NOM[S.fmMonth]) + ' ' + S.fmYear + '</div>' +
+        '<button type="button" class="btn" data-action="fm-next" title="Следующий месяц">›</button>' +
+        '<button type="button" class="btn" data-action="fm-cur" title="Вернуться к текущему месяцу">Текущий месяц</button>' +
+      '</div>' +
+      (order.length ? '<div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;font-size:12.5px;color:var(--muted);font-weight:700">' +
+        '<span>объектов: <b style="color:var(--ink)">' + order.length + '</b></span>' +
+        '<span>выездов: <b style="color:var(--ink)">' + totVisits + '</b></span>' +
+        '<span>⏱ факт: <b style="color:#2563eb">' + fmtH(totFact) + ' ч</b></span>' +
+        '<span>план: <b style="color:var(--ink)">' + fmtH(totPlan) + ' ч</b></span>' +
+        (totNoFact ? '<span style="color:#d97706" title="Закрыты без отметок «Приступил»/«Закончил» — фактического времени у них нет">без факта времени: ' + totNoFact + '</span>' : '') +
+      '</div>' : '') +
+    '</div></div>';
+    if (!order.length) {
+      html += '<div class="card"><div class="card-b"><div class="empty">За ' + MON_NOM[S.fmMonth].toLowerCase() + ' ' + S.fmYear + ' выездов на объекты нет.<br>' +
+        '<span style="font-size:12px">Выезд появляется здесь, когда мастер жмёт «Приступил» / «Закончил» в панели мониторинга или задача закрыта галочкой.</span></div></div></div>';
+      view.innerHTML = html;
+      return;
+    }
+    order.forEach(function (gk) {
+      var g = groups[gk];
+      html += '<div class="card" style="margin-bottom:10px"><div class="card-b">' +
+        '<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:6px">' +
+          '<div style="flex:1;min-width:220px;font-size:14px;font-weight:800;color:var(--ink)">📍 ' + esc(g.addr) + '</div>' +
+          '<div style="font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap">выездов: ' + g.rows.length +
+            ' · ⏱ факт: <b style="color:#2563eb">' + fmtH(g.factH) + ' ч</b>' +
+            ' · план: <b style="color:var(--ink)">' + fmtH(g.planH) + ' ч</b></div>' +
+        '</div>';
+      g.rows.forEach(function (r) {
+        var t = r.t, w = workOf(t);
+        var dateIso = t.started_at ? key(new Date(t.started_at)) : writeoffCloseIso(t);
+        html += '<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:7px 0;border-top:1px solid var(--line)">' +
+          '<div style="font-size:12.5px;font-weight:800;color:var(--ink);white-space:nowrap;min-width:84px">' + esc(fmtDmyIso(dateIso)) + '</div>' +
+          '<div style="flex:1;min-width:220px">' +
+            '<div style="font-size:12.5px;color:var(--txt)">🔧 ' + esc((w && w.name) || writeoffWorkNames(t).join(', ') || '?') + '</div>' +
+            '<div style="font-size:11.5px;color:var(--muted)">👷 ' + esc(fmMasterName(t)) + '</div>' +
+          '</div>' +
+          '<div style="font-size:12px;font-weight:700;white-space:nowrap;text-align:right;line-height:1.5">' +
+            ((t.started_at || t.finished_at)
+              ? '<span style="color:var(--muted)">▶ ' + (t.started_at ? fmtClock(t.started_at) : '?') + ' – ■ ' + (t.finished_at ? fmtClock(t.finished_at) : '…') + '</span><br>' +
+                (r.fh != null
+                  ? '<span style="color:#2563eb">' + fmtH(r.fh) + ' ч факт</span> <span style="color:var(--muted)">/ ' + fmtH(taskHours(t)) + ' ч план</span>'
+                  : '<span style="color:#d97706">в работе</span> <span style="color:var(--muted)">/ ' + fmtH(taskHours(t)) + ' ч план</span>')
+              : '<span style="color:#d97706" title="Задача закрыта без отметок «Приступил»/«Закончил» — фактических часов нет">без факта времени</span><br><span style="color:var(--muted)">' + fmtH(taskHours(t)) + ' ч план</span>') +
+          '</div>' +
+        '</div>';
+      });
+      html += '</div></div>';
+    });
+    view.innerHTML = html;
+  }
+
   // Плановая дата задачи ISO ('YYYY-MM-DD'), '' если дня нет
   function writeoffPlanIso(t) { return (t && t.d != null) ? key(offToDate(t.d)) : ''; }
   // Дата закрытия ISO: записанная при закрытии; для старых задач без неё — плановая
@@ -15727,6 +15912,8 @@
     else if (S.screen === 'schedules') renderSchedules();
     else if (S.screen === 'refs') renderRefs();
     else if (S.screen === 'writeoffs') renderWriteoffs(); // 22.09-181
+    else if (S.screen === 'workcards') renderWorkCards(); // 22.09-191: карточки работ мастера на день
+    else if (S.screen === 'factmonth') renderFactMonth(); // 22.09-192: месячный отчёт фактического времени по объектам
     else if (S.screen === 'users') renderUsers();
     else if (S.screen === 'reports') renderReports();
     else if (S.screen === 'logs') renderLogs();
@@ -15889,7 +16076,12 @@
     }
     else if (a === 'task-start') { taskStart(el.dataset.tid); } // 22.09-190: факт начала работ на объекте
     else if (a === 'task-finish') { taskFinish(el.dataset.tid); } // 22.09-190: факт окончания — задача закрывается
+    else if (a === 'wc-open') { wcOpen(el.dataset.mid, (typeof S.dashDayOff === 'number' ? S.dashDayOff : 0)); } // 22.09-191: карточки работ мастера на выбранный день
+    else if (a === 'wc-back') { setScreen(S.wcBack || 'dashboard'); } // 22.09-191
     else if (a === 'wo-open') { openWriteoffModal(el.dataset.tid); } // 22.09-181
+    else if (a === 'fm-prev') { fmShift(-1); } // 22.09-192: месяц назад
+    else if (a === 'fm-next') { fmShift(1); } // 22.09-192: месяц вперёд
+    else if (a === 'fm-cur') { S.fmYear = TODAY.getFullYear(); S.fmMonth = TODAY.getMonth(); renderFactMonth(); } // 22.09-192: текущий месяц
     else if (a === 'wo-mat-add') { woMatAdd(el.dataset.mid); } // 22.09-183: материал из 1С — в списание (кнопка «+»)
     else if (a === 'wo-mat-del') { woMatDel(el.dataset.mid); } // 22.09-183: убрать материал из списания
     else if (a === 'wo-save') { woSaveWriteoff(); } // 22.09-186: сохранить списания (окно остаётся открытым)
