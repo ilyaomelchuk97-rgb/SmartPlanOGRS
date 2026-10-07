@@ -177,6 +177,8 @@
   function fmtShort(off) { var d = offToDate(off); return d.getDate() + ' ' + MON[d.getMonth()]; }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   function fmtH(h) { return (Math.round(h * 10) / 10).toString().replace('.', ','); }
+  function fmtClock(ms) { var d = new Date(ms); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); } // 22.09-190: «10:24»
+  function taskFactHours(t) { return (t && t.started_at && t.finished_at && t.finished_at >= t.started_at) ? (t.finished_at - t.started_at) / 3600000 : null; } // 22.09-190: фактические часы работы на объекте
   function initials(name) {
     if (!name) return '?';
     var p = name.replace(/[^А-Яа-яA-Za-z\s.]/g, '').split(/\s+/).filter(Boolean);
@@ -754,7 +756,7 @@
   }
 
   var TITLES = {
-    dashboard: ['Панель мониторинга', 'Сборка 22.09-189 · «мастер не видит свои работы» — тройная защита: мастер всегда в списке (страховка из данных сессии); автоочистка задач с ошибочной датой дальше 3 лет (их наставил график из-за опечатки в годе якоря); график больше не примет якорь серии «не того года»'],
+    dashboard: ['Панель мониторинга', 'Сборка 22.09-190 · факт работы на объекте: кнопки «▶ Приступил» и «■ Закончил» в блоке «Сегодня» (пишут точное время, «Закончил» закрывает задачу); у мастера бейдж «🔨 на объекте с …»; время факта — в списаниях и в карточке задачи'],
     calendar: ['Планирование / Календарь', 'Сборка 22.09-181 · при отметке задачи выполненной (галочка) проставляется дата закрытия — закрытые задачи собраны на новой странице «Списания»'],
     graphs: ['Планирование / График работ', 'Сборка 22.09-164 · кнопка «Трудоёмкость графика» — слева от «Фильтра»; «Праздничные дни» перенесены в «Графики смен»'],
     map: ['Карта маршрутов', 'Сборка 22.09-182 · техническая чистка кода: удалён недостижимый код старых роутеров и виджетов (страница стала легче, поведение не изменилось)'],
@@ -764,7 +766,7 @@
     livemap: ['Карта местоположения', 'Сборка 22.09-180 · маршруты, «весь маршрут ~N мин» и расписание дня считает единый роутер BRouter car (economic), время — с учётом пробок: совпадает с картой маршрутов'],
     perms: ['Разрешения', 'Система разрешений на производство работ'],
     refs: ['Справочники', 'Сборка 22.09-162 · карточка работы ГРП: «Проводится совместно» теперь выбирается в отдельном окне (кнопка «📋 Выбор работ») — галочки, «Сохранить»/«Отмена»'],
-    writeoffs: ['Списания', 'Сборка 22.09-186 · в окне списания кнопки «Сохранить» и «Закрыть» — обе записывают списания в задачу (по видам работ), закрыть ещё и закрывает карточку'],
+    writeoffs: ['Списания', 'Сборка 22.09-190 · в списке и в карточке списания — фактическое время работы (⏱ начал / закончил / сколько часов) по кнопкам мастера «Приступил»/«Закончил» из панели мониторинга'],
     workers: ['Работники', 'Сборка 22.09-172 · окно карточки работника — ровно по ширине карточки (560px): без пустого места справа; панель и календарь — на всю ширину окна'],
     schedules: ['Графики смен', 'Сборка 22.09-164 · добавлена кнопка «🎉 Праздничные дни» (из графика работ) — слева от выбора месяца'],
     users: ['Пользователи', 'Сборка 22.09-161 · увольнение работников: кнопка «Уволить» с датой, блок «Уволенные» с восстановлением; в истории задач ФИО остаются'],
@@ -2960,14 +2962,15 @@
     mastersDay.forEach(function (m) {
       var mt = dayTask.filter(function (t) { return String(t.m) === String(m.id); }); // 22.09-188: id — строками
       var load = mt.reduce(function (s, t) { return s + (isDone(t) ? 0 : taskHours(t)); }, 0);
+      var inProg = mt.filter(function (t) { return t.started_at && !isDone(t); })[0]; // 22.09-190: сейчас работает на объекте
       var _mc = masterCapacity(m.id, dayOff);
       var over = load > _mc;
-      html += '<div class="today-mstr"><span class="dot" style="background:' + m.color + '"></span><div><div class="nm">' + esc(m.name) + '</div><div class="ar">' + esc(m.area) + '</div></div><div class="meta"><div class="h" style="color:' + (over ? 'var(--red)' : 'var(--ink)') + '">' + fmtH(load) + ' ч / ' + fmtH(_mc) + ' ч</div><span class="tag ' + (over ? 'over' : 'ok') + '">' + (over ? '⚠ Перегрузка +' + fmtH(load - _mc) + ' ч' : mt.length + ' заданий') + '</span></div></div>';
+      html += '<div class="today-mstr"><span class="dot" style="background:' + m.color + '"></span><div><div class="nm">' + esc(m.name) + '</div><div class="ar">' + esc(m.area) + '</div></div><div class="meta"><div class="h" style="color:' + (over ? 'var(--red)' : 'var(--ink)') + '">' + fmtH(load) + ' ч / ' + fmtH(_mc) + ' ч</div><span class="tag ' + (over ? 'over' : 'ok') + '">' + (over ? '⚠ Перегрузка +' + fmtH(load - _mc) + ' ч' : mt.length + ' заданий') + '</span>' + (dayOff === 0 && inProg ? ' <span class="tag ok" style="background:#dcfce7;color:#166534" title="Работа начата в ' + fmtClock(inProg.started_at) + '">🔨 на объекте с ' + fmtClock(inProg.started_at) + '</span>' : '') + '</div></div>';
       // гант-шкала дня: 8:00–20:00, задачи и переезды
       html += ganttDayHtml(m, dayOff);
       mt.slice(0, 4).forEach(function (t) {
         var o = OBJ_MAP[t.o], w = workOf(t);
-        html += '<div class="taskline"><span class="pill">' + esc(w ? w.name : '?') + '</span><span>' + esc(addrOf(t)) + '</span><span style="margin-left:auto;color:var(--muted)">' + fmtH(taskHours(t)) + ' ч</span></div>';
+        html += '<div class="taskline"><span class="pill">' + esc(w ? w.name : '?') + '</span><span>' + esc(addrOf(t)) + '</span>' + taskDayCtlHtml(t, dayOff) + '<span style="margin-left:auto;color:var(--muted)">' + fmtH(taskHours(t)) + ' ч</span></div>';
       });
       if (mt.length > 4) html += '<div class="taskline" style="color:var(--muted)">и ещё ' + (mt.length - 4) + '…</div>';
     });
@@ -15184,6 +15187,54 @@
     else { delete t.done_date; }
   }
 
+  /* ===== 22.09-190: ФАКТ РАБОТЫ НА ОБЪЕКТЕ — «Приступил» / «Закончил» =====
+     Мастер жмёт «Приступил» на объекте — пишется started_at, задача уходит в
+     статус «В работе». Жмёт «Закончил» — пишется finished_at, задача
+     закрывается (как галочка, с датой закрытия). Галочка «выполнено» без
+     кнопок тоже фиксирует время конца. Поля едут в задаче через updateTask —
+     синхронизируются сами. */
+  function taskStart(id) {
+    var t = findTask(id); if (!t || isDone(t)) return;
+    if (!canEditTask(t)) { toast('err', 'Нет прав на изменение этой задачи'); return; }
+    t.started_at = Date.now();
+    t.s = 'progress'; t.status = 'progress';
+    if (TASKS_DB) TASKS_DB.updateTask(t.id, t);
+    try { S.tasks = TASKS_DB ? TASKS_DB.getTasks() : S.tasks; } catch (e) {}
+    var _m = masterById(t.m);
+    logAction('Начало работ на объекте', addrOf(t) + ' · ' + (_m ? _m.name : t.m) + ' · ' + fmtClock(t.started_at));
+    toast('ok', '▶ Работа начата в ' + fmtClock(t.started_at) + '. По окончании нажмите «Закончил» — запишется время и задача закроется.');
+    refresh();
+  }
+  function taskFinish(id) {
+    var t = findTask(id); if (!t || isDone(t)) return;
+    if (!canEditTask(t)) { toast('err', 'Нет прав на изменение этой задачи'); return; }
+    if (!confirm('Завершить работу и отметить задачу выполненной?\n' + addrOf(t) +
+      (t.started_at ? '\nНачата в ' + fmtClock(t.started_at) + ', сейчас ' + fmtClock(Date.now()) : ''))) return;
+    t.finished_at = Date.now();
+    t.s = 'done'; t.status = 'done';
+    stampTaskDoneDate(t, true);
+    if (TASKS_DB) TASKS_DB.updateTask(t.id, t);
+    try { S.tasks = TASKS_DB ? TASKS_DB.getTasks() : S.tasks; } catch (e) {}
+    var _m = masterById(t.m);
+    var fh = taskFactHours(t);
+    logAction('Окончание работ на объекте', addrOf(t) + ' · ' + (_m ? _m.name : t.m) + ' · ' + fmtClock(t.finished_at) + (fh != null ? ' · факт ' + fmtH(fh) + ' ч' : ''));
+    toast('ok', '✓ Работа завершена в ' + fmtClock(t.finished_at) + (fh != null ? ' · потрачено ' + fmtH(fh) + ' ч' : ''));
+    refresh();
+  }
+  // Ячейка факта в строке задачи блока «Сегодня»: кнопки / пометка / итог
+  function taskDayCtlHtml(t, dayOff) {
+    if (isDone(t)) {
+      if (!t.finished_at) return '';
+      var span = (t.started_at ? fmtClock(t.started_at) + '–' : '') + fmtClock(t.finished_at);
+      var fh0 = taskFactHours(t);
+      return '<span style="color:#16a34a;font-weight:700;font-size:11.5px;white-space:nowrap" title="Фактическое время работы на объекте">✓ ' + span + (fh0 != null ? ' (' + fmtH(fh0) + ' ч)' : '') + '</span>';
+    }
+    var startedMark = t.started_at ? '<span style="color:#d97706;font-size:11px;font-weight:700;white-space:nowrap" title="Работа начата — ждём oкончания">⏳ с ' + fmtClock(t.started_at) + '</span>' : '';
+    if (dayOff !== 0 || !canEditTask(t)) return startedMark; // не сегодня или нет прав — только пометка
+    if (!t.started_at) return '<button type="button" class="btn sm" data-action="task-start" data-tid="' + esc(t.id) + '" title="Нажмите, когда приступили к работе на объекте — запишется время начала" style="background:#dcfce7;border-color:#86efac;color:#166534;font-weight:700;white-space:nowrap">▶ Приступил</button>';
+    return startedMark + '<button type="button" class="btn sm" data-action="task-finish" data-tid="' + esc(t.id) + '" title="Нажмите по окончании работ — запишется время конца и задача закроется" style="background:#fee2e2;border-color:#fca5a5;color:#b91c1c;font-weight:700;white-space:nowrap">■ Закончил</button>';
+  }
+
   // Плановая дата задачи ISO ('YYYY-MM-DD'), '' если дня нет
   function writeoffPlanIso(t) { return (t && t.d != null) ? key(offToDate(t.d)) : ''; }
   // Дата закрытия ISO: записанная при закрытии; для старых задач без неё — плановая
@@ -15276,6 +15327,7 @@
         '<div style="text-align:right;font-size:12px;line-height:1.6;white-space:nowrap">' +
           '<div style="color:var(--muted);font-weight:600">📅 План: <b style="color:var(--ink)">' + esc(fmtDmyIso(planIso)) + '</b></div>' +
           '<div style="color:var(--muted);font-weight:600">✅ Закрыта: <b style="color:#16a34a">' + esc(fmtDmyIso(closeIso)) + '</b>' + (legacy ? ' <span style="color:var(--muted)" title="Задача закрыта до появления даты закрытия — показана плановая дата">≈</span>' : '') + '</div>' +
+          (t.started_at || t.finished_at ? '<div style="color:var(--muted);font-weight:600" title="Фактическое время работы на объекте (кнопки «Приступил»/«Закончил»)">⏱ Факт: <b style="color:var(--ink)">' + (t.started_at ? fmtClock(t.started_at) : '?') + ' – ' + (t.finished_at ? fmtClock(t.finished_at) : '?') + '</b>' + (taskFactHours(t) != null ? ' · <b style="color:#2563eb">' + fmtH(taskFactHours(t)) + ' ч</b>' : '') + '</div>' : '') +
         '</div></div></div>';
     });
     host.innerHTML = html;
@@ -15577,6 +15629,7 @@
     h += row('\uD83E\uDDF0 Слесаря', esc(writeoffSlesariNames(t)));
     h += row('\uD83D\uDCC5 Плановая дата', esc(fmtDmyIso(planIso)));
     h += row('\u2705 Дата закрытия', '<b style="color:#16a34a">' + esc(fmtDmyIso(closeIso)) + '</b>');
+    if (t.started_at || t.finished_at) h += row('\u23F1 Факт работы', (t.started_at ? 'с <b>' + fmtClock(t.started_at) + '</b>' : 'с ?') + ' ' + (t.finished_at ? 'до <b style="color:#16a34a">' + fmtClock(t.finished_at) + '</b>' : 'до …') + (taskFactHours(t) != null ? ' · <b style="color:#2563eb">' + fmtH(taskFactHours(t)) + ' ч</b>' : '')); // 22.09-190
     h += '<div style="margin:14px 0 7px;font-size:12px;color:var(--muted);font-weight:700">Виды работ — выберите, к какой списывать материалы:</div>';
     h += '<div id="wo-works"></div>';
     h += '<div id="wo-sel-title" style="margin:14px 0 7px;font-size:12px;color:var(--muted);font-weight:700">Материалы к списанию:</div>';
@@ -15827,11 +15880,15 @@
       tdTask.s = nowDone ? 'done' : 'plan';
       tdTask.status = nowDone ? 'done' : 'plan';
       stampTaskDoneDate(tdTask, nowDone); // 22.09-181: дата закрытия для страницы «Списания»
+      if (nowDone && !tdTask.finished_at) tdTask.finished_at = Date.now(); // 22.09-190: галочка фиксирует конец, даже если «Приступил» не жали
+      if (!nowDone && tdTask.finished_at) delete tdTask.finished_at; // 22.09-190: вернули в план — время окончания сброшено
       if (TASKS_DB) { TASKS_DB.updateTask(tdTask.id, tdTask); }
       invalidateRouteCache(tdTask.m, tdTask.d);
       drawCalendarGrid();
       toast('ok', nowDone ? '✓ Отмечено выполненным' : 'Возвращено в план');
     }
+    else if (a === 'task-start') { taskStart(el.dataset.tid); } // 22.09-190: факт начала работ на объекте
+    else if (a === 'task-finish') { taskFinish(el.dataset.tid); } // 22.09-190: факт окончания — задача закрывается
     else if (a === 'wo-open') { openWriteoffModal(el.dataset.tid); } // 22.09-181
     else if (a === 'wo-mat-add') { woMatAdd(el.dataset.mid); } // 22.09-183: материал из 1С — в списание (кнопка «+»)
     else if (a === 'wo-mat-del') { woMatDel(el.dataset.mid); } // 22.09-183: убрать материал из списания
