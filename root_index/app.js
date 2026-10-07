@@ -757,9 +757,9 @@
   }
 
   var TITLES = {
-    dashboard: ['Панель мониторинга', 'Сборка 22.09-193 · выпадающий список «КПД мастеров» (админ, начальник СЭОГС, начальник участка, старший мастер): все показатели панели, списки по нажатию на цифры и блок «Сегодня» — по одному выбранному мастеру или по всем сразу. Ранее, сборка 22.09-190 · факт работы на объекте: кнопки «▶ Приступил» и «■ Закончил» в блоке «Сегодня» (пишут точное время, «Закончил» закрывает задачу); у мастера бейдж «🔨 на объекте с …»; время факта — в списаниях и в карточке задачи'],
+    dashboard: ['Панель мониторинга', 'Сборка 22.09-199 · выбор мастера для просмотра КПД перенесён внутрь блока «⚡ КПД мастеров»: выпадающий список — прямо в заголовке этой карточки, рядом с выбором месяца (вверху страницы его больше нет). Ранее, сборка 22.09-193 · выпадающий список «КПД мастеров» (админ, начальник СЭОГС, начальник участка, старший мастер): все показатели панели, списки по нажатию на цифры и блок «Сегодня» — по одному выбранному мастеру или по всем сразу. Ранее, сборка 22.09-190 · факт работы на объекте: кнопки «▶ Приступил» и «■ Закончил» в блоке «Сегодня» (пишут точное время, «Закончил» закрывает задачу); у мастера бейдж «🔨 на объекте с …»; время факта — в списаниях и в карточке задачи'],
     calendar: ['Планирование / Календарь', 'Сборка 22.09-198 · строки календаря — только мастера: начальники участков и старшие мастера в «Планировании» больше не показываются. Ранее, сборка 22.09-181 · при отметке задачи выполненной (галочка) проставляется дата закрытия — закрытые задачи собраны на новой странице «Списания»'],
-    graphs: ['Планирование / График работ', 'Сборка 22.09-196 · в «Трудоёмкости графика» кнопка «📍 По объектам — новое окно»: трудоёмкость по каждому объекту за год / месяц / период месяцев; нажатие на объект — его карточка с работами, датами и часами выбранного периода. Ранее, сборка 22.09-195 · в окне «Настроить периодичность» убран АВТОМАТИЧЕСКИЙ подбор работ при открытии — работы на объект добавляются только вручную (кнопки «⚡» и «+ работа»). Ранее, сборка 22.09-164 · кнопка «Трудоёмкость графика» — слева от «Фильтра»; «Праздничные дни» перенесены в «Графики смен»'],
+    graphs: ['Планирование / График работ', 'Сборка 22.09-200 · «Трудоёмкость графика»: часы в колонках трудоёмкости — до 3 знаков после запятой; таблица «По объектам» внизу убрана, осталась только кнопка «📍 По объектам» (переименована из «По объектам — новое окно») — открывает отдельное окно. Ранее, сборка 22.09-196 · в «Трудоёмкости графика» кнопка «📍 По объектам — новое окно»: трудоёмкость по каждому объекту за год / месяц / период месяцев; нажатие на объект — его карточка с работами, датами и часами выбранного периода. Ранее, сборка 22.09-195 · в окне «Настроить периодичность» убран АВТОМАТИЧЕСКИЙ подбор работ при открытии — работы на объект добавляются только вручную (кнопки «⚡» и «+ работа»). Ранее, сборка 22.09-164 · кнопка «Трудоёмкость графика» — слева от «Фильтра»; «Праздничные дни» перенесены в «Графики смен»'],
     map: ['Карта маршрутов', 'Сборка 22.09-197 · порядок заданий на день после «Оптимизации маршрутов» сохраняется — в том же порядке работы показываются и в «Планировании» на этот день (и в списке «Задания на день» при повторном входе). Ранее, сборка 22.09-182 · техническая чистка кода: удалён недостижимый код старых роутеров и виджетов (страница стала легче, поведение не изменилось)'],
     objmap: ['Карта объектов', 'Сборка 22.09-184 · вид телеметрии «ПТК "Эксорт"» переименован в «ПТК "Эскорт"» — объекты и работы обновлены автоматически'],
     testmap: ['Тест проезда', 'Сборка 22.09-176 · исправлена загрузка 3D-планеты (был ошибочный адрес библиотеки карты) + добавлен запасной сервер, если первый не отвечает'],
@@ -2833,20 +2833,9 @@
       html += '</div>';
     }
 
-    // === 22.09-193: селектор «КПД мастеров» — админ, начальник СЭОГС, начальник участка, старший мастер ===
+    // 22.09-193: право выбирать мастера для просмотра КПД — админ, начальник СЭОГС, начальник участка, старший мастер.
+    // 22.09-199: сам выпадающий список перенесён с верха страницы в заголовок карточки «⚡ КПД мастеров» (см. _dashJoin ниже)
     var dashCanPickMaster = (S.role === 'admin' || S.role === 'viewer' || S.role === 'nach' || S.role === 'smaster');
-    if (dashCanPickMaster) {
-      html += '<div style="margin-bottom:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">';
-      html += '<label style="font-size:12px;font-weight:600;color:var(--muted)">КПД мастера:</label>';
-      html += '<select id="dash-master" style="padding:8px 12px;border:1px solid var(--line);border-radius:9px;font-size:13px;font-family:inherit;background:var(--card)" title="Показатели панели, списки KPI и блок «Сегодня» — по выбранному мастеру или по всем сразу">';
-      html += '<option value=""' + (!S.dashMaster ? ' selected' : '') + '>Все мастера</option>';
-      dashMastersAll().forEach(function (m) { html += '<option value="' + esc(m.id) + '"' + (S.dashMaster && String(S.dashMaster) === String(m.id) ? ' selected' : '') + '>' + esc(m.name) + (m.area ? ' · ' + esc(m.area) : '') + '</option>'; });
-      html += '</select>';
-      if (S.dashMaster) {
-        html += '<button class="btn sm" data-action="dash-master-clear">Сбросить</button>';
-      }
-      html += '</div>';
-    }
 
     html += '<div class="kpi-row">';
     html += kpi(today.length, 'Задач на сегодня', 'по ' + mastersToday.filter(function (m) { return today.some(function (t) { return String(t.m) === String(m.id); }); }).length + ' мастера(ам)', '#2563eb', 'kpi-today'); // 22.09-187: мастера без задач сегодня не считаем
@@ -2969,11 +2958,20 @@
             '</div></div></div>' +
         '<div style="margin-top:10px;font-size:11.5px;color:var(--muted)">🚗 В пути за ' + esc(dashMonthLabel().toLowerCase()) + ': <b style="color:var(--ink)">' + (kTotalH > 0 ? kDec(kPctRoad) : '0') + '%</b> от всего времени (' + fmtH(kTotalH) + ' ч) · Среднее время переезда: <b style="color:var(--ink)">≈ ' + kAvgTravel + ' мин</b></div>';
 
+      // 22.09-199: выбор мастера для просмотра КПД — прямо в заголовке этой карточки (блок справа внизу)
+      // (тот же id dash-master: привязка события — в конце renderDashboard; выбор влияет на расчёт КПД ниже и весь дашборд)
+      var kpdMasterSel = '';
+      if (dashCanPickMaster) {
+        kpdMasterSel = '<select id="dash-master" title="Показатели панели, списки KPI и блок «Сегодня» — по выбранному мастеру или по всем сразу" style="padding:5px 10px;border:1px solid var(--line);border-radius:9px;font-size:12.5px;font-weight:700;font-family:inherit;background:var(--card);color:var(--ink);max-width:230px;cursor:pointer">';
+        kpdMasterSel += '<option value=""' + (!S.dashMaster ? ' selected' : '') + '>👷 Все мастера</option>';
+        dashMastersAll().forEach(function (m) { kpdMasterSel += '<option value="' + esc(m.id) + '"' + (S.dashMaster && String(S.dashMaster) === String(m.id) ? ' selected' : '') + '>' + esc(m.name) + (m.area ? ' · ' + esc(m.area) : '') + '</option>'; });
+        kpdMasterSel += '</select>';
+      }
       // 22.09-169: «КПД мастеров» и «Выполнение по дням» — ОДНА карточка:
       // сверху метрика КПД, под ней через разделитель — график по дням
       // 22.09-171: в заголовке — календарик выбора месяца (та же кнопка, что в панели аналитики);
       // «Выполнение по дням» — за тот же выбранный месяц; график занимает всю свободную высоту карточки
-      _dashJoin = '<div class="card" style="display:flex;flex-direction:column;height:100%"><div class="card-h" style="flex:none"><h2>⚡ КПД мастеров</h2><div class="spacer"></div><button type="button" data-action="dash-month-toggle" title="Выбрать месяц для расчёта КПД и графика по дням" style="display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-weight:700;font-family:inherit;border-radius:9px;padding:5px 12px;cursor:pointer;font-size:12.5px;white-space:nowrap">📅 ' + esc(dashMonthLabel()) + '</button></div><div class="card-b" style="flex:1;display:flex;flex-direction:column;min-height:0">' + kpdBody +
+      _dashJoin = '<div class="card" style="display:flex;flex-direction:column;height:100%"><div class="card-h" style="flex:none"><h2>⚡ КПД мастеров</h2><div class="spacer"></div>' + kpdMasterSel + '<button type="button" data-action="dash-month-toggle" title="Выбрать месяц для расчёта КПД и графика по дням" style="display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-weight:700;font-family:inherit;border-radius:9px;padding:5px 12px;cursor:pointer;font-size:12.5px;white-space:nowrap">📅 ' + esc(dashMonthLabel()) + '</button></div><div class="card-b" style="flex:1;display:flex;flex-direction:column;min-height:0">' + kpdBody +
         '<div style="margin-top:14px;padding-top:11px;border-top:1px dashed var(--line);flex:1;display:flex;flex-direction:column;min-height:0">' +
           '<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px;flex:none"><span style="font-size:13.5px;font-weight:800;color:var(--ink)">📈 Выполнение по дням</span><span style="font-size:11.5px;color:var(--muted);font-weight:600">' + MON_NOM[cmy.m] + ' ' + cmy.y + ' · <span style="color:#2563eb;font-weight:700">■ план</span> <span style="color:#16a34a;font-weight:700">■ выполнено</span></span></div>' +
           chart1 +
@@ -18290,6 +18288,8 @@
     });
     return { yearH: yearH, occTotal: occTotal, months: months, objs: objs, series: series, noNorm: noNorm };
   }
+  // 22.09-200: в окнах «Трудоёмкость графика» часы — до 3 знаков после запятой (лишние нули не выводятся: 12,3 · 0,15 · 4,167)
+  function fmtH3(h) { var v = Math.round((+h || 0) * 1000) / 1000; return String(v).replace('.', ','); }
   function graphsLaborTableCss() { return 'width:100%;border-collapse:collapse;font-size:12.5px'; }
   function graphsLaborCellCss(head) { return 'border:1px solid var(--line);padding:6px 9px;text-align:' + (head ? 'left' : 'right') + ';' + (head ? 'font-weight:800;background:var(--panel-2)' : ''); }
   function openGraphLaborModal() {
@@ -18303,11 +18303,11 @@
       h += '<div class="empty" style="padding:18px;font-size:13px">В графике пока нет работ — сначала настройте периодичность (кнопка 🔁 на панели), потом сохраните.</div>';
     } else {
       h += '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 12px;font-size:13.5px;display:flex;gap:16px;flex-wrap:wrap;align-items:center">' +
-        '<span>Итого за год: <b style="font-size:16px;color:#15803d">' + fmtH(st.yearH) + ' чел/ч</b></span>' +
+        '<span>Итого за год: <b style="font-size:16px;color:#15803d">' + fmtH3(st.yearH) + ' чел/ч</b></span>' +
         '<span style="color:var(--muted)">проведений за год: <b>' + st.occTotal + '</b></span>' +
         '<span style="color:var(--muted)">объектов: <b>' + st.objs.length + '</b></span>' +
         '<span style="color:var(--muted)">видов работ: <b>' + st.series + '</b></span>' +
-        '<span style="color:var(--muted)">в среднем в месяц: <b>' + fmtH(st.yearH / 12) + ' чел/ч</b></span>' +
+        '<span style="color:var(--muted)">в среднем в месяц: <b>' + fmtH3(st.yearH / 12) + ' чел/ч</b></span>' +
         '</div>';
       h += '<div style="font-weight:800;margin:14px 0 6px;font-size:13px">📅 По месяцам</div>';
       h += '<table style="' + graphsLaborTableCss() + '"><tr>' +
@@ -18320,33 +18320,21 @@
         var pct = st.yearH > 0 ? Math.round(mo.h / st.yearH * 1000) / 10 : 0;
         h += '<tr><td style="' + graphsLaborCellCss(false) + 'text-align:left">' + esc(MONTHS_RU[mi]) + '</td>' +
           '<td style="' + graphsLaborCellCss(false) + '">' + mo.occ + '</td>' +
-          '<td style="' + graphsLaborCellCss(false) + '"><b>' + fmtH(mo.h) + '</b></td>' +
+          '<td style="' + graphsLaborCellCss(false) + '"><b>' + fmtH3(mo.h) + '</b></td>' +
           '<td style="' + graphsLaborCellCss(false) + 'color:var(--muted)">' + String(pct).replace('.', ',') + '%</td></tr>';
       });
       h += '<tr style="font-weight:800;background:#f0fdf4"><td style="' + graphsLaborCellCss(false) + 'text-align:left">ИТОГО за год</td>' +
         '<td style="' + graphsLaborCellCss(false) + '">' + st.occTotal + '</td>' +
-        '<td style="' + graphsLaborCellCss(false) + '">' + fmtH(st.yearH) + '</td>' +
+        '<td style="' + graphsLaborCellCss(false) + '">' + fmtH3(st.yearH) + '</td>' +
         '<td style="' + graphsLaborCellCss(false) + 'color:var(--muted)">100%</td></tr>';
       h += '</table>';
-      h += '<div style="font-weight:800;margin:16px 0 6px;font-size:13px">📍 По объектам</div>';
-      h += '<table style="' + graphsLaborTableCss() + '"><tr>' +
-        '<th style="' + graphsLaborCellCss(true) + '">Объект</th>' +
-        '<th style="' + graphsLaborCellCss(true) + 'text-align:right">Видов работ</th>' +
-        '<th style="' + graphsLaborCellCss(true) + 'text-align:right">Проведений</th>' +
-        '<th style="' + graphsLaborCellCss(true) + 'text-align:right">Трудоёмкость, чел/ч</th></tr>';
-      st.objs.forEach(function (row) {
-        h += '<tr><td style="' + graphsLaborCellCss(false) + 'text-align:left;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(row.name) + '">' +
-          '<span class="chip ' + esc(row.type) + '" style="margin-right:6px">' + esc(row.type) + '</span>' + esc(row.name) + '</td>' +
-          '<td style="' + graphsLaborCellCss(false) + '">' + row.works + '</td>' +
-          '<td style="' + graphsLaborCellCss(false) + '">' + row.occ + '</td>' +
-          '<td style="' + graphsLaborCellCss(false) + '"><b>' + fmtH(row.h) + '</b></td></tr>';
-      });
+      // 22.09-200: таблица «По объектам» внизу убрана — осталась только кнопка «📍 По объектам» внизу окна (отдельное окно, 22.09-196)
       h += '</table>';
       if (st.noNorm) h += '<div style="font-size:11.5px;color:#92400e;margin-top:8px">⚠ У ' + st.noNorm + ' видов работ не задана норма (ч/ед.) в справочнике — они не учтены в часах (проведения посчитаны).</div>';
       h += '<div style="font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5">Часы одного проведения = норма работы из справочника «Виды работ» (у задач графика объём — 1). Даты берутся из треугольников графика; проведения других лет не учитываются.</div>';
     }
     h += '</div>';
-    h += '<div class="modal-f" style="display:flex;gap:10px;justify-content:flex-end"><button type="button" class="btn primary" data-action="graphs-labor-objs" title="Новое окно: трудоёмкость по каждому объекту за выбранный год, месяц или произвольный период; нажатие на объект — его карточка с работами, датами и часами за выбранный период">📍 По объектам — новое окно</button><button type="button" class="btn" data-action="close-modal">Закрыть</button></div>';
+    h += '<div class="modal-f" style="display:flex;gap:10px;justify-content:flex-end"><button type="button" class="btn primary" data-action="graphs-labor-objs" title="Новое окно: трудоёмкость по каждому объекту за выбранный год, месяц или произвольный период; нажатие на объект — его карточка с работами, датами и часами за выбранный период">📍 По объектам</button><button type="button" class="btn" data-action="close-modal">Закрыть</button></div>';
     modal.innerHTML = h;
     modal.style.width = '60%'; modal.style.maxWidth = '60%'; // сброс — в close-modal
     overlay.classList.add('show');
@@ -18354,7 +18342,7 @@
 
   /* =====================================================================
      22.09-196: ТРУДОЁМКОСТЬ ПО ОБЪЕКТАМ
-     Кнопка «📍 По объектам — новое окно» в «Трудоёмкости графика» открывает
+     Кнопка «📍 По объектам» в «Трудоёмкости графика» открывает
      отдельное окно (второй слой, поверх): выбор года и показа — весь год /
      один месяц / произвольный период месяцев. Список объектов графика с
      проведениями и часами за выбранный период; нажатие на объект — его
@@ -18480,7 +18468,7 @@
           '<td style="' + graphsLaborCellCss(false) + 'text-align:left;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="Нажмите — карточка объекта: трудоёмкость по работам за период «' + esc(gloPeriodLabel()) + '»"><span class="chip ' + esc(ob.type) + '" style="margin-right:6px">' + esc(ob.type) + '</span>' + esc(ob.name || '') + ' <span style="color:var(--muted);font-weight:600;font-size:11px">→</span></td>' +
           '<td style="' + graphsLaborCellCss(false) + '">' + stats.length + '</td>' +
           '<td style="' + graphsLaborCellCss(false) + '">' + oocc + '</td>' +
-          '<td style="' + graphsLaborCellCss(false) + '"><b>' + fmtH(oh) + '</b></td></tr>';
+          '<td style="' + graphsLaborCellCss(false) + '"><b>' + fmtH3(oh) + '</b></td></tr>';
       });
       h += '<table style="' + graphsLaborTableCss() + '"><tr>' +
         '<th style="' + graphsLaborCellCss(true) + '">Объект (нажмите — его карточка)</th>' +
@@ -18491,7 +18479,7 @@
         '<tr style="font-weight:800;background:#f0fdf4"><td style="' + graphsLaborCellCss(false) + 'text-align:left">ИТОГО · ' + esc(gloPeriodLabel()) + '</td>' +
           '<td style="' + graphsLaborCellCss(false) + '"></td>' +
           '<td style="' + graphsLaborCellCss(false) + '">' + totOcc + '</td>' +
-          '<td style="' + graphsLaborCellCss(false) + '">' + fmtH(totH) + '</td></tr></table>';
+          '<td style="' + graphsLaborCellCss(false) + '">' + fmtH3(totH) + '</td></tr></table>';
       h += '<div style="font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5">Проведения берутся из треугольников графика (и плановые, и отмеченные выполненными); часы одного проведения = норма работы из справочника «Виды работ».</div>';
     } else {
       var ob = g.objs[S.gloRi];
@@ -18507,7 +18495,7 @@
         h += '<div class="empty" style="padding:16px;font-size:13px">За период «' + esc(gloPeriodLabel()) + '» у этого объекта проведений нет — смените год, месяц или период выше.</div>';
       } else {
         h += '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:9px 12px;font-size:13px;display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px">' +
-          '<span>видов работ: <b>' + stats2.length + '</b></span><span>проведений: <b>' + docc + '</b></span><span>трудоёмкость: <b style="color:#15803d;font-size:15px">' + fmtH(dh) + ' чел/ч</b></span></div>';
+          '<span>видов работ: <b>' + stats2.length + '</b></span><span>проведений: <b>' + docc + '</b></span><span>трудоёмкость: <b style="color:#15803d;font-size:15px">' + fmtH3(dh) + ' чел/ч</b></span></div>';
         h += '<table style="' + graphsLaborTableCss() + '"><tr>' +
           '<th style="' + graphsLaborCellCss(true) + '">Вид работ</th>' +
           '<th style="' + graphsLaborCellCss(true) + 'text-align:right">ч/ед</th>' +
@@ -18517,10 +18505,10 @@
         stats2.forEach(function (r) {
           var dts = r.dates.map(fmtDmyIso).join(', ');
           h += '<tr><td style="' + graphsLaborCellCss(false) + 'text-align:left;max-width:420px">' + esc(r.name) + (r.norm ? '' : ' <span style="color:#b45309;font-size:11px" title="Норма не задана в справочнике — часы не учтены">⚠ без нормы</span>') + '</td>' +
-            '<td style="' + graphsLaborCellCss(false) + '">' + (r.norm ? fmtH(r.norm) : '—') + '</td>' +
+            '<td style="' + graphsLaborCellCss(false) + '">' + (r.norm ? fmtH3(r.norm) : '—') + '</td>' +
             '<td style="' + graphsLaborCellCss(false) + '">' + r.dates.length + '</td>' +
             '<td style="' + graphsLaborCellCss(false) + 'text-align:left;font-size:11.5px;color:var(--muted)">' + esc(dts) + '</td>' +
-            '<td style="' + graphsLaborCellCss(false) + '"><b>' + fmtH(r.norm * r.dates.length) + '</b></td></tr>';
+            '<td style="' + graphsLaborCellCss(false) + '"><b>' + fmtH3(r.norm * r.dates.length) + '</b></td></tr>';
         });
         h += '</table>';
       }
