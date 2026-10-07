@@ -198,6 +198,7 @@
     mapSel: {},
     baseId: 'b1',
     dashArea: null, // выбранный участок на панели мониторинга: действует во всех вкладках (кроме карты местоположения); null = все участки
+    dashMaster: null, // 22.09-193: выбранный мастер в списке «КПД мастеров» на панели мониторинга; null = все мастера
     refsTab: 'tree',
     workArea: null, workModalMode: 'new', workModalWid: null,
     userModalMode: 'new', userModalUid: null,
@@ -756,7 +757,7 @@
   }
 
   var TITLES = {
-    dashboard: ['Панель мониторинга', 'Сборка 22.09-190 · факт работы на объекте: кнопки «▶ Приступил» и «■ Закончил» в блоке «Сегодня» (пишут точное время, «Закончил» закрывает задачу); у мастера бейдж «🔨 на объекте с …»; время факта — в списаниях и в карточке задачи'],
+    dashboard: ['Панель мониторинга', 'Сборка 22.09-193 · выпадающий список «КПД мастеров» (админ, начальник СЭОГС, начальник участка, старший мастер): все показатели панели, списки по нажатию на цифры и блок «Сегодня» — по одному выбранному мастеру или по всем сразу. Ранее, сборка 22.09-190 · факт работы на объекте: кнопки «▶ Приступил» и «■ Закончил» в блоке «Сегодня» (пишут точное время, «Закончил» закрывает задачу); у мастера бейдж «🔨 на объекте с …»; время факта — в списаниях и в карточке задачи'],
     calendar: ['Планирование / Календарь', 'Сборка 22.09-181 · при отметке задачи выполненной (галочка) проставляется дата закрытия — закрытые задачи собраны на новой странице «Списания»'],
     graphs: ['Планирование / График работ', 'Сборка 22.09-164 · кнопка «Трудоёмкость графика» — слева от «Фильтра»; «Праздничные дни» перенесены в «Графики смен»'],
     map: ['Карта маршрутов', 'Сборка 22.09-182 · техническая чистка кода: удалён недостижимый код старых роутеров и виджетов (страница стала легче, поведение не изменилось)'],
@@ -766,7 +767,7 @@
     livemap: ['Карта местоположения', 'Сборка 22.09-180 · маршруты, «весь маршрут ~N мин» и расписание дня считает единый роутер BRouter car (economic), время — с учётом пробок: совпадает с картой маршрутов'],
     perms: ['Разрешения', 'Система разрешений на производство работ'],
     refs: ['Справочники', 'Сборка 22.09-162 · карточка работы ГРП: «Проводится совместно» теперь выбирается в отдельном окне (кнопка «📋 Выбор работ») — галочки, «Сохранить»/«Отмена»'],
-    writeoffs: ['Списания', 'Сборка 22.09-190 · в списке и в карточке списания — фактическое время работы (⏱ начал / закончил / сколько часов) по кнопкам мастера «Приступил»/«Закончил» из панели мониторинга'],
+    writeoffs: ['Списания', 'Сборка 22.09-194 · в окне списания убрана дублирующая строка «Работа» под адресом — работа, произведённая на объекте, выбирается кнопками в блоке «Виды работ». Ранее, сборка 22.09-190 · в списке и в карточке списания — фактическое время работы (⏱ начал / закончил / сколько часов) по кнопкам мастера «Приступил»/«Закончил» из панели мониторинга'],
     workcards: ['Карточки работ на день', 'Сборка 22.09-191 · клик по ФИО мастера в блоке «Сегодня» панели — страница с карточкой на каждую работу: адрес, виды работ, слесаря, план, крупные кнопки «Приступил»/«Закончил»'],
     factmonth: ['Факт работ по объектам', 'Сборка 22.09-192 · месячный отчёт по объектам: кто, когда и сколько фактически работал (по кнопкам «Приступил»/«Закончил»), фактические часы против плановых; перелистывание месяцев'],
     workers: ['Работники', 'Сборка 22.09-172 · окно карточки работника — ровно по ширине карточки (560px): без пустого места справа; панель и календарь — на всю ширину окна'],
@@ -805,8 +806,14 @@
     overlay.classList.add('show');
   }
 
+  // 22.09-193: «КПД мастеров» — выбор мастера на панели мониторинга (null = все мастера).
+  // Цифры, блок «Сегодня» и всплывающие списки KPI считаются только по выбранному мастеру.
+  function kpiMasterPick() { return S.dashMaster ? String(S.dashMaster) : ''; }
+  function kpiTasks() { var pk = kpiMasterPick(); return visibleTasks().filter(function (t) { return !pk || String(t.m) === pk; }); }
+  function kpiMasters() { var pk = kpiMasterPick(); var vm = visibleMasters(); return pk ? vm.filter(function (m) { return String(m.id) === pk; }) : vm; }
+
   function kpiToday() {
-    var vt = visibleTasks().filter(function (t) { return t.d === 0; });
+    var vt = kpiTasks().filter(function (t) { return t.d === 0; });
     var body = '';
     if (!vt.length) { openKpiPopup('Задачи на сегодня', '#2563eb', null); return; }
     vt.sort(function(a,b) { return (a.m||'').localeCompare(b.m||''); });
@@ -818,13 +825,13 @@
   }
 
   function kpiOverloads() {
-    var masters = visibleMasters();
+    var masters = kpiMasters();
     var overloaded = masters.filter(function (m) { return loadForDay(m.id, 0) > masterCapacity(m.id, 0); });
     var body = '';
     if (!overloaded.length) { openKpiPopup('Перегрузок сегодня', '#dc2626', '<div class="empty">🎉 Перегрузок нет!</div>'); return; }
     overloaded.forEach(function (m) {
       var load = loadForDay(m.id, 0);
-      var dayTasks = visibleTasks().filter(function(t) { return t.m === m.id && t.d === 0 && !isDone(t); });
+      var dayTasks = kpiTasks().filter(function(t) { return t.m === m.id && t.d === 0 && !isDone(t); });
       var taskList = '';
       dayTasks.forEach(function(t) { var w = workOf(t); taskList += '<div class="taskline"><span class="pill">' + esc(w ? w.name : '?') + '</span><span>' + esc(addrOf(t)) + '</span><span style="margin-left:auto;color:var(--red);font-weight:700">' + fmtH(taskHours(t)) + ' ч</span></div>'; });
       body += '<div class="today-mstr" style="border-color:var(--red);background:var(--red-l);"><span class="dot" style="background:' + m.color + '"></span><div><div class="nm">' + esc(m.name) + '</div><div class="ar">' + esc(m.area) + '</div></div><div class="meta"><div class="h" style="color:var(--red)">' + fmtH(load) + ' ч / ' + fmtH(masterCapacity(m.id, 0)) + ' ч</div><span class="tag over">⚠ +' + fmtH(load - masterCapacity(m.id, 0)) + ' ч</span></div></div>';
@@ -834,7 +841,7 @@
   }
 
   function kpiMonth() {
-    var vt = visibleTasks().filter(function (t) { var d = offToDate(t.d); return d.getMonth() === TODAY.getMonth() && d.getFullYear() === TODAY.getFullYear(); });
+    var vt = kpiTasks().filter(function (t) { var d = offToDate(t.d); return d.getMonth() === TODAY.getMonth() && d.getFullYear() === TODAY.getFullYear(); });
     var done = vt.filter(function(t) { return isDone(t); });
     var body = '<div style="margin-bottom:12px;font-size:13px;color:var(--muted);">Выполнено: <b style="color:var(--green)">' + done.length + '</b> из <b>' + vt.length + '</b></div>';
     if (!done.length) { openKpiPopup('Выполнено за месяц', '#16a34a', null); return; }
@@ -847,7 +854,7 @@
   }
 
   function kpiPermits() {
-    var vt = visibleTasks().filter(function (t) { return t.needs_permit && !isDone(t); });
+    var vt = kpiTasks().filter(function (t) { return t.needs_permit && !isDone(t); });
     var body = '';
     if (!vt.length) { openKpiPopup('Ордеров истекает', '#f59e0b', '<div class="empty">Нет задач с ордерами</div>'); return; }
     vt.sort(function(a,b) { return a.dl - b.dl; });
@@ -863,7 +870,7 @@
 
   // 22.09-171: «Красная зона» — всплывающий список задач (срок ≤ 2 дн или просрочено)
   function kpiRedzone() {
-    var vt = visibleTasks().filter(function (t) { return !isDone(t) && (t.dl <= 2 || t.d < 0); });
+    var vt = kpiTasks().filter(function (t) { return !isDone(t) && (t.dl <= 2 || t.d < 0); });
     vt.sort(function (a, b) { return a.dl - b.dl; });
     if (!vt.length) { openKpiPopup('Красная зона', '#dc2626', '<div class="empty">Просрочек нет 🎉</div>'); return; }
     var body = '';
@@ -2768,10 +2775,17 @@
     // Для админа: фильтр по участку (null = все участки)
     var dashFilterArea = S.dashArea;
     var dashCanFilter = (S.role === 'admin' || S.role === 'nach' || S.role === 'viewer'); // включая начальника СЭОГС
-    function dashMasters() {
+    function dashMastersAll() {
       // Админ, начальник участка и начальник СЭОГС на дашборде видят ВСЕ участки (с возможностью выбора); прочие — свой
       var all = dashCanFilter ? getMasters() : visibleMasters();
       if (dashCanFilter && dashFilterArea) return all.filter(function (m) { return m.area === dashFilterArea; });
+      return all;
+    }
+    // 22.09-193: если выбранный в «КПД мастеров» мастер выпал из списка (сменили участок) — выбор сбрасывается
+    if (S.dashMaster && !dashMastersAll().some(function (m) { return String(m.id) === String(S.dashMaster); })) S.dashMaster = null;
+    function dashMasters() {
+      var all = dashMastersAll();
+      if (S.dashMaster) all = all.filter(function (m) { return String(m.id) === String(S.dashMaster); }); // 22.09-193: один мастер
       return all;
     }
     function dashTasks() {
@@ -2815,6 +2829,21 @@
       html += '</select>';
       if (dashFilterArea) {
         html += '<button class="btn sm" data-action="dash-area-clear">Сбросить</button>';
+      }
+      html += '</div>';
+    }
+
+    // === 22.09-193: селектор «КПД мастеров» — админ, начальник СЭОГС, начальник участка, старший мастер ===
+    var dashCanPickMaster = (S.role === 'admin' || S.role === 'viewer' || S.role === 'nach' || S.role === 'smaster');
+    if (dashCanPickMaster) {
+      html += '<div style="margin-bottom:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">';
+      html += '<label style="font-size:12px;font-weight:600;color:var(--muted)">КПД мастера:</label>';
+      html += '<select id="dash-master" style="padding:8px 12px;border:1px solid var(--line);border-radius:9px;font-size:13px;font-family:inherit;background:var(--card)" title="Показатели панели, списки KPI и блок «Сегодня» — по выбранному мастеру или по всем сразу">';
+      html += '<option value=""' + (!S.dashMaster ? ' selected' : '') + '>Все мастера</option>';
+      dashMastersAll().forEach(function (m) { html += '<option value="' + esc(m.id) + '"' + (S.dashMaster && String(S.dashMaster) === String(m.id) ? ' selected' : '') + '>' + esc(m.name) + (m.area ? ' · ' + esc(m.area) : '') + '</option>'; });
+      html += '</select>';
+      if (S.dashMaster) {
+        html += '<button class="btn sm" data-action="dash-master-clear">Сбросить</button>';
       }
       html += '</div>';
     }
@@ -2987,6 +3016,9 @@
     // привязка селектора участка (для админа)
     var dashAreaSel = document.getElementById('dash-area');
     if (dashAreaSel) dashAreaSel.addEventListener('change', function (e) { S.dashArea = e.target.value || null; renderDashboard(); });
+    // 22.09-193: привязка селектора «КПД мастеров»
+    var dashMasterSel = document.getElementById('dash-master');
+    if (dashMasterSel) dashMasterSel.addEventListener('change', function (e) { S.dashMaster = e.target.value || null; renderDashboard(); });
     // 22.09-171: календарик выбора даты в блоке «Сегодня»
     var dashDaySel = document.getElementById('dash-day-sel');
     if (dashDaySel) dashDaySel.addEventListener('change', function (e) {
@@ -15091,6 +15123,7 @@
   function enterApp(u) {
     S.user = u; S.role = u.role; S.curMaster = u.id;
     S.dashArea = null; // фильтр участка не должен «протекать» между пользователями
+    S.dashMaster = null; // 22.09-193: и выбор мастера в «КПД мастеров» — тоже
     // 22.09-189: автоочистка «битых» задач (дата дальше 3 лет — след опечатки в якоре серии графика)
     var _purged = 0;
     try { _purged = purgeFarFutureTasks(); } catch (ePu) { try { console.error('purgeFarFutureTasks:', ePu); } catch (_e) {} }
@@ -15809,7 +15842,7 @@
     // левая колонка — данные задачи, виды работ, материалы к списанию
     h += '<div style="flex:1;min-width:290px">';
     h += row('\uD83D\uDCCD Адрес', esc(addrOf(t)));
-    h += row('\uD83D\uDD27 Работа', esc(w ? w.name : '?'));
+    // 22.09-194: строка «Работа» под адресом убрана — вид работ выбирается кнопками в блоке «Виды работ» ниже
     h += row('\uD83D\uDC77 Мастер', esc(m ? m.name : '?') + (m && m.area ? ' <span style="color:var(--muted);font-weight:600">(' + esc(m.area) + ')</span>' : ''));
     h += row('\uD83E\uDDF0 Слесаря', esc(writeoffSlesariNames(t)));
     h += row('\uD83D\uDCC5 Плановая дата', esc(fmtDmyIso(planIso)));
@@ -16011,6 +16044,7 @@
     else if (a === 'cal-next') { shiftCal(1); }
     else if (a === 'cal-today') { S.weekShift = 0; S.monthShift = 0; S.dayShift = 0; renderCalendar(); }
     else if (a === 'dash-area-clear') { S.dashArea = null; renderDashboard(); }
+    else if (a === 'dash-master-clear') { S.dashMaster = null; renderDashboard(); } // 22.09-193: сброс «КПД мастеров»
     else if (a === 'dash-day-today') { S.dashDayOff = 0; renderDashboard(); } // 22.09-171
     else if (a === 'open-weather') { toggleWeatherDropdown(); }
     else if (a === 'open-wx-map') { openWeatherMap(); }
