@@ -758,9 +758,9 @@
 
   var TITLES = {
     dashboard: ['Панель мониторинга', 'Сборка 22.09-193 · выпадающий список «КПД мастеров» (админ, начальник СЭОГС, начальник участка, старший мастер): все показатели панели, списки по нажатию на цифры и блок «Сегодня» — по одному выбранному мастеру или по всем сразу. Ранее, сборка 22.09-190 · факт работы на объекте: кнопки «▶ Приступил» и «■ Закончил» в блоке «Сегодня» (пишут точное время, «Закончил» закрывает задачу); у мастера бейдж «🔨 на объекте с …»; время факта — в списаниях и в карточке задачи'],
-    calendar: ['Планирование / Календарь', 'Сборка 22.09-181 · при отметке задачи выполненной (галочка) проставляется дата закрытия — закрытые задачи собраны на новой странице «Списания»'],
-    graphs: ['Планирование / График работ', 'Сборка 22.09-164 · кнопка «Трудоёмкость графика» — слева от «Фильтра»; «Праздничные дни» перенесены в «Графики смен»'],
-    map: ['Карта маршрутов', 'Сборка 22.09-182 · техническая чистка кода: удалён недостижимый код старых роутеров и виджетов (страница стала легче, поведение не изменилось)'],
+    calendar: ['Планирование / Календарь', 'Сборка 22.09-198 · строки календаря — только мастера: начальники участков и старшие мастера в «Планировании» больше не показываются. Ранее, сборка 22.09-181 · при отметке задачи выполненной (галочка) проставляется дата закрытия — закрытые задачи собраны на новой странице «Списания»'],
+    graphs: ['Планирование / График работ', 'Сборка 22.09-196 · в «Трудоёмкости графика» кнопка «📍 По объектам — новое окно»: трудоёмкость по каждому объекту за год / месяц / период месяцев; нажатие на объект — его карточка с работами, датами и часами выбранного периода. Ранее, сборка 22.09-195 · в окне «Настроить периодичность» убран АВТОМАТИЧЕСКИЙ подбор работ при открытии — работы на объект добавляются только вручную (кнопки «⚡» и «+ работа»). Ранее, сборка 22.09-164 · кнопка «Трудоёмкость графика» — слева от «Фильтра»; «Праздничные дни» перенесены в «Графики смен»'],
+    map: ['Карта маршрутов', 'Сборка 22.09-197 · порядок заданий на день после «Оптимизации маршрутов» сохраняется — в том же порядке работы показываются и в «Планировании» на этот день (и в списке «Задания на день» при повторном входе). Ранее, сборка 22.09-182 · техническая чистка кода: удалён недостижимый код старых роутеров и виджетов (страница стала легче, поведение не изменилось)'],
     objmap: ['Карта объектов', 'Сборка 22.09-184 · вид телеметрии «ПТК "Эксорт"» переименован в «ПТК "Эскорт"» — объекты и работы обновлены автоматически'],
     testmap: ['Тест проезда', 'Сборка 22.09-176 · исправлена загрузка 3D-планеты (был ошибочный адрес библиотеки карты) + добавлен запасной сервер, если первый не отвечает'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
@@ -3540,7 +3540,8 @@
   }
   function _drawCalendarGridImpl() {
     var grid = document.getElementById('cal-grid');
-    var masters = visibleMasters();
+    // 22.09-198: в «Планировании» строки — ТОЛЬКО у мастеров (начальник участка и старший мастер строк не имеют)
+    var masters = visibleMasters().filter(function (m) { return m.role === 'master'; });
     var days = buildDayWindow();
     var titleEl = document.getElementById('cal-title');
     if (titleEl) {
@@ -3589,8 +3590,8 @@
         var we = (d.getDay() === 0 || d.getDay() === 6);
         var cls = 'cell' + (sameDay(d, TODAY) ? ' today' : '') + (we ? ' we' : '') + (over ? ' overload' : ''); // 22.09-104: подсветка рабочих дней убрана
         html += '<div class="' + cls + '" style="grid-column:' + (ci + 2) + ';grid-row:' + rn + '" data-master="' + m.id + '" data-off="' + off + '"' + (over ? ' title="Перегрузка: ' + fmtH(load) + ' ч"' : '') + '>';
-        S.tasks.forEach(function (t) {
-          if (t.m === m.id && t.d === off) {
+        S.tasks.filter(function (t) { return t.m === m.id && t.d === off; }).sort(dayTaskSort).forEach(function (t) { // 22.09-197: порядок — как после оптимизации маршрута (t.seq)
+          {
             var col = taskColor(t);
             var o = OBJ_MAP[t.o], w = workOf(t);
             var draggable = (!isDone(t) && canEditTask(t)) ? 'true' : 'false';
@@ -4034,7 +4035,7 @@
       if (t.d !== off || isDone(t)) return false;
       if (S.mapMaster && S.mapMaster !== 'all') return t.m === S.mapMaster;
       return true;
-    });
+    }).sort(dayTaskSort); // 22.09-197: задания на день — в сохранённом после оптимизации порядке
     var base = currentBase();
     var prevObj = base;
     var pts = list.map(function (t) {
@@ -5246,6 +5247,29 @@
 
   /* Сравнение всех бесплатных роутеров по одним и тем же точкам. */
 
+  /* 22.09-197: после оптимизации маршрута порядок заданий на день ЗАПОМИНАЕТСЯ —
+     в том же порядке работы показываются и в «Планировании» на этот день.
+     Поле t.seq — номер позиции в маршруте дня; у задач без него (не участвовали
+     в оптимизации) порядок прежний — они показываются после пронумерованных. */
+  function dayTaskSort(a, b) {
+    var sa = (a.seq != null && isFinite(a.seq)) ? a.seq : 1e9;
+    var sb = (b.seq != null && isFinite(b.seq)) ? b.seq : 1e9;
+    return sa - sb; // при равных — прежний (стабильный) порядок массива
+  }
+  function saveDayRouteOrder(orderedPts) {
+    try {
+      if (!orderedPts || !orderedPts.length || !TASKS_DB) return;
+      var byId = {};
+      S.tasks.forEach(function (t) { byId[String(t.id)] = t; });
+      var changed = 0;
+      orderedPts.forEach(function (p, i) {
+        var t = byId[String(p.id)];
+        if (t && t.seq !== i + 1) { t.seq = i + 1; TASKS_DB.updateTask(t.id, t); changed++; }
+      });
+      if (changed) { try { logAction('Карта маршрутов: порядок заданий дня после оптимизации сохранён для «Планирования» (' + changed + ' шт)'); } catch (e2) {} }
+    } catch (e) { console.warn('saveDayRouteOrder:', e); }
+  }
+
   function buildRoute(noJam) {
     var pts = ymState.pts;
     var canvas = document.getElementById("map-canvas");
@@ -5313,6 +5337,7 @@
           return;
         }
         var brOrdered = solved.order.map(function (i) { return ordered[i - 1]; });
+        saveDayRouteOrder(brOrdered); // 22.09-197: порядок сохранить — в таком же виде его покажет «Планирование»
         // Обновим карточки слева — новые номера
         updateDayListCards(brOrdered);
         refreshMapCards(brOrdered);
@@ -16161,6 +16186,9 @@
     else if (a === 'graphs-print-go') { graphsPrintGo(); }
     else if (a === 'graphs-excel-go') { graphsExportExcel(graphPrintOpts()); }
     else if (a === 'graphs-period-save') { graphsPeriodSave(); }
+    else if (a === 'graphs-labor-objs') { openGraphLaborObjsModal(); } // 22.09-196: окно «Трудоёмкость по объектам»
+    else if (a === 'graphs-labor-obj') { S.gloRi = parseInt(el.dataset.ri, 10); gloRender(); } // 22.09-196: внутрь карточки объекта
+    else if (a === 'graphs-labor-back') { S.gloRi = -1; gloRender(); } // 22.09-196: назад к списку объектов
     else if (a === 'backup-dl-all') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } backupDownload(null); } // 22.09-139
     else if (a === 'backup-dl-sel') {
       if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
@@ -17889,10 +17917,8 @@
     if (autoTm) autoTm.addEventListener('click', function () { gprAutoAllRun('tm'); });
     var autoNotm = document.getElementById('gpr-auto-notm');
     if (autoNotm) autoNotm.addEventListener('click', function () { gprAutoAllRun('notm'); });
-    // 22.09-114: при открытии окна автоматически подбираем работы объектам без работ
-    var autoOnOpen = 0;
-    g.objs.forEach(function (ob, ri) { if (!gwObjWorks(ob).length) autoOnOpen += gprAutofill(area, ri, g); });
-    if (autoOnOpen) toast('ok', '⚡ Автоподбор: добавлено строк ' + autoOnOpen + ' — работы подобраны по параметрам объектов; проверьте и нажмите «Сохранить»');
+    // 22.09-195: автоподбор ПРИ ОТКРЫТИИ окна УБРАН — работы на объект добавляются только вручную
+    // (кнопки «⚡ Подобрать всем объектам», «⚡» у объекта и «+ работа» — по нажатию пользователя)
   }
   function gprDrawList(g, area) {
     var box = document.getElementById('gpr-list');
@@ -18320,10 +18346,197 @@
       h += '<div style="font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5">Часы одного проведения = норма работы из справочника «Виды работ» (у задач графика объём — 1). Даты берутся из треугольников графика; проведения других лет не учитываются.</div>';
     }
     h += '</div>';
-    h += '<div class="modal-f"><button type="button" class="btn" data-action="close-modal">Закрыть</button></div>';
+    h += '<div class="modal-f" style="display:flex;gap:10px;justify-content:flex-end"><button type="button" class="btn primary" data-action="graphs-labor-objs" title="Новое окно: трудоёмкость по каждому объекту за выбранный год, месяц или произвольный период; нажатие на объект — его карточка с работами, датами и часами за выбранный период">📍 По объектам — новое окно</button><button type="button" class="btn" data-action="close-modal">Закрыть</button></div>';
     modal.innerHTML = h;
     modal.style.width = '60%'; modal.style.maxWidth = '60%'; // сброс — в close-modal
     overlay.classList.add('show');
+  }
+
+  /* =====================================================================
+     22.09-196: ТРУДОЁМКОСТЬ ПО ОБЪЕКТАМ
+     Кнопка «📍 По объектам — новое окно» в «Трудоёмкости графика» открывает
+     отдельное окно (второй слой, поверх): выбор года и показа — весь год /
+     один месяц / произвольный период месяцев. Список объектов графика с
+     проведениями и часами за выбранный период; нажатие на объект — его
+     карточка: трудоёмкость по каждой работе и даты проведений периода.
+     ===================================================================== */
+  function gloDefaults(g) {
+    if (S.gloYear == null) S.gloYear = +g.year;
+    if (!S.gloMode) S.gloMode = 'year';
+    if (S.gloMonth == null) S.gloMonth = TODAY.getMonth() + 1;
+    if (S.gloMFrom == null) S.gloMFrom = 1;
+    if (S.gloMTo == null) S.gloMTo = 12;
+    if (S.gloRi == null) S.gloRi = -1;
+  }
+  // Годы, которые реально встречаются в проведениях графика (+ год графика)
+  function gloYears(g) {
+    var ys = {}; ys[String(g.year)] = 1;
+    (g.objs || []).forEach(function (ob) {
+      gwObjWorks(ob).forEach(function (wrk) {
+        (wrk.occs || []).forEach(function (oc) {
+          var d = String(oc && oc.date || '');
+          if (/^\d{4}-\d{2}-\d{2}$/.test(d)) ys[d.slice(0, 4)] = 1;
+        });
+      });
+    });
+    return Object.keys(ys).map(function (x) { return parseInt(x, 10); }).sort(function (a, b) { return a - b; });
+  }
+  // Диапазон месяцев по режиму показа
+  function gloRange() {
+    if (S.gloMode === 'month') return { from: S.gloMonth, to: S.gloMonth };
+    if (S.gloMode === 'period') return { from: Math.min(S.gloMFrom, S.gloMTo), to: Math.max(S.gloMFrom, S.gloMTo) };
+    return { from: 1, to: 12 };
+  }
+  function gloPeriodLabel() {
+    var rg = gloRange();
+    if (S.gloMode === 'month') return MONTHS_RU[S.gloMonth - 1] + ' ' + S.gloYear;
+    if (S.gloMode === 'period') return MONTHS_RU[rg.from - 1] + ' — ' + MONTHS_RU[rg.to - 1] + ' ' + S.gloYear;
+    return 'Весь ' + S.gloYear + ' год';
+  }
+  // Даты проведений одной серии (работы объекта) внутри периода
+  function gloOccDates(wrk, y, mFrom, mTo) {
+    var dates = [];
+    (wrk.occs || []).forEach(function (oc) {
+      var d = String(oc && oc.date || '');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
+      if (parseInt(d.slice(0, 4), 10) !== y) return;
+      var mi = parseInt(d.slice(5, 7), 10);
+      if (mi < mFrom || mi > mTo) return;
+      dates.push(d);
+    });
+    dates.sort();
+    return dates;
+  }
+  function gloWorkNorm(area, wid) {
+    var w = null;
+    try { w = wid ? WORK.getWork(area, wid) : null; } catch (eW) {}
+    return { name: w ? w.name : (wid || '?'), norm: (w && isFinite(+w.norm) && +w.norm > 0) ? +w.norm : 0 };
+  }
+  // Работы объекта с проведениями в периоде: [{name, norm, dates}]
+  function gloObjStats(ob, area, y, mFrom, mTo) {
+    var rows = [];
+    gwObjWorks(ob).forEach(function (wrk) {
+      var wn = gloWorkNorm(area, wrk.wid);
+      var dates = gloOccDates(wrk, y, mFrom, mTo);
+      if (dates.length) rows.push({ name: wn.name, norm: wn.norm, dates: dates });
+    });
+    return rows;
+  }
+
+  function openGraphLaborObjsModal() {
+    var g = graphsFind(GS.cur);
+    if (!g) { toast('err', 'Сначала создайте или выберите график'); return; }
+    S.gloYear = null; S.gloMode = null; S.gloMonth = null; S.gloMFrom = null; S.gloMTo = null; S.gloRi = -1; // каждый вход — настройки по умолчанию
+    gloRender();
+  }
+
+  function gloRender() {
+    var overlay2 = document.getElementById('overlay2'), modal2 = document.getElementById('modal2');
+    if (!overlay2 || !modal2) return;
+    var g = graphsFind(GS.cur);
+    if (!g) { overlay2.classList.remove('show'); return; }
+    gloDefaults(g);
+    var area = graphAreaDefault(g);
+    var years = gloYears(g);
+    if (years.indexOf(S.gloYear) === -1) S.gloYear = +g.year;
+    var rng = gloRange();
+    var selCss = 'padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;font-family:inherit;background:var(--card);color:var(--ink)';
+
+    var h = '<div class="modal-h"><h3>📍 Трудоёмкость по объектам · ' + esc(g.name || 'Без названия') + '</h3><button class="x" data-action="close-modal2">×</button></div>';
+    h += '<div class="modal-b">';
+    // ---- Панель выбора периода ----
+    h += '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:12px">';
+    h += '<label style="font-size:12px;font-weight:700;color:var(--muted)">Год:</label><select id="glo-year" style="' + selCss + '">';
+    years.forEach(function (y) { h += '<option value="' + y + '"' + (y === S.gloYear ? ' selected' : '') + '>' + y + '</option>'; });
+    h += '</select>';
+    h += '<label style="font-size:12px;font-weight:700;color:var(--muted)">Показ:</label><select id="glo-mode" style="' + selCss + '">' +
+      '<option value="year"' + (S.gloMode === 'year' ? ' selected' : '') + '>Весь год</option>' +
+      '<option value="month"' + (S.gloMode === 'month' ? ' selected' : '') + '>Месяц</option>' +
+      '<option value="period"' + (S.gloMode === 'period' ? ' selected' : '') + '>Период месяцев</option></select>';
+    if (S.gloMode === 'month') {
+      h += '<select id="glo-month" style="' + selCss + '">';
+      MONTHS_RU.forEach(function (mn, i) { h += '<option value="' + (i + 1) + '"' + ((i + 1) === S.gloMonth ? ' selected' : '') + '>' + mn + '</option>'; });
+      h += '</select>';
+    }
+    if (S.gloMode === 'period') {
+      h += '<span style="font-size:12px;font-weight:700;color:var(--muted)">с</span><select id="glo-mfrom" style="' + selCss + '">';
+      MONTHS_RU.forEach(function (mn, i) { h += '<option value="' + (i + 1) + '"' + ((i + 1) === S.gloMFrom ? ' selected' : '') + '>' + mn + '</option>'; });
+      h += '</select><span style="font-size:12px;font-weight:700;color:var(--muted)">по</span><select id="glo-mto" style="' + selCss + '">';
+      MONTHS_RU.forEach(function (mn, i) { h += '<option value="' + (i + 1) + '"' + ((i + 1) === S.gloMTo ? ' selected' : '') + '>' + mn + '</option>'; });
+      h += '</select>';
+    }
+    h += '<span style="font-size:12px;color:#166534;font-weight:800">📅 ' + esc(gloPeriodLabel()) + '</span>';
+    h += '</div>';
+
+    // ---- Содержимое: список объектов ИЛИ карточка одного объекта ----
+    if (S.gloRi == null || S.gloRi < 0 || S.gloRi >= (g.objs || []).length) {
+      var totOcc = 0, totH = 0, rowsHtml = '';
+      (g.objs || []).forEach(function (ob, ri) {
+        var stats = gloObjStats(ob, area, S.gloYear, rng.from, rng.to);
+        var oh = 0, oocc = 0;
+        stats.forEach(function (r) { oocc += r.dates.length; oh += r.norm * r.dates.length; });
+        totOcc += oocc; totH += oh;
+        rowsHtml += '<tr data-action="graphs-labor-obj" data-ri="' + ri + '" style="cursor:pointer">' +
+          '<td style="' + graphsLaborCellCss(false) + 'text-align:left;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="Нажмите — карточка объекта: трудоёмкость по работам за период «' + esc(gloPeriodLabel()) + '»"><span class="chip ' + esc(ob.type) + '" style="margin-right:6px">' + esc(ob.type) + '</span>' + esc(ob.name || '') + ' <span style="color:var(--muted);font-weight:600;font-size:11px">→</span></td>' +
+          '<td style="' + graphsLaborCellCss(false) + '">' + stats.length + '</td>' +
+          '<td style="' + graphsLaborCellCss(false) + '">' + oocc + '</td>' +
+          '<td style="' + graphsLaborCellCss(false) + '"><b>' + fmtH(oh) + '</b></td></tr>';
+      });
+      h += '<table style="' + graphsLaborTableCss() + '"><tr>' +
+        '<th style="' + graphsLaborCellCss(true) + '">Объект (нажмите — его карточка)</th>' +
+        '<th style="' + graphsLaborCellCss(true) + 'text-align:right">Видов работ</th>' +
+        '<th style="' + graphsLaborCellCss(true) + 'text-align:right">Проведений</th>' +
+        '<th style="' + graphsLaborCellCss(true) + 'text-align:right">Трудоёмкость, чел/ч</th></tr>' +
+        rowsHtml +
+        '<tr style="font-weight:800;background:#f0fdf4"><td style="' + graphsLaborCellCss(false) + 'text-align:left">ИТОГО · ' + esc(gloPeriodLabel()) + '</td>' +
+          '<td style="' + graphsLaborCellCss(false) + '"></td>' +
+          '<td style="' + graphsLaborCellCss(false) + '">' + totOcc + '</td>' +
+          '<td style="' + graphsLaborCellCss(false) + '">' + fmtH(totH) + '</td></tr></table>';
+      h += '<div style="font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5">Проведения берутся из треугольников графика (и плановые, и отмеченные выполненными); часы одного проведения = норма работы из справочника «Виды работ».</div>';
+    } else {
+      var ob = g.objs[S.gloRi];
+      var stats2 = gloObjStats(ob, area, S.gloYear, rng.from, rng.to);
+      h += '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">' +
+        '<button type="button" class="btn sm" data-action="graphs-labor-back">← Назад к объектам</button>' +
+        '<span class="chip ' + esc(ob.type) + '">' + esc(ob.type) + '</span>' +
+        '<span style="font-weight:800;font-size:14px" title="' + esc(ob.name || '') + '">' + esc(ob.name || '') + '</span>' +
+        '<span style="font-size:12px;color:var(--muted);font-weight:700">📅 ' + esc(gloPeriodLabel()) + '</span></div>';
+      var dh = 0, docc = 0;
+      stats2.forEach(function (r) { docc += r.dates.length; dh += r.norm * r.dates.length; });
+      if (!stats2.length) {
+        h += '<div class="empty" style="padding:16px;font-size:13px">За период «' + esc(gloPeriodLabel()) + '» у этого объекта проведений нет — смените год, месяц или период выше.</div>';
+      } else {
+        h += '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:9px 12px;font-size:13px;display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px">' +
+          '<span>видов работ: <b>' + stats2.length + '</b></span><span>проведений: <b>' + docc + '</b></span><span>трудоёмкость: <b style="color:#15803d;font-size:15px">' + fmtH(dh) + ' чел/ч</b></span></div>';
+        h += '<table style="' + graphsLaborTableCss() + '"><tr>' +
+          '<th style="' + graphsLaborCellCss(true) + '">Вид работ</th>' +
+          '<th style="' + graphsLaborCellCss(true) + 'text-align:right">ч/ед</th>' +
+          '<th style="' + graphsLaborCellCss(true) + 'text-align:right">Проведений</th>' +
+          '<th style="' + graphsLaborCellCss(true) + 'text-align:left">Даты проведения</th>' +
+          '<th style="' + graphsLaborCellCss(true) + 'text-align:right">Чел/ч</th></tr>';
+        stats2.forEach(function (r) {
+          var dts = r.dates.map(fmtDmyIso).join(', ');
+          h += '<tr><td style="' + graphsLaborCellCss(false) + 'text-align:left;max-width:420px">' + esc(r.name) + (r.norm ? '' : ' <span style="color:#b45309;font-size:11px" title="Норма не задана в справочнике — часы не учтены">⚠ без нормы</span>') + '</td>' +
+            '<td style="' + graphsLaborCellCss(false) + '">' + (r.norm ? fmtH(r.norm) : '—') + '</td>' +
+            '<td style="' + graphsLaborCellCss(false) + '">' + r.dates.length + '</td>' +
+            '<td style="' + graphsLaborCellCss(false) + 'text-align:left;font-size:11.5px;color:var(--muted)">' + esc(dts) + '</td>' +
+            '<td style="' + graphsLaborCellCss(false) + '"><b>' + fmtH(r.norm * r.dates.length) + '</b></td></tr>';
+        });
+        h += '</table>';
+      }
+    }
+    h += '</div>';
+    h += '<div class="modal-f"><button type="button" class="btn" data-action="close-modal2">Закрыть</button></div>';
+    modal2.innerHTML = h;
+    modal2.style.width = '86%'; modal2.style.maxWidth = '86%';
+    overlay2.classList.add('show');
+    // Слушатели выбора периода: смена — перерисовка окна (с возвратом из карточки к списку)
+    function gloOn(id, fn) { var s = document.getElementById(id); if (s) s.addEventListener('change', function () { fn(s.value); S.gloRi = -1; gloRender(); }); }
+    gloOn('glo-year', function (v) { S.gloYear = parseInt(v, 10) || S.gloYear; });
+    gloOn('glo-mode', function (v) { S.gloMode = v || 'year'; });
+    gloOn('glo-month', function (v) { S.gloMonth = parseInt(v, 10) || 1; });
+    gloOn('glo-mfrom', function (v) { S.gloMFrom = parseInt(v, 10) || 1; });
+    gloOn('glo-mto', function (v) { S.gloMTo = parseInt(v, 10) || 12; });
   }
 
   function openGraphFilterModal() {
