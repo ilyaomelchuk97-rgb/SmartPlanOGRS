@@ -184,6 +184,12 @@
     var p = name.replace(/[^А-Яа-яA-Za-z\s.]/g, '').split(/\s+/).filter(Boolean);
     return ((p[0] || '')[0] || '') + ((p[1] || '')[0] || '');
   }
+  // 22.09-219: кружок работника — фото (u.avatar, dataURL), иначе инициалы, как раньше
+  function avaHtml(u, d, fs, extra) {
+    var st = 'width:' + d + 'px;height:' + d + 'px;border-radius:50%;background:' + ((u && u.color) || '#94a3b8') + ';color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:' + fs + 'px;flex:0 0 auto;overflow:hidden;' + (extra || '');
+    if (u && u.avatar) return '<span style="' + st + '"><img src="' + u.avatar + '" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></span>';
+    return '<span style="' + st + '">' + esc(initials(u && u.full_name)) + '</span>';
+  }
 
   /* ---------- СОСТОЯНИЕ ---------- */
   var S = {
@@ -761,6 +767,9 @@
     document.body.classList.add('touch-ui');
   }
 
+  // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
+  // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
+  var SP_BUILD = '22.09-221';
   var TITLES = {
     dashboard: ['Панель мониторинга', 'Сборка 22.09-199 · выбор мастера для просмотра КПД перенесён внутрь блока «⚡ КПД мастеров»: выпадающий список — прямо в заголовке этой карточки, рядом с выбором месяца (вверху страницы его больше нет). Ранее, сборка 22.09-193 · выпадающий список «КПД мастеров» (админ, начальник СЭОГС, начальник участка, старший мастер): все показатели панели, списки по нажатию на цифры и блок «Сегодня» — по одному выбранному мастеру или по всем сразу. Ранее, сборка 22.09-190 · факт работы на объекте: кнопки «▶ Приступил» и «■ Закончил» в блоке «Сегодня» (пишут точное время, «Закончил» закрывает задачу); у мастера бейдж «🔨 на объекте с …»; время факта — в списаниях и в карточке задачи'],
     calendar: ['Планирование / Календарь', 'Сборка 22.09-198 · строки календаря — только мастера: начальники участков и старшие мастера в «Планировании» больше не показываются. Ранее, сборка 22.09-181 · при отметке задачи выполненной (галочка) проставляется дата закрытия — закрытые задачи собраны на новой странице «Списания»'],
@@ -776,10 +785,11 @@
     workcards: ['Карточки работ на день', 'Сборка 22.09-191 · клик по ФИО мастера в блоке «Сегодня» панели — страница с карточкой на каждую работу: адрес, виды работ, слесаря, план, крупные кнопки «Приступил»/«Закончил»'],
     factmonth: ['Факт работ по объектам', 'Сборка 22.09-192 · месячный отчёт по объектам: кто, когда и сколько фактически работал (по кнопкам «Приступил»/«Закончил»), фактические часы против плановых; перелистывание месяцев'],
     workers: ['Работники', 'Сборка 22.09-172 · окно карточки работника — ровно по ширине карточки (560px): без пустого места справа; панель и календарь — на всю ширину окна'],
-    schedules: ['Графики смен', 'Сборка 22.09-217 · в карточке работника — количество рабочих часов за выбранный месяц (⏱ X ч), в «Графике за год» справа — колонка с рабочими часами за год; в окне «✏ Изменить график» убраны пустые столбики перед 1-м числом. Ранее, сборка 22.09-216 · окно «✏ Изменить график» — на 90% ширины экрана, по центру. Ранее, сборка 22.09-215 · дни в графике меняются индивидуально у каждого работника: мастер и слесарь — независимо друг от друга (перенос дня и сдвиг 2/2 влияют только на того, у кого их делают); текущий цикл каждому разово скопирован — календари не изменились. Ранее, сборка 22.09-213 · окно «✏ Изменить график»: дни правятся прямо в таблице у всех работников (выпадающий список убран) — клик по будущему дню сразу открывает окошко «рабочий/выходной + часы» (там же кнопка «Вернуть по графику»); день перетаскивается мышью вдоль своей строки: у графика 5/2 переносится только этот день и график дальше не перестраивается, у 2/2 — весь график едет следом; блок «Сдвиг всего графика» удалён. Ранее, сборка 22.09-212 · окно «✏ Изменить график» теперь выглядит как общая таблица «Графики смен»: шапка с числами месяца, слева колонка «Бригада / работник», цветные квадратики, и в каждом рабочем квадратике написаны часы; клик по ФИО другой строки — перейти к редактированию этого работника. Ранее, сборка 22.09-211 · «✏ Изменить график» теперь открывает отдельное окно редактора: выбор работника и месяца, клик по будущему дню — выбрать, действия (рабочий/выходной/часы на день/перенос на день назад или вперёд/сброс), перетаскивание дней мышью; для графика 2/2 — блок «Сдвиг всего графика» (весь цикл передвигается следом начиная с сегодняшнего дня, отработанные дни не меняются); изменения применяются только по кнопке «Сохранить», «Отмена» всё отбрасывает. Ранее, сборка 22.09-207 · режим «✏ Изменить график» в шапке: клик по сегодняшнему/будущему дню — рабочий/выходной и часы на день, можно применить сразу ко всей бригаде; ручные изменения видны синей риской снизу ячейки и пометкой в подсказке, «Вернуть стандарт» отменяет их; прошедшие (отработанные) дни не редактируются. Ранее, сборка 22.09-204 · при наведении на рабочий квадратик видно, сколько часов человек работает в этот день: 12-часовая смена — мастер 12 ч, слесарь 11,5 ч; 8-часовая — пн–чт 8,25 ч, пт 7 ч. Ранее, сборка 22.09-164 · добавлена кнопка «🎉 Праздничные дни» (из графика работ) — слева от выбора месяца'],
+    schedules: ['Графики смен', 'Сборка 22.09-218 · в окне «✏ Изменить график» по прошедшему рабочему дню можно поправить количество часов: клик по квадратику — окошко дня, где «рабочий/выходной» в прошлом не меняется, а часы редактируются; изменение уходит в черновик и применяется по «Сохранить». Ранее, сборка 22.09-217 · в карточке работника — количество рабочих часов за выбранный месяц (⏱ X ч), в «Графике за год» справа — колонка с рабочими часами за год; в окне «✏ Изменить график» убраны пустые столбики перед 1-м числом. Ранее, сборка 22.09-216 · окно «✏ Изменить график» — на 90% ширины экрана, по центру. Ранее, сборка 22.09-215 · дни в графике меняются индивидуально у каждого работника: мастер и слесарь — независимо друг от друга (перенос дня и сдвиг 2/2 влияют только на того, у кого их делают); текущий цикл каждому разово скопирован — календари не изменились. Ранее, сборка 22.09-213 · окно «✏ Изменить график»: дни правятся прямо в таблице у всех работников (выпадающий список убран) — клик по будущему дню сразу открывает окошко «рабочий/выходной + часы» (там же кнопка «Вернуть по графику»); день перетаскивается мышью вдоль своей строки: у графика 5/2 переносится только этот день и график дальше не перестраивается, у 2/2 — весь график едет следом; блок «Сдвиг всего графика» удалён. Ранее, сборка 22.09-212 · окно «✏ Изменить график» теперь выглядит как общая таблица «Графики смен»: шапка с числами месяца, слева колонка «Бригада / работник», цветные квадратики, и в каждом рабочем квадратике написаны часы; клик по ФИО другой строки — перейти к редактированию этого работника. Ранее, сборка 22.09-211 · «✏ Изменить график» теперь открывает отдельное окно редактора: выбор работника и месяца, клик по будущему дню — выбрать, действия (рабочий/выходной/часы на день/перенос на день назад или вперёд/сброс), перетаскивание дней мышью; для графика 2/2 — блок «Сдвиг всего графика» (весь цикл передвигается следом начиная с сегодняшнего дня, отработанные дни не меняются); изменения применяются только по кнопке «Сохранить», «Отмена» всё отбрасывает. Ранее, сборка 22.09-207 · режим «✏ Изменить график» в шапке: клик по сегодняшнему/будущему дню — рабочий/выходной и часы на день, можно применить сразу ко всей бригаде; ручные изменения видны синей риской снизу ячейки и пометкой в подсказке, «Вернуть стандарт» отменяет их; прошедшие (отработанные) дни не редактируются. Ранее, сборка 22.09-204 · при наведении на рабочий квадратик видно, сколько часов человек работает в этот день: 12-часовая смена — мастер 12 ч, слесарь 11,5 ч; 8-часовая — пн–чт 8,25 ч, пт 7 ч. Ранее, сборка 22.09-164 · добавлена кнопка «🎉 Праздничные дни» (из графика работ) — слева от выбора месяца'],
     users: ['Пользователи', 'Сборка 22.09-161 · увольнение работников: кнопка «Уволить» с датой, блок «Уволенные» с восстановлением; в истории задач ФИО остаются'],
     reports: ['Отчёты', 'Печатные формы для подписи у руководства'],
     logs: ['Журнал действий', 'Действия пользователей системы'],
+    changelog: ['Журнал изменений', 'История версий системы: дата · сборка · что изменилось'],
     backup: ['Бэкапы баз данных', 'Сборка 22.09-139 · резервные копии всех баз: каждая отдельным файлом (2+ — ZIP) + восстановление без потерь']
   };
 
@@ -846,16 +856,9 @@
   }
 
   function kpiMonth() {
-    var vt = kpiTasks().filter(function (t) { var d = offToDate(t.d); return d.getMonth() === TODAY.getMonth() && d.getFullYear() === TODAY.getFullYear(); });
-    var done = vt.filter(function(t) { return isDone(t); });
-    var body = '<div style="margin-bottom:12px;font-size:13px;color:var(--muted);">Выполнено: <b style="color:var(--green)">' + done.length + '</b> из <b>' + vt.length + '</b></div>';
-    if (!done.length) { openKpiPopup('Выполнено за месяц', '#16a34a', null); return; }
-    done.sort(function(a,b) { return b.d - a.d; });
-    done.forEach(function (t) {
-      var w = workOf(t), m = masterById(t.m), d = offToDate(t.d);
-      body += '<div class="rz-item"><div class="rz-bar" style="background:var(--green)"></div><div class="rz-main"><div class="rz-t">' + esc(w ? w.name : '?') + ' — ' + esc(addrOf(t)) + '</div><div class="rz-s">' + esc(m ? m.name : '?') + ' · ' + d.getDate() + ' ' + MON[d.getMonth()] + '</div></div><div class="rz-dl" style="color:var(--green)">✓ ' + fmtH(taskHours(t)) + ' ч</div></div>';
-    });
-    openKpiPopup('Выполнено за месяц (' + done.length + ')', '#16a34a', body);
+    // 22.09-220: блок «Выполнено за месяц» открывает окно «Факт работ по объектам»
+    // (сама карточка в панели мониторинга считает процент, как раньше)
+    openFactMonthModal();
   }
 
   function kpiPermits() {
@@ -3517,13 +3520,15 @@
     html += '<span class="cal-title" id="cal-title" style="cursor:pointer;padding:4px 12px;border-radius:8px;transition:.15s;text-decoration:underline;text-decoration-color:transparent;text-underline-offset:3px;" onmouseover="this.style.background=\'#eff6ff\';this.style.textDecorationColor=\'#2563eb\'" onmouseout="this.style.background=\'transparent\';this.style.textDecorationColor=\'transparent\'" title="Нажмите для выбора даты"></span>';
     html += '<button class="btn sm" data-action="cal-next">›</button>';
     if (S.calMode !== 'day' || S.dayShift !== 0) html += '<button class="btn sm" data-action="cal-today">Сегодня</button>';
-    if (canPlan()) {
-      html += '<button class="btn sm primary" data-action="new-task">' + IC.plus + ' Добавить задачу</button>';
-      html += '<button class="btn sm" data-action="optimize-works" style="background:#6366f1;color:#fff;border-color:#6366f1;" title="Автоматическое распределение работ без просрочек с соблюдением 8-часового рабочего дня">⚡ Оптимизировать работы</button>';
-    }
-    html += '<div class="trash-zone" id="trash-zone" data-action="open-trash" title="Перетащите задачу для удаления или нажмите для просмотра удалённых" style="cursor:pointer;">' + IC.trash + ' <span>Корзина</span></div>';
     html += '<div class="legend"><span><i style="background:var(--green-l);border:1px solid var(--green)"></i>В норме</span><span><i style="background:var(--yellow-l);border:1px solid var(--yellow)"></i>Мало времени</span><span><i style="background:var(--red-l);border:1px solid var(--red)"></i>Просрочка</span><span><i style="background:#fef3c7;border:1px solid #f59e0b"></i>Ожидание погоды</span><span><i style="background:var(--panel-3);border:1px solid #94a3b8"></i>Выполнено</span></div>';
     html += '</div>';
+    // 22.09-220: функциональные кнопки — отдельной строкой ниже (сюда добавим ещё):
+    // слева «Добавить задачу», по центру «Оптимизировать работы», справа «Корзина»
+    html += '<div id="cal-actions-row" style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">'
+      + '<div style="flex:1;display:flex;justify-content:flex-start">' + (canPlan() ? '<button class="btn sm primary" data-action="new-task">' + IC.plus + ' Добавить задачу</button>' : '') + '</div>'
+      + '<div style="flex:1;display:flex;justify-content:center">' + (canPlan() ? '<button class="btn sm" data-action="optimize-works" style="background:#6366f1;color:#fff;border-color:#6366f1;" title="Автоматическое распределение работ без просрочек с соблюдением 8-часового рабочего дня">⚡ Оптимизировать работы</button>' : '') + '</div>'
+      + '<div style="flex:1;display:flex;justify-content:flex-end"><div class="trash-zone" id="trash-zone" data-action="open-trash" title="Перетащите задачу для удаления или нажмите для просмотра удалённых" style="cursor:pointer;">' + IC.trash + ' <span>Корзина</span></div></div>'
+      + '</div>';
     if (S.role === 'master') {
       html += '<div class="calc" style="margin-bottom:12px"><span style="text-align:left">' + IC.info + ' Ваш личный график. Перетаскивайте карточки, чтобы менять дату выполнения.</span></div>';
     } else if (S.role !== 'admin') {
@@ -7470,7 +7475,7 @@
       (draggable ? ' draggable="true"' : '') +
       ' style="flex:0 0 auto;width:168px;min-height:116px;border:1px solid var(--line);border-bottom:4px solid ' + (u.color || '#94a3b8') + ';border-radius:16px;padding:12px 10px;background:var(--card);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;text-align:center;user-select:none;transition:box-shadow .15s,transform .15s"' +
       ' onmouseover="this.style.boxShadow=\'0 6px 18px rgba(15,39,64,.15)\';this.style.transform=\'translateY(-2px)\'" onmouseout="this.style.boxShadow=\'none\';this.style.transform=\'\'">' +
-      '<span style="width:36px;height:36px;border-radius:50%;background:' + (u.color || '#94a3b8') + ';color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13.5px;flex:0 0 auto">' + esc(initials(u.full_name)) + '</span>' +
+      avaHtml(u, 36, 13.5) + // 22.09-219: фото-аватар, если загружен
       '<b style="font-size:12.5px;color:var(--ink);line-height:1.25">' + esc(u.full_name) + '</b>' +
       '<span style="font-size:10.5px;color:var(--muted);font-weight:700">' + esc(wkProfLabel(u)) + '</span>' +
       (absToday ? '<span style="font-size:9.5px;color:var(--red);font-weight:800">отсутствует сегодня</span>' : '') +
@@ -7656,7 +7661,9 @@
   }
 
   function renderWorkers() {
-    var v = document.getElementById('view');
+    // 22.09-220: страница «Работники» переехала в окно «Настройки бригад» над «Графиками смен» —
+    // функционал тот же, меняется только цель рендера (окно/страница)
+    var v = S.workersModal ? document.getElementById('modal') : document.getElementById('view');
     var users = wkVisibleUsers();
     var leaders = users.filter(function (u) { return u.role === 'nach' || u.role === 'smaster'; });
     var masters = users.filter(function (u) { return u.role === 'master'; });
@@ -7720,6 +7727,7 @@
     }
     if (!users.length) html += '<div class="empty" style="padding:30px">Нет работников</div>';
     html += '</div></div>';
+    if (S.workersModal) { html = '<div class="modal-h"><h3>⚙ Настройки бригад</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">' + html + '</div>'; } // 22.09-220
     v.innerHTML = html;
     wireWkDnD(v);
     // Быстрые «Время»/«График»/«Цикл» в заголовке бригады — замена сразу всей бригаде
@@ -7769,11 +7777,30 @@
     S.wkModalUid = uid;
     var isRO = S.wkCardROUid === uid;
     var masters = wkVisibleUsers().filter(function (x) { return x.role === 'master'; });
-    modal.style.maxWidth = '560px'; // 22.09-172: окно — ровно по ширине карточки работника (как карточка задачи); базовая 80%-ширина прочих окон не меняется
-    modal.innerHTML = '<div class="modal-h"><h3>' + esc(u.full_name) + ' · ' + wkRoleLabel(u.role) + (isRO ? ' <span class="tag" style="background:#eff6ff;color:#1d4ed8;font-weight:800;font-size:10px;vertical-align:2px">просмотр</span>' : '') + '</h3><button class="x" data-action="close-modal">×</button></div>' +
+    // 22.09-220: из окна «Настройки бригад» карточка открывается ВТОРЫМ окном поверх него
+    var _wko2 = !!S.workersModal;
+    var _wkO = _wko2 ? document.getElementById('overlay2') : overlay;
+    var _wkM = _wko2 ? document.getElementById('modal2') : modal;
+    _wkM.style.maxWidth = '560px'; // 22.09-172: окно — ровно по ширине карточки работника (как карточка задачи); базовая 80%-ширина прочих окон не меняется
+    _wkM.innerHTML = '<div class="modal-h"><h3>' + esc(u.full_name) + ' · ' + wkRoleLabel(u.role) + (isRO ? ' <span class="tag" style="background:#eff6ff;color:#1d4ed8;font-weight:800;font-size:10px;vertical-align:2px">просмотр</span>' : '') + '</h3><button class="x" data-action="close-modal' + (_wko2 ? '2' : '') + '">×</button></div>' +
       '<div class="modal-b">' + wkPanelHtml(u, masters) + '</div>';
+    _wkO.classList.add('show');
+    wireWkControls(_wkM);
+  }
+
+  // 22.09-220: «Настройки бригад» — бывшая страница «Работники» окном над «Графиками смен»
+  function openWorkersSettingsModal() {
+    S.workersModal = true;
+    modal.style.maxWidth = '90vw'; modal.style.width = '90vw';
+    renderWorkers();
     overlay.classList.add('show');
-    wireWkControls(modal);
+  }
+  // 22.09-220: «Факт работ по объектам» — окно из панели мониторинга (блок «Выполнено за месяц»)
+  function openFactMonthModal() {
+    S.factModal = true;
+    modal.style.maxWidth = '90vw'; modal.style.width = '90vw';
+    renderFactMonth();
+    overlay.classList.add('show');
   }
 
   /* ========== ГРАФИКИ СМЕН (бригады × дни месяца) ========== */
@@ -8097,7 +8124,9 @@
     html += '<button type="button" class="btn sm" data-action="sch-holidays" style="margin-right:8px" title="Праздничные дни (РБ) — список нерабочих дней; учитываются в графиках работ">🎉 Праздничные дни</button>';
     // 22.09-211: редактор графика — отдельное окно (черновик + кнопка «Сохранить»)
     var _canAnySch = users.some(function (u) { return wkCanEdit(u); });
-    if (_canAnySch) html += '<button type="button" class="btn sm" data-action="sch-ed-open" style="margin-right:8px" title="Открыть окно редактирования графика смен: клик по дню — рабочий/выходной и часы, перетаскивание дней мышью (у 5/2 — только этот день, у 2/2 — весь график следом) — применяются по кнопке «Сохранить». Отработанные дни не редактируются">✏ Изменить график</button>';
+    if (_canAnySch) html += '<button type="button" class="btn sm" data-action="sch-ed-open" style="margin-right:8px" title="Открыть окно редактирования графика смен: клик по дню — рабочий/выходной и часы, перетаскивание дней мышью (у 5/2 — только этот день, у 2/2 — весь график следом) — применяются по кнопке «Сохранить». Отработанные дни не редактируются. Если слева в списке выбрана конкретная бригада — в окне будет только она; «Все бригады» — все работники">✏ Изменить график</button>';
+    // 22.09-220: «Настройки бригад» — функционал бывшей страницы «Работники» окном над графиком
+    html += '<button type="button" class="btn sm" data-action="wk-settings-open" style="margin-right:8px" title="Настройки бригад: состав бригад, работники, их графики и отсутствия — то же, что было на странице «Работники», теперь окном над графиком">⚙ Настройки бригад</button>';
     html += '<span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">';
     html += '<button type="button" class="btn sm" data-action="sch-month-prev" title="Предыдущий месяц">‹</button>';
     html += '<b data-action="sch-month-label" style="font-size:13px;color:var(--ink);min-width:140px;text-align:center">' + MON_NOM[wm.m] + ' ' + wm.y + '</b>';
@@ -8513,11 +8542,12 @@
       }
     }
     var prof = wkProfLabel(u) || '';
-    return '<div style="flex:0 0 auto;width:168px;border:1px solid var(--line);border-bottom:4px solid ' + (u.color || '#94a3b8') + ';border-radius:12px;padding:8px 10px;background:var(--panel-2);display:flex;flex-direction:column;gap:4px">' +
+    // 22.09-219: карточка 200 px, а если ФИО не влезает — блок просто становится шире (max-content)
+    return '<div style="flex:0 0 auto;min-width:200px;width:max-content;border:1px solid var(--line);border-bottom:4px solid ' + (u.color || '#94a3b8') + ';border-radius:12px;padding:8px 10px;background:var(--panel-2);display:flex;flex-direction:column;gap:4px">' +
       '<div style="display:flex;align-items:center;gap:8px">' +
-        '<span style="width:34px;height:34px;border-radius:50%;background:' + (u.color || '#94a3b8') + ';color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12.5px;flex:0 0 auto">' + esc(initials(u.full_name)) + '</span>' +
+        avaHtml(u, 34, 12.5) + // 22.09-219: фото-аватар, если загружен
         '<div style="display:flex;flex-direction:column;line-height:1.2;min-width:0;flex:1">' +
-          '<b style="font-size:12px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(u.full_name) + '</b>' +
+          '<b style="font-size:12px;color:var(--ink);white-space:nowrap">' + esc(u.full_name) + '</b>' + // 22.09-219: длинное ФИО не обрезаем — карточка расширяется (min-width:200px;max-content)
           '<span style="font-size:10.5px;color:var(--muted);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(prof) + (isMaster ? ' · мастер' : '') + '</span>' +
         '</div>' +
       '</div>' +
@@ -9361,31 +9391,39 @@
     var cur = (wd.abs && wd.abs[ds] != null) ? wd.abs[ds] : '';
     S.wkDay = { uid: uid, ds: ds };
     var d = new Date(ds + 'T00:00:00');
-    modal.style.maxWidth = '';
-    modal.innerHTML = '<div class="modal-h"><h3>Отсутствие — ' + esc(u.full_name) + '</h3><button class="x" data-action="close-modal">×</button></div>' +
+    // 22.09-220: из окна «Настройки бригад» открываем ТРЕТЬИМ окном поверх карточки (не затираем нижние)
+    var _wd3 = !!S.workersModal;
+    var _wdM = _wd3 ? document.getElementById('modal3') : modal;
+    var _wdO = _wd3 ? document.getElementById('overlay3') : overlay;
+    _wdM.style.maxWidth = '';
+    _wdM.innerHTML = '<div class="modal-h"><h3>Отсутствие — ' + esc(u.full_name) + '</h3><button class="x" data-action="close-modal' + (_wd3 ? '3' : '') + '">×</button></div>' +
       '<div class="modal-b">' +
       '<div style="font-size:12.5px;color:var(--muted);margin-bottom:10px">' + d.getDate() + ' ' + MON[d.getMonth()] + ' ' + d.getFullYear() + ' года</div>' +
       '<label style="font-size:12px;font-weight:700;color:var(--ink)">Комментарий (причина отсутствия)</label>' +
       '<textarea id="wk-day-comment" rows="3" style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13px;margin-top:5px;box-sizing:border-box" placeholder="Например: отпуск, больничный, обучение…">' + esc(cur) + '</textarea>' +
       '</div>' +
-      '<div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button>' +
+      '<div class="modal-f"><button class="btn" data-action="close-modal' + (_wd3 ? '3' : '') + '">Отмена</button>' +
       '<button class="btn" data-action="wk-day-del" style="color:var(--red);border-color:var(--red)">Убрать отметку</button>' +
       '<button class="btn primary" data-action="wk-day-save">Отметить отсутствие</button></div>';
-    overlay.classList.add('show');
+    _wdO.classList.add('show');
   }
   // Модалка комментария к карточке работника
   function openWkCommentModal(uid) {
     var u = DB.getUser(uid); if (!u) return;
     var wd = wkData(uid);
     S.wkDay = { uid: uid };
-    modal.style.maxWidth = '';
-    modal.innerHTML = '<div class="modal-h"><h3>Комментарий — ' + esc(u.full_name) + '</h3><button class="x" data-action="close-modal">×</button></div>' +
+    // 22.09-220: из окна «Настройки бригад» открываем ТРЕТЬИМ окном поверх карточки
+    var _wc3 = !!S.workersModal;
+    var _wcM = _wc3 ? document.getElementById('modal3') : modal;
+    var _wcO = _wc3 ? document.getElementById('overlay3') : overlay;
+    _wcM.style.maxWidth = '';
+    _wcM.innerHTML = '<div class="modal-h"><h3>Комментарий — ' + esc(u.full_name) + '</h3><button class="x" data-action="close-modal' + (_wc3 ? '3' : '') + '">×</button></div>' +
       '<div class="modal-b">' +
       '<textarea id="wk-card-comment" rows="4" style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13px;box-sizing:border-box" placeholder="Общий комментарий к работнику…">' + esc(wd.comment || '') + '</textarea>' +
       '</div>' +
-      '<div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button>' +
+      '<div class="modal-f"><button class="btn" data-action="close-modal' + (_wc3 ? '3' : '') + '">Отмена</button>' +
       '<button class="btn primary" data-action="wk-comment-save">Сохранить</button></div>';
-    overlay.classList.add('show');
+    _wcO.classList.add('show');
   }
 
   /* 22.09-207: РЕДАКТОР ДНЯ В «ГРАФИКАХ СМЕН» (режим «✏ Изменить график»).
@@ -9566,12 +9604,14 @@
   function openSchEdDayModal(uid, ds) {
     var u = DB.getUser(uid); if (!u || !wkCanEdit(u)) return;
     var todayK = key(TODAY);
-    if (!ds || ds < todayK) { toast('warn', '⚠ Отработанные (прошедшие) дни не редактируются'); return; }
+    if (!ds) return;
+    var isPast = ds < todayK; // 22.09-218: в прошедших днях окошко позволяет поправить ЧАСЫ рабочего дня
     var ci = schEdCellInfo(uid, ds);
     if (ci.st === 'abs') { toast('warn', 'Этот день — отсутствие (отпуск/больничный): снимается кликом по красному дню в общей таблице'); return; }
+    if (isPast && ci.st !== 'work') { toast('warn', 'В прошедшие дни можно менять только часы рабочего дня'); return; }
     var overlay2 = document.getElementById('overlay2'), modal2 = document.getElementById('modal2');
     if (!overlay2 || !modal2) return;
-    S.schEdDay = { uid: uid, ds: ds };
+    S.schEdDay = { uid: uid, ds: ds, past: isPast };
     var dt = new Date(ds + 'T00:00:00');
     var dateStr = dt.getDate() + ' ' + MON[dt.getMonth()] + ' ' + dt.getFullYear() + ' года';
     var hrs = (ci.st === 'work' && ci.h) ? ci.h : schEdDefHours(uid, ds, u);
@@ -9581,11 +9621,11 @@
       '<div class="modal-b">' +
       '<div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:10px">' + dateStr + '</div>' +
       '<div style="display:flex;gap:8px;margin-bottom:12px">' +
-      '<label class="cb" style="flex:1;display:flex;align-items:center;gap:6px;justify-content:center;padding:9px 8px;border:1px solid ' + (ci.st === 'work' ? '#16a34a;background:#dcfce7' : 'var(--line);background:#fff') + ';border-radius:8px;cursor:pointer;font-weight:700;font-size:13px"><input type="radio" name="scheday-st" id="scheday-work"' + (ci.st === 'work' ? ' checked' : '') + '> Рабочий</label>' +
-      '<label class="cb" style="flex:1;display:flex;align-items:center;gap:6px;justify-content:center;padding:9px 8px;border:1px solid ' + (ci.st === 'off' ? '#64748b;background:#f1f5f9' : 'var(--line);background:#fff') + ';border-radius:8px;cursor:pointer;font-weight:700;font-size:13px"><input type="radio" name="scheday-st" id="scheday-off"' + (ci.st === 'off' ? ' checked' : '') + '> Выходной</label>' +
+      '<label class="cb" style="flex:1;display:flex;align-items:center;gap:6px;justify-content:center;padding:9px 8px;border:1px solid ' + (ci.st === 'work' ? '#16a34a;background:#dcfce7' : 'var(--line);background:#fff') + ';border-radius:8px;cursor:' + (isPast ? 'default' : 'pointer') + ';font-weight:700;font-size:13px;' + (isPast ? 'opacity:.55;' : '') + '"' + (isPast ? ' title="В прошедшие дни рабочий/выходной не меняется — только часы"' : '') + '><input type="radio" name="scheday-st" id="scheday-work"' + (ci.st === 'work' ? ' checked' : '') + (isPast ? ' disabled' : '') + '> Рабочий</label>' +
+      '<label class="cb" style="flex:1;display:flex;align-items:center;gap:6px;justify-content:center;padding:9px 8px;border:1px solid ' + (ci.st === 'off' ? '#64748b;background:#f1f5f9' : 'var(--line);background:#fff') + ';border-radius:8px;cursor:' + (isPast ? 'default' : 'pointer') + ';font-weight:700;font-size:13px;' + (isPast ? 'opacity:.55;' : '') + '"' + (isPast ? ' title="В прошедшие дни рабочий/выходной не меняется — только часы"' : '') + '><input type="radio" name="scheday-st" id="scheday-off"' + (ci.st === 'off' ? ' checked' : '') + (isPast ? ' disabled' : '') + '> Выходной</label>' +
       '</div>' +
       '<div class="fld" style="max-width:200px"><label>Часов в этот день</label><input id="scheday-hours" type="text" inputmode="decimal" value="' + String(hrs).replace('.', ',') + '" placeholder="напр.: 8,25"></div>' +
-      '<div style="font-size:11px;color:var(--muted);margin:-4px 0 10px">Учитывается, если день рабочий. Изменение уйдёт в черновик и применится по кнопке «Сохранить» в окне редактора.</div>' +
+      '<div style="font-size:11px;color:var(--muted);margin:-4px 0 10px">' + (isPast ? 'Прошедший день: здесь можно поправить только количество часов (фактическая отработка). ' : 'Учитывается, если день рабочий. ') + 'Изменение уйдёт в черновик и применится по кнопке «Сохранить» в окне редактора.</div>' +
       '</div>' +
       '<div class="modal-f"><button class="btn" data-action="close-modal2">Отмена</button>' +
       (changed ? '<button class="btn" data-action="scheday-reset" style="color:var(--red);border-color:var(--red)">Вернуть по графику</button>' : '') +
@@ -9601,6 +9641,7 @@
     var sd = S.schEdDay; if (!sd) return;
     var u = DB.getUser(sd.uid); if (!u) { schEdDayClose(); return; }
     var st = (document.getElementById('scheday-off') || {}).checked ? 'off' : 'work';
+    if (sd.past) st = 'work'; // 22.09-218: в прошедшем дне меняются только часы — рабочий/выходной не трогаем
     var hRaw = ((document.getElementById('scheday-hours') || {}).value || '').trim().replace(',', '.');
     var h = (hRaw === '') ? null : parseFloat(hRaw);
     if (st === 'work' && (h == null || !isFinite(h) || h <= 0 || h > 24)) { toast('err', 'Часы — от 0 до 24 (например 8,25)'); return; }
@@ -9661,12 +9702,12 @@
       (cur.shifts || []).forEach(function (sh) { SP_WORKERS.addCycleShift(uid, sh.from, sh.cycle); n++; });
       if (n) { touched += n; try { var u = DB.getUser(uid); logAction('График смен: ручные изменения', (u ? u.full_name : uid) + ' · ' + n + ' шт'); } catch (e) {} }
     });
-    S.schEd = null; S.schEdAll = null; S.schEdDay = null;
+    S.schEd = null; S.schEdAll = null; S.schEdDay = null; S.schEdMode = null;
     overlay.classList.remove('show');
     modal.style.width = ''; modal.style.maxWidth = '';
     toast('ok', touched ? ('✓ Изменения графика сохранены (' + touched + ')') : '✓ Изменений не было');
     if (S.screen === 'schedules') renderSchedules();
-    else if (S.screen === 'workers') renderWorkers();
+    else if (S.screen === 'workers' || S.workersModal) renderWorkers();
   }
   function schEdRender() {
     if (!S.schEd) return;
@@ -9683,7 +9724,7 @@
       '<button type="button" class="btn sm" data-action="sch-ed-prev" title="Предыдущий месяц">‹</button>' +
       '<b style="min-width:120px;text-align:center;font-size:13px">' + MON_NOM[m] + ' ' + y + '</b>' +
       '<button type="button" class="btn sm" data-action="sch-ed-next" title="Следующий месяц">›</button>' +
-      '<span style="font-size:11px;color:var(--muted)">клик по дню — рабочий/выходной и часы · дни перетаскиваются мышью вдоль своей строки · всё применится по кнопке «Сохранить»</span></div>';
+      '<span style="font-size:11px;color:var(--muted)">клик по дню — окошко дня (у прошедших — только часы) · дни перетаскиваются мышью вдоль своей строки · всё применится по кнопке «Сохранить»</span></div>';
     // 22.09-212: сетка окна = та же таблица, что на странице «Графики смен»
     // (шапка с числами месяца, колонка «Бригада / работник» слева, цветные квадратики),
     // только в каждом рабочем квадратике написаны часы.
@@ -9705,9 +9746,22 @@
     edRows.forEach(function (rw) { if (rw.master) inRows[rw.master.id] = 1; rw.members.forEach(function (ss) { inRows[ss.id] = 1; }); });
     var rest = users.filter(function (x) { return !inRows[x.id]; });
     if (rest.length) edRows.push({ master: null, members: rest });
-    // Ширина колонки ФИО — по самому длинному имени (как в общей таблице)
+    // 22.09-221: фильтр окна берётся из списка на странице «Графики смен» — выбрана бригада, показываем только её
+    var curEdMode = S.schEdMode || 'all';
+    var edModeLbl = '';
+    if (curEdMode === 'free') {
+      var _fFree = edRows.filter(function (rw) { return !rw.master; });
+      edRows = _fFree; edModeLbl = 'только без бригады';
+    } else if (curEdMode.indexOf('b:') === 0) {
+      var _fMid = curEdMode.slice(2);
+      var _fBr = edRows.filter(function (rw) { return rw.master && rw.master.id === _fMid; });
+      if (_fBr.length) { edRows = _fBr; edModeLbl = 'бригада ' + (_fBr[0].master.full_name || ''); }
+    }
+    // Ширина колонки ФИО — по самому длинному имени (как в общей таблице), только видимые строки
     var nameColW = 200;
-    users.forEach(function (x) { var ap = (x.full_name || '').length * 7 + 100; if (ap > nameColW) nameColW = ap; });
+    var poolN = [];
+    edRows.forEach(function (rwN) { if (rwN.master) poolN.push(rwN.master); poolN = poolN.concat(rwN.members); });
+    poolN.forEach(function (x) { var ap = (x.full_name || '').length * 7 + 100; if (ap > nameColW) nameColW = ap; });
     if (nameColW > 340) nameColW = 340;
     // Одна ячейка дня: часы внутри; клик — окошко дня; будущие обычные дни — перетаскивание
     function schEdTd(xu, dd) {
@@ -9731,13 +9785,15 @@
       if (ci.manual) title += ' · ✏ изменён вручную';
       if (ci.draft) title += (ci.reset ? ' · • черновик: вернуть по графику' : ' · • черновик (не сохранено)');
       if (_hol) title += ' · 🎉 ' + _hol;
-      var act = (!past) ? 'sch-ed-cell' : '';
+      if (past && ci.st === 'work') title += ' · ⏪ прошедший день: клик — поправить часы';
+      // 22.09-218: клик работает и по прошедшим дням — в окошке дня у них редактируются только часы
+      var act = 'sch-ed-cell';
       var drag = (!past && ci.st !== 'abs');
       return '<td data-action="' + act + '" data-uid="' + esc(xu.id) + '" data-sch-day="' + ds + '"' + (drag ? ' data-sch-drag="1"' : '') +
         (act ? ' role="button"' : '') + ' title="' + esc(title) + '"' +
         ' style="width:' + colW + 'px;height:26px;padding:0;background:' + bg + ';border:1px solid ' + bd + ';text-align:center;box-sizing:border-box;' +
         (shs.length ? 'box-shadow:' + shs.join(',') + ';' : '') +
-        (past ? 'opacity:.45;' : (act ? 'cursor:pointer;' : '')) + '">' +
+        (past ? 'opacity:.45;cursor:pointer;' : 'cursor:pointer;') + '">' +
         (hours ? '<span style="font-size:8.5px;font-weight:800;color:#14532d;line-height:1">' + hours + '</span>' : '') +
         '</td>';
     }
@@ -9755,6 +9811,7 @@
         ' <span style="color:var(--muted);font-weight:700;font-size:9.5px">· ' + xw.hours + ' ч · ' + (xw.sched || '5/2') + '</span>' +
         '</td>' + tds + '</tr>';
     }
+    if (edModeLbl) h += '<div style="margin:0 0 8px"><span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;color:#1d4ed8;background:#dbeafe;border:1px solid #93c5fd;border-radius:999px;padding:3px 10px" title="В списке рядом с месяцем на странице «Графики смен» выбрана ' + (curEdMode === 'free' ? 'не бригада, а «Только без бригады»' : 'конкретная бригада') + ' — поэтому в окне видны не все. Вернитесь на страницу и выберите «Все бригады», чтобы видеть всех">👥 Показано: ' + esc(edModeLbl) + '</span></div>';
     h += '<div id="sch-ed-grid" style="overflow:auto;border:1px solid var(--line);border-radius:12px;background:var(--card);user-select:none">';
     h += '<table style="border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed;min-width:' + (nameColW + dim * colW + 2) + 'px;font-size:11px">';
     // Шапка: колонка ФИО + числа месяца (как в общей таблице: выходные — серые, сегодня/праздник подсвечены)
@@ -9773,7 +9830,7 @@
       rw.members.forEach(function (ss) { h += schEdTr(ss, false); });
     });
     h += '</tbody></table></div>';
-    h += '<div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5">В квадратиках — рабочие часы дня. Клик по будущему дню — окошко «рабочий/выходной/часы» (там же «Вернуть по графику»). Перетаскивание дня мышью вдоль строки: у графика 5/2 переносится только этот день, у 2/2 — его график едет следом (с сегодняшнего дня). Дни каждого работника меняются независимо от остальных. Синяя риска снизу — изменён вручную, синяя рамка квадратика — черновое изменение (не сохранено). Прошедшие (отработанные) дни недоступны.</div>';
+    h += '<div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5">В квадратиках — рабочие часы дня. Клик по будущему дню — окошко «рабочий/выходной/часы» (там же «Вернуть по графику»). Перетаскивание дня мышью вдоль строки: у графика 5/2 переносится только этот день, у 2/2 — его график едет следом (с сегодняшнего дня). Дни каждого работника меняются независимо от остальных. Синяя риска снизу — изменён вручную, синяя рамка квадратика — черновое изменение (не сохранено). Прошедшие дни: клик по рабочему квадратику — окошко, где можно поправить часы (рабочий/выходной в прошлом не меняется, перетаскивание недоступно).</div>';
     h += '</div>';
     h += '<div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="sch-ed-save">💾 Сохранить</button></div>';
     // 22.09-216: окно редактора — 90% ширины экрана, по центру (центрирует контейнер overlay)
@@ -9809,6 +9866,8 @@
     if (!users.length) { toast('err', 'Нет работников с правом на изменение'); return; }
     var wm = wkMonth();
     S.schEd = { y: wm.y, m: wm.m };
+    // 22.09-221: что выбрано в списке рядом с месяцем на странице — бригада откроется одна, «Все» — все
+    S.schEdMode = (S.screen === 'schedules' && S.schMode) ? String(S.schMode) : 'all';
     S.schEdAll = {};
     schEdRender();
     overlay.classList.add('show');
@@ -12499,7 +12558,7 @@
         var displayPass = u.plain_password || 'admin123';
         var passLabel = '<span style="font-family:monospace;background:var(--panel-3);padding:2px 6px;border-radius:4px;color:var(--navy);font-weight:700;">' + esc(displayPass) + '</span>';
         var actionsHtml = (S.role === 'admin') ? '<button class="btn sm" data-action="edit-user" data-uid="' + u.id + '">Изменить</button> ' + fireBtn + delBtn : '<span style="color:#94a3b8;font-size:11.5px;">Доступно админу</span>';
-        html += '<tr><td><b>' + esc(u.full_name) + '</b>' + me + '</td><td style="font-family:monospace;font-weight:700;color:var(--blue);">' + esc(u.login) + '</td><td>' + passLabel + '</td><td>' + roleChip(u.role) + (u.prof ? '<div style="font-size:10.5px;color:var(--muted);margin-top:3px">' + esc(u.prof) + '</div>' : '') + '</td><td>' + esc(u.area || '—') + '</td><td>' + (u.active ? '<span class="chip" style="background:#dcfce7;color:#15803d">активен</span>' : '<span class="chip" style="background:#fee2e2;color:#b91c1c">отключён</span>') + '</td><td style="white-space:nowrap;text-align:right">' + actionsHtml + '</td></tr>';
+        html += '<tr><td><div style="display:flex;align-items:center;gap:8px">' + avaHtml(u, 28, 10.5) + '<b>' + esc(u.full_name) + '</b>' + me + '</div></td><td style="font-family:monospace;font-weight:700;color:var(--blue);">' + esc(u.login) + '</td><td>' + passLabel + '</td><td>' + roleChip(u.role) + (u.prof ? '<div style="font-size:10.5px;color:var(--muted);margin-top:3px">' + esc(u.prof) + '</div>' : '') + '</td><td>' + esc(u.area || '—') + '</td><td>' + (u.active ? '<span class="chip" style="background:#dcfce7;color:#15803d">активен</span>' : '<span class="chip" style="background:#fee2e2;color:#b91c1c">отключён</span>') + '</td><td style="white-space:nowrap;text-align:right">' + actionsHtml + '</td></tr>';
       });
       html += '</tbody></table></div></div>';
       // 22.09-161: уволенные — без логина/пароля, с восстановлением (для истории задач запись остаётся)
@@ -12536,6 +12595,26 @@
       var viewEl = document.getElementById('view');
       if (viewEl) viewEl.innerHTML = '<div class="card"><div class="card-b" style="color:var(--red);padding:20px;font-weight:600;">Ошибка отображения списка пользователей: ' + esc(err.message) + '</div></div>';
     }
+  }
+
+  /* ---------- 22.09-219: ЖУРНАЛ ИЗМЕНЕНИЙ (админ) ---------- */
+  // История версий системы: дата · сборка · описание. Данные — SP_CHANGELOG (data.js).
+  // ОТСЮДА И ДАЛЕЕ все новости сборок пишутся в SP_CHANGELOG, а не в шапку сайта.
+  function renderChangelog() {
+    var rows = (window.SP_CHANGELOG || []).slice().sort(function (a, b) { return (b.n - a.n); });
+    var html = '<div class="card"><div class="card-h"><h2>Журнал изменений</h2><span class="sub">' + rows.length + ' сборок · новые сверху</span></div><div class="card-b">';
+    html += '<div style="font-size:12.5px;color:var(--muted);margin-bottom:12px;line-height:1.5">История версий системы SmartPlan: дата, номер сборки и что изменилось. Текущая сборка — в шапке любой страницы и на экране входа.</div>';
+    html += '<table class="dt"><thead><tr><th style="white-space:nowrap">Дата</th><th>Сборка</th><th>Что изменилось</th></tr></thead><tbody>';
+    rows.forEach(function (r) {
+      if (!r) return;
+      var cur = ('22.09-' + r.n) === SP_BUILD;
+      html += '<tr' + (cur ? ' style="background:#eff6ff"' : '') + '><td style="white-space:nowrap;color:var(--muted);font-size:12px">' + esc(r.d ? fmtDmyIso(r.d) : '—') + '</td>' +
+        '<td style="white-space:nowrap;vertical-align:top"><b style="color:var(--blue)">22.09-' + r.n + '</b>' + (cur ? ' <span class="chip" style="background:#dcfce7;color:#15803d">текущая</span>' : '') + '</td>' +
+        '<td style="font-size:12.5px;color:var(--ink);line-height:1.5">' + esc(r.t) + '</td></tr>';
+    });
+    html += '</tbody></table></div></div>';
+    var vw = document.getElementById('view');
+    if (vw) vw.innerHTML = html;
   }
 
   // Запись действия в журнал (хранится на сервере; просмотр — «Журнал» у админа)
@@ -13031,10 +13110,27 @@
         h += '<div class="fld"><label>Новый пароль <span style="font-weight:400;color:#64748b;font-size:11px;">(оставьте пустым, если не меняется)</span></label><input id="um-pass" type="text" placeholder="Введите новый пароль (например, admin123)"></div>';
       }
       h += '<div class="fld"><label class="cb"><input type="checkbox" id="um-active" ' + (u ? (u.active ? 'checked' : '') : 'checked') + '> Учётная запись активна</label></div>';
+      // 22.09-219: фото-аватар работника (загрузка админом; применяется сразу, без «Сохранить»)
+      if (mode === 'edit' && u) {
+        h += '<div class="fld" style="margin-top:6px"><label>Фото работника <span style="font-weight:400;color:#64748b;font-size:11px">(кружок-аватар по всей системе)</span></label>' +
+          '<div style="display:flex;align-items:center;gap:12px">' +
+          '<span id="um-ava-preview" style="width:64px;height:64px;border-radius:50%;background:' + ((u && u.color) || '#94a3b8') + ';color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;flex:0 0 auto;overflow:hidden">' + (u.avatar ? '<img src="' + u.avatar + '" style="width:100%;height:100%;object-fit:cover;display:block">' : esc(initials(u.full_name))) + '</span>' +
+          '<div id="um-ava-actions" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn sm" data-action="um-ava-upload" title="Выбрать файл с фото (jpg/png); автоматически уменьшится до 128×128">📷 ' + (u.avatar ? 'Заменить фото' : 'Загрузить фото') + '</button>' +
+          (u.avatar ? '<button class="btn sm" data-action="um-ava-remove" style="color:var(--red);border-color:var(--red)" title="Убрать фото — кружок снова покажет инициалы">Удалить фото</button>' : '') +
+          '</div></div>' +
+          '<input type="file" id="um-ava-file" accept="image/*" style="display:none">' +
+          '<div style="font-size:11px;color:var(--muted)">Фото уменьшится автоматически и сохранится сразу (кнопку «Сохранить» нажимать не нужно) — появится в карточках «Графиков смен», «Работников» и в шапке справа вверху.</div></div>';
+      }
     }
     h += '</div><div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="save-user">Сохранить</button></div>';
     modal.style.maxWidth = ''; // сброс автоширины карточки задачи
     modal.innerHTML = h; overlay.classList.add('show');
+    var _umAvaFile = document.getElementById('um-ava-file'); // 22.09-219
+    if (_umAvaFile) _umAvaFile.onchange = function (e) {
+      var f = e.target.files && e.target.files[0];
+      e.target.value = '';
+      if (f) avaAttachFromFile(S.userModalUid, f);
+    };
   }
   function saveUser() {
     var mode = S.userModalMode, uid = S.userModalUid;
@@ -13072,6 +13168,58 @@
       if (uid === S.user.id) { S.user = DB.getUser(uid); applyUser(); }
       refresh();
     }, function (e) { toast('err', e.message); });
+  }
+  // 22.09-219: файл фото → уменьшение до 128×128 (квадрат по центру) → сохранение в учётку
+  function avaAttachFromFile(uid, file) {
+    if (S.role !== 'admin') { toast('err', 'Фото загружает только администратор'); return; }
+    if (!file) return;
+    if (file.size > 15 * 1024 * 1024) { toast('err', 'Файл слишком большой (больше 15 МБ)'); return; }
+    try {
+      var fr = new FileReader();
+      fr.onload = function () {
+        var img = new Image();
+        img.onload = function () {
+          try {
+            var sz = 128;
+            var cv = document.createElement('canvas');
+            cv.width = sz; cv.height = sz;
+            var cx = cv.getContext('2d');
+            if (!cx) throw new Error('холст недоступен');
+            var s = Math.min(img.width, img.height);
+            cx.drawImage(img, Math.round((img.width - s) / 2), Math.round((img.height - s) / 2), s, s, 0, 0, sz, sz);
+            saveUserAvatar(uid, cv.toDataURL('image/jpeg', 0.85));
+          } catch (e) { toast('err', 'Не удалось обработать фото: ' + (e && e.message)); }
+        };
+        img.onerror = function () { toast('err', 'Это не файл изображения'); };
+        img.src = fr.result;
+      };
+      fr.onerror = function () { toast('err', 'Не удалось прочитать файл'); };
+      fr.readAsDataURL(file);
+    } catch (e) { toast('err', 'Фото не загружено: ' + (e && e.message)); }
+  }
+  function saveUserAvatar(uid, dataUrl) {
+    var u = DB.getUser(uid); if (!u) { toast('err', 'Пользователь не найден'); return; }
+    DB.updateUser(uid, { avatar: dataUrl || null }).then(function () {
+      try { // стандартных (seed) пользователей модуль на сервер не отправляет — фото отправляем сами
+        if (window.SP_API && SP_API.getToken && SP_API.getToken() && SP_API.upsert) {
+          var su = Object.assign({}, DB.getUser(uid) || {}, { password: undefined, plain_password: undefined });
+          SP_API.upsert('users', su).catch(function () {});
+        }
+      } catch (e) {}
+      try { logAction('Пользователи: фото', u.full_name + (dataUrl ? ' — установлено' : ' — удалено')); } catch (e) {}
+      if (S.user && S.user.id === uid) { try { S.user = DB.getUser(uid); applyUser(); } catch (e) {} }
+      umAvaPreviewRefresh(uid);
+      toast('ok', dataUrl ? '✓ Фото сохранено — показывается в кружках работника' : '✓ Фото удалено');
+      if (S.screen === 'users') renderUsers(); else refresh();
+    }, function (e) { toast('err', (e && e.message) || 'Ошибка сохранения фото'); });
+  }
+  function umAvaPreviewRefresh(uid) {
+    var u = DB.getUser(uid); if (!u) return;
+    var pv = document.getElementById('um-ava-preview');
+    if (pv) pv.innerHTML = u.avatar ? '<img src="' + u.avatar + '" style="width:100%;height:100%;object-fit:cover;display:block">' : esc(initials(u.full_name));
+    var ac = document.getElementById('um-ava-actions');
+    if (ac) ac.innerHTML = '<button class="btn sm" data-action="um-ava-upload" title="Выбрать файл с фото (jpg/png); автоматически уменьшится до 128×128">📷 ' + (u.avatar ? 'Заменить фото' : 'Загрузить фото') + '</button>' +
+      (u.avatar ? '<button class="btn sm" data-action="um-ava-remove" style="color:var(--red);border-color:var(--red)" title="Убрать фото — кружок снова покажет инициалы">Удалить фото</button>' : '');
   }
   function delUser(uid) {
     var u = DB.getUser(uid); if (!u) return;
@@ -15499,7 +15647,9 @@
     snapshotAuto(); // автоснимок базы при входе (страховка от сбросов)
     // Real-time синхронизация запускается отдельно через SP_SYNC_POLL.init()
     var info = ROLE_INFO[u.role] || { label: u.role };
-    document.getElementById('av').textContent = initials(u.full_name);
+    var _avEl = document.getElementById('av'); // 22.09-219: фото-аватар в шапке, если загружен
+    if (u.avatar) { _avEl.textContent = ''; _avEl.style.backgroundImage = 'url(' + u.avatar + ')'; _avEl.style.backgroundSize = 'cover'; _avEl.style.backgroundPosition = 'center'; }
+    else { _avEl.style.backgroundImage = ''; _avEl.textContent = initials(u.full_name); }
     document.getElementById('un').textContent = u.full_name;
     document.getElementById('ur').textContent = (u.prof || info.label) + (u.role === 'admin' || !u.area ? '' : ' · ' + u.area); // 22.09-94: без «· undefined»
     // 22.09-106: сенсорное устройство — показываем стрелочку ▾ для меню пользователя (выход)
@@ -15680,7 +15830,7 @@
     if (name === 'wxtest' && S.role !== 'admin') { toast('err', 'Страница «Тест погодный» — только для администратора'); return; }
     if (name === 'testdep' && S.role !== 'admin') { toast('err', 'Страница «Тест зависимости» — только для администратора'); return; }
     // Защита: страницы администрирования — только админу
-    if ((name === 'users' || name === 'logs') && S.role !== 'admin') {
+    if ((name === 'users' || name === 'logs' || name === 'changelog') && S.role !== 'admin') {
       toast('err', 'Доступ только для администратора');
       return;
     }
@@ -15711,16 +15861,11 @@
       w.classList.toggle('open', !!(sub && sub.dataset.screen === name));
     });
     document.getElementById('screen-title').textContent = (TITLES[name] || ['', ''])[0];
-    // 22.09-214: в шапке — только описание ТЕКУЩЕЙ сборки, история «Ранее, ...» не показывается
-    // (длинная цепочка вытесняла кнопки шапки); полный текст — в подсказке при наведении.
-    var _cr = String((TITLES[name] || ['', ''])[1] || '');
-    var _crFull = _cr;
-    var _cut = _cr.indexOf(' Ранее, ');
-    if (_cut > 0) _cr = _cr.slice(0, _cut);
-    if (_cr.length > 200) _cr = _cr.slice(0, 200).replace(/\s+\S*$/, '') + '…';
+    // 22.09-219: в шапке — только номер текущей сборки; описания изменений больше НЕ
+    // пишутся в шапку — они в Администрировании → «Журнал изменений» (SP_CHANGELOG, data.js).
     var _crEl = document.getElementById('screen-crumb');
-    _crEl.textContent = _cr;
-    _crEl.title = (_crFull && _crFull !== _cr) ? ('История изменений страницы:\n' + _crFull) : '';
+    _crEl.textContent = 'Сборка ' + SP_BUILD;
+    _crEl.title = 'История изменений системы: Администрирование → Журнал изменений';
     document.getElementById('sidebar').classList.remove('open');
     refresh();
   }
@@ -15885,7 +16030,9 @@
   }
 
   function renderFactMonth() {
-    var view = document.getElementById('view'); if (!view) return;
+    // 22.09-220: страница «Факт работ по объектам» переехала в окно из панели мониторинга
+    // (клик по блоку «Выполнено за месяц»); функционал тот же, цель рендера — окно
+    var view = S.factModal ? document.getElementById('modal') : document.getElementById('view'); if (!view) return;
     if (S.fmYear == null || S.fmMonth == null) { S.fmYear = TODAY.getFullYear(); S.fmMonth = TODAY.getMonth(); }
     var mk = fmMonthKey(S.fmYear, S.fmMonth);
     // Выезды месяца — сгруппированы по объектам
@@ -15933,7 +16080,7 @@
     if (!order.length) {
       html += '<div class="card"><div class="card-b"><div class="empty">За ' + MON_NOM[S.fmMonth].toLowerCase() + ' ' + S.fmYear + ' выездов на объекты нет.<br>' +
         '<span style="font-size:12px">Выезд появляется здесь, когда мастер жмёт «Приступил» / «Закончил» в панели мониторинга или задача закрыта галочкой.</span></div></div></div>';
-      view.innerHTML = html;
+      view.innerHTML = (S.factModal ? ('<div class="modal-h"><h3>📋 Факт работ по объектам</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">' + html + '</div>') : html);
       return;
     }
     order.forEach(function (gk) {
@@ -15966,7 +16113,7 @@
       });
       html += '</div></div>';
     });
-    view.innerHTML = html;
+    view.innerHTML = (S.factModal ? ('<div class="modal-h"><h3>📋 Факт работ по объектам</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">' + html + '</div>') : html);
   }
 
   // Плановая дата задачи ISO ('YYYY-MM-DD'), '' если дня нет
@@ -16457,7 +16604,7 @@
     else if (S.screen === 'objmap') renderObjMap();
     else if (S.screen === 'livemap') renderLiveMap();
     else if (S.screen === 'perms') renderPerms();
-    else if (S.screen === 'workers') renderWorkers();
+    else if (S.screen === 'workers' || S.workersModal) renderWorkers();
     else if (S.screen === 'schedules') renderSchedules();
     else if (S.screen === 'refs') renderRefs();
     else if (S.screen === 'writeoffs') renderWriteoffs(); // 22.09-181
@@ -16467,8 +16614,12 @@
     else if (S.screen === 'reports') renderReports();
     else if (S.screen === 'logs') renderLogs();
     else if (S.screen === 'errlogs') renderErrLogs();
+    else if (S.screen === 'changelog') renderChangelog(); // 22.09-219
     else if (S.screen === 'backup') renderBackup(); // 22.09-139
     else if (S.screen === 'graphs') renderGraphs();
+    // 22.09-220: открытые рабочие окна («Настройки бригад», «Факт работ…») — со страницей под ними
+    if (S.workersModal && S.screen !== 'workers') renderWorkers();
+    if (S.factModal && S.screen !== 'factmonth') renderFactMonth();
   }
 
   /* ===== ГЛОБАЛЬНЫЙ ПЕРЕХВАТ ОШИБОК: приложение не «белеет» молча =====
@@ -16591,6 +16742,7 @@
     else if (a === 'kpi-today') { kpiToday(); }
     else if (a === 'kpi-overloads') { kpiOverloads(); }
     else if (a === 'kpi-month') { kpiMonth(); }
+    else if (a === 'wk-settings-open') { openWorkersSettingsModal(); } // 22.09-220
     else if (a === 'kpi-permits') { kpiPermits(); }
     else if (a === 'kpi-redzone') { kpiRedzone(); } // 22.09-171
     else if (a === 'new-task') { openTaskModal('new'); }
@@ -16637,8 +16789,9 @@
     else if (a === 'wo-save') { woSaveWriteoff(); } // 22.09-186: сохранить списания (окно остаётся открытым)
     else if (a === 'wo-save-close') { woSaveWriteoff(); closeTaskObjectPickers(); overlay.classList.remove('show'); modal.style.maxWidth = ''; modal.style.width = ''; S.wkModalUid = null; S.wmJointSel = null; } // 22.09-186: сохранить и закрыть карточку
     else if (a === 'wo-work-pick') { woPickWork(parseInt(el.dataset.idx, 10) || 0); } // 22.09-185: выбор вида работ для списания
-    else if (a === 'close-modal') { closeTaskObjectPickers(); overlay.classList.remove('show'); modal.style.maxWidth = ''; modal.style.width = ''; if (S.wkModalUid && S.screen === 'workers') renderWorkers(); S.wkModalUid = null; S.wmJointSel = null; /* 22.09-162 */ S.schEd = null; S.schEdAll = null; S.schEdDay = null; /* 22.09-211/213 */ }
-    else if (a === 'close-modal2') { var ov2 = document.getElementById('overlay2'); if (ov2) ov2.classList.remove('show'); } // 22.09-162
+    else if (a === 'close-modal') { closeTaskObjectPickers(); overlay.classList.remove('show'); modal.style.maxWidth = ''; modal.style.width = ''; if (S.wkModalUid && S.screen === 'workers') renderWorkers(); S.wkModalUid = null; S.wmJointSel = null; /* 22.09-162 */ S.schEd = null; S.schEdAll = null; S.schEdDay = null; S.schEdMode = null; /* 22.09-211/213 */ S.workersModal = false; S.factModal = false; /* 22.09-220 */ }
+    else if (a === 'close-modal2') { var ov2 = document.getElementById('overlay2'); if (ov2) ov2.classList.remove('show'); if (S.wkModalUid && S.workersModal) { renderWorkers(); } S.wkModalUid = null; /* 22.09-220 */ } // 22.09-162
+    else if (a === 'close-modal3') { var ov3 = document.getElementById('overlay3'); if (ov3) ov3.classList.remove('show'); S.wkDay = null; } // 22.09-220
     else if (a === 'wm-joint-pick') { openWmJointPickModal(); } // 22.09-162
     else if (a === 'save-joint-pick') { saveWmJointPick(); } // 22.09-162
     // ===== Страница «Графики» (Планирование / Графики) =====
@@ -16703,7 +16856,7 @@
       if (window.SP_WORKERS) SP_WORKERS.setAbsence(el.dataset.uid, el.dataset.ds, '');
       toast('ok', '✓ Отсутствие отмечено — нажмите на день, чтобы указать причину');
       var _backQ = S.wkModalUid;
-      if (S.screen === 'workers') renderWorkers();
+      if (S.screen === 'workers' || S.workersModal) renderWorkers();
       else if (S.screen === 'schedules') renderSchedules();
       if (_backQ) openWkCardModal(_backQ);
     }
@@ -16720,42 +16873,45 @@
     else if (a === 'wk-edit-comment') { openWkCommentModal(el.dataset.uid); }
     else if (a === 'wk-day-save') {
       if (S.wkDay && S.wkDay.ds) {
+        try { document.getElementById('overlay3').classList.remove('show'); } catch (e) {} // 22.09-220
         var _wdInp = document.getElementById('wk-day-comment');
         if (window.SP_WORKERS) SP_WORKERS.setAbsence(S.wkDay.uid, S.wkDay.ds, _wdInp ? _wdInp.value : '');
         toast('ok', '✓ Отсутствие отмечено');
         var _backUid = S.wkModalUid; S.wkDay = null;
-        if (S.screen === 'workers') renderWorkers();
+        if (S.screen === 'workers' || S.workersModal) renderWorkers();
         else if (S.screen === 'schedules') renderSchedules();
         if (_backUid) openWkCardModal(_backUid);
         else {
           overlay.classList.remove('show');
-          if (S.screen === 'workers') renderWorkers();
+          if (S.screen === 'workers' || S.workersModal) renderWorkers();
           else if (S.screen === 'schedules') renderSchedules();
         }
       }
     }
     else if (a === 'wk-day-del') {
       if (S.wkDay && S.wkDay.ds) {
+        try { document.getElementById('overlay3').classList.remove('show'); } catch (e) {} // 22.09-220
         if (window.SP_WORKERS) SP_WORKERS.setAbsence(S.wkDay.uid, S.wkDay.ds, null);
         toast('ok', '✓ Отметка отсутствия снята');
         var _backUid2 = S.wkModalUid; S.wkDay = null;
-        if (S.screen === 'workers') renderWorkers();
+        if (S.screen === 'workers' || S.workersModal) renderWorkers();
         else if (S.screen === 'schedules') renderSchedules();
         if (_backUid2) openWkCardModal(_backUid2);
         else {
           overlay.classList.remove('show');
-          if (S.screen === 'workers') renderWorkers();
+          if (S.screen === 'workers' || S.workersModal) renderWorkers();
           else if (S.screen === 'schedules') renderSchedules();
         }
       }
     }
     else if (a === 'wk-comment-save') {
       if (S.wkDay && S.wkDay.uid) {
+        try { document.getElementById('overlay3').classList.remove('show'); } catch (e) {} // 22.09-220
         var _wcInp = document.getElementById('wk-card-comment');
         if (window.SP_WORKERS) SP_WORKERS.setWorker(S.wkDay.uid, { comment: _wcInp ? _wcInp.value : '' });
         toast('ok', '✓ Комментарий сохранён');
         var _backUid3 = S.wkModalUid; S.wkDay = null;
-        if (S.screen === 'workers') renderWorkers();
+        if (S.screen === 'workers' || S.workersModal) renderWorkers();
         if (_backUid3) openWkCardModal(_backUid3);
         else { overlay.classList.remove('show'); renderWorkers(); }
       }
@@ -16767,6 +16923,8 @@
     else if (a === 'edit-user') { openUserModal('edit', el.dataset.uid); }
     else if (a === 'pwd-user') { openUserModal('pwd', el.dataset.uid); }
     else if (a === 'save-user') { saveUser(); }
+    else if (a === 'um-ava-upload') { var _avf = document.getElementById('um-ava-file'); if (_avf) { try { _avf.click(); } catch (e) {} } } // 22.09-219
+    else if (a === 'um-ava-remove') { if (window.confirm('Удалить фото работника?')) saveUserAvatar(S.userModalUid, null); } // 22.09-219
     else if (a === 'del-user') { delUser(el.dataset.uid); }
     else if (a === 'fire-user') { openFireUserModal(el.dataset.uid); }
     else if (a === 'confirm-fire-user') { confirmFireUser(); }

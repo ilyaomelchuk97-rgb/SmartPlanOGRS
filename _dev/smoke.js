@@ -62,7 +62,7 @@ seed('smartplan_areas_db', { schema: AREAS_SCHEMA, areas: [ { id: 'a_ubirogs', n
 seed('smartplan_users_db', { schema: 3, users: [
   { id: 'a_admin', login: 'admin', password: 'x', plain_password: 'x', full_name: 'Админ Смоук', role: 'admin', area: 'Все участки', color: '#0f2740', active: true },
   { id: 'm_smoke1', login: 'm1', password: 'x', full_name: 'Мастер Один', role: 'master', area: 'УБиРОГС', color: '#15803d', active: true },
-  { id: 'm_smoke2', login: 'm2', password: 'x', full_name: 'Мастер Два', role: 'master', area: 'УБиРОГС', color: '#1d4ed8', active: true },
+  { id: 'm_smoke2', login: 'm2', password: 'x', full_name: 'Мастер Два', role: 'master', area: 'УБиРОГС', color: '#1d4ed8', active: true, avatar: 'data:image/png;base64,SMOKEAVA' },
   { id: 'sl_smoke', login: 'sl', password: 'x', full_name: 'Слесарь Смоук', role: 'slesar', area: 'УБиРОГС', color: '#64748b', active: true },
   { id: 'n_smoke', login: 'n', password: 'x', full_name: 'Начальник Смоук', role: 'nach', area: 'УБиРОГС', color: '#92400e', active: true },
   { id: 'sm_smoke', login: 'sm', password: 'x', full_name: 'Стмастер Смоук', role: 'smaster', area: 'УБиРОГС', color: '#6d28d9', active: true }
@@ -131,7 +131,7 @@ vm.createContext(sandbox);
     let code = fs.readFileSync(path.join(DIR, f), 'utf8');
     if (f === 'app.js') {
       const pos = code.lastIndexOf('})();');
-      code = code.slice(0, pos) + ';window.__probe={S:S,GS:GS,TITLES:TITLES,refresh:refresh,renderDashboard:renderDashboard,visibleMasters:visibleMasters,enterApp:enterApp,setScreen:setScreen,kpiTasks:kpiTasks,kpiMasters:kpiMasters,dayTaskSort:dayTaskSort,_drawCalendarGridImpl:_drawCalendarGridImpl,fmtH3:fmtH3,openGraphLaborModal:openGraphLaborModal,gwWorkTipHtml:gwWorkTipHtml,graphsFind:graphsFind,schDayHours:schDayHours,openWorkModal:openWorkModal,openWmJointPickModal:openWmJointPickModal,wmJointSelBoxHtml:wmJointSelBoxHtml,openSchEditorModal:openSchEditorModal,schEdPatternShift:schEdPatternShift,schEdMoveDay:schEdMoveDay,openSchEdDayModal:openSchEdDayModal,schEdDayApply:schEdDayApply,schEdDayReset:schEdDayReset,schEdCur:schEdCur,schEdSaveAll:schEdSaveAll,wkCycleFrom:wkCycleFrom,gwJointAlign:gwJointAlign,gprFirstFromServiceLife:gprFirstFromServiceLife,gwGenObjSeries:gwGenObjSeries,gwNextISO:gwNextISO,gprRowHtml:gprRowHtml,wkDayState:wkDayState,masterCapacity:masterCapacity,offToDate:offToDate,schCellHtml:schCellHtml,openSchDayEditModal:openSchDayEditModal,schDayEditSave:schDayEditSave,key:key};' + code.slice(pos);
+      code = code.slice(0, pos) + ';window.__probe={S:S,GS:GS,TITLES:TITLES,refresh:refresh,renderDashboard:renderDashboard,visibleMasters:visibleMasters,enterApp:enterApp,setScreen:setScreen,kpiTasks:kpiTasks,kpiMasters:kpiMasters,dayTaskSort:dayTaskSort,_drawCalendarGridImpl:_drawCalendarGridImpl,fmtH3:fmtH3,openGraphLaborModal:openGraphLaborModal,gwWorkTipHtml:gwWorkTipHtml,graphsFind:graphsFind,schDayHours:schDayHours,openWorkModal:openWorkModal,openWmJointPickModal:openWmJointPickModal,wmJointSelBoxHtml:wmJointSelBoxHtml,openSchEditorModal:openSchEditorModal,schEdPatternShift:schEdPatternShift,schEdMoveDay:schEdMoveDay,openSchEdDayModal:openSchEdDayModal,schEdDayApply:schEdDayApply,schEdDayReset:schEdDayReset,schEdCur:schEdCur,schEdSaveAll:schEdSaveAll,wkCycleFrom:wkCycleFrom,gwJointAlign:gwJointAlign,gprFirstFromServiceLife:gprFirstFromServiceLife,gwGenObjSeries:gwGenObjSeries,gwNextISO:gwNextISO,gprRowHtml:gprRowHtml,wkDayState:wkDayState,masterCapacity:masterCapacity,offToDate:offToDate,schCellHtml:schCellHtml,openSchDayEditModal:openSchDayEditModal,schDayEditSave:schDayEditSave,SP_BUILD:SP_BUILD,avaHtml:avaHtml,applyUser:applyUser,openUserModal:openUserModal,saveUserAvatar:saveUserAvatar,openWorkersSettingsModal:openWorkersSettingsModal,openFactMonthModal:openFactMonthModal,kpiMonth:kpiMonth,openWkCardModal:openWkCardModal,key:key};' + code.slice(pos);
     }
     vm.runInContext(code, sandbox, { filename: f });
   }
@@ -144,12 +144,12 @@ vm.createContext(sandbox);
 
   /* ---------- свайп экранов ---------- */
   const scrErrs = [];
-  const SCREENS = ['dashboard','calendar','graphs','map','objmap','testmap','testdep','livemap','perms','refs','writeoffs','workcards','factmonth','workers','schedules','users','reports','logs'];
+  const SCREENS = ['dashboard','calendar','graphs','map','objmap','testmap','testdep','livemap','perms','refs','writeoffs','workcards','factmonth','workers','schedules','users','reports','logs','changelog'];
   for (const s of SCREENS) {
     try { P.setScreen(s); if (s === 'calendar') P._drawCalendarGridImpl(); }
     catch (e) { scrErrs.push(s + ': ' + (e && e.message || e)); }
   }
-  ok(scrErrs.length === 0, 'свайп 18 экранов без ошибок' + (scrErrs.length ? ' -> ' + scrErrs.join(' | ') : ''));
+  ok(scrErrs.length === 0, 'свайп ' + SCREENS.length + ' экранов без ошибок' + (scrErrs.length ? ' -> ' + scrErrs.join(' | ') : ''));
 
   const viewHtml = () => String(elCache.view && elCache.view.__v || '');
 
@@ -444,14 +444,140 @@ vm.createContext(sandbox);
   ok(hv217.indexOf('⏱ часы') >= 0, '217: в годовой таблице — колонка «часы за год»');
   ok(hv217.indexOf('⏱ ' + _fmt2(expY) + ' ч') >= 0, '217: часы за год посчитаны (' + _fmt2(expY) + ' ч)');
 
-  /* ---------- 214: шапка страницы — только текущая сборка ---------- */
+  /* ---------- 219: шапка — только номер сборки; история — в «Журнале изменений» ---------- */
   try { P.setScreen('schedules'); } catch (e) {}
   const _crEl = elCache['screen-crumb'] || {};
   const _crTxt = String(_crEl.textContent || '');
   const _crTitle = String(_crEl.title || '');
-  ok(_crTxt.indexOf(' Ранее, ') === -1, '214: в шапке страницы нет цепочки «Ранее, …»');
-  ok(_crTxt.length > 0 && _crTxt.length <= 201, '214: описание в шапке короткое (не вытесняет кнопки)');
-  ok(_crTitle.indexOf('История изменений страницы') >= 0 && _crTitle.indexOf(' Ранее, ') >= 0, '214: полная история — в подсказке при наведении');
+  ok(_crTxt === 'Сборка ' + P.SP_BUILD, '219: в шапке страницы — только номер сборки (без длинных описаний)');
+  ok(_crTitle.indexOf('Журнал изменений') >= 0, '219: подсказка шапки ведёт в «Журнал изменений»');
+  try { P.setScreen('changelog'); } catch (e) { console.log('changelog err', e && e.message); }
+  const hv219 = viewHtml();
+  ok(hv219.indexOf('Журнал изменений') >= 0 && hv219.indexOf('Что изменилось') >= 0, '219: журнал изменений открывается');
+  ok(hv219.indexOf('>22.09-219<') >= 0 && hv219.indexOf('текущая') >= 0, '219: текущая сборка подсвечена в журнале');
+  ok((sandbox.SP_CHANGELOG || []).length >= 140 && hv219.indexOf('>22.09-25<') >= 0, '219: старые записи перенесены в журнал (' + (sandbox.SP_CHANGELOG || []).length + ' шт)');
+
+  /* ---------- 218: в прошедшие дни можно поправить часы ---------- */
+  try { P.openSchEditorModal(); } catch (e) { console.log('schEd open err', e && e.message); }
+  // прошедший рабочий день без ручных изменений (5/2 — будни) и прошедший выходной
+  let pastW = null, pastO = null, pastWInMonth = false;
+  {
+    const ovr = sandbox.SP_WORKERS.getWorker('m_smoke2').overrides || {};
+    for (let i = 1; i <= 10; i++) {
+      const ds = isoOf(-i);
+      if (ovr[ds]) continue;
+      const stt = P.wkDayState('m_smoke2', ds);
+      if (stt === 'work' && !pastW) pastW = ds;
+      if (stt === 'off' && !pastO) pastO = ds;
+      if (pastW && pastO) break;
+    }
+    if (pastW) {
+      const yy = NOW.getFullYear(), mm0 = NOW.getMonth();
+      pastWInMonth = pastW.slice(0, 7) === yy + '-' + ('0' + (mm0 + 1)).slice(-2);
+    }
+  }
+  ok(!!pastW, '218: найден прошедший рабочий день (' + pastW + ')');
+  if (pastWInMonth) {
+    const eh218 = String(elCache.modal && elCache.modal.__v || '');
+    ok(eh218.indexOf('data-action="sch-ed-cell" data-uid="m_smoke2" data-sch-day="' + pastW + '"') >= 0, '218: прошедший день кликабелен в таблице окна');
+  } else { ok(true, '218: прошедший день кликабелен (в текущем месяце нет, пропуск проверки таблицы)'); }
+  // окошко дня: радио выключены, редактируются только часы
+  try { P.openSchEdDayModal('m_smoke2', pastW); } catch (e) { console.log('day modal err', e && e.message); }
+  let dh218 = String(elCache.modal2 && elCache.modal2.__v || '');
+  ok(dh218.indexOf('id="scheday-work"') >= 0 && dh218.indexOf(' checked disabled') >= 0, '218: у прошедшего рабочего дня «рабочий» выбран, радио выключены');
+  ok(dh218.indexOf('Прошедший день: здесь можно поправить только количество часов') >= 0, '218: подсказка «поправить только часы»');
+  documentStub.getElementById('scheday-work').checked = true;
+  documentStub.getElementById('scheday-off').checked = false;
+  documentStub.getElementById('scheday-hours').value = '9,5';
+  P.schEdDayApply();
+  const dr218 = ((P.S.schEdAll || {})['m_smoke2'] || { draft: {} }).draft || {};
+  ok(dr218[pastW] && dr218[pastW].s === 'work' && dr218[pastW].h === 9.5, '218: часы прошедшего дня в черновике (9,5)');
+  // текущий/будущий день — радио по-прежнему активны
+  try { P.openSchEdDayModal('m_smoke2', isoOf(0)); } catch (e) {}
+  const dh218b = String(elCache.modal2 && elCache.modal2.__v || '');
+  ok(dh218b.indexOf('id="scheday-work"') >= 0 && dh218b.indexOf(' checked disabled') === -1, '218: у сегодняшнего дня радио активны, как раньше');
+  P.schEdDayReset(); // закрыть окошко (draft=null — на данных не отразится)
+  P.schEdSaveAll();
+  const ov218 = (sandbox.SP_WORKERS.getWorker('m_smoke2').overrides || {})[pastW];
+  ok(ov218 && ov218.s === 'work' && ov218.h === 9.5, '218: «Сохранить» записало часы в прошедший день');
+  // прошедший выходной — окошко не открывается
+  if (pastO) {
+    try { P.openSchEdDayModal('m_smoke2', pastO); } catch (e) {}
+    ok(P.S.schEdDay === null, '218: прошедший выходной не открывается (менять нечего)');
+  } else { ok(true, '218: прошедший выходной не открывается (в диапазоне не было, пропуск)'); }
+  sandbox.SP_WORKERS.setDayOverride('m_smoke2', pastW, null);
+
+  /* ---------- 219: карточка 200 px и фото-аватары везде ---------- */
+  try { P.setScreen('schedules'); } catch (e) {}
+  const hvS219 = viewHtml();
+  ok(hvS219.indexOf('min-width:200px') >= 0 && hvS219.indexOf('width:max-content') >= 0, '219: карточка в «Графиках смен» — 200 px, растёт по ФИО');
+  ok(hvS219.indexOf('<img src="data:image/png;base64,SMOKEAVA"') >= 0, '219: в карточке «Графиков смен» — фото-аватар');
+  try { P.setScreen('workers'); } catch (e) {}
+  ok(viewHtml().indexOf('<img src="data:image/png;base64,SMOKEAVA"') >= 0, '219: в карточке «Работников» — фото-аватар');
+  try { P.setScreen('users'); } catch (e) {}
+  ok(viewHtml().indexOf('<img src="data:image/png;base64,SMOKEAVA"') >= 0, '219: в таблице «Пользователей» — фото-аватар');
+  try { P.openUserModal('edit', 'm_smoke2'); } catch (e) { console.log('userModal err', e && e.message); }
+  const umh = String(elCache.modal && elCache.modal.__v || '');
+  ok(umh.indexOf('id="um-ava-file"') >= 0 && umh.indexOf('um-ava-upload') >= 0, '219: в карточке пользователя — блок загрузки фото');
+  ok(umh.indexOf('Заменить фото') >= 0 && umh.indexOf('um-ava-remove') >= 0, '219: фото уже есть — доступны «Заменить»/«Удалить»');
+  ok(P.avaHtml({ full_name: 'Без Фото', color: '#111111' }, 34, 12.5).indexOf('<img') === -1, '219: без фото кружок — инициалы, как раньше');
+  ok(P.avaHtml({ color: '#111111', avatar: 'data:image/jpeg;base64,ZZZ' }, 34, 12.5).indexOf('<img src="data:image/jpeg;base64,ZZZ"') >= 0, '219: с фото кружок — картинка');
+  const _admUser = P.S.user;
+  try { P.S.user = um2; P.applyUser(); } catch (e) { console.log('applyUser err', e && e.message); }
+  ok(String(((elCache['av'] || {}).style || {}).backgroundImage || '').indexOf('SMOKEAVA') >= 0, '219: в шапке справа вверху — фото вошедшего пользователя');
+  try { P.S.user = _admUser; P.applyUser(); } catch (e) {}
+  ok(String(((elCache['av'] || {}).style || {}).backgroundImage || '').indexOf('SMOKEAVA') === -1, '219: у пользователя без фото в шапке — инициалы');
+
+  /* ---------- 220: переносы страниц в окна + строка кнопок планирования ---------- */
+  try { P.setScreen('calendar'); } catch (e) {}
+  const hvCal220 = viewHtml();
+  const iRow220 = hvCal220.indexOf('id="cal-actions-row"');
+  const iNew220 = hvCal220.indexOf('data-action="new-task"');
+  const iOpt220 = hvCal220.indexOf('data-action="optimize-works"');
+  const iTr220 = hvCal220.indexOf('id="trash-zone"');
+  ok(iRow220 >= 0 && iRow220 < iNew220 && iNew220 < iOpt220 && iOpt220 < iTr220, '220: планирование — кнопки отдельной строкой: задача слева, оптимизация по центру, корзина справа');
+  try { P.setScreen('dashboard'); } catch (e) {}
+  ok(viewHtml().indexOf('Выполнено за месяц') >= 0, '220: блок «Выполнено за месяц» в панели мониторинга на месте');
+  try { P.kpiMonth(); } catch (e) { console.log('kpiMonth err', e && e.message); }
+  const fm220 = String(elCache.modal && elCache.modal.__v || '');
+  ok(fm220.indexOf('Факт работ по объектам') >= 0 && fm220.indexOf('Предыдущий месяц') >= 0, '220: клик по блоку — окно «Факт работ по объектам»');
+  ok(P.S.factModal === true && String(elCache.modal.style.width || '') === '90vw', '220: окно факта — 90% ширины экрана');
+  P.S.factModal = false; try { elCache.overlay.classList.remove('show'); } catch (e) {}
+  try { P.setScreen('schedules'); } catch (e) {}
+  ok(viewHtml().indexOf('data-action="wk-settings-open"') >= 0 && viewHtml().indexOf('Настройки бригад') >= 0, '220: в «Графиках смен» появилась кнопка «Настройки бригад»');
+  try { P.openWorkersSettingsModal(); } catch (e) { console.log('wkSet err', e && e.message); }
+  ok(String(elCache.modal && elCache.modal.__v || '').indexOf('<h3>⚙ Настройки бригад</h3>') >= 0 && String(elCache.modal.__v).indexOf('Бригада мастера') >= 0, '220: окно «Настройки бригад» = функционал страницы «Работники»');
+  ok(P.S.workersModal === true && String(elCache.modal.style.width || '') === '90vw', '220: окно настроек бригад — 90% ширины');
+  try { P.openWkCardModal('m_smoke1', false); } catch (e) { console.log('wkCard err', e && e.message); }
+  ok(String(elCache.modal2 && elCache.modal2.__v || '').indexOf('Мастер Один') >= 0, '220: карточка работника — вторым окном поверх настроек');
+  ok(String(elCache.modal && elCache.modal.__v || '').indexOf('<h3>⚙ Настройки бригад</h3>') >= 0, '220: окно «Настройки бригад» под карточкой не затёрто');
+  ok(String(elCache.modal2.style.maxWidth || '') === '560px', '220: ширина карточки работника как раньше (560 px)');
+  P.S.wkModalUid = null; P.S.workersModal = false;
+  try { elCache.overlay.classList.remove('show'); elCache.overlay2.classList.remove('show'); elCache.modal.style.width = ''; elCache.modal.style.maxWidth = ''; } catch (e) {}
+
+  /* ---------- 221: «✏ Изменить график» по выбранной в списке бригаде ---------- */
+  try { P.S.screen = 'schedules'; } catch (e) {}
+  P.S.schMode = 'b:m_smoke2';
+  try { P.openSchEditorModal(); } catch (e) { console.log('schEd open err', e && e.message); }
+  const eh221 = String(elCache.modal && elCache.modal.__v || '');
+  ok(eh221.indexOf('Мастер Два') >= 0, '221: выбрана бригада — её мастер в окне');
+  ok(eh221.indexOf('Мастер Один') === -1 && eh221.indexOf('Слесарь Смоук') === -1, '221: выбрана бригада — чужих работников в окне нет');
+  ok(eh221.indexOf('👥 Показано: бригада Мастер Два') >= 0, '221: над таблицей — плашка «Показано: бригада …»');
+  try { P.schEdSaveAll(); } catch (e) { console.log('schEd save err', e && e.message); }
+  ok(P.S.schEd === null && P.S.schEdMode === null, '221: «Сохранить» закрывает окно и сбрасывает режим');
+  P.S.schMode = 'all';
+  try { P.openSchEditorModal(); } catch (e) { console.log('schEd open err', e && e.message); }
+  const eh221b = String(elCache.modal && elCache.modal.__v || '');
+  ok(eh221b.indexOf('Мастер Один') >= 0 && eh221b.indexOf('Мастер Два') >= 0 && eh221b.indexOf('Слесарь Смоук') >= 0, '221: «Все бригады» — в окне все, как раньше');
+  ok(eh221b.indexOf('👥 Показано:') === -1, '221: «Все бригады» — плашки нет');
+  try { P.schEdSaveAll(); } catch (e) {}
+  P.S.schMode = 'free';
+  try { P.openSchEditorModal(); } catch (e) {}
+  const eh221c = String(elCache.modal && elCache.modal.__v || '');
+  ok(eh221c.indexOf('Мастер Один') === -1 && eh221c.indexOf('Мастер Два') === -1 && eh221c.indexOf('Слесарь Смоук') === -1, '221: «Только без бригады» — чужих строк нет');
+  try { P.schEdSaveAll(); } catch (e) {}
+  P.S.schMode = 'all';
+  try { elCache.modal.style.width = ''; elCache.modal.style.maxWidth = ''; } catch (e) {}
 
   console.log('----------------------------------------');
   console.log('SMOKE TOTAL: ' + passes + ' passed, ' + fails + ' failed');
