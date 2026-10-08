@@ -8,7 +8,8 @@
    Формат: { schema: 1, workers: { uid: {
      hours: 8|12, sched: '5/2'|'2/2', cycle: 'YYYY-MM-DD',
      brigade: null|masterUid, comment: '', abs: { 'YYYY-MM-DD': 'причина' },
-     overrides: { 'YYYY-MM-DD': { s:'work'|'off', h:часы|null } } — 22.09-207: ручные изменения дней
+     overrides: { 'YYYY-MM-DD': { s:'work'|'off', h:часы|null } } — 22.09-207: ручные изменения дней,
+     cycleHist: [ { from:'YYYY-MM-DD', cycle:'YYYY-MM-DD' } ] — 22.09-211: сдвиги цикла 2/2 (действуют с даты from)
    } } }
    ============================================================ */
 window.SP_WORKERS = (function () {
@@ -40,7 +41,7 @@ window.SP_WORKERS = (function () {
     return memoryDB;
   }
   function defaults() {
-    return { hours: 8, sched: '5/2', cycle: '2026-01-05', brigade: null, prof: '', comment: '', abs: {}, overrides: {} };
+    return { hours: 8, sched: '5/2', cycle: '2026-01-05', brigade: null, prof: '', comment: '', abs: {}, overrides: {}, cycleHist: [] };
   }
   // Настройки работника (с значениями по умолчанию — копия)
   function getWorker(uid) {
@@ -81,6 +82,23 @@ window.SP_WORKERS = (function () {
     }
     return setWorker(uid, { overrides: w.overrides });
   }
+  /* 22.09-211: СДВИГ ЦИКЛА графика 2/2. Запись { from, cycle }: начиная с даты
+     from цикл считается от новой даты cycle; дни РАНЬШЕ from считаются по-старому
+     (отработанные дни не меняются). */
+  function addCycleShift(uid, from, cycle) {
+    var w = getWorker(uid);
+    if (!w.cycleHist) w.cycleHist = [];
+    w.cycleHist = w.cycleHist.filter(function (x) { return x && x.from !== from; });
+    w.cycleHist.push({ from: String(from), cycle: String(cycle) });
+    w.cycleHist.sort(function (a, b) { return a.from < b.from ? -1 : (a.from > b.from ? 1 : 0); });
+    return setWorker(uid, { cycleHist: w.cycleHist });
+  }
+  function removeCycleShift(uid, from) {
+    var w = getWorker(uid);
+    if (!w.cycleHist) w.cycleHist = [];
+    w.cycleHist = w.cycleHist.filter(function (x) { return x && x.from !== from; });
+    return setWorker(uid, { cycleHist: w.cycleHist });
+  }
   function reloadFromCloud(db) {
     if (db && db.workers) {
       memoryDB = { schema: SCHEMA, workers: db.workers };
@@ -103,6 +121,7 @@ window.SP_WORKERS = (function () {
   return {
     KEY: KEY, SCHEMA: SCHEMA,
     getWorker: getWorker, setWorker: setWorker, setAbsence: setAbsence, setDayOverride: setDayOverride,
+    addCycleShift: addCycleShift, removeCycleShift: removeCycleShift,
     reloadFromCloud: reloadFromCloud
   };
 })();

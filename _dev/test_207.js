@@ -16,14 +16,8 @@ ok(app.indexOf('var ov = wd.overrides && wd.overrides[dateStr];') >= 0, 'wkIsWor
 ok(app.indexOf('var ov = wd.overrides && wd.overrides[ds];') >= 0, 'schDayHours: учёт override');
 ok(app.indexOf('var _mcOv = wd.overrides && wd.overrides[key(d)];') >= 0, 'masterCapacity: учёт override');
 
-// UI: режим + ячейки + легенда
-ok(app.indexOf('data-action="sch-edit-toggle"') >= 0, 'кнопка «Изменить график»');
-ok(app.indexOf('✏ Изменить график') >= 0 && app.indexOf('✏ Изменение: вкл') >= 0, 'подписи режима');
-ok(app.indexOf("if (canDay) act = 'sch-day-edit';") >= 0, 'ячейка: режим → редактор дня');
-ok(app.indexOf("ds >= key(TODAY)") >= 0, 'редактируются только неотработанные дни');
+// UI (22.09-211 заменил встроенный режим на окно редактора — см. test_211)
 ok(app.indexOf('изменён вручную') >= 0, 'маркер ручного изменения в подсказке');
-ok(app.indexOf('✏ режим изменения: клик по будущему дню') >= 0, 'легенда режима');
-ok(app.indexOf("eT.addEventListener('click', function () { S.schEdit = !S.schEdit; renderSchedules(); })") >= 0, 'переключатель проводен');
 
 // окно редактора и сохранение
 ok(app.indexOf('function openSchDayEditModal(uid, ds)') >= 0, 'окно редактора дня');
