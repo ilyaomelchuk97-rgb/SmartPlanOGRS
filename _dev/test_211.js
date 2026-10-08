@@ -22,18 +22,16 @@ ok(app.indexOf("if (canDay) act = 'sch-day-edit';") === -1, 'ячейка: вс�
 ok(app.indexOf('data-action="sch-ed-open"') >= 0, 'кнопка открывает окно редактора');
 ok(app.indexOf('✏ Изменение: вкл') === -1, 'старой подписи режима нет');
 
-// окно редактора
-ok(app.indexOf('function openSchEditorModal(uid)') >= 0, 'openSchEditorModal');
+// окно редактора (22.09-213: сигнатуры обновлены — без выбора работника из списка)
+ok(app.indexOf('function openSchEditorModal()') >= 0, 'openSchEditorModal (без uid — правим всех в таблице)');
 ok(app.indexOf('function schEdRender()') >= 0, 'schEdRender');
-ok(app.indexOf('function schEdApplyAction(op)') >= 0, 'schEdApplyAction');
-ok(app.indexOf('function schEdPatternShift(dlt)') >= 0, 'schEdPatternShift');
+ok(app.indexOf('function schEdPatternShift(dlt, uid)') >= 0, 'schEdPatternShift (сдвиг 2/2 перетаскиванием)');
 ok(app.indexOf('function schEdSaveAll()') >= 0, 'schEdSaveAll');
 ok(app.indexOf('💾 Сохранить') >= 0, 'кнопка «Сохранить» в окне');
-ok(app.indexOf('🔁 Сдвиг всего графика (2/2)') >= 0, 'блок сдвига всего графика');
-ok(app.indexOf('всё расписание передвигается следом, с сегодняшнего дня') >= 0, 'пояснение сдвига');
-ok(app.indexOf('// 2/2: перетащил день — передвинулся весь график') >= 0, 'перетаскивание = сдвиг графика');
+ok(app.indexOf('весь график следом') >= 0, 'перетаскивание 2/2 — весь график следом');
+ok(app.indexOf('// 2/2: весь график следом') >= 0, 'перетаскивание 2/2 = сдвиг графика (комментарий)');
 ok(app.indexOf('Отработанные (прошедшие) дни не редактируются') >= 0, 'защита прошедших дней');
-["a === 'sch-ed-cell'", "a === 'sch-ed-act'", "a === 'sch-ed-shift'", "a === 'sch-ed-shiftdel'", "a === 'sch-ed-save'", "a === 'sch-ed-prev'", "a === 'sch-ed-next'"].forEach(function (a2, i) {
+["a === 'sch-ed-cell'", "a === 'sch-ed-save'", "a === 'sch-ed-prev'", "a === 'sch-ed-next'"].forEach(function (a2, i) {
   ok(app.indexOf(a2) >= 0, 'диспетчер: ' + a2);
 });
 ok(app.indexOf('S.schEdAll = null;') >= 0, 'очистка черновика');

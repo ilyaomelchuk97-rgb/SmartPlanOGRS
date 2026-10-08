@@ -131,7 +131,7 @@ vm.createContext(sandbox);
     let code = fs.readFileSync(path.join(DIR, f), 'utf8');
     if (f === 'app.js') {
       const pos = code.lastIndexOf('})();');
-      code = code.slice(0, pos) + ';window.__probe={S:S,GS:GS,TITLES:TITLES,refresh:refresh,renderDashboard:renderDashboard,visibleMasters:visibleMasters,enterApp:enterApp,setScreen:setScreen,kpiTasks:kpiTasks,kpiMasters:kpiMasters,dayTaskSort:dayTaskSort,_drawCalendarGridImpl:_drawCalendarGridImpl,fmtH3:fmtH3,openGraphLaborModal:openGraphLaborModal,gwWorkTipHtml:gwWorkTipHtml,graphsFind:graphsFind,schDayHours:schDayHours,openWorkModal:openWorkModal,openWmJointPickModal:openWmJointPickModal,wmJointSelBoxHtml:wmJointSelBoxHtml,openSchEditorModal:openSchEditorModal,schEdToggleCell:schEdToggleCell,schEdApplyAction:schEdApplyAction,schEdPatternShift:schEdPatternShift,schEdShiftRemove:schEdShiftRemove,schEdSaveAll:schEdSaveAll,wkCycleFrom:wkCycleFrom,gwJointAlign:gwJointAlign,gprFirstFromServiceLife:gprFirstFromServiceLife,gwGenObjSeries:gwGenObjSeries,gwNextISO:gwNextISO,gprRowHtml:gprRowHtml,wkDayState:wkDayState,masterCapacity:masterCapacity,offToDate:offToDate,schCellHtml:schCellHtml,openSchDayEditModal:openSchDayEditModal,schDayEditSave:schDayEditSave,key:key};' + code.slice(pos);
+      code = code.slice(0, pos) + ';window.__probe={S:S,GS:GS,TITLES:TITLES,refresh:refresh,renderDashboard:renderDashboard,visibleMasters:visibleMasters,enterApp:enterApp,setScreen:setScreen,kpiTasks:kpiTasks,kpiMasters:kpiMasters,dayTaskSort:dayTaskSort,_drawCalendarGridImpl:_drawCalendarGridImpl,fmtH3:fmtH3,openGraphLaborModal:openGraphLaborModal,gwWorkTipHtml:gwWorkTipHtml,graphsFind:graphsFind,schDayHours:schDayHours,openWorkModal:openWorkModal,openWmJointPickModal:openWmJointPickModal,wmJointSelBoxHtml:wmJointSelBoxHtml,openSchEditorModal:openSchEditorModal,schEdPatternShift:schEdPatternShift,schEdMoveDay:schEdMoveDay,openSchEdDayModal:openSchEdDayModal,schEdDayApply:schEdDayApply,schEdDayReset:schEdDayReset,schEdCur:schEdCur,schEdSaveAll:schEdSaveAll,wkCycleFrom:wkCycleFrom,gwJointAlign:gwJointAlign,gprFirstFromServiceLife:gprFirstFromServiceLife,gwGenObjSeries:gwGenObjSeries,gwNextISO:gwNextISO,gprRowHtml:gprRowHtml,wkDayState:wkDayState,masterCapacity:masterCapacity,offToDate:offToDate,schCellHtml:schCellHtml,openSchDayEditModal:openSchDayEditModal,schDayEditSave:schDayEditSave,key:key};' + code.slice(pos);
     }
     vm.runInContext(code, sandbox, { filename: f });
   }
@@ -341,41 +341,46 @@ vm.createContext(sandbox);
   const rowHtml = P.gprRowHtml('ГРП', 0, 0, { sid: 's1', wid: wA.id, period: 0.5, dev: 0, first: '' });
   ok(rowHtml.indexOf('inputmode="decimal"') >= 0 && rowHtml.indexOf('value="0,5"') >= 0, '210: поле периодичности — значение 0,5 с запятой');
 
-  /* ---------- 211: окно редактора графика смен ---------- */
-  try { P.openSchEditorModal('m_smoke2'); } catch (e) { console.log('schEd open err', e && e.message); }
+  /* ---------- 211/212/213: окно редактора графика смен ---------- */
+  try { P.openSchEditorModal(); } catch (e) { console.log('schEd open err', e && e.message); }
   let eh = String(elCache.modal && elCache.modal.__v || '');
   ok(eh.indexOf('Изменение графика смен') >= 0 && eh.indexOf('💾 Сохранить') >= 0, '211: окно редактора открывается (есть «Сохранить»)');
-  ok(eh.indexOf('Сдвиг всего графика') === -1, '211: у графика 5/2 блока сдвига цикла нет');
-  // 212: окно выглядит как общая таблица «Графики смен», в квадратиках — часы
   ok(eh.indexOf('<table') >= 0 && eh.indexOf('Бригада / работник') >= 0, '212: в окне таблица как в «Графиках смен»');
-  ok(eh.indexOf('data-sch-day=') >= 0, '212: редактируемая строка содержит ячейки дней');
+  ok(eh.indexOf('data-sch-day=') >= 0, '212: ячейки дней с датами');
   ok(eh.indexOf('>8,25<') >= 0 && eh.indexOf('>12<') >= 0 && eh.indexOf('>11,5<') >= 0, '212: в квадратиках написаны часы (8,25 / 12 / 11,5)');
-  // черновик → Сохранить: выходной день делаем рабочим с 6 ч
+  ok(eh.indexOf('sch-ed-user') === -1, '213: выпадающего списка работников нет');
+  ok(eh.indexOf('Сдвиг всего графика') === -1, '213: блока «Сдвиг всего графика» нет');
+  ok(eh.indexOf('Выбрано:') === -1, '213: панели «Выбрано» нет');
+  // 213: клик по дню — окошко «рабочий/выходной + часы» (m_smoke2, суббота — выходной по 5/2)
   sandbox.SP_WORKERS.setDayOverride('m_smoke2', satIso, null);
-  try { P.openSchEditorModal('m_smoke2'); } catch (e) {}
-  P.schEdToggleCell('m_smoke2', satIso);
-  documentStub.getElementById('sch-ed-hours').value = '6';
-  P.schEdApplyAction('work');
-  ok(Object.keys(P.S.schEdAll['m_smoke2'].draft).length === 1, '211: действие — в черновике');
+  try { P.openSchEdDayModal('m_smoke2', satIso); } catch (e) { console.log('day modal err', e && e.message); }
+  let dh = String(elCache.modal2 && elCache.modal2.__v || '');
+  ok(dh.indexOf('scheday-work') >= 0 && dh.indexOf('scheday-off') >= 0 && dh.indexOf('scheday-hours') >= 0 && dh.indexOf('Применить') >= 0, '213: клик по дню — окошко рабочий/выходной + часы');
+  documentStub.getElementById('scheday-work').checked = true;
+  documentStub.getElementById('scheday-off').checked = false;
+  documentStub.getElementById('scheday-hours').value = '6';
+  P.schEdDayApply();
+  ok(Object.keys(((P.S.schEdAll || {})['m_smoke2'] || { draft: {} }).draft || {}).length === 1, '211: действие — в черновике');
   ok(!(sandbox.SP_WORKERS.getWorker('m_smoke2').overrides || {})[satIso], '211: до «Сохранить» данные не меняются');
   P.schEdSaveAll();
   let ov2 = (sandbox.SP_WORKERS.getWorker('m_smoke2').overrides || {})[satIso];
   ok(ov2 && ov2.s === 'work' && ov2.h === 6, '211: «Сохранить» применило: суббота — рабочая, 6 ч');
-  // перенос дня: суббота → воскресенье (5/2, кнопкой +1)
-  try { P.openSchEditorModal('m_smoke2'); } catch (e) {}
-  P.schEdToggleCell('m_smoke2', satIso);
-  P.schEdApplyAction('moveR');
+  // 213: перетаскивание дня (5/2): суббота → воскресенье — переносится только этот день
+  const sunIso2 = (function () { const d = new Date(satIso + 'T00:00:00'); d.setDate(d.getDate() + 1); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); })();
+  P.schEdMoveDay('m_smoke2', satIso, sunIso2);
   P.schEdSaveAll();
   ov2 = (sandbox.SP_WORKERS.getWorker('m_smoke2').overrides || {})[satIso];
-  const sunIso = (function () { const d = new Date(satIso + 'T00:00:00'); d.setDate(d.getDate() + 1); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); })();
-  let ov3 = (sandbox.SP_WORKERS.getWorker('m_smoke2').overrides || {})[sunIso];
-  ok(ov2 && ov2.s === 'off' && ov3 && ov3.s === 'work' && ov3.h === 6, '211: перенос рабочего дня кнопкой (+1 день)');
+  let ov3 = (sandbox.SP_WORKERS.getWorker('m_smoke2').overrides || {})[sunIso2];
+  ok(ov2 && ov2.s === 'off' && ov3 && ov3.s === 'work' && ov3.h === 6, '213: перетаскивание дня (5/2) — перенёсся только этот день');
+  // 213: «Вернуть по графику» через окошко снимает ручное изменение
+  try { P.openSchEdDayModal('m_smoke2', satIso); } catch (e) {}
+  P.schEdDayReset();
+  P.schEdSaveAll();
+  ov2 = (sandbox.SP_WORKERS.getWorker('m_smoke2').overrides || {})[satIso];
+  ok(!ov2 || !ov2.s, '213: «Вернуть по графику» сняло ручное изменение (суббота)');
   sandbox.SP_WORKERS.setDayOverride('m_smoke2', satIso, null);
-  sandbox.SP_WORKERS.setDayOverride('m_smoke2', sunIso, null);
-  // мастер 2/2: сдвиг ВСЕГО графика
-  try { P.openSchEditorModal('m_smoke1'); } catch (e) {}
-  eh = String(elCache.modal && elCache.modal.__v || '');
-  ok(eh.indexOf('Сдвиг всего графика') >= 0, '211: у графика 2/2 есть блок сдвига всего графика');
+  sandbox.SP_WORKERS.setDayOverride('m_smoke2', sunIso2, null);
+  // мастер 2/2: сдвиг ВСЕГО графика перетаскиванием
   let bnd = null;
   for (let i = 3; i < 30; i++) {
     const d2 = isoOf(i), d1 = isoOf(i - 1);
@@ -384,16 +389,18 @@ vm.createContext(sandbox);
     if (P.wkDayState('m_smoke1', d2) === 'work' && P.wkDayState('m_smoke1', d1) === 'off') { bnd = d2; break; }
   }
   ok(!!bnd, '211: найдена граница цикла (' + bnd + ')');
-  P.schEdPatternShift(1);
+  P.schEdPatternShift(1, 'm_smoke1');
   P.schEdSaveAll();
   const hist1 = sandbox.SP_WORKERS.getWorker('m_smoke1').cycleHist || [];
   ok(hist1.length === 1 && hist1[0].from === isoOf(0), '211: сдвиг записан (cycleHist, с сегодняшнего дня)');
   ok(P.wkDayState('m_smoke1', bnd) === 'off', '211: весь график передвинулся следом');
-  try { P.openSchEditorModal('m_smoke1'); } catch (e) {}
-  P.schEdShiftRemove(hist1[0].from);
+  P.schEdPatternShift(-1, 'm_smoke1');
   P.schEdSaveAll();
-  ok((sandbox.SP_WORKERS.getWorker('m_smoke1').cycleHist || []).length === 0, '211: сдвиг удалён');
+  ok((sandbox.SP_WORKERS.getWorker('m_smoke1').cycleHist || []).length === 1, '213: обратный сдвиг — запись истории обновлена (тиража записей нет)');
   ok(P.wkDayState('m_smoke1', bnd) === 'work', '211: график вернулся как был');
+  sandbox.SP_WORKERS.removeCycleShift('m_smoke1', hist1[0].from);
+  const _h2 = sandbox.SP_WORKERS.getWorker('m_smoke1').cycleHist || [];
+  if (_h2[0]) sandbox.SP_WORKERS.removeCycleShift('m_smoke1', _h2[0].from);
 
   console.log('----------------------------------------');
   console.log('SMOKE TOTAL: ' + passes + ' passed, ' + fails + ' failed');

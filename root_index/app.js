@@ -775,7 +775,7 @@
     workcards: ['Карточки работ на день', 'Сборка 22.09-191 · клик по ФИО мастера в блоке «Сегодня» панели — страница с карточкой на каждую работу: адрес, виды работ, слесаря, план, крупные кнопки «Приступил»/«Закончил»'],
     factmonth: ['Факт работ по объектам', 'Сборка 22.09-192 · месячный отчёт по объектам: кто, когда и сколько фактически работал (по кнопкам «Приступил»/«Закончил»), фактические часы против плановых; перелистывание месяцев'],
     workers: ['Работники', 'Сборка 22.09-172 · окно карточки работника — ровно по ширине карточки (560px): без пустого места справа; панель и календарь — на всю ширину окна'],
-    schedules: ['Графики смен', 'Сборка 22.09-212 · окно «✏ Изменить график» теперь выглядит как общая таблица «Графики смен»: шапка с числами месяца, слева колонка «Бригада / работник», цветные квадратики, и в каждом рабочем квадратике написаны часы; клик по ФИО другой строки — перейти к редактированию этого работника. Ранее, сборка 22.09-211 · «✏ Изменить график» теперь открывает отдельное окно редактора: выбор работника и месяца, клик по будущему дню — выбрать, действия (рабочий/выходной/часы на день/перенос на день назад или вперёд/сброс), перетаскивание дней мышью; для графика 2/2 — блок «Сдвиг всего графика» (весь цикл передвигается следом начиная с сегодняшнего дня, отработанные дни не меняются); изменения применяются только по кнопке «Сохранить», «Отмена» всё отбрасывает. Ранее, сборка 22.09-207 · режим «✏ Изменить график» в шапке: клик по сегодняшнему/будущему дню — рабочий/выходной и часы на день, можно применить сразу ко всей бригаде; ручные изменения видны синей риской снизу ячейки и пометкой в подсказке, «Вернуть стандарт» отменяет их; прошедшие (отработанные) дни не редактируются. Ранее, сборка 22.09-204 · при наведении на рабочий квадратик видно, сколько часов человек работает в этот день: 12-часовая смена — мастер 12 ч, слесарь 11,5 ч; 8-часовая — пн–чт 8,25 ч, пт 7 ч. Ранее, сборка 22.09-164 · добавлена кнопка «🎉 Праздничные дни» (из графика работ) — слева от выбора месяца'],
+    schedules: ['Графики смен', 'Сборка 22.09-213 · окно «✏ Изменить график»: дни правятся прямо в таблице у всех работников (выпадающий список убран) — клик по будущему дню сразу открывает окошко «рабочий/выходной + часы» (там же кнопка «Вернуть по графику»); день перетаскивается мышью вдоль своей строки: у графика 5/2 переносится только этот день и график дальше не перестраивается, у 2/2 — весь график едет следом; блок «Сдвиг всего графика» удалён. Ранее, сборка 22.09-212 · окно «✏ Изменить график» теперь выглядит как общая таблица «Графики смен»: шапка с числами месяца, слева колонка «Бригада / работник», цветные квадратики, и в каждом рабочем квадратике написаны часы; клик по ФИО другой строки — перейти к редактированию этого работника. Ранее, сборка 22.09-211 · «✏ Изменить график» теперь открывает отдельное окно редактора: выбор работника и месяца, клик по будущему дню — выбрать, действия (рабочий/выходной/часы на день/перенос на день назад или вперёд/сброс), перетаскивание дней мышью; для графика 2/2 — блок «Сдвиг всего графика» (весь цикл передвигается следом начиная с сегодняшнего дня, отработанные дни не меняются); изменения применяются только по кнопке «Сохранить», «Отмена» всё отбрасывает. Ранее, сборка 22.09-207 · режим «✏ Изменить график» в шапке: клик по сегодняшнему/будущему дню — рабочий/выходной и часы на день, можно применить сразу ко всей бригаде; ручные изменения видны синей риской снизу ячейки и пометкой в подсказке, «Вернуть стандарт» отменяет их; прошедшие (отработанные) дни не редактируются. Ранее, сборка 22.09-204 · при наведении на рабочий квадратик видно, сколько часов человек работает в этот день: 12-часовая смена — мастер 12 ч, слесарь 11,5 ч; 8-часовая — пн–чт 8,25 ч, пт 7 ч. Ранее, сборка 22.09-164 · добавлена кнопка «🎉 Праздничные дни» (из графика работ) — слева от выбора месяца'],
     users: ['Пользователи', 'Сборка 22.09-161 · увольнение работников: кнопка «Уволить» с датой, блок «Уволенные» с восстановлением; в истории задач ФИО остаются'],
     reports: ['Отчёты', 'Печатные формы для подписи у руководства'],
     logs: ['Журнал действий', 'Действия пользователей системы'],
@@ -8096,7 +8096,7 @@
     html += '<button type="button" class="btn sm" data-action="sch-holidays" style="margin-right:8px" title="Праздничные дни (РБ) — список нерабочих дней; учитываются в графиках работ">🎉 Праздничные дни</button>';
     // 22.09-211: редактор графика — отдельное окно (черновик + кнопка «Сохранить»)
     var _canAnySch = users.some(function (u) { return wkCanEdit(u); });
-    if (_canAnySch) html += '<button type="button" class="btn sm" data-action="sch-ed-open" style="margin-right:8px" title="Открыть окно редактирования графика смен: перенос рабочих дней (перетаскиванием или кнопками), сдвиг всего графика 2/2, часы на день — применяются по кнопке «Сохранить». Отработанные дни не редактируются">✏ Изменить график</button>';
+    if (_canAnySch) html += '<button type="button" class="btn sm" data-action="sch-ed-open" style="margin-right:8px" title="Открыть окно редактирования графика смен: клик по дню — рабочий/выходной и часы, перетаскивание дней мышью (у 5/2 — только этот день, у 2/2 — весь график следом) — применяются по кнопке «Сохранить». Отработанные дни не редактируются">✏ Изменить график</button>';
     html += '<span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">';
     html += '<button type="button" class="btn sm" data-action="sch-month-prev" title="Предыдущий месяц">‹</button>';
     html += '<b data-action="sch-month-label" style="font-size:13px;color:var(--ink);min-width:140px;text-align:center">' + MON_NOM[wm.m] + ' ' + wm.y + '</b>';
@@ -9461,14 +9461,16 @@
     if (S.screen === 'schedules') renderSchedules();
   }
 
-  /* ==================== 22.09-211: РЕДАКТОР ГРАФИКА СМЕН (окно) ====================
-     Кнопка «✏ Изменить график» открывает это окно. ВСЕ действия — в ЧЕРНОВИК
-     (S.schEdAll) и применяются по кнопке «Сохранить» (schEdSaveAll):
-     • Клик по будущему дню — выбрать; над выбранными: рабочие (с часами), выходные,
-       перенос на ∓1 день (или перетаскивание мышью), сброс ручных изменений.
-     • «Сдвиг всего графика» для 2/2 (кнопки ⟵⟶ или перетаскивание рабочего дня):
-       весь цикл передвигается С СЕГОДНЯШНЕГО ДНЯ (запись в cycleHist workers_db);
-       отработанные (прошедшие) дни не меняются. */
+  /* ================ 22.09-211/212/213: РЕДАКТОР ГРАФИКА СМЕН (окно) ================
+     Кнопка «✏ Изменить график» открывает окно. ВСЕ действия — в ЧЕРНОВИК (S.schEdAll)
+     и применяются по кнопке «Сохранить» (schEdSaveAll); «Отмена» всё отбрасывает.
+     22.09-212: окно выглядит как общая таблица (работники × дни), в квадратиках — часы.
+     22.09-213: правим дни прямо в таблице у ВСЕХ работников (без выпадающего списка):
+     • Клик по будущему дню — окошко: рабочий/выходной + часы (+ «Вернуть по графику»).
+     • Перетаскивание дня мышью вдоль СВОЕЙ строки: у 5/2 переносится ТОЛЬКО этот день
+       (остальной график не перестраивается); у 2/2 — весь цикл передвигается следом
+       С СЕГОДНЯШНЕГО ДНЯ (запись в cycleHist workers_db); отработанные не меняются.
+     • Отдельный блок кнопок сдвига всего графика удалён — это делает перетаскивание. */
   // Цикл 2/2, действующий на дату (с учётом сохранённых сдвигов cycleHist)
   function wkCycleFrom(uid, dateStr) {
     var wd = wkData(uid);
@@ -9481,9 +9483,10 @@
     }
     return best ? best.cycle : c;
   }
-  // Текущий черновик работника (создаётся при первом действии)
-  function schEdCur() {
-    var uid = S.schEdUid; if (!uid) return null;
+  // Текущий черновик работника (создаётся при первом действии). 213: uid передаётся —
+  // выделенного работника больше нет, правим всех прямо в таблице.
+  function schEdCur(uid) {
+    if (!uid) return null;
     if (!S.schEdAll) S.schEdAll = {};
     var cur = S.schEdAll[uid];
     if (!cur) {
@@ -9498,9 +9501,11 @@
   // Цикл на дату с учётом черновых сдвигов
   function schEdEffCycle(ownerId, ds, withDraft) {
     var extra = [];
-    if (withDraft) {
-      var cur = schEdCur();
-      if (cur && cur.ownerId === ownerId) extra = cur.shifts;
+    if (withDraft && S.schEdAll) {
+      Object.keys(S.schEdAll).forEach(function (k) {
+        var c = S.schEdAll[k];
+        if (c && c.ownerId === ownerId) extra = extra.concat(c.shifts || []);
+      });
     }
     var wd = wkData(ownerId);
     var c = wd.cycle || '2026-01-05';
@@ -9533,85 +9538,108 @@
     var p = ds.split('-'); var dow = new Date(+p[0], +p[1] - 1, +p[2]).getDay();
     return dow === 5 ? 7 : 8.25;
   }
-  // Состояние дня в окне: черновик > сохранённое изменение > шаблон
+  // Состояние дня в окне: черновик > сохранённое изменение > шаблон. 213: черновик
+  // читаем по uid самой строки (выделенного работника нет); черновое значение null —
+  // «вернуть по графику» (на экране — сразу шаблон, при сохранении снимет изменение).
   function schEdCellInfo(uid, ds) {
     var wd = wkData(uid);
     if (wd.abs && wd.abs[ds] !== undefined) return { st: 'abs' };
-    var cur = schEdCur();
-    if (cur && Object.prototype.hasOwnProperty.call(cur.draft, ds)) {
+    var cur = (S.schEdAll || {})[uid];
+    if (cur && cur.draft && Object.prototype.hasOwnProperty.call(cur.draft, ds)) {
       var dv = cur.draft[ds];
+      if (dv === null) return { st: schEdTplWork(uid, ds) ? 'work' : 'off', draft: true, reset: true };
       if (dv && dv.s) return { st: dv.s, h: (dv.s === 'work' && dv.h ? dv.h : null), manual: true, draft: true };
     }
     var ov = (wd.overrides || {})[ds];
     if (ov && ov.s) return { st: ov.s, h: ov.h || null, manual: true };
     return { st: schEdTplWork(uid, ds) ? 'work' : 'off' };
   }
-  function schEdToggleCell(uid, ds) {
-    if (ds < key(TODAY)) { toast('warn', '⚠ Отработанные (прошедшие) дни не редактируются'); return; }
+  // 22.09-213: окошко одного дня (поверх редактора): рабочий/выходной + часы
+  function openSchEdDayModal(uid, ds) {
+    var u = DB.getUser(uid); if (!u || !wkCanEdit(u)) return;
+    var todayK = key(TODAY);
+    if (!ds || ds < todayK) { toast('warn', '⚠ Отработанные (прошедшие) дни не редактируются'); return; }
     var ci = schEdCellInfo(uid, ds);
-    if (ci.st === 'abs') { toast('warn', 'День с отсутствием — меняется в окне отсутствия (клик на общей таблице)'); return; }
-    if (!S.schEdSel) S.schEdSel = {};
-    if (S.schEdSel[ds]) delete S.schEdSel[ds]; else S.schEdSel[ds] = 1;
+    if (ci.st === 'abs') { toast('warn', 'Этот день — отсутствие (отпуск/больничный): снимается кликом по красному дню в общей таблице'); return; }
+    var overlay2 = document.getElementById('overlay2'), modal2 = document.getElementById('modal2');
+    if (!overlay2 || !modal2) return;
+    S.schEdDay = { uid: uid, ds: ds };
+    var dt = new Date(ds + 'T00:00:00');
+    var dateStr = dt.getDate() + ' ' + MON[dt.getMonth()] + ' ' + dt.getFullYear() + ' года';
+    var hrs = (ci.st === 'work' && ci.h) ? ci.h : schEdDefHours(uid, ds, u);
+    var changed = !!(ci.manual || ci.draft); // есть ручное или черновое изменение
+    modal2.style.width = 'min(380px,94vw)';
+    modal2.innerHTML = '<div class="modal-h"><h3>✏ ' + esc(u.full_name) + '</h3><button class="x" data-action="close-modal2">×</button></div>' +
+      '<div class="modal-b">' +
+      '<div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:10px">' + dateStr + '</div>' +
+      '<div style="display:flex;gap:8px;margin-bottom:12px">' +
+      '<label class="cb" style="flex:1;display:flex;align-items:center;gap:6px;justify-content:center;padding:9px 8px;border:1px solid ' + (ci.st === 'work' ? '#16a34a;background:#dcfce7' : 'var(--line);background:#fff') + ';border-radius:8px;cursor:pointer;font-weight:700;font-size:13px"><input type="radio" name="scheday-st" id="scheday-work"' + (ci.st === 'work' ? ' checked' : '') + '> Рабочий</label>' +
+      '<label class="cb" style="flex:1;display:flex;align-items:center;gap:6px;justify-content:center;padding:9px 8px;border:1px solid ' + (ci.st === 'off' ? '#64748b;background:#f1f5f9' : 'var(--line);background:#fff') + ';border-radius:8px;cursor:pointer;font-weight:700;font-size:13px"><input type="radio" name="scheday-st" id="scheday-off"' + (ci.st === 'off' ? ' checked' : '') + '> Выходной</label>' +
+      '</div>' +
+      '<div class="fld" style="max-width:200px"><label>Часов в этот день</label><input id="scheday-hours" type="text" inputmode="decimal" value="' + String(hrs).replace('.', ',') + '" placeholder="напр.: 8,25"></div>' +
+      '<div style="font-size:11px;color:var(--muted);margin:-4px 0 10px">Учитывается, если день рабочий. Изменение уйдёт в черновик и применится по кнопке «Сохранить» в окне редактора.</div>' +
+      '</div>' +
+      '<div class="modal-f"><button class="btn" data-action="close-modal2">Отмена</button>' +
+      (changed ? '<button class="btn" data-action="scheday-reset" style="color:var(--red);border-color:var(--red)">Вернуть по графику</button>' : '') +
+      '<button class="btn primary" data-action="scheday-apply">Применить</button></div>';
+    overlay2.classList.add('show');
+  }
+  function schEdDayClose() {
+    var overlay2 = document.getElementById('overlay2');
+    if (overlay2) overlay2.classList.remove('show');
+    S.schEdDay = null;
+  }
+  function schEdDayApply() {
+    var sd = S.schEdDay; if (!sd) return;
+    var u = DB.getUser(sd.uid); if (!u) { schEdDayClose(); return; }
+    var st = (document.getElementById('scheday-off') || {}).checked ? 'off' : 'work';
+    var hRaw = ((document.getElementById('scheday-hours') || {}).value || '').trim().replace(',', '.');
+    var h = (hRaw === '') ? null : parseFloat(hRaw);
+    if (st === 'work' && (h == null || !isFinite(h) || h <= 0 || h > 24)) { toast('err', 'Часы — от 0 до 24 (например 8,25)'); return; }
+    var cur = schEdCur(sd.uid);
+    cur.draft[sd.ds] = { s: st, h: (st === 'work' ? h : null) };
+    schEdDayClose();
+    schEdRender();
+    toast('ok', '✓ В черновике — применится по кнопке «Сохранить»');
+  }
+  function schEdDayReset() {
+    var sd = S.schEdDay; if (!sd) return;
+    var cur = schEdCur(sd.uid);
+    cur.draft[sd.ds] = null; // вернуть к стандартному графику (при сохранении снимет ручное изменение)
+    schEdDayClose();
+    schEdRender();
+  }
+  // 22.09-213: перенос одного дня мышью внутри строки. У 5/2 (и любых не-2/2)
+  // передвигается ТОЛЬКО этот день — остальной график не перестраивается.
+  function schEdMoveDay(uid, src, dst) {
+    var u = DB.getUser(uid); if (!u) return;
+    var todayK = key(TODAY);
+    if (dst < todayK) { toast('warn', '⚠ В прошедшие дни переносить нельзя'); return; }
+    var ciS = schEdCellInfo(uid, src);
+    if (ciS.st === 'abs') return;
+    var cur = schEdCur(uid);
+    cur.draft[src] = { s: ciS.st === 'work' ? 'off' : 'work' };
+    cur.draft[dst] = { s: ciS.st, h: (ciS.st === 'work' ? (ciS.h || schEdDefHours(uid, src, u)) : null) };
+    schEdRender();
+  }
+  // Сдвиг всего цикла 2/2 на dlt дней — делается перетаскиванием дня мышью у работника
+  // с графиком 2/2. Черновик хранится на владельце цикла (мастере бригады): сдвиг общий
+  // для всей бригады. Действует С СЕГОДНЯШНЕГО ДНЯ; отработанные (прошедшие) дни не трогаем.
+  function schEdPatternShift(dlt, uid) {
+    var cur0 = schEdCur(uid); if (!cur0) return;
+    if (!cur0.cycleOwner) { toast('warn', 'Сдвиг цикла доступен для графика 2/2'); return; }
+    var cur = schEdCur(cur0.ownerId);
+    var todayK = key(TODAY);
+    var eff = schEdEffCycle(cur0.ownerId, todayK, true);
+    cur.shifts = [{ from: todayK, cycle: gwAddDaysISO(eff, dlt) }];
+    cur.shiftDelta = (cur.shiftDelta || 0) + dlt;
+    if (!cur.shiftDelta) cur.shifts = [];
     schEdRender();
   }
   function schEdMonthNav(dlt) {
     var m = S.schEd.m + dlt, y = S.schEd.y;
     if (m < 0) { m = 11; y--; } else if (m > 11) { m = 0; y++; }
     S.schEd.m = m; S.schEd.y = y;
-    schEdRender();
-  }
-  // Действия над выбранными днями (в черновик)
-  function schEdApplyAction(op) {
-    var uid = S.schEdUid; var u = DB.getUser(uid); if (!u) return;
-    var cur = schEdCur();
-    var todayK = key(TODAY);
-    var sel = Object.keys(S.schEdSel || {}).filter(function (ds) { return ds >= todayK; });
-    if (!sel.length) { toast('warn', 'Сначала выберите дни — клик по будущим дням в окне'); return; }
-    if (op === 'reset') {
-      sel.forEach(function (ds) { cur.draft[ds] = null; }); // вернуть к шаблону
-    } else if (op === 'work' || op === 'off') {
-      var hEl = document.getElementById('sch-ed-hours');
-      var hRaw = hEl ? String(hEl.value || '').trim().replace(',', '.') : '';
-      var h = (hRaw === '') ? null : parseFloat(hRaw);
-      if (op === 'work' && h != null && (!isFinite(h) || h <= 0 || h > 24)) { toast('err', 'Часы — от 0 до 24 (например 8,25)'); return; }
-      sel.forEach(function (ds) { cur.draft[ds] = { s: op, h: (op === 'work' && h != null ? h : null) }; });
-    } else if (op === 'moveL' || op === 'moveR') {
-      var dlt = op === 'moveL' ? -1 : 1;
-      // исходные состояния — ДО изменений; сначала «освобождаем» исходные дни, потом ставим перенесённые
-      var orig = {};
-      sel.forEach(function (ds) { orig[ds] = schEdCellInfo(uid, ds); });
-      sel.forEach(function (ds) {
-        var o = orig[ds]; if (!o || o.st === 'abs') return;
-        cur.draft[ds] = { s: o.st === 'work' ? 'off' : 'work' }; // перенос: исходный день — наоборот
-      });
-      sel.forEach(function (ds) {
-        var o = orig[ds]; if (!o || o.st === 'abs') return;
-        var nds = gwAddDaysISO(ds, dlt);
-        if (nds < todayK) return; // в прошлое не переносим
-        cur.draft[nds] = { s: o.st, h: (o.st === 'work' ? (o.h || schEdDefHours(uid, ds, u)) : null) };
-      });
-    }
-    S.schEdSel = {};
-    schEdRender();
-  }
-  // Сдвиг всего цикла 2/2 на dlt дней (черновик; действует с сегодняшнего дня)
-  function schEdPatternShift(dlt) {
-    var cur = schEdCur();
-    if (!cur || !cur.cycleOwner) { toast('warn', 'Сдвиг цикла доступен для графика 2/2'); return; }
-    var todayK = key(TODAY);
-    var eff = schEdEffCycle(cur.ownerId, todayK, true);
-    cur.shifts = [{ from: todayK, cycle: gwAddDaysISO(eff, dlt) }];
-    cur.shiftDelta = (cur.shiftDelta || 0) + dlt;
-    if (!cur.shiftDelta) cur.shifts = [];
-    schEdRender();
-  }
-  function schEdShiftRemove(from) {
-    var cur = schEdCur(); if (!cur) return;
-    if (from === 'draft') { cur.shifts = []; cur.shiftDelta = 0; }
-    else {
-      cur.shifts = cur.shifts.filter(function (x) { return x.from !== from; });
-      if ((cur.shiftsRm || []).indexOf(from) < 0) cur.shiftsRm.push(from); // сохранённую запись — удалить при сохранении
-    }
     schEdRender();
   }
   function schEdSaveAll() {
@@ -9625,7 +9653,7 @@
       (cur.shifts || []).forEach(function (sh) { SP_WORKERS.addCycleShift(cur.ownerId, sh.from, sh.cycle); n++; });
       if (n) { touched += n; try { var u = DB.getUser(uid); logAction('График смен: ручные изменения', (u ? u.full_name : uid) + ' · ' + n + ' шт'); } catch (e) {} }
     });
-    S.schEd = null; S.schEdAll = null; S.schEdSel = null; S.schEdUid = null;
+    S.schEd = null; S.schEdAll = null; S.schEdDay = null;
     overlay.classList.remove('show');
     modal.style.width = ''; modal.style.maxWidth = '';
     toast('ok', touched ? ('✓ Изменения графика сохранены (' + touched + ')') : '✓ Изменений не было');
@@ -9634,63 +9662,23 @@
   }
   function schEdRender() {
     if (!S.schEd) return;
-    var uid = S.schEdUid;
-    var u = DB.getUser(uid); if (!u) return;
-    var cur = schEdCur();
-    var wd = wkData(uid);
     var todayK = key(TODAY);
     var y = S.schEd.y, m = S.schEd.m;
     var dim = new Date(y, m + 1, 0).getDate();
     var lead = (new Date(y, m, 1).getDay() + 6) % 7;
-    // список работников, которых можно править
+    // список работников, которых можно править — все правятся прямо в таблице (без списка)
     var users = [];
     try { users = (wkVisibleUsers() || []).filter(function (x) { return x && wkCanEdit(x); }); } catch (e) {}
     var h = '<div class="modal-h"><h3>✏ Изменение графика смен</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">';
-    // шапка: работник + месяц
     h += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">' +
-      '<select id="sch-ed-user" style="flex:1;min-width:200px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13px;background:var(--card)">';
-    users.forEach(function (x) {
-      var xw = wkData(x.id);
-      h += '<option value="' + esc(x.id) + '"' + (x.id === uid ? ' selected' : '') + '>' + esc(x.full_name) + ' · ' + xw.hours + ' ч · ' + esc(xw.sched || '5/2') + '</option>';
-    });
-    h += '</select>' +
       '<button type="button" class="btn sm" data-action="sch-ed-prev" title="Предыдущий месяц">‹</button>' +
       '<b style="min-width:120px;text-align:center;font-size:13px">' + MON_NOM[m] + ' ' + y + '</b>' +
-      '<button type="button" class="btn sm" data-action="sch-ed-next" title="Следующий месяц">›</button></div>';
-    // сдвиг всего графика (2/2)
-    if (cur.cycleOwner) {
-      h += '<div style="background:#eef6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px 12px;margin-bottom:10px">' +
-        '<div style="font-size:12px;font-weight:800;color:#1d4ed8;margin-bottom:6px">🔁 Сдвиг всего графика (2/2) <span style="font-weight:600;color:#64748b">— всё расписание передвигается следом, с сегодняшнего дня; прошедшие дни не меняются. То же самое — перетаскивание рабочего дня мышью</span></div>' +
-        '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
-        '<button type="button" class="btn sm" data-action="sch-ed-shift" data-dlt="-1">⟵ на 1 день раньше</button>' +
-        '<button type="button" class="btn sm" data-action="sch-ed-shift" data-dlt="1">позже на 1 день ⟶</button>';
-      if (cur.shiftDelta) {
-        h += '<span style="font-size:12px;font-weight:800;color:#1d4ed8;background:#dbeafe;border:1px solid #93c5fd;border-radius:7px;padding:3px 8px">черновик: сдвиг ' + (cur.shiftDelta > 0 ? '+' : '−') + Math.abs(cur.shiftDelta) + ' дн <b data-action="sch-ed-shiftdel" data-from="draft" title="Убрать черновой сдвиг" style="cursor:pointer;padding:0 3px">×</b></span>';
-      }
-      var owd = wkData(cur.ownerId);
-      var histSaved = (owd.cycleHist || []).filter(function (sh) { return sh && cur.shiftsRm.indexOf(sh.from) < 0; });
-      histSaved.forEach(function (sh) {
-        var sd = new Date(sh.from + 'T00:00:00');
-        h += '<span style="font-size:11px;font-weight:700;color:#475569;background:#fff;border:1px solid var(--line);border-radius:7px;padding:3px 8px" title="Сдвиг цикла с ' + sh.from + '">с ' + sd.getDate() + '.' + ('0' + (sd.getMonth() + 1)).slice(-2) + ' · цикл ' + sh.cycle + ' <b data-action="sch-ed-shiftdel" data-from="' + esc(sh.from) + '" title="Удалить этот сдвиг (сохранится по кнопке «Сохранить»)" style="cursor:pointer;color:var(--red);padding:0 3px">×</b></span>';
-      });
-      h += '</div></div>';
-    }
-    // панель действий над выбранными
-    var selN = Object.keys(S.schEdSel || {}).length;
-    h += '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:10px">' +
-      '<span style="font-size:12px;font-weight:800;color:var(--ink)">Выбрано: ' + selN + '</span>' +
-      '<button type="button" class="btn sm" data-action="sch-ed-act" data-op="work">Рабочий</button>' +
-      '<button type="button" class="btn sm" data-action="sch-ed-act" data-op="off">Выходной</button>' +
-      '<span style="font-size:11px;color:var(--muted)">часы:</span><input id="sch-ed-hours" type="text" inputmode="decimal" placeholder="8,25" style="width:56px;padding:4px 7px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:12px">' +
-      '<span style="width:1px;height:18px;background:var(--line);margin:0 3px"></span>' +
-      '<button type="button" class="btn sm" data-action="sch-ed-act" data-op="moveL" title="Перенести выбранные дни на день назад">⟵ −1 день</button>' +
-      '<button type="button" class="btn sm" data-action="sch-ed-act" data-op="moveR" title="Перенести выбранные дни на день вперёд">+1 день ⟶</button>' +
-      '<button type="button" class="btn sm" data-action="sch-ed-act" data-op="reset" title="Снять ручные изменения у выбранных дней" style="color:var(--red)">Сбросить</button>' +
-      '</div>';
+      '<button type="button" class="btn sm" data-action="sch-ed-next" title="Следующий месяц">›</button>' +
+      '<span style="font-size:11px;color:var(--muted)">клик по дню — рабочий/выходной и часы · дни перетаскиваются мышью вдоль своей строки · всё применится по кнопке «Сохранить»</span></div>';
     // 22.09-212: сетка окна = та же таблица, что на странице «Графики смен»
     // (шапка с числами месяца, колонка «Бригада / работник» слева, цветные квадратики),
-    // только в каждом рабочем квадратике написаны часы. Редактируется строка выбранного
-    // работника; остальные строки — для контекста (клик по ФИО — переключиться на него).
+    // только в каждом рабочем квадратике написаны часы.
+    // 22.09-213: править можно ВСЕ строки — клик по дню/перетаскивание работают у каждого.
     var colW = 26; // квадратик шире, чем в общей таблице, чтобы помещались часы (8,25 / 11,5)
     // Строки: бригады (мастер + его слесари) + «без бригады» — как в общей таблице
     var esMasters = users.filter(function (x) { return x.role === 'master'; });
@@ -9712,57 +9700,51 @@
     var nameColW = 200;
     users.forEach(function (x) { var ap = (x.full_name || '').length * 7 + 100; if (ap > nameColW) nameColW = ap; });
     if (nameColW > 340) nameColW = 340;
-    // Одна ячейка дня (у всех — часы внутри; у «редактируемой» строки — клик и перетаскивание)
-    function schEdTd(xu, isSelRow, dd) {
+    // Одна ячейка дня: часы внутри; клик — окошко дня; будущие обычные дни — перетаскивание
+    function schEdTd(xu, dd) {
       var ds = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
       var past = ds < todayK;
-      var ci;
-      if (isSelRow) ci = schEdCellInfo(uid, ds);
-      else { var stN = wkDayState(xu.id, ds); var ovN = (wkData(xu.id).overrides || {})[ds]; ci = { st: stN, manual: !!(ovN && ovN.s) }; }
+      var ci = schEdCellInfo(xu.id, ds);
       var bg = ci.st === 'work' ? '#dcfce7' : (ci.st === 'abs' ? '#fee2e2' : '#f1f5f9');
       var bd = ci.st === 'work' ? '#16a34a' : (ci.st === 'abs' ? '#dc2626' : '#cbd5e1');
       var _hol = holidayOn(ds);
       if (_hol) { bg = '#fef9c3'; bd = '#eab308'; }
       var hours = '';
       if (ci.st === 'work') {
-        var hv = isSelRow ? (ci.h || schEdDefHours(uid, ds, xu)) : schDayHours(xu, ds);
+        var hv = ci.h || schEdDefHours(xu.id, ds, xu);
         hours = String(hv).replace('.', ',');
       }
       var shs = [];
       if (sameDay(new Date(y, m, dd), TODAY)) shs.push('inset 2px 0 0 0 rgba(37,99,235,.4)', 'inset 0 2px 0 0 rgba(37,99,235,.4)');
       if (ci.manual) shs.push('inset 0 -2px 0 0 rgba(37,99,235,.85)');
-      var sel = isSelRow && S.schEdSel && S.schEdSel[ds];
-      if (sel) shs.push('0 0 0 2.5px #2563eb');
-      if (isSelRow && ci.draft) bd = '#2563eb'; // черновое изменение — синяя рамка квадратика
+      if (ci.draft) bd = '#2563eb'; // черновое изменение — синяя рамка квадратика
       var title = ds + (ci.st === 'work' ? ' · рабочий · ' + hours + ' ч' : (ci.st === 'abs' ? ' · отсутствие' : ' · выходной'));
       if (ci.manual) title += ' · ✏ изменён вручную';
-      if (isSelRow && ci.draft) title += ' · • черновик (не сохранено)';
+      if (ci.draft) title += (ci.reset ? ' · • черновик: вернуть по графику' : ' · • черновик (не сохранено)');
       if (_hol) title += ' · 🎉 ' + _hol;
-      var act = (isSelRow && !past && ci.st !== 'abs') ? 'sch-ed-cell' : '';
-      return '<td data-action="' + act + '" data-uid="' + esc(xu.id) + '"' + (isSelRow ? ' data-sch-day="' + ds + '"' : '') +
+      var act = (!past) ? 'sch-ed-cell' : '';
+      var drag = (!past && ci.st !== 'abs');
+      return '<td data-action="' + act + '" data-uid="' + esc(xu.id) + '" data-sch-day="' + ds + '"' + (drag ? ' data-sch-drag="1"' : '') +
         (act ? ' role="button"' : '') + ' title="' + esc(title) + '"' +
         ' style="width:' + colW + 'px;height:26px;padding:0;background:' + bg + ';border:1px solid ' + bd + ';text-align:center;box-sizing:border-box;' +
         (shs.length ? 'box-shadow:' + shs.join(',') + ';' : '') +
-        (isSelRow && past ? 'opacity:.45;' : '') + (act ? 'cursor:pointer;' : '') + '">' +
+        (past ? 'opacity:.45;' : (act ? 'cursor:pointer;' : '')) + '">' +
         (hours ? '<span style="font-size:8.5px;font-weight:800;color:#14532d;line-height:1">' + hours + '</span>' : '') +
         '</td>';
     }
-    // Строка работника (как в общей таблице; клик по ФИО другой строки — редактировать её)
+    // Строка работника (как в общей таблице)
     function schEdTr(xu, isMaster) {
-      var isSelRow = (xu.id === uid);
       var xw = wkData(xu.id);
       var rbg = isMaster ? 'var(--panel-2)' : 'var(--card)';
       var tds = '';
       for (var li = 0; li < lead; li++) tds += '<td style="border-bottom:1px solid var(--line);width:' + colW + 'px"></td>';
-      for (var dd = 1; dd <= dim; dd++) tds += schEdTd(xu, isSelRow, dd);
+      for (var dd = 1; dd <= dim; dd++) tds += schEdTd(xu, dd);
       return '<tr style="background:' + rbg + '">' +
-        '<td data-action="' + (isSelRow ? '' : 'sch-ed-urow') + '" data-uid="' + esc(xu.id) + '" title="' + (isSelRow ? 'Сейчас редактируется этот работник' : 'Клик — переключиться на этого работника') + '"' +
-        ' style="position:sticky;left:0;background:' + (isSelRow ? '#eff6ff' : rbg) + ';z-index:1;padding:' + (isMaster ? '6px 8px' : '4px 8px 4px 24px') + ';border-bottom:1px solid var(--line);border-right:1px solid var(--line);white-space:nowrap;width:' + nameColW + 'px;overflow:hidden;text-overflow:ellipsis;' +
-        (isMaster ? 'font-weight:800;' : 'font-size:11px;') + 'color:var(--ink);' + (isSelRow ? 'box-shadow:inset 3px 0 0 0 #2563eb;' : 'cursor:pointer;') + '">' +
+        '<td style="position:sticky;left:0;background:' + rbg + ';z-index:1;padding:' + (isMaster ? '6px 8px' : '4px 8px 4px 24px') + ';border-bottom:1px solid var(--line);border-right:1px solid var(--line);white-space:nowrap;width:' + nameColW + 'px;overflow:hidden;text-overflow:ellipsis;' +
+        (isMaster ? 'font-weight:800;' : 'font-size:11px;') + 'color:var(--ink)">' +
         '<span style="display:inline-block;width:' + (isMaster ? 10 : 8) + 'px;height:' + (isMaster ? 10 : 8) + 'px;border-radius:50%;background:' + (xu.color || '#94a3b8') + ';margin-right:6px"></span>' +
         (isMaster ? '👷 ' : '') + esc(xu.full_name) +
         ' <span style="color:var(--muted);font-weight:700;font-size:9.5px">· ' + xw.hours + ' ч · ' + (xw.sched || '5/2') + '</span>' +
-        (isSelRow ? ' <span style="color:#2563eb;font-weight:800;font-size:9.5px">· редактируется</span>' : '') +
         '</td>' + tds + '</tr>';
     }
     h += '<div id="sch-ed-grid" style="overflow:auto;border:1px solid var(--line);border-radius:12px;background:var(--card);user-select:none">';
@@ -9784,49 +9766,46 @@
       rw.members.forEach(function (ss) { h += schEdTr(ss, false); });
     });
     h += '</tbody></table></div>';
-    h += '<div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5">В квадратиках — рабочие часы дня. Клик по ФИО слева — редактировать другого работника. В редактируемой строке: клик по будущему дню — выбрать (синий контур); дни можно перетаскивать мышью. Синяя риска снизу — изменён вручную, синяя рамка квадратика — черновое изменение (не сохранено). Прошедшие (отработанные) дни недоступны.</div>';
+    h += '<div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5">В квадратиках — рабочие часы дня. Клик по будущему дню — окошко «рабочий/выходной/часы» (там же «Вернуть по графику»). Перетаскивание дня мышью вдоль строки: у графика 5/2 переносится только этот день, у 2/2 — весь график следом (с сегодняшнего дня). Синяя риска снизу — изменён вручную, синяя рамка квадратика — черновое изменение (не сохранено). Прошедшие (отработанные) дни недоступны.</div>';
     h += '</div>';
     h += '<div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="sch-ed-save">💾 Сохранить</button></div>';
-    modal.style.maxWidth = '';
     modal.style.maxWidth = '96vw'; modal.style.width = 'min(1180px,96vw)';
     modal.innerHTML = h;
-    // выбор работника
-    var usEl = document.getElementById('sch-ed-user');
-    if (usEl) usEl.addEventListener('change', function (e) { S.schEdUid = e.target.value; S.schEdSel = {}; schEdRender(); });
-    // перетаскивание дней (мышь): для графика 2/2 — сдвиг всего графика; для прочих — перенос дня
+    // Перетаскивание дней мышью (все строки): у 2/2 — сдвиг всего графика следом,
+    // у 5/2 — переносится только этот день, остальной график не перестраивается.
     var grid = document.getElementById('sch-ed-grid');
-    if (grid) grid.querySelectorAll('[data-sch-day]').forEach(function (cell) {
+    if (grid) grid.querySelectorAll('[data-sch-drag]').forEach(function (cell) {
       var ds2 = cell.getAttribute('data-sch-day');
-      if (!ds2 || ds2 < todayK) return;
+      var uid2 = cell.getAttribute('data-uid');
+      if (!ds2 || !uid2 || ds2 < todayK) return;
       try { cell.draggable = true; } catch (e) {}
-      cell.addEventListener('dragstart', function (ev) { S._schDrag = ds2; try { ev.dataTransfer.setData('text/plain', ds2); } catch (e) {} });
+      cell.addEventListener('dragstart', function (ev) { S._schDrag = uid2 + '|' + ds2; try { ev.dataTransfer.setData('text/plain', S._schDrag); } catch (e) {} });
       cell.addEventListener('dragover', function (ev) { ev.preventDefault(); });
       cell.addEventListener('drop', function (ev) {
         ev.preventDefault();
-        var src = S._schDrag || ''; S._schDrag = null;
-        if (!src || src === ds2) return;
-        var delta = Math.round((new Date(ds2 + 'T00:00:00') - new Date(src + 'T00:00:00')) / 86400000);
+        var dd0 = String(S._schDrag || ''); S._schDrag = null;
+        var parts = dd0.split('|'); var srcUid = parts[0], srcDs = parts[1];
+        if (!srcDs || srcDs === ds2) return;
+        if (srcUid !== uid2) { toast('warn', 'День можно перетаскивать только внутри строки того же работника'); return; }
+        var delta = Math.round((new Date(ds2 + 'T00:00:00') - new Date(srcDs + 'T00:00:00')) / 86400000);
         if (!delta) return;
-        if (cur.cycleOwner) { schEdPatternShift(delta); return; } // 2/2: перетащил день — передвинулся весь график
-        var o = schEdCellInfo(uid, src);
-        if (o.st === 'abs') return;
-        cur.draft[src] = { s: o.st === 'work' ? 'off' : 'work' };
-        cur.draft[ds2] = { s: o.st, h: (o.st === 'work' ? (o.h || schEdDefHours(uid, src, u)) : null) };
-        schEdRender();
+        var cur0 = schEdCur(uid2);
+        if (cur0 && cur0.cycleOwner) { schEdPatternShift(delta, uid2); return; } // 2/2: весь график следом
+        schEdMoveDay(uid2, srcDs, ds2); // 5/2: двигается только этот день
       });
     });
   }
-  function openSchEditorModal(uid) {
+  function openSchEditorModal() {
     var users = [];
     try { users = (wkVisibleUsers() || []).filter(function (x) { return x && wkCanEdit(x); }); } catch (e) {}
     if (!users.length) { toast('err', 'Нет работников с правом на изменение'); return; }
     var wm = wkMonth();
     S.schEd = { y: wm.y, m: wm.m };
-    S.schEdAll = {}; S.schEdSel = {};
-    S.schEdUid = (uid && DB.getUser(uid)) ? uid : users[0].id;
+    S.schEdAll = {};
     schEdRender();
     overlay.classList.add('show');
   }
+
 
   function renderPerms() {
     var view = document.getElementById('view');
@@ -16641,7 +16620,7 @@
     else if (a === 'wo-save') { woSaveWriteoff(); } // 22.09-186: сохранить списания (окно остаётся открытым)
     else if (a === 'wo-save-close') { woSaveWriteoff(); closeTaskObjectPickers(); overlay.classList.remove('show'); modal.style.maxWidth = ''; modal.style.width = ''; S.wkModalUid = null; S.wmJointSel = null; } // 22.09-186: сохранить и закрыть карточку
     else if (a === 'wo-work-pick') { woPickWork(parseInt(el.dataset.idx, 10) || 0); } // 22.09-185: выбор вида работ для списания
-    else if (a === 'close-modal') { closeTaskObjectPickers(); overlay.classList.remove('show'); modal.style.maxWidth = ''; modal.style.width = ''; if (S.wkModalUid && S.screen === 'workers') renderWorkers(); S.wkModalUid = null; S.wmJointSel = null; /* 22.09-162 */ S.schEd = null; S.schEdAll = null; S.schEdSel = null; S.schEdUid = null; /* 22.09-211 */ }
+    else if (a === 'close-modal') { closeTaskObjectPickers(); overlay.classList.remove('show'); modal.style.maxWidth = ''; modal.style.width = ''; if (S.wkModalUid && S.screen === 'workers') renderWorkers(); S.wkModalUid = null; S.wmJointSel = null; /* 22.09-162 */ S.schEd = null; S.schEdAll = null; S.schEdDay = null; /* 22.09-211/213 */ }
     else if (a === 'close-modal2') { var ov2 = document.getElementById('overlay2'); if (ov2) ov2.classList.remove('show'); } // 22.09-162
     else if (a === 'wm-joint-pick') { openWmJointPickModal(); } // 22.09-162
     else if (a === 'save-joint-pick') { saveWmJointPick(); } // 22.09-162
@@ -16715,13 +16694,11 @@
     else if (a === 'sch-day-edit') { openSchDayEditModal(el.dataset.uid, el.dataset.ds); } // 22.09-207
     else if (a === 'sch-day-save') { schDayEditSave(false); } // 22.09-207
     else if (a === 'sch-day-reset') { schDayEditSave(true); } // 22.09-207
-    else if (a === 'sch-ed-cell') { schEdToggleCell(el.dataset.uid, el.getAttribute('data-sch-day')); } // 22.09-211
-    else if (a === 'sch-ed-urow') { var _xu2 = DB.getUser(el.dataset.uid); if (_xu2 && wkCanEdit(_xu2) && el.dataset.uid !== S.schEdUid) { S.schEdUid = el.dataset.uid; S.schEdSel = {}; schEdRender(); } } // 22.09-212
+    else if (a === 'sch-ed-cell') { openSchEdDayModal(el.dataset.uid, el.getAttribute('data-sch-day')); } // 22.09-213
     else if (a === 'sch-ed-prev') { schEdMonthNav(-1); } // 22.09-211
     else if (a === 'sch-ed-next') { schEdMonthNav(1); } // 22.09-211
-    else if (a === 'sch-ed-act') { schEdApplyAction(el.dataset.op); } // 22.09-211
-    else if (a === 'sch-ed-shift') { schEdPatternShift(parseInt(el.dataset.dlt, 10) || 0); } // 22.09-211
-    else if (a === 'sch-ed-shiftdel') { schEdShiftRemove(el.dataset.from); } // 22.09-211
+    else if (a === 'scheday-apply') { schEdDayApply(); } // 22.09-213
+    else if (a === 'scheday-reset') { schEdDayReset(); } // 22.09-213
     else if (a === 'sch-ed-save') { schEdSaveAll(); } // 22.09-211
     else if (a === 'wk-edit-comment') { openWkCommentModal(el.dataset.uid); }
     else if (a === 'wk-day-save') {
