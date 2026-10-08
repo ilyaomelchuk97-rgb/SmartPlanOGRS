@@ -775,7 +775,7 @@
     workcards: ['Карточки работ на день', 'Сборка 22.09-191 · клик по ФИО мастера в блоке «Сегодня» панели — страница с карточкой на каждую работу: адрес, виды работ, слесаря, план, крупные кнопки «Приступил»/«Закончил»'],
     factmonth: ['Факт работ по объектам', 'Сборка 22.09-192 · месячный отчёт по объектам: кто, когда и сколько фактически работал (по кнопкам «Приступил»/«Закончил»), фактические часы против плановых; перелистывание месяцев'],
     workers: ['Работники', 'Сборка 22.09-172 · окно карточки работника — ровно по ширине карточки (560px): без пустого места справа; панель и календарь — на всю ширину окна'],
-    schedules: ['Графики смен', 'Сборка 22.09-211 · «✏ Изменить график» теперь открывает отдельное окно редактора: выбор работника и месяца, клик по будущему дню — выбрать, действия (рабочий/выходной/часы на день/перенос на день назад или вперёд/сброс), перетаскивание дней мышью; для графика 2/2 — блок «Сдвиг всего графика» (весь цикл передвигается следом начиная с сегодняшнего дня, отработанные дни не меняются); изменения применяются только по кнопке «Сохранить», «Отмена» всё отбрасывает. Ранее, сборка 22.09-207 · режим «✏ Изменить график» в шапке: клик по сегодняшнему/будущему дню — рабочий/выходной и часы на день, можно применить сразу ко всей бригаде; ручные изменения видны синей риской снизу ячейки и пометкой в подсказке, «Вернуть стандарт» отменяет их; прошедшие (отработанные) дни не редактируются. Ранее, сборка 22.09-204 · при наведении на рабочий квадратик видно, сколько часов человек работает в этот день: 12-часовая смена — мастер 12 ч, слесарь 11,5 ч; 8-часовая — пн–чт 8,25 ч, пт 7 ч. Ранее, сборка 22.09-164 · добавлена кнопка «🎉 Праздничные дни» (из графика работ) — слева от выбора месяца'],
+    schedules: ['Графики смен', 'Сборка 22.09-212 · окно «✏ Изменить график» теперь выглядит как общая таблица «Графики смен»: шапка с числами месяца, слева колонка «Бригада / работник», цветные квадратики, и в каждом рабочем квадратике написаны часы; клик по ФИО другой строки — перейти к редактированию этого работника. Ранее, сборка 22.09-211 · «✏ Изменить график» теперь открывает отдельное окно редактора: выбор работника и месяца, клик по будущему дню — выбрать, действия (рабочий/выходной/часы на день/перенос на день назад или вперёд/сброс), перетаскивание дней мышью; для графика 2/2 — блок «Сдвиг всего графика» (весь цикл передвигается следом начиная с сегодняшнего дня, отработанные дни не меняются); изменения применяются только по кнопке «Сохранить», «Отмена» всё отбрасывает. Ранее, сборка 22.09-207 · режим «✏ Изменить график» в шапке: клик по сегодняшнему/будущему дню — рабочий/выходной и часы на день, можно применить сразу ко всей бригаде; ручные изменения видны синей риской снизу ячейки и пометкой в подсказке, «Вернуть стандарт» отменяет их; прошедшие (отработанные) дни не редактируются. Ранее, сборка 22.09-204 · при наведении на рабочий квадратик видно, сколько часов человек работает в этот день: 12-часовая смена — мастер 12 ч, слесарь 11,5 ч; 8-часовая — пн–чт 8,25 ч, пт 7 ч. Ранее, сборка 22.09-164 · добавлена кнопка «🎉 Праздничные дни» (из графика работ) — слева от выбора месяца'],
     users: ['Пользователи', 'Сборка 22.09-161 · увольнение работников: кнопка «Уволить» с датой, блок «Уволенные» с восстановлением; в истории задач ФИО остаются'],
     reports: ['Отчёты', 'Печатные формы для подписи у руководства'],
     logs: ['Журнал действий', 'Действия пользователей системы'],
@@ -9687,44 +9687,108 @@
       '<button type="button" class="btn sm" data-action="sch-ed-act" data-op="moveR" title="Перенести выбранные дни на день вперёд">+1 день ⟶</button>' +
       '<button type="button" class="btn sm" data-action="sch-ed-act" data-op="reset" title="Снять ручные изменения у выбранных дней" style="color:var(--red)">Сбросить</button>' +
       '</div>';
-    // сетка месяца
-    var DOWS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-    h += '<div id="sch-ed-grid" style="display:flex;flex-direction:column;gap:4px;user-select:none">';
-    h += '<div style="display:flex;gap:4px">';
-    DOWS.forEach(function (dw, i) { h += '<div style="width:46px;text-align:center;font-size:10px;font-weight:800;color:' + (i > 4 ? '#94a3b8' : 'var(--muted)') + '">' + dw + '</div>'; });
-    h += '</div>';
-    var cells = '';
-    for (var li = 0; li < lead; li++) cells += '<div style="width:46px;height:40px"></div>';
-    for (var dd = 1; dd <= dim; dd++) {
+    // 22.09-212: сетка окна = та же таблица, что на странице «Графики смен»
+    // (шапка с числами месяца, колонка «Бригада / работник» слева, цветные квадратики),
+    // только в каждом рабочем квадратике написаны часы. Редактируется строка выбранного
+    // работника; остальные строки — для контекста (клик по ФИО — переключиться на него).
+    var colW = 26; // квадратик шире, чем в общей таблице, чтобы помещались часы (8,25 / 11,5)
+    // Строки: бригады (мастер + его слесари) + «без бригады» — как в общей таблице
+    var esMasters = users.filter(function (x) { return x.role === 'master'; });
+    var esSlesars = users.filter(function (x) { return x.role === 'slesar'; });
+    var edRows = [];
+    esMasters.forEach(function (mm) {
+      edRows.push({ master: mm, members: esSlesars.filter(function (ss) { return wkData(ss.id).brigade === mm.id; }) });
+    });
+    var freeSl = esSlesars.filter(function (ss) {
+      var bb = wkData(ss.id).brigade;
+      return !bb || !esMasters.some(function (mm) { return mm.id === bb; });
+    });
+    if (freeSl.length) edRows.push({ master: null, members: freeSl });
+    var inRows = {};
+    edRows.forEach(function (rw) { if (rw.master) inRows[rw.master.id] = 1; rw.members.forEach(function (ss) { inRows[ss.id] = 1; }); });
+    var rest = users.filter(function (x) { return !inRows[x.id]; });
+    if (rest.length) edRows.push({ master: null, members: rest });
+    // Ширина колонки ФИО — по самому длинному имени (как в общей таблице)
+    var nameColW = 200;
+    users.forEach(function (x) { var ap = (x.full_name || '').length * 7 + 100; if (ap > nameColW) nameColW = ap; });
+    if (nameColW > 340) nameColW = 340;
+    // Одна ячейка дня (у всех — часы внутри; у «редактируемой» строки — клик и перетаскивание)
+    function schEdTd(xu, isSelRow, dd) {
       var ds = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
       var past = ds < todayK;
-      var ci = schEdCellInfo(uid, ds);
-      var sel = S.schEdSel && S.schEdSel[ds];
+      var ci;
+      if (isSelRow) ci = schEdCellInfo(uid, ds);
+      else { var stN = wkDayState(xu.id, ds); var ovN = (wkData(xu.id).overrides || {})[ds]; ci = { st: stN, manual: !!(ovN && ovN.s) }; }
       var bg = ci.st === 'work' ? '#dcfce7' : (ci.st === 'abs' ? '#fee2e2' : '#f1f5f9');
       var bd = ci.st === 'work' ? '#16a34a' : (ci.st === 'abs' ? '#dc2626' : '#cbd5e1');
       var _hol = holidayOn(ds);
       if (_hol) { bg = '#fef9c3'; bd = '#eab308'; }
-      var hrs = '';
+      var hours = '';
       if (ci.st === 'work') {
-        var hv = ci.h || schEdDefHours(uid, ds, u);
-        hrs = '<div style="font-size:9px;font-weight:800;color:#15803d;line-height:1">' + String(hv).replace('.', ',') + '</div>';
+        var hv = isSelRow ? (ci.h || schEdDefHours(uid, ds, xu)) : schDayHours(xu, ds);
+        hours = String(hv).replace('.', ',');
       }
-      var marks = (ci.manual ? '✏' : '') + (ci.draft ? '•' : '');
-      cells += '<div data-action="' + (past || ci.st === 'abs' ? '' : 'sch-ed-cell') + '" data-uid="' + esc(uid) + '" data-sch-day="' + ds + '"' +
-        ' title="' + ds + (ci.st === 'work' ? ' · рабочий' : (ci.st === 'abs' ? ' · отсутствие' : ' · выходной')) + (ci.manual ? ' · ✏ изменён вручную' : '') + (_hol ? ' · 🎉 ' + esc(_hol) : '') + '"' +
-        ' style="width:46px;height:40px;border:1.5px solid ' + bd + ';background:' + bg + ';border-radius:7px;display:flex;flex-direction:column;align-items:center;justify-content:center;box-sizing:border-box;' +
-        (past ? 'opacity:.45;' : 'cursor:pointer;') + (sel ? 'box-shadow:0 0 0 2.5px #2563eb;' : '') + '">' +
-        '<div style="font-size:11.5px;font-weight:800;color:var(--ink);line-height:1.1">' + dd + '</div>' + hrs +
-        (marks ? '<div style="font-size:8.5px;color:#1d4ed8;line-height:1;font-weight:800">' + marks + '</div>' : '') +
-        '</div>';
-      if ((lead + dd) % 7 === 0 || dd === dim) { h += '<div style="display:flex;gap:4px">' + cells + '</div>'; cells = ''; }
+      var shs = [];
+      if (sameDay(new Date(y, m, dd), TODAY)) shs.push('inset 2px 0 0 0 rgba(37,99,235,.4)', 'inset 0 2px 0 0 rgba(37,99,235,.4)');
+      if (ci.manual) shs.push('inset 0 -2px 0 0 rgba(37,99,235,.85)');
+      var sel = isSelRow && S.schEdSel && S.schEdSel[ds];
+      if (sel) shs.push('0 0 0 2.5px #2563eb');
+      if (isSelRow && ci.draft) bd = '#2563eb'; // черновое изменение — синяя рамка квадратика
+      var title = ds + (ci.st === 'work' ? ' · рабочий · ' + hours + ' ч' : (ci.st === 'abs' ? ' · отсутствие' : ' · выходной'));
+      if (ci.manual) title += ' · ✏ изменён вручную';
+      if (isSelRow && ci.draft) title += ' · • черновик (не сохранено)';
+      if (_hol) title += ' · 🎉 ' + _hol;
+      var act = (isSelRow && !past && ci.st !== 'abs') ? 'sch-ed-cell' : '';
+      return '<td data-action="' + act + '" data-uid="' + esc(xu.id) + '"' + (isSelRow ? ' data-sch-day="' + ds + '"' : '') +
+        (act ? ' role="button"' : '') + ' title="' + esc(title) + '"' +
+        ' style="width:' + colW + 'px;height:26px;padding:0;background:' + bg + ';border:1px solid ' + bd + ';text-align:center;box-sizing:border-box;' +
+        (shs.length ? 'box-shadow:' + shs.join(',') + ';' : '') +
+        (isSelRow && past ? 'opacity:.45;' : '') + (act ? 'cursor:pointer;' : '') + '">' +
+        (hours ? '<span style="font-size:8.5px;font-weight:800;color:#14532d;line-height:1">' + hours + '</span>' : '') +
+        '</td>';
     }
-    h += '</div>';
-    h += '<div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5">✏ — изменён вручную · • — черновое изменение (ещё не сохранено) · рамка — выбранный день. Прошедшие (отработанные) дни недоступны. Дни можно перетаскивать мышью.</div>';
+    // Строка работника (как в общей таблице; клик по ФИО другой строки — редактировать её)
+    function schEdTr(xu, isMaster) {
+      var isSelRow = (xu.id === uid);
+      var xw = wkData(xu.id);
+      var rbg = isMaster ? 'var(--panel-2)' : 'var(--card)';
+      var tds = '';
+      for (var li = 0; li < lead; li++) tds += '<td style="border-bottom:1px solid var(--line);width:' + colW + 'px"></td>';
+      for (var dd = 1; dd <= dim; dd++) tds += schEdTd(xu, isSelRow, dd);
+      return '<tr style="background:' + rbg + '">' +
+        '<td data-action="' + (isSelRow ? '' : 'sch-ed-urow') + '" data-uid="' + esc(xu.id) + '" title="' + (isSelRow ? 'Сейчас редактируется этот работник' : 'Клик — переключиться на этого работника') + '"' +
+        ' style="position:sticky;left:0;background:' + (isSelRow ? '#eff6ff' : rbg) + ';z-index:1;padding:' + (isMaster ? '6px 8px' : '4px 8px 4px 24px') + ';border-bottom:1px solid var(--line);border-right:1px solid var(--line);white-space:nowrap;width:' + nameColW + 'px;overflow:hidden;text-overflow:ellipsis;' +
+        (isMaster ? 'font-weight:800;' : 'font-size:11px;') + 'color:var(--ink);' + (isSelRow ? 'box-shadow:inset 3px 0 0 0 #2563eb;' : 'cursor:pointer;') + '">' +
+        '<span style="display:inline-block;width:' + (isMaster ? 10 : 8) + 'px;height:' + (isMaster ? 10 : 8) + 'px;border-radius:50%;background:' + (xu.color || '#94a3b8') + ';margin-right:6px"></span>' +
+        (isMaster ? '👷 ' : '') + esc(xu.full_name) +
+        ' <span style="color:var(--muted);font-weight:700;font-size:9.5px">· ' + xw.hours + ' ч · ' + (xw.sched || '5/2') + '</span>' +
+        (isSelRow ? ' <span style="color:#2563eb;font-weight:800;font-size:9.5px">· редактируется</span>' : '') +
+        '</td>' + tds + '</tr>';
+    }
+    h += '<div id="sch-ed-grid" style="overflow:auto;border:1px solid var(--line);border-radius:12px;background:var(--card);user-select:none">';
+    h += '<table style="border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed;min-width:' + (nameColW + lead * colW + dim * colW + 2) + 'px;font-size:11px">';
+    // Шапка: колонка ФИО + числа месяца (как в общей таблице: выходные — серые, сегодня/праздник подсвечены)
+    h += '<thead><tr style="background:var(--panel-2)">';
+    h += '<th style="position:sticky;left:0;background:var(--panel-2);z-index:2;padding:6px 8px;text-align:left;border-bottom:1px solid var(--line);border-right:1px solid var(--line);font-size:11px;color:var(--muted);font-weight:700;width:' + nameColW + 'px">Бригада / работник</th>';
+    for (var li2 = 0; li2 < lead; li2++) h += '<th style="width:' + colW + 'px;border-bottom:1px solid var(--line);border-right:1px solid var(--line)"></th>';
+    for (var dd2 = 1; dd2 <= dim; dd2++) {
+      var dtH = new Date(y, m, dd2);
+      var isWeH = (dtH.getDay() === 0 || dtH.getDay() === 6);
+      var dsH = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(dd2).padStart(2, '0');
+      var _holH = holidayOn(dsH);
+      h += '<th title="' + dd2 + ' ' + MON_NOM[m] + (_holH ? ' · 🎉 ' + esc(_holH) : '') + '" style="width:' + colW + 'px;padding:3px 0;font-size:10px;font-weight:700;color:' + (isWeH ? '#94a3b8' : 'var(--muted)') + ';border-bottom:1px solid var(--line);text-align:center;' + (sameDay(dtH, TODAY) ? 'background:rgba(37,99,235,.1);' : (_holH ? 'background:#fef9c3;' : '')) + '">' + dd2 + '</th>';
+    }
+    h += '</tr></thead><tbody>';
+    edRows.forEach(function (rw) {
+      if (rw.master) h += schEdTr(rw.master, true);
+      rw.members.forEach(function (ss) { h += schEdTr(ss, false); });
+    });
+    h += '</tbody></table></div>';
+    h += '<div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5">В квадратиках — рабочие часы дня. Клик по ФИО слева — редактировать другого работника. В редактируемой строке: клик по будущему дню — выбрать (синий контур); дни можно перетаскивать мышью. Синяя риска снизу — изменён вручную, синяя рамка квадратика — черновое изменение (не сохранено). Прошедшие (отработанные) дни недоступны.</div>';
     h += '</div>';
     h += '<div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="sch-ed-save">💾 Сохранить</button></div>';
     modal.style.maxWidth = '';
-    modal.style.width = 'min(470px,96vw)';
+    modal.style.maxWidth = '96vw'; modal.style.width = 'min(1180px,96vw)';
     modal.innerHTML = h;
     // выбор работника
     var usEl = document.getElementById('sch-ed-user');
@@ -16652,6 +16716,7 @@
     else if (a === 'sch-day-save') { schDayEditSave(false); } // 22.09-207
     else if (a === 'sch-day-reset') { schDayEditSave(true); } // 22.09-207
     else if (a === 'sch-ed-cell') { schEdToggleCell(el.dataset.uid, el.getAttribute('data-sch-day')); } // 22.09-211
+    else if (a === 'sch-ed-urow') { var _xu2 = DB.getUser(el.dataset.uid); if (_xu2 && wkCanEdit(_xu2) && el.dataset.uid !== S.schEdUid) { S.schEdUid = el.dataset.uid; S.schEdSel = {}; schEdRender(); } } // 22.09-212
     else if (a === 'sch-ed-prev') { schEdMonthNav(-1); } // 22.09-211
     else if (a === 'sch-ed-next') { schEdMonthNav(1); } // 22.09-211
     else if (a === 'sch-ed-act') { schEdApplyAction(el.dataset.op); } // 22.09-211
