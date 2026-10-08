@@ -402,6 +402,15 @@ vm.createContext(sandbox);
   const _h2 = sandbox.SP_WORKERS.getWorker('m_smoke1').cycleHist || [];
   if (_h2[0]) sandbox.SP_WORKERS.removeCycleShift('m_smoke1', _h2[0].from);
 
+  /* ---------- 214: шапка страницы — только текущая сборка ---------- */
+  try { P.setScreen('schedules'); } catch (e) {}
+  const _crEl = elCache['screen-crumb'] || {};
+  const _crTxt = String(_crEl.textContent || '');
+  const _crTitle = String(_crEl.title || '');
+  ok(_crTxt.indexOf(' Ранее, ') === -1, '214: в шапке страницы нет цепочки «Ранее, …»');
+  ok(_crTxt.length > 0 && _crTxt.length <= 201, '214: описание в шапке короткое (не вытесняет кнопки)');
+  ok(_crTitle.indexOf('История изменений страницы') >= 0 && _crTitle.indexOf(' Ранее, ') >= 0, '214: полная история — в подсказке при наведении');
+
   console.log('----------------------------------------');
   console.log('SMOKE TOTAL: ' + passes + ' passed, ' + fails + ' failed');
   process.exit(fails ? 1 : 0);

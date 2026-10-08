@@ -15703,7 +15703,16 @@
       w.classList.toggle('open', !!(sub && sub.dataset.screen === name));
     });
     document.getElementById('screen-title').textContent = (TITLES[name] || ['', ''])[0];
-    document.getElementById('screen-crumb').textContent = (TITLES[name] || ['', ''])[1];
+    // 22.09-214: в шапке — только описание ТЕКУЩЕЙ сборки, история «Ранее, ...» не показывается
+    // (длинная цепочка вытесняла кнопки шапки); полный текст — в подсказке при наведении.
+    var _cr = String((TITLES[name] || ['', ''])[1] || '');
+    var _crFull = _cr;
+    var _cut = _cr.indexOf(' Ранее, ');
+    if (_cut > 0) _cr = _cr.slice(0, _cut);
+    if (_cr.length > 200) _cr = _cr.slice(0, 200).replace(/\s+\S*$/, '') + '…';
+    var _crEl = document.getElementById('screen-crumb');
+    _crEl.textContent = _cr;
+    _crEl.title = (_crFull && _crFull !== _cr) ? ('История изменений страницы:\n' + _crFull) : '';
     document.getElementById('sidebar').classList.remove('open');
     refresh();
   }
