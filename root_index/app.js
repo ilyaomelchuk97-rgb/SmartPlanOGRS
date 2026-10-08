@@ -776,7 +776,7 @@
     workcards: ['Карточки работ на день', 'Сборка 22.09-191 · клик по ФИО мастера в блоке «Сегодня» панели — страница с карточкой на каждую работу: адрес, виды работ, слесаря, план, крупные кнопки «Приступил»/«Закончил»'],
     factmonth: ['Факт работ по объектам', 'Сборка 22.09-192 · месячный отчёт по объектам: кто, когда и сколько фактически работал (по кнопкам «Приступил»/«Закончил»), фактические часы против плановых; перелистывание месяцев'],
     workers: ['Работники', 'Сборка 22.09-172 · окно карточки работника — ровно по ширине карточки (560px): без пустого места справа; панель и календарь — на всю ширину окна'],
-    schedules: ['Графики смен', 'Сборка 22.09-216 · окно «✏ Изменить график» — на 90% ширины экрана, по центру. Ранее, сборка 22.09-215 · дни в графике меняются индивидуально у каждого работника: мастер и слесарь — независимо друг от друга (перенос дня и сдвиг 2/2 влияют только на того, у кого их делают); текущий цикл каждому разово скопирован — календари не изменились. Ранее, сборка 22.09-213 · окно «✏ Изменить график»: дни правятся прямо в таблице у всех работников (выпадающий список убран) — клик по будущему дню сразу открывает окошко «рабочий/выходной + часы» (там же кнопка «Вернуть по графику»); день перетаскивается мышью вдоль своей строки: у графика 5/2 переносится только этот день и график дальше не перестраивается, у 2/2 — весь график едет следом; блок «Сдвиг всего графика» удалён. Ранее, сборка 22.09-212 · окно «✏ Изменить график» теперь выглядит как общая таблица «Графики смен»: шапка с числами месяца, слева колонка «Бригада / работник», цветные квадратики, и в каждом рабочем квадратике написаны часы; клик по ФИО другой строки — перейти к редактированию этого работника. Ранее, сборка 22.09-211 · «✏ Изменить график» теперь открывает отдельное окно редактора: выбор работника и месяца, клик по будущему дню — выбрать, действия (рабочий/выходной/часы на день/перенос на день назад или вперёд/сброс), перетаскивание дней мышью; для графика 2/2 — блок «Сдвиг всего графика» (весь цикл передвигается следом начиная с сегодняшнего дня, отработанные дни не меняются); изменения применяются только по кнопке «Сохранить», «Отмена» всё отбрасывает. Ранее, сборка 22.09-207 · режим «✏ Изменить график» в шапке: клик по сегодняшнему/будущему дню — рабочий/выходной и часы на день, можно применить сразу ко всей бригаде; ручные изменения видны синей риской снизу ячейки и пометкой в подсказке, «Вернуть стандарт» отменяет их; прошедшие (отработанные) дни не редактируются. Ранее, сборка 22.09-204 · при наведении на рабочий квадратик видно, сколько часов человек работает в этот день: 12-часовая смена — мастер 12 ч, слесарь 11,5 ч; 8-часовая — пн–чт 8,25 ч, пт 7 ч. Ранее, сборка 22.09-164 · добавлена кнопка «🎉 Праздничные дни» (из графика работ) — слева от выбора месяца'],
+    schedules: ['Графики смен', 'Сборка 22.09-217 · в карточке работника — количество рабочих часов за выбранный месяц (⏱ X ч), в «Графике за год» справа — колонка с рабочими часами за год; в окне «✏ Изменить график» убраны пустые столбики перед 1-м числом. Ранее, сборка 22.09-216 · окно «✏ Изменить график» — на 90% ширины экрана, по центру. Ранее, сборка 22.09-215 · дни в графике меняются индивидуально у каждого работника: мастер и слесарь — независимо друг от друга (перенос дня и сдвиг 2/2 влияют только на того, у кого их делают); текущий цикл каждому разово скопирован — календари не изменились. Ранее, сборка 22.09-213 · окно «✏ Изменить график»: дни правятся прямо в таблице у всех работников (выпадающий список убран) — клик по будущему дню сразу открывает окошко «рабочий/выходной + часы» (там же кнопка «Вернуть по графику»); день перетаскивается мышью вдоль своей строки: у графика 5/2 переносится только этот день и график дальше не перестраивается, у 2/2 — весь график едет следом; блок «Сдвиг всего графика» удалён. Ранее, сборка 22.09-212 · окно «✏ Изменить график» теперь выглядит как общая таблица «Графики смен»: шапка с числами месяца, слева колонка «Бригада / работник», цветные квадратики, и в каждом рабочем квадратике написаны часы; клик по ФИО другой строки — перейти к редактированию этого работника. Ранее, сборка 22.09-211 · «✏ Изменить график» теперь открывает отдельное окно редактора: выбор работника и месяца, клик по будущему дню — выбрать, действия (рабочий/выходной/часы на день/перенос на день назад или вперёд/сброс), перетаскивание дней мышью; для графика 2/2 — блок «Сдвиг всего графика» (весь цикл передвигается следом начиная с сегодняшнего дня, отработанные дни не меняются); изменения применяются только по кнопке «Сохранить», «Отмена» всё отбрасывает. Ранее, сборка 22.09-207 · режим «✏ Изменить график» в шапке: клик по сегодняшнему/будущему дню — рабочий/выходной и часы на день, можно применить сразу ко всей бригаде; ручные изменения видны синей риской снизу ячейки и пометкой в подсказке, «Вернуть стандарт» отменяет их; прошедшие (отработанные) дни не редактируются. Ранее, сборка 22.09-204 · при наведении на рабочий квадратик видно, сколько часов человек работает в этот день: 12-часовая смена — мастер 12 ч, слесарь 11,5 ч; 8-часовая — пн–чт 8,25 ч, пт 7 ч. Ранее, сборка 22.09-164 · добавлена кнопка «🎉 Праздничные дни» (из графика работ) — слева от выбора месяца'],
     users: ['Пользователи', 'Сборка 22.09-161 · увольнение работников: кнопка «Уволить» с датой, блок «Уволенные» с восстановлением; в истории задач ФИО остаются'],
     reports: ['Отчёты', 'Печатные формы для подписи у руководства'],
     logs: ['Журнал действий', 'Действия пользователей системы'],
@@ -8385,6 +8385,8 @@
     for (var mm = 0; mm < 12; mm++) {
       html += '<th colspan="3" style="padding:4px 8px;font-size:11px;color:var(--ink);border-bottom:1px solid var(--line);border-right:1px solid var(--line);text-align:center;font-weight:800;min-width:' + monthW + 'px">' + MON_NOM[mm] + '</th>';
     }
+    // 22.09-217: справа — колонка с количеством рабочих часов за выбранный год
+    html += '<th rowspan="2" title="Сумма рабочих часов за год" style="padding:4px 8px;font-size:10px;color:#1d4ed8;border-bottom:1px solid var(--line);text-align:center;font-weight:800;white-space:nowrap;background:var(--panel-2)">⏱ часы<br>за год</th>';
     html += '</tr><tr style="background:var(--panel-2)">';
     for (var mm2 = 0; mm2 < 12; mm2++) {
       html += '<th style="padding:2px 4px;font-size:9.5px;color:#16a34a;border-bottom:1px solid var(--line);border-right:1px solid var(--line);font-weight:800">раб</th>';
@@ -8398,18 +8400,20 @@
       html += '<td style="position:sticky;left:0;background:var(--card);z-index:1;padding:5px 10px;border-bottom:1px solid var(--line);border-right:1px solid var(--line);color:var(--ink);white-space:nowrap;width:' + nameColW + 'px;font-weight:' + (x.isM ? '800' : '600') + '">' +
         '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + (u.color || '#94a3b8') + ';margin-right:6px"></span>' +
         esc(u.full_name) + (x.isM ? ' <span style="color:var(--muted);font-weight:700;font-size:10px">(мастер)</span>' : '') + '</td>';
+      var yH = 0; // 22.09-217: рабочие часы за год
       for (var mm3 = 0; mm3 < 12; mm3++) {
         var dim = new Date(y, mm3 + 1, 0).getDate();
         var mw = 0, mo = 0, ma = 0;
         for (var dd = 1; dd <= dim; dd++) {
           var ds = y + '-' + String(mm3 + 1).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
           var st = wkDayState(u.id, ds);
-          if (st === 'work') mw++; else if (st === 'abs') ma++; else mo++;
+          if (st === 'work') { mw++; yH += schDayHours(u, ds); } else if (st === 'abs') ma++; else mo++;
         }
         html += '<td data-uid="' + esc(u.id) + '" data-month="' + (mm3 + 1) + '" style="padding:3px 4px;font-weight:800;color:#16a34a;text-align:center;border-left:1px solid var(--line);border-bottom:1px solid var(--line);background-color:' + (mw > 0 ? '#dcfce7' : '#fff') + '">' + mw + '</td>';
         html += '<td data-uid="' + esc(u.id) + '" data-month="' + (mm3 + 1) + '" style="padding:3px 4px;font-weight:800;color:#94a3b8;text-align:center;border-bottom:1px solid var(--line);background-color:' + (mo > 0 ? '#f1f5f9' : '#fff') + '">' + mo + '</td>';
         html += '<td data-uid="' + esc(u.id) + '" data-month="' + (mm3 + 1) + '" style="padding:3px 4px;font-weight:800;color:#dc2626;text-align:center;border-right:1px solid var(--line);border-bottom:1px solid var(--line);background-color:' + (ma > 0 ? '#fee2e2' : '#fff') + '">' + ma + '</td>';
       }
+      html += '<td title="Рабочие часы за ' + y + ' год" style="padding:3px 8px;font-weight:800;color:#1d4ed8;text-align:center;border-left:1px solid var(--line);border-bottom:1px solid var(--line);background-color:#eff6ff;white-space:nowrap">⏱ ' + fmtH3(yH) + ' ч</td>';
       html += '</tr>';
     });
     html += '</tbody></table></div>';
@@ -8487,8 +8491,9 @@
   }
 
   // Карточка работника: ФИО сверху, профессия под ним. Итоги — за выбранный период (месяц/год).
+  // 22.09-217: карточка показывает и КОЛИЧЕСТВО РАБОЧИХ ЧАСОВ за период (pH).
   function schBrigadePersonCard(u, isMaster, period) {
-    var pW = 0, pO = 0, pA = 0;
+    var pW = 0, pO = 0, pA = 0, pH = 0;
     if (period.kind === 'year') {
       var yy = period.y;
       for (var mm = 0; mm < 12; mm++) {
@@ -8496,7 +8501,7 @@
         for (var d = 1; d <= dim; d++) {
           var ds = yy + '-' + String(mm + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
           var st = wkDayState(u.id, ds);
-          if (st === 'work') pW++; else if (st === 'abs') pA++; else pO++;
+          if (st === 'work') { pW++; pH += schDayHours(u, ds); } else if (st === 'abs') pA++; else pO++;
         }
       }
     } else {
@@ -8504,7 +8509,7 @@
       for (var d2 = 1; d2 <= dim2; d2++) {
         var ds2 = period.y + '-' + String(period.m + 1).padStart(2, '0') + '-' + String(d2).padStart(2, '0');
         var st2 = wkDayState(u.id, ds2);
-        if (st2 === 'work') pW++; else if (st2 === 'abs') pA++; else pO++;
+        if (st2 === 'work') { pW++; pH += schDayHours(u, ds2); } else if (st2 === 'abs') pA++; else pO++;
       }
     }
     var prof = wkProfLabel(u) || '';
@@ -8516,11 +8521,13 @@
           '<span style="font-size:10.5px;color:var(--muted);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(prof) + (isMaster ? ' · мастер' : '') + '</span>' +
         '</div>' +
       '</div>' +
-      '<div style="display:flex;gap:8px;font-size:10.5px;font-weight:700;margin-top:4px">' +
+      '<div style="display:flex;gap:8px;font-size:10.5px;font-weight:700;margin-top:4px;flex-wrap:wrap">' +
         '<span style="color:#16a34a">● ' + pW + ' раб</span>' +
         '<span style="color:#94a3b8">● ' + pO + ' вых</span>' +
         '<span style="color:#dc2626">● ' + pA + ' отс</span>' +
       '</div>' +
+      // 22.09-217: рабочие часы за выбранный период (месяц на карточке месяца, год — на годовой)
+      '<div title="Количество рабочих часов за ' + (period && period.kind === 'year' ? (period.y + ' год') : (MON_NOM[period.m] + ' ' + period.y)) + '" style="font-size:11px;font-weight:800;color:#1d4ed8">⏱ ' + fmtH3(pH) + ' ч <span style="font-weight:700;color:var(--muted);font-size:9.5px">· ' + (period && period.kind === 'year' ? ('за ' + period.y + ' год') : ('за ' + MON_NOM[period.m])) + '</span></div>' +
       '</div>';
   }
 
@@ -9666,7 +9673,8 @@
     var todayK = key(TODAY);
     var y = S.schEd.y, m = S.schEd.m;
     var dim = new Date(y, m + 1, 0).getDate();
-    var lead = (new Date(y, m, 1).getDay() + 6) % 7;
+    // 22.09-217: пустые столбики «сдвига первой недели» перед 1-м числом убраны —
+    // дни сразу следуют за колонкой ФИО
     // список работников, которых можно править — все правятся прямо в таблице (без списка)
     var users = [];
     try { users = (wkVisibleUsers() || []).filter(function (x) { return x && wkCanEdit(x); }); } catch (e) {}
@@ -9738,7 +9746,6 @@
       var xw = wkData(xu.id);
       var rbg = isMaster ? 'var(--panel-2)' : 'var(--card)';
       var tds = '';
-      for (var li = 0; li < lead; li++) tds += '<td style="border-bottom:1px solid var(--line);width:' + colW + 'px"></td>';
       for (var dd = 1; dd <= dim; dd++) tds += schEdTd(xu, dd);
       return '<tr style="background:' + rbg + '">' +
         '<td style="position:sticky;left:0;background:' + rbg + ';z-index:1;padding:' + (isMaster ? '6px 8px' : '4px 8px 4px 24px') + ';border-bottom:1px solid var(--line);border-right:1px solid var(--line);white-space:nowrap;width:' + nameColW + 'px;overflow:hidden;text-overflow:ellipsis;' +
@@ -9749,11 +9756,10 @@
         '</td>' + tds + '</tr>';
     }
     h += '<div id="sch-ed-grid" style="overflow:auto;border:1px solid var(--line);border-radius:12px;background:var(--card);user-select:none">';
-    h += '<table style="border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed;min-width:' + (nameColW + lead * colW + dim * colW + 2) + 'px;font-size:11px">';
+    h += '<table style="border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed;min-width:' + (nameColW + dim * colW + 2) + 'px;font-size:11px">';
     // Шапка: колонка ФИО + числа месяца (как в общей таблице: выходные — серые, сегодня/праздник подсвечены)
     h += '<thead><tr style="background:var(--panel-2)">';
     h += '<th style="position:sticky;left:0;background:var(--panel-2);z-index:2;padding:6px 8px;text-align:left;border-bottom:1px solid var(--line);border-right:1px solid var(--line);font-size:11px;color:var(--muted);font-weight:700;width:' + nameColW + 'px">Бригада / работник</th>';
-    for (var li2 = 0; li2 < lead; li2++) h += '<th style="width:' + colW + 'px;border-bottom:1px solid var(--line);border-right:1px solid var(--line)"></th>';
     for (var dd2 = 1; dd2 <= dim; dd2++) {
       var dtH = new Date(y, m, dd2);
       var isWeH = (dtH.getDay() === 0 || dtH.getDay() === 6);

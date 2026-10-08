@@ -14,7 +14,7 @@ ok(app.indexOf('function schEdTr(xu, isMaster)') >= 0, 'schEdTr — строка
 ok(app.indexOf('Бригада / работник</th>') >= 0, 'шапка таблицы окна — «Бригада / работник»');
 ok(app.indexOf('font-size:8.5px;font-weight:800;color:#14532d') >= 0, 'часы внутри квадратика');
 ok(app.indexOf('schEdDefHours(xu.id, ds, xu)') >= 0, 'часы строки — по графику/черновику');
-ok(app.indexOf("modal.style.width = 'min(1180px,96vw)'") >= 0, 'ширина окна под таблицу (1180px)');
+ok(app.indexOf("modal.style.width = '90vw'") >= 0, 'ширина окна — 90% экрана (216)');
 
 // 2) Правка прямо в таблице (213)
 ok(app.indexOf(' data-sch-drag="1"') >= 0, 'перетаскиваемые ячейки помечены data-sch-drag');

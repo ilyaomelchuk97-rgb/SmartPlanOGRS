@@ -14,7 +14,7 @@ ok(wdb.indexOf('cycleHist: []') >= 0, 'workers_db: cycleHist в дефолтах
 
 // движок: цикл через историю сдвигов
 ok(app.indexOf('function wkCycleFrom(uid, dateStr)') >= 0, 'wkCycleFrom — цикл на дату');
-ok(app.indexOf('var cycleStr = wkCycleFrom(wd.brigade || uid, dateStr);') >= 0, 'wkIsWorking: через cycleHist');
+ok(app.indexOf('var cycleStr = wkCycleFrom(uid, dateStr);') >= 0, 'wkIsWorking: через cycleHist (своя запись, 215)');
 ok(app.indexOf('wkCycleFrom(masterId, key(d))') >= 0, 'masterCapacity: через cycleHist');
 
 // откат встроенного режима

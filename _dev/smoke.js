@@ -348,6 +348,7 @@ vm.createContext(sandbox);
   ok(eh.indexOf('<table') >= 0 && eh.indexOf('Бригада / работник') >= 0, '212: в окне таблица как в «Графиках смен»');
   ok(eh.indexOf('data-sch-day=') >= 0, '212: ячейки дней с датами');
   ok(eh.indexOf('>8,25<') >= 0 && eh.indexOf('>12<') >= 0 && eh.indexOf('>11,5<') >= 0, '212: в квадратиках написаны часы (8,25 / 12 / 11,5)');
+  ok(String(elCache.modal.style.width || '') === '90vw', '216: окно редактора — 90% ширины экрана, по центру');
   ok(eh.indexOf('sch-ed-user') === -1, '213: выпадающего списка работников нет');
   ok(eh.indexOf('Сдвиг всего графика') === -1, '213: блока «Сдвиг всего графика» нет');
   ok(eh.indexOf('Выбрано:') === -1, '213: панели «Выбрано» нет');
@@ -401,6 +402,47 @@ vm.createContext(sandbox);
   sandbox.SP_WORKERS.removeCycleShift('m_smoke1', hist1[0].from);
   const _h2 = sandbox.SP_WORKERS.getWorker('m_smoke1').cycleHist || [];
   if (_h2[0]) sandbox.SP_WORKERS.removeCycleShift('m_smoke1', _h2[0].from);
+
+  /* ---------- 215: дни каждого работника меняются индивидуально ---------- */
+  try { P.openSchEditorModal(); } catch (e) {}
+  P.schEdPatternShift(1, 'm_smoke1');
+  P.schEdSaveAll();
+  ok(P.wkDayState('m_smoke1', bnd) === 'off', '215: сдвиг мастера — его график сдвинулся');
+  ok(P.wkDayState('sl_smoke', bnd) === 'work', '215: график слесаря бригады НЕ изменился (индивидуально)');
+  (function () {
+    var raw = null; try { raw = JSON.parse(store.get('smartplan_workers_db')); } catch (e) {}
+    ok(raw && raw.schema === 2, '215: workers_db переведена на схему 2 (цикл у каждого свой)');
+    ok(raw && raw.workers && raw.workers.sl_smoke && raw.workers.sl_smoke.cycle === '2026-01-05', '215: у слесаря — собственная запись цикла (скопирована)');
+  })();
+  P.schEdPatternShift(1, 'sl_smoke');
+  P.schEdSaveAll();
+  ok(P.wkDayState('sl_smoke', bnd) === 'off', '215: сдвиг слесаря — его график сдвинулся');
+  ok((sandbox.SP_WORKERS.getWorker('m_smoke1').cycleHist || []).length === 1, '215: запись мастера слесарем не затронута');
+  sandbox.SP_WORKERS.removeCycleShift('m_smoke1', isoOf(0));
+  sandbox.SP_WORKERS.removeCycleShift('sl_smoke', isoOf(0));
+  sandbox.SP_WORKERS.setDayOverride('m_smoke1', bnd, null);
+  sandbox.SP_WORKERS.setDayOverride('sl_smoke', bnd, null);
+
+  /* ---------- 217: часы за месяц/год; в окне нет пустых столбиков ---------- */
+  try { P.openSchEditorModal(); } catch (e) {}
+  const eh217 = String(elCache.modal && elCache.modal.__v || '');
+  ok(eh217.indexOf('Бригада / работник</th><th title="') >= 0, '217: в окне редактора нет пустых столбиков перед 1-м числом');
+  try { P.setScreen('schedules'); } catch (e) {}
+  const hv217 = viewHtml();
+  const _fmt2 = v => String(Math.round((+v || 0) * 1000) / 1000).replace('.', ',');
+  const _u2 = { id: 'm_smoke2', role: 'master' }; // ожидание считаем тем же движком (учёт ручных изменений)
+  let expM = 0;
+  { const dimM = new Date(NOW.getFullYear(), NOW.getMonth() + 1, 0).getDate();
+    for (let d = 1; d <= dimM; d++) { const ds = NOW.getFullYear() + '-' + ('0' + (NOW.getMonth() + 1)).slice(-2) + '-' + ('0' + d).slice(-2);
+      if (P.wkDayState('m_smoke2', ds) === 'work') expM += P.schDayHours(_u2, ds); } }
+  ok(hv217.indexOf('⏱ ' + _fmt2(expM) + ' ч') >= 0, '217: карточка — часы за месяц (' + _fmt2(expM) + ' ч)');
+  ok(hv217.indexOf('Количество рабочих часов за') >= 0, '217: у карточек — подсказка про часы за период');
+  let expY = 0;
+  for (let mm = 0; mm < 12; mm++) { const dimY = new Date(NOW.getFullYear(), mm + 1, 0).getDate();
+    for (let d = 1; d <= dimY; d++) { const ds = NOW.getFullYear() + '-' + ('0' + (mm + 1)).slice(-2) + '-' + ('0' + d).slice(-2);
+      if (P.wkDayState('m_smoke2', ds) === 'work') expY += P.schDayHours(_u2, ds); } }
+  ok(hv217.indexOf('⏱ часы') >= 0, '217: в годовой таблице — колонка «часы за год»');
+  ok(hv217.indexOf('⏱ ' + _fmt2(expY) + ' ч') >= 0, '217: часы за год посчитаны (' + _fmt2(expY) + ' ч)');
 
   /* ---------- 214: шапка страницы — только текущая сборка ---------- */
   try { P.setScreen('schedules'); } catch (e) {}
