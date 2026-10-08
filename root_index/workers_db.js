@@ -7,7 +7,8 @@
    Ключ работника = id пользователя из users_db.
    Формат: { schema: 1, workers: { uid: {
      hours: 8|12, sched: '5/2'|'2/2', cycle: 'YYYY-MM-DD',
-     brigade: null|masterUid, comment: '', abs: { 'YYYY-MM-DD': 'причина' }
+     brigade: null|masterUid, comment: '', abs: { 'YYYY-MM-DD': 'причина' },
+     overrides: { 'YYYY-MM-DD': { s:'work'|'off', h:часы|null } } — 22.09-207: ручные изменения дней
    } } }
    ============================================================ */
 window.SP_WORKERS = (function () {
@@ -39,7 +40,7 @@ window.SP_WORKERS = (function () {
     return memoryDB;
   }
   function defaults() {
-    return { hours: 8, sched: '5/2', cycle: '2026-01-05', brigade: null, prof: '', comment: '', abs: {} };
+    return { hours: 8, sched: '5/2', cycle: '2026-01-05', brigade: null, prof: '', comment: '', abs: {}, overrides: {} };
   }
   // Настройки работника (с значениями по умолчанию — копия)
   function getWorker(uid) {
@@ -62,6 +63,24 @@ window.SP_WORKERS = (function () {
     else w.abs[dateStr] = String(comment || '');
     return setWorker(uid, { abs: w.abs });
   }
+  /* 22.09-207: ручное изменение конкретного дня графика смен.
+     ov = { s:'work'|'off', h:часы|null } — зафиксировать состояние дня;
+     ov = null — вернуть день к стандартному графику. */
+  function setDayOverride(uid, dateStr, ov) {
+    var w = getWorker(uid);
+    if (!w.overrides) w.overrides = {};
+    if (ov && ov.s === 'work') {
+      var h = parseFloat(String(ov.h).replace(',', '.'));
+      var rec = { s: 'work' };
+      if (isFinite(h) && h > 0 && h <= 24) rec.h = Math.round(h * 100) / 100;
+      w.overrides[dateStr] = rec;
+    } else if (ov && ov.s === 'off') {
+      w.overrides[dateStr] = { s: 'off' };
+    } else {
+      delete w.overrides[dateStr];
+    }
+    return setWorker(uid, { overrides: w.overrides });
+  }
   function reloadFromCloud(db) {
     if (db && db.workers) {
       memoryDB = { schema: SCHEMA, workers: db.workers };
@@ -83,7 +102,7 @@ window.SP_WORKERS = (function () {
 
   return {
     KEY: KEY, SCHEMA: SCHEMA,
-    getWorker: getWorker, setWorker: setWorker, setAbsence: setAbsence,
+    getWorker: getWorker, setWorker: setWorker, setAbsence: setAbsence, setDayOverride: setDayOverride,
     reloadFromCloud: reloadFromCloud
   };
 })();

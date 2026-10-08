@@ -153,7 +153,7 @@ window.SP_WORK = (function () {
       periodicity_dev:      0,           // Отклонение, дней (шаг = периодичность − отклонение) — Сборка 22.09-100
       periodicity_unit:     'мес',       // 'мес' | 'дней'
       periodicity_depends_on: [],        // id работ из «Виды работ»
-      periodicity_basis:    'prev_date', // 'prev_date' | 'commissioning_date'
+      periodicity_basis:    'prev_date', // 'prev_date' | 'commissioning_date' | 'service_life_end' (22.09-209)
       joint_with:           [],          // 22.09-134: массив id работ, проводимых совместно
       operations:           [],          // список значений
       indicators:           [],          // контролируемые показатели
@@ -207,7 +207,7 @@ window.SP_WORK = (function () {
       periodicity_dev:           toNum(d.periodicity_dev, 0),
       periodicity_unit:        (d.periodicity_unit === 'дней' ? 'дней' : 'мес'),
       periodicity_depends_on:  toArr(d.periodicity_depends_on),
-      periodicity_basis:       (d.periodicity_basis === 'commissioning_date' ? 'commissioning_date' : 'prev_date'),
+      periodicity_basis:       (['prev_date', 'commissioning_date', 'service_life_end'].indexOf(d.periodicity_basis) >= 0 ? d.periodicity_basis : 'prev_date'), // 22.09-209: + окончание срока службы
       joint_with:              toArr(d.joint_with), // 22.09-134: массив id; строка из старой записи → [строка]
       operations:              toArr(d.operations),
       indicators:              toArr(d.indicators),

@@ -249,6 +249,9 @@
   // Для 2/2 cycle берём общий на бригаду — у мастера бригады (если работник в бригаде).
   function wkIsWorking(uid, dateStr) {
     var wd = wkData(uid);
+    // 22.09-207: ручное изменение дня (рабочий/выходной) — важнее шаблона графика
+    var ov = wd.overrides && wd.overrides[dateStr];
+    if (ov && (ov.s === 'work' || ov.s === 'off')) return ov.s === 'work';
     var sched = wd.sched || '5/2';
     var parts = dateStr.split('-');
     var d = new Date(+parts[0], +parts[1] - 1, +parts[2]);
@@ -299,6 +302,10 @@
     var wd = wkData(masterId);
     var d = offToDate(off);
     if (wd.abs && wd.abs[key(d)] !== undefined) return 0; // работник отсутствует (комментарий может быть пустым)
+    // 22.09-207: ручное изменение дня (выходной — 0 часов; рабочий — заданные часы)
+    var _mcOv = wd.overrides && wd.overrides[key(d)];
+    if (_mcOv && _mcOv.s === 'off') return 0;
+    if (_mcOv && _mcOv.s === 'work' && isFinite(+_mcOv.h) && +_mcOv.h > 0) return +_mcOv.h;
     // ОДИНОЧНЫЙ мастер (в бригаде не поставлены люди): норма дня — всегда из его
     // карточки (8 или 12 ч), график 2/2 норму НЕ обнуляет — он работает каждый день.
     var solo = wkBrigadeOf(masterId).length === 0;
@@ -759,19 +766,19 @@
   var TITLES = {
     dashboard: ['Панель мониторинга', 'Сборка 22.09-199 · выбор мастера для просмотра КПД перенесён внутрь блока «⚡ КПД мастеров»: выпадающий список — прямо в заголовке этой карточки, рядом с выбором месяца (вверху страницы его больше нет). Ранее, сборка 22.09-193 · выпадающий список «КПД мастеров» (админ, начальник СЭОГС, начальник участка, старший мастер): все показатели панели, списки по нажатию на цифры и блок «Сегодня» — по одному выбранному мастеру или по всем сразу. Ранее, сборка 22.09-190 · факт работы на объекте: кнопки «▶ Приступил» и «■ Закончил» в блоке «Сегодня» (пишут точное время, «Закончил» закрывает задачу); у мастера бейдж «🔨 на объекте с …»; время факта — в списаниях и в карточке задачи'],
     calendar: ['Планирование / Календарь', 'Сборка 22.09-198 · строки календаря — только мастера: начальники участков и старшие мастера в «Планировании» больше не показываются. Ранее, сборка 22.09-181 · при отметке задачи выполненной (галочка) проставляется дата закрытия — закрытые задачи собраны на новой странице «Списания»'],
-    graphs: ['Планирование / График работ', 'Сборка 22.09-202 · подсказка при наведении на треугольник: только группа работ (без вида работ), для каждой работы — трудоёмкость; для выполненных — ещё и фактическая трудоёмкость. Ранее, сборка 22.09-201 · в настройке периодичности год в дате первого проведения нельзя ввести вручную длиннее 4 цифр. Ранее, сборка 22.09-200 · «Трудоёмкость графика»: часы в колонках трудоёмкости — до 3 знаков после запятой; таблица «По объектам» внизу убрана, осталась только кнопка «📍 По объектам» (переименована из «По объектам — новое окно») — открывает отдельное окно. Ранее, сборка 22.09-196 · в «Трудоёмкости графика» кнопка «📍 По объектам — новое окно»: трудоёмкость по каждому объекту за год / месяц / период месяцев; нажатие на объект — его карточка с работами, датами и часами выбранного периода. Ранее, сборка 22.09-195 · в окне «Настроить периодичность» убран АВТОМАТИЧЕСКИЙ подбор работ при открытии — работы на объект добавляются только вручную (кнопки «⚡» и «+ работа»). Ранее, сборка 22.09-164 · кнопка «Трудоёмкость графика» — слева от «Фильтра»; «Праздничные дни» перенесены в «Графики смен»'],
+    graphs: ['Планирование / График работ', 'Сборка 22.09-209 · планирование от окончания срока службы: у вида работ реквизит отсчёта «Дата окончания срока службы оборудования» — работа ставится разово к дате из карточки объекта (в её год), дальше повторяется по периодичности (например, +5 лет); если дата ещё в будущем — в текущем году проведений нет и это не ошибка. Ранее, сборка 22.09-202 · подсказка при наведении на треугольник: только группа работ (без вида работ), для каждой работы — трудоёмкость; для выполненных — ещё и фактическая трудоёмкость. Ранее, сборка 22.09-201 · в настройке периодичности год в дате первого проведения нельзя ввести вручную длиннее 4 цифр. Ранее, сборка 22.09-200 · «Трудоёмкость графика»: часы в колонках трудоёмкости — до 3 знаков после запятой; таблица «По объектам» внизу убрана, осталась только кнопка «📍 По объектам» (переименована из «По объектам — новое окно») — открывает отдельное окно. Ранее, сборка 22.09-196 · в «Трудоёмкости графика» кнопка «📍 По объектам — новое окно»: трудоёмкость по каждому объекту за год / месяц / период месяцев; нажатие на объект — его карточка с работами, датами и часами выбранного периода. Ранее, сборка 22.09-195 · в окне «Настроить периодичность» убран АВТОМАТИЧЕСКИЙ подбор работ при открытии — работы на объект добавляются только вручную (кнопки «⚡» и «+ работа»). Ранее, сборка 22.09-164 · кнопка «Трудоёмкость графика» — слева от «Фильтра»; «Праздничные дни» перенесены в «Графики смен»'],
     map: ['Карта маршрутов', 'Сборка 22.09-197 · порядок заданий на день после «Оптимизации маршрутов» сохраняется — в том же порядке работы показываются и в «Планировании» на этот день (и в списке «Задания на день» при повторном входе). Ранее, сборка 22.09-182 · техническая чистка кода: удалён недостижимый код старых роутеров и виджетов (страница стала легче, поведение не изменилось)'],
-    objmap: ['Карта объектов', 'Сборка 22.09-203 · в карточке объекта убран блок «Ответственный» из атрибутов: строка «Ответственный за безопасную эксплуатацию» и история назначений больше не показываются (поле «Ответственный» под адресом осталось). Ранее, сборка 22.09-184 · вид телеметрии «ПТК "Эксорт"» переименован в «ПТК "Эскорт"» — объекты и работы обновлены автоматически'],
+    objmap: ['Карта объектов', 'Сборка 22.09-209 · в карточке объекта (атрибуты, раздел «Идентификация») — новое поле «Дата окончания срока службы»: заполняется вручную, используется для планирования работ «от окончания срока службы оборудования». Ранее, сборка 22.09-203 · в карточке объекта убран блок «Ответственный» из атрибутов: строка «Ответственный за безопасную эксплуатацию» и история назначений больше не показываются (поле «Ответственный» под адресом осталось). Ранее, сборка 22.09-184 · вид телеметрии «ПТК "Эксорт"» переименован в «ПТК "Эскорт"» — объекты и работы обновлены автоматически'],
     testmap: ['Тест проезда', 'Сборка 22.09-176 · исправлена загрузка 3D-планеты (был ошибочный адрес библиотеки карты) + добавлен запасной сервер, если первый не отвечает'],
     testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
     livemap: ['Карта местоположения', 'Сборка 22.09-180 · маршруты, «весь маршрут ~N мин» и расписание дня считает единый роутер BRouter car (economic), время — с учётом пробок: совпадает с картой маршрутов'],
     perms: ['Разрешения', 'Система разрешений на производство работ'],
-    refs: ['Справочники', 'Сборка 22.09-206 · карточка вида работ ГРП: удалён блок «Виды работ, от которых отсчёт периодичности»; «Проводится совместно» теперь выбирает группы работ (выравнивание совместных проведений в графике — по группам, старые записи по видам работ учитываются и видны с ⚠). Ранее, сборка 22.09-205 · карточка вида работ ГРП: добавлены поля «Норма времени» (чел/ч на единицу, можно с запятой) и «Единица измерения» (объект, шт, м, м2, км, компл., ч), значения сохраняются и участвуют в расчёте трудоёмкости. Ранее, сборка 22.09-162 · карточка работы ГРП: «Проводится совместно» теперь выбирается в отдельном окне (кнопка «📋 Выбор работ») — галочки, «Сохранить»/«Отмена»'],
+    refs: ['Справочники', 'Сборка 22.09-209 · карточка вида работ ГРП: в «Реквизите отсчёта для выполнения работ» добавлен вариант «Дата окончания срока службы оборудования» (дата берётся из одноимённого поля карточки объекта). Ранее, сборка 22.09-208 · надгруппы работ: в карточке вида работ добавлено поле «Надгруппа» (группа групп работ, необязательно) — справочник «Виды работ» группируется в три уровня: Надгруппа → Группа → Подгруппа; старые записи без надгруппы отображаются как раньше. Ранее, сборка 22.09-206 · карточка вида работ ГРП: удалён блок «Виды работ, от которых отсчёт периодичности»; «Проводится совместно» теперь выбирает группы работ (выравнивание совместных проведений в графике — по группам, старые записи по видам работ учитываются и видны с ⚠). Ранее, сборка 22.09-205 · карточка вида работ ГРП: добавлены поля «Норма времени» (чел/ч на единицу, можно с запятой) и «Единица измерения» (объект, шт, м, м2, км, компл., ч), значения сохраняются и участвуют в расчёте трудоёмкости. Ранее, сборка 22.09-162 · карточка работы ГРП: «Проводится совместно» теперь выбирается в отдельном окне (кнопка «📋 Выбор работ») — галочки, «Сохранить»/«Отмена»'],
     writeoffs: ['Списания', 'Сборка 22.09-194 · в окне списания убрана дублирующая строка «Работа» под адресом — работа, произведённая на объекте, выбирается кнопками в блоке «Виды работ». Ранее, сборка 22.09-190 · в списке и в карточке списания — фактическое время работы (⏱ начал / закончил / сколько часов) по кнопкам мастера «Приступил»/«Закончил» из панели мониторинга'],
     workcards: ['Карточки работ на день', 'Сборка 22.09-191 · клик по ФИО мастера в блоке «Сегодня» панели — страница с карточкой на каждую работу: адрес, виды работ, слесаря, план, крупные кнопки «Приступил»/«Закончил»'],
     factmonth: ['Факт работ по объектам', 'Сборка 22.09-192 · месячный отчёт по объектам: кто, когда и сколько фактически работал (по кнопкам «Приступил»/«Закончил»), фактические часы против плановых; перелистывание месяцев'],
     workers: ['Работники', 'Сборка 22.09-172 · окно карточки работника — ровно по ширине карточки (560px): без пустого места справа; панель и календарь — на всю ширину окна'],
-    schedules: ['Графики смен', 'Сборка 22.09-204 · при наведении на рабочий квадратик видно, сколько часов человек работает в этот день: 12-часовая смена — мастер 12 ч, слесарь 11,5 ч; 8-часовая — пн–чт 8,25 ч, пт 7 ч. Ранее, сборка 22.09-164 · добавлена кнопка «🎉 Праздничные дни» (из графика работ) — слева от выбора месяца'],
+    schedules: ['Графики смен', 'Сборка 22.09-207 · режим «✏ Изменить график» в шапке: клик по сегодняшнему/будущему дню — рабочий/выходной и часы на день, можно применить сразу ко всей бригаде; ручные изменения видны синей риской снизу ячейки и пометкой в подсказке, «Вернуть стандарт» отменяет их; прошедшие (отработанные) дни не редактируются. Ранее, сборка 22.09-204 · при наведении на рабочий квадратик видно, сколько часов человек работает в этот день: 12-часовая смена — мастер 12 ч, слесарь 11,5 ч; 8-часовая — пн–чт 8,25 ч, пт 7 ч. Ранее, сборка 22.09-164 · добавлена кнопка «🎉 Праздничные дни» (из графика работ) — слева от выбора месяца'],
     users: ['Пользователи', 'Сборка 22.09-161 · увольнение работников: кнопка «Уволить» с датой, блок «Уволенные» с восстановлением; в истории задач ФИО остаются'],
     reports: ['Отчёты', 'Печатные формы для подписи у руководства'],
     logs: ['Журнал действий', 'Действия пользователей системы'],
@@ -8090,6 +8097,9 @@
     // Управление: переключатель месяца + режим отображения.
     // 22.09-164: «Праздничные дни» перенесены сюда из графика работ — слева от выбора месяца
     html += '<button type="button" class="btn sm" data-action="sch-holidays" style="margin-right:8px" title="Праздничные дни (РБ) — список нерабочих дней; учитываются в графиках работ">🎉 Праздничные дни</button>';
+    // 22.09-207: режим «Изменить график» — правка будущих дней (рабочий/выходной, часы, бригада)
+    var _canAnySch = users.some(function (u) { return wkCanEdit(u); });
+    if (_canAnySch) html += '<button type="button" class="btn sm" data-action="sch-edit-toggle" style="margin-right:8px;' + (S.schEdit ? 'background:#dbeafe;color:#1d4ed8;border-color:#2563eb;font-weight:700' : '') + '" title="Режим изменения графика: клик по будущему дню — сделать рабочим/выходным, задать часы, можно сразу всей бригаде. Отработанные (прошедшие) дни не редактируются">' + (S.schEdit ? '✏ Изменение: вкл' : '✏ Изменить график') + '</button>';
     html += '<span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">';
     html += '<button type="button" class="btn sm" data-action="sch-month-prev" title="Предыдущий месяц">‹</button>';
     html += '<b data-action="sch-month-label" style="font-size:13px;color:var(--ink);min-width:140px;text-align:center">' + MON_NOM[wm.m] + ' ' + wm.y + '</b>';
@@ -8199,7 +8209,7 @@
       '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#f1f5f9;border:1px solid #cbd5e1"></span>выходной по графику</span>' +
       '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#fee2e2;border:1px solid #dc2626"></span>отсутствие (отпуск/больничный)</span>' +
       '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#fef9c3;border:1px solid #eab308"></span>праздник</span>' + // 22.09-109
-      '<span style="color:#94a3b8">· клик по ячейке — отметить/снять отсутствие</span>' +
+      (S.schEdit ? '<span style="color:#1d4ed8">· ✏ режим изменения: клик по будущему дню — рабочий/выходной и часы; прошедшие дни заблокированы</span>' : '<span style="color:#94a3b8">· клик по ячейке — отметить/снять отсутствие</span>') +
       '</div>';
     // Карточки работников по бригадам внизу — ФИО + профессия, мастер и слесари рядом,
     // каждый мастер с новой строки. Итоги считаются за выбранный период.
@@ -8258,6 +8268,9 @@
   // 8-часовая смена (5/2): мастер и слесарь — пн–чт 8,25 ч, пт 7 ч.
   function schDayHours(user, ds) {
     var wd = wkData(user.id);
+    // 22.09-207: если для дня вручную заданы часы — берём их
+    var ov = wd.overrides && wd.overrides[ds];
+    if (ov && ov.s === 'work' && isFinite(+ov.h) && +ov.h > 0) return +ov.h;
     if (+wd.hours === 12) return (user && user.role === 'slesar') ? 11.5 : 12;
     var p = String(ds).split('-');
     var dow = new Date(+p[0], +p[1] - 1, +p[2]).getDay(); // 5 — пятница
@@ -8274,13 +8287,22 @@
               : (esc(ds) + ' · выходной');
     if (_hol) title += ' · 🎉 ' + esc(_hol) + ' (праздник)';
     // Подсветка «сегодня» — только снизу и слева (inset 0/2px), чтобы не ломать общую сетку.
-    var ring = isToday ? ';box-shadow:inset 2px 0 0 0 rgba(37,99,235,.4),inset 0 2px 0 0 rgba(37,99,235,.4)' : '';
+    // 22.09-207: дни с ручным изменением графика — синяя риска снизу + пометка в подсказке
+    var _ov = (wkData(user.id).overrides || {})[ds];
+    var _sh = [];
+    if (isToday) _sh.push('inset 2px 0 0 0 rgba(37,99,235,.4)', 'inset 0 2px 0 0 rgba(37,99,235,.4)');
+    if (_ov && _ov.s) _sh.push('inset 0 -2px 0 0 rgba(37,99,235,.85)');
+    var ring = _sh.length ? ';box-shadow:' + _sh.join(',') : '';
+    if (_ov && _ov.s) title += ' · ✏ изменён вручную';
     var act = state === 'abs' ? 'wk-open-day' : 'wk-quick-abs';
+    // 22.09-207: в режиме «Изменить график» клик по дню открывает редактор дня (сегодня и будущие)
+    var canDay = !!(S.schEdit && can && ds >= key(TODAY));
+    if (canDay) act = 'sch-day-edit';
     // Полная окантовка 4-х сторон (border:1px solid). При border-spacing:0 и border-collapse:separate
     // на стыке двух одинаковых ячеек получается 2px (1px бордюр одной + 1px другой).
-    return '<td data-action="' + (can ? act : '') + '" data-uid="' + esc(user.id) + '" data-ds="' + ds + '"' +
-      (can ? ' role="button"' : '') +
-      ' title="' + title + '" style="width:' + colW + 'px;height:22px;padding:0;background:' + bg + ';background-color:' + bg + ';border:1px solid ' + bd + ';cursor:' + (can ? 'pointer' : 'default') + ring + '"></td>';
+    return '<td data-action="' + (canDay || can ? act : '') + '" data-uid="' + esc(user.id) + '" data-ds="' + ds + '"' +
+      (canDay || can ? ' role="button"' : '') +
+      ' title="' + title + '" style="width:' + colW + 'px;height:22px;padding:0;background:' + bg + ';background-color:' + bg + ';border:1px solid ' + bd + ';cursor:' + (canDay || can ? 'pointer' : 'default') + ring + '"></td>';
   }
   // Под каждой бригадой — итог: рабочих / выходных / отсутствий за месяц
   // Годовая таблица графика смен — 12 месяцев × N работников.
@@ -8516,6 +8538,9 @@
     });
     // Год: селектор
     var ys = v.querySelector('select[data-action="sch-year"]');
+    // 22.09-207: вкл/выкл режима изменения графика
+    var eT = v.querySelector('[data-action="sch-edit-toggle"]');
+    if (eT) eT.addEventListener('click', function () { S.schEdit = !S.schEdit; renderSchedules(); });
     if (ys) ys.addEventListener('change', function () {
       S.schYear = parseInt(ys.value, 10) || new Date().getFullYear();
       renderSchedules();
@@ -9360,6 +9385,87 @@
     overlay.classList.add('show');
   }
 
+  /* 22.09-207: РЕДАКТОР ДНЯ В «ГРАФИКАХ СМЕН» (режим «✏ Изменить график»).
+     Позволяет для СЕГОДНЯ и БУДУЩИХ дней (отработанные не трогаем):
+     — сделать день рабочим (добавить рабочий день к графику) или выходным
+       (перенести рабочий день: здесь выходной, на другой день — рабочий);
+     — задать/изменить часы на этот день (снижение или добавление);
+     — применить изменение сразу ко всей бригаде.
+     Хранится вручную заданное исключение: SP_WORKERS.setDayOverride. */
+  function schBrigadeOfUser(u) { // бригада работника: он сам + слесари его бригады (для мастера)
+    if (!u) return [];
+    var list = [u];
+    if (u.role === 'master') {
+      (DB.getUsers() || []).forEach(function (x) {
+        if (x && x.role === 'slesar' && x.active && wkData(x.id).brigade === u.id) list.push(x);
+      });
+    } else if (u.role === 'slesar') {
+      var mid = wkData(u.id).brigade;
+      if (mid && DB.getUser(mid)) list.push(DB.getUser(mid));
+    }
+    return list;
+  }
+  function openSchDayEditModal(uid, ds) {
+    var u = DB.getUser(uid); if (!u) return;
+    var todayK = key(TODAY);
+    if (ds < todayK) { toast('warn', '⚠ Отработанные (прошедшие) дни не редактируются'); return; }
+    var wd = wkData(uid);
+    var ov = (wd.overrides || {})[ds] || null;
+    var baseState = wkDayState(uid, ds); // с учётом ручного изменения
+    var curState = (baseState === 'abs') ? 'work' : baseState; // редактор — про рабочий/выходной
+    var curH = schDayHours(u, ds);
+    var obr = ov || (wd.overrides && wd.overrides[ds]);
+    var brig = schBrigadeOfUser(u);
+    S.schDay = { uid: uid, ds: ds };
+    var d = new Date(ds + 'T00:00:00');
+    var dateStr = d.getDate() + ' ' + MON[d.getMonth()] + ' ' + d.getFullYear() + ' года';
+    modal.style.maxWidth = '';
+    modal.style.width = 'min(430px,94vw)';
+    modal.innerHTML = '<div class="modal-h"><h3>✏ Изменение дня — ' + esc(u.full_name) + '</h3><button class="x" data-action="close-modal">×</button></div>' +
+      '<div class="modal-b">' +
+      '<div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:10px">' + dateStr + '</div>' +
+      '<div style="display:flex;gap:8px;margin-bottom:12px">' +
+      '<label class="cb" style="flex:1;display:flex;align-items:center;gap:6px;justify-content:center;padding:9px 8px;border:1px solid ' + (curState === 'work' ? '#16a34a;background:#dcfce7' : 'var(--line);background:#fff') + ';border-radius:8px;cursor:pointer;font-weight:700;font-size:13px"><input type="radio" name="sch-day-state" id="sch-day-work"' + (curState === 'work' ? ' checked' : '') + '> Рабочий</label>' +
+      '<label class="cb" style="flex:1;display:flex;align-items:center;gap:6px;justify-content:center;padding:9px 8px;border:1px solid ' + (curState === 'off' ? '#64748b;background:#f1f5f9' : 'var(--line);background:#fff') + ';border-radius:8px;cursor:pointer;font-weight:700;font-size:13px"><input type="radio" name="sch-day-state" id="sch-day-off"' + (curState === 'off' ? ' checked' : '') + '> Выходной</label>' +
+      '</div>' +
+      '<div class="fld" style="max-width:200px"><label>Часов в этот день</label><input id="sch-day-hours" type="text" inputmode="decimal" value="' + String(curH).replace('.', ',') + '" placeholder="напр.: 8,25"></div>' +
+      '<div style="font-size:11px;color:var(--muted);margin:-4px 0 10px">Учитывается, если день рабочий: можно снизить или добавить часы.</div>' +
+      (brig.length > 1 ? '<label class="cb" style="display:flex;align-items:center;gap:7px;padding:8px 10px;border:1px dashed var(--line);border-radius:8px;font-size:12.5px;font-weight:700;color:var(--ink);cursor:pointer"><input type="checkbox" id="sch-day-brig"> Применить ко всей бригаде (' + brig.length + ' чел.)</label>' : '') +
+      (obr ? '<div style="margin-top:10px;font-size:11.5px;color:#1d4ed8;font-weight:600">✏ Для этого дня уже есть ручное изменение — кнопка «Вернуть стандарт» вернёт обычный график.</div>' : '') +
+      '</div>' +
+      '<div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button>' +
+      (obr ? '<button class="btn" data-action="sch-day-reset" style="color:var(--red);border-color:var(--red)">Вернуть стандарт</button>' : '') +
+      '<button class="btn primary" data-action="sch-day-save">Сохранить</button></div>';
+    overlay.classList.add('show');
+  }
+  function schDayEditSave(reset) {
+    if (!S.schDay || !window.SP_WORKERS) return;
+    var uid = S.schDay.uid, ds = S.schDay.ds;
+    var u = DB.getUser(uid); if (!u) { S.schDay = null; return; }
+    var uids = [uid];
+    var brigCb = document.getElementById('sch-day-brig');
+    if (brigCb && brigCb.checked === true) {
+      uids = schBrigadeOfUser(u).map(function (x) { return x.id; });
+    }
+    if (reset) {
+      uids.forEach(function (x) { SP_WORKERS.setDayOverride(x, ds, null); });
+      toast('ok', '✓ День возвращён к стандартному графику' + (uids.length > 1 ? ' у ' + uids.length + ' чел.' : ''));
+    } else {
+      var st = (document.getElementById('sch-day-off') || {}).checked ? 'off' : 'work';
+      var hRaw = ((document.getElementById('sch-day-hours') || {}).value || '').trim().replace(',', '.');
+      var h = (hRaw === '') ? null : parseFloat(hRaw);
+      if (h != null && (!isFinite(h) || h <= 0 || h > 24)) { toast('err', 'Часы — от 0 до 24 (например 8,25)'); return; }
+      uids.forEach(function (x) { SP_WORKERS.setDayOverride(x, ds, { s: st, h: (st === 'work' ? h : null) }); });
+      logAction(st === 'work' ? 'График смен: день сделан рабочим' : 'График смен: день сделан выходным',
+        (u.full_name || uid) + ' · ' + ds + (st === 'work' && h != null ? ' · ' + String(h).replace('.', ',') + ' ч' : '') + (uids.length > 1 ? ' · бригада ' + uids.length + ' чел.' : ''));
+      toast('ok', '✓ Изменение сохранено' + (uids.length > 1 ? ' для ' + uids.length + ' чел. бригады' : ''));
+    }
+    S.schDay = null;
+    overlay.classList.remove('show');
+    modal.style.width = ''; modal.style.maxWidth = '';
+    if (S.screen === 'schedules') renderSchedules();
+  }
+
   function renderPerms() {
     var view = document.getElementById('view');
     var permsUrl = 'https://178.124.167.87:11442/orgs-rep/100308563/6393';
@@ -9835,13 +9941,17 @@
       var g = normGroupPath(w.group) || 'Без группы';
       var parts = g.split(' / ');
       tops[parts[0]] = 1;
-      if (parts.length > 1) { var s = parts.slice(1).join(' / '); (subs[parts[0]] = subs[parts[0]] || {})[s] = 1; }
+      // 22.09-208: подгруппы собираем под узлом ЛЮБОГО уровня (надгруппа/группа)
+      for (var i = 0; i < parts.length - 1; i++) {
+        (subs[parts[i]] = subs[parts[i]] || {})[parts.slice(i + 1).join(' / ')] = 1;
+      }
     });
     var ru = function (a, b) { return a.localeCompare(b, 'ru'); };
     return {
       tops: Object.keys(tops).sort(ru),
       subsFor: function (top) {
-        var t = normGroupPath(top).split(' / ')[0];
+        var tSegs = normGroupPath(top).split(' / ');
+        var t = tSegs[tSegs.length - 1] || '';
         return t ? Object.keys(subs[t] || {}).sort(ru) : [];
       }
     };
@@ -11526,14 +11636,23 @@
     var title = (mode === 'edit' ? 'Редактирование работы' : 'Новая работа') + ' · ' + area;
     // 22.09-112: «Группа работ» — два поля (группа + необязательная подгруппа);
     // в базе это по-прежнему одна строка group = «Группа / Подгруппа».
+    // 22.09-208: добавлена НАДГРУППА (группа групп работ) — третье поле сверху,
+    // путь становится «Надгруппа / Группа / Подгруппа»; старые работы с 1–2 сегментами не меняются.
     var grpPreset = S.workPresetGroup || ''; S.workPresetGroup = '';
-    var grpVal = '', subVal = '';
+    var grpVal = '', subVal = '', supVal = '';
     var grpSrc = normGroupPath(w && w.group ? w.group : grpPreset);
-    if (grpSrc) { var grpSegs = grpSrc.split(' / '); grpVal = grpSegs[0]; subVal = grpSegs.slice(1).join(' / '); }
+    // 22.09-208: три уровня — «Надгруппа / Группа / Подгруппа»; данные с 1–2 сегментами — как раньше
+    if (grpSrc) {
+      var grpSegs = grpSrc.split(' / ');
+      if (grpSegs.length >= 3) { supVal = grpSegs[0]; grpVal = grpSegs[1]; subVal = grpSegs.slice(2).join(' / '); }
+      else { grpVal = grpSegs[0] || ''; subVal = grpSegs.slice(1).join(' / '); }
+    }
     var grpLists = groupSuggest(area);
     function dlOptsHtml(arr) { return arr.map(function (v) { return '<option value="' + esc(v) + '">'; }).join(''); }
     var h = '<div class="modal-h"><h3>' + esc(title) + '</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">';
-    h += '<div class="attr-row"><div class="fld"><label>Группа работ</label><input id="wm-group" list="wm-grp-dl" autocomplete="off" value="' + esc(grpVal) + '" placeholder="Напр.: Благоустройство"><datalist id="wm-grp-dl">' + dlOptsHtml(grpLists.tops) + '</datalist></div>';
+    h += '<div class="attr-row">' +
+      '<div class="fld"><label>Надгруппа <span style="color:#94a3b8;font-weight:500">(группа групп работ — необязательно)</span></label><input id="wm-supergroup" list="wm-sup-dl" autocomplete="off" value="' + esc(supVal) + '" placeholder="Без надгруппы"><datalist id="wm-sup-dl">' + dlOptsHtml(grpLists.tops) + '</datalist></div>' +
+      '<div class="fld"><label>Группа работ</label><input id="wm-group" list="wm-grp-dl" autocomplete="off" value="' + esc(grpVal) + '" placeholder="Напр.: Благоустройство"><datalist id="wm-grp-dl">' + dlOptsHtml(grpLists.tops) + '</datalist></div>';
     h += '<div class="fld"><label>Подгруппа <span style="color:#94a3b8;font-weight:500">(необязательно, напр.: Лето / Зима)</span></label><input id="wm-subgroup" list="wm-sub-dl" autocomplete="off" value="' + esc(subVal) + '" placeholder="Без подгруппы"><datalist id="wm-sub-dl">' + dlOptsHtml(grpLists.subsFor(grpVal)) + '</datalist></div></div>';
     h += '<div class="fld"><label>Название работы</label><input id="wm-name" value="' + (w ? esc(w.name) : '') + '" placeholder="Напр.: Укладка асфальта"></div>';
     // 22.09-95: «Норма времени, ч» и «Единица измерения» из карточки убраны —
@@ -11607,7 +11726,7 @@
       '<input id="wm-period-dev" type="number" min="0" step="1" value="' + ((w && w.periodicity_dev) || '') + '" placeholder="напр.: 2" style="margin-top:3px"></label>' +
       '</div>' +
       '<div style="font-size:10.5px;color:var(--muted);margin-top:4px">Шаг серии = периодичность − отклонение (как в настройке периодичности в графике работ)</div></div>';
-    h += '<div class="fld" style="max-width:520px"><label>Реквизит отсчёта для выполнения работ</label><select id="wm-period-basis"><option value="prev_date"' + (w && w.periodicity_basis === 'prev_date' ? ' selected' : '') + '>Дата предыдущего выполнения</option><option value="commissioning_date"' + (w && w.periodicity_basis === 'commissioning_date' ? ' selected' : '') + '>Дата ввода в эксплуатацию</option></select></div>';
+    h += '<div class="fld" style="max-width:520px"><label>Реквизит отсчёта для выполнения работ</label><select id="wm-period-basis"><option value="prev_date"' + (w && w.periodicity_basis === 'prev_date' ? ' selected' : '') + '>Дата предыдущего выполнения</option><option value="commissioning_date"' + (w && w.periodicity_basis === 'commissioning_date' ? ' selected' : '') + '>Дата ввода в эксплуатацию</option><option value="service_life_end"' + (w && w.periodicity_basis === 'service_life_end' ? ' selected' : '') + '>Дата окончания срока службы оборудования</option></select></div>';
 
     // 22.09-206: блок «Виды работ, от которых отсчёт периодичности» удалён из
     // карточки по требованию — параметр больше не редактируется; старые значения
@@ -11732,10 +11851,15 @@
     // 22.09-205: для участка ГРП поля нормы и единицы возвращены в карточку (см. блок «Атрибуты ГРП» и ветку сохранения ниже).
     // записи (правка), для новой работы — дефолт 1 ч/объект (обновится импортом).
     var data = {
-      group: (function () { // 22.09-112: собираем «Группа / Подгруппа» с нормализацией разделителя
+      group: (function () { // 22.09-112/208: «Надгруппа / Группа / Подгруппа» с нормализацией разделителя
+        var sp = normGroupPath(val('wm-supergroup'));
         var gg = normGroupPath(val('wm-group'));
         var ss = normGroupPath(val('wm-subgroup'));
-        return (gg && ss) ? gg + ' / ' + ss : (gg || ss || 'Без группы');
+        var parts = [];
+        if (sp) parts.push(sp);
+        if (gg) parts.push(gg);
+        if (ss) parts.push(ss);
+        return parts.length ? parts.join(' / ') : 'Без группы';
       })(), name: name,
       norm: oldW ? oldW.norm : 1, unit: oldW ? oldW.unit : 'объект'
     };
@@ -16226,6 +16350,9 @@
       if (_backQ) openWkCardModal(_backQ);
     }
     else if (a === 'wk-open-day') { openWkDayModal(el.dataset.uid, el.dataset.ds); }
+    else if (a === 'sch-day-edit') { openSchDayEditModal(el.dataset.uid, el.dataset.ds); } // 22.09-207
+    else if (a === 'sch-day-save') { schDayEditSave(false); } // 22.09-207
+    else if (a === 'sch-day-reset') { schDayEditSave(true); } // 22.09-207
     else if (a === 'wk-edit-comment') { openWkCommentModal(el.dataset.uid); }
     else if (a === 'wk-day-save') {
       if (S.wkDay && S.wkDay.ds) {
@@ -17530,7 +17657,16 @@
     // (опечатка вида «20039-08-01» строковым сравнением «проходила»: '20039' < '2026' —
     // и цикл наставлял сотни задач на десятки тысяч лет вперёд)
     var anchorYear = gwFromISO(wrk.first).getFullYear();
-    if (isNaN(anchorYear) || anchorYear > g.year || anchorYear < 2000) { st.fail++; return st; }
+    if (isNaN(anchorYear) || anchorYear > g.year || anchorYear < 2000) {
+      // 22.09-209: для работ от «окончания срока службы» будущая дата якоря — НОРМА:
+      // в этом году проведений нет; серия начнётся в году даты (и дальше по периоду).
+      if (anchorYear >= 2000 && !isNaN(anchorYear)) {
+        var _bs = '';
+        try { var _ww = WORK.getWork(area, wrk.wid); _bs = (_ww && _ww.periodicity_basis) || ''; } catch (eB) {}
+        if (_bs === 'service_life_end') return st;
+      }
+      st.fail++; return st;
+    }
     var endISO = g.year + '-12-31';
     var iso = wrk.first, guard = 0;
     var brigIds = [];
@@ -17723,6 +17859,15 @@
     var maxDay = new Date(+year, +mm, 0).getDate(); // последний день месяца (29.02 в невисокосный → 28)
     return year + '-' + mm + '-' + String(Math.min(+dd, maxDay)).padStart(2, '0');
   }
+  /* 22.09-209: якорь от даты окончания срока службы оборудования (поле объекта
+     «Дата окончания срока службы»). В отличие от даты ввода в эксплуатацию —
+     АБСОЛЮТНАЯ дата: работа проводится разово к этой дате (в её год), а далее —
+     по периодичности от этого якоря (например, +5 лет). */
+  function gprFirstFromServiceLife(attrs) {
+    var sd = attrs && attrs.serviceLifeEnd;
+    if (!sd || !/^\d{4}-\d{2}-\d{2}$/.test(sd)) return '';
+    return sd;
+  }
   function gprAutofillRules() {
     function on(id) { var x = document.getElementById(id); return x ? !!x.checked : true; }
     // 22.09-115: + телеметрия, вид обслуживания (диагностика), отопление
@@ -17774,7 +17919,8 @@
       }
       var per = (w.periodicity_unit === 'дней') ? 0 : (parseInt(w.periodicity_value, 10) || 0);
       var dev = parseInt(w.periodicity_dev, 10) || 0;
-      var first = (w.periodicity_basis === 'commissioning_date') ? gprFirstFromCommission(attrs, g.year) : '';
+      var first = (w.periodicity_basis === 'commissioning_date') ? gprFirstFromCommission(attrs, g.year)
+        : (w.periodicity_basis === 'service_life_end') ? gprFirstFromServiceLife(attrs) : ''; // 22.09-209
       var wi = box.querySelectorAll('.gpr-wrow').length;
       var div = document.createElement('div');
       div.innerHTML = gprRowHtml(area, ri, wi, { sid: '', wid: w.id, period: per, dev: dev, first: first }, true);
