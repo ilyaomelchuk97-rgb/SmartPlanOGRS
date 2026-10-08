@@ -5,17 +5,21 @@
    комментарии работников (мастера, слесаря, руководители).
    Хранение: localStorage + синхронизация с сервером по REST.
    Ключ работника = id пользователя из users_db.
-   Формат: { schema: 1, workers: { uid: {
+   Формат: { schema: 2, workers: { uid: {
      hours: 8|12, sched: '5/2'|'2/2', cycle: 'YYYY-MM-DD',
      brigade: null|masterUid, comment: '', abs: { 'YYYY-MM-DD': 'причина' },
      overrides: { 'YYYY-MM-DD': { s:'work'|'off', h:часы|null } } — 22.09-207: ручные изменения дней,
      cycleHist: [ { from:'YYYY-MM-DD', cycle:'YYYY-MM-DD' } ] — 22.09-211: сдвиги цикла 2/2 (действуют с даты from)
    } } }
+   22.09-215 (schema 2): дни каждого работника меняются ИНДИВИДУАЛЬНО — цикл 2/2 больше
+   НЕ наследуется от мастера бригады. При переходе со схемы 1 каждому слесарю бригады
+   разово копируются текущие cycle/cycleHist его мастера в его собственную запись —
+   календари при этом не меняются, дальнейшие правки влияют только на своего человека.
    ============================================================ */
 window.SP_WORKERS = (function () {
   'use strict';
   var KEY = 'smartplan_workers_db';
-  var SCHEMA = 1;
+  var SCHEMA = 2;
 
   var memoryDB = null;
   function load() {
@@ -34,9 +38,22 @@ window.SP_WORKERS = (function () {
     else if (db.schema !== SCHEMA || !db.workers) {
       // обновление кода не теряет данные: снимок в smartplan_prev_, перенос в новую схему
       try { if (db.workers) localStorage.setItem('smartplan_prev_' + KEY, JSON.stringify(db)); } catch (e) {}
+      if (db.schema === 1 && db.workers) {
+        // 22.09-215: цикл 2/2 больше не наследуется от мастера — разово копируем каждому
+        // слесарю бригады текущий цикл/историю его мастера в его собственную запись.
+        Object.keys(db.workers).forEach(function (uid) {
+          var wk = db.workers[uid];
+          if (wk && wk.brigade && !(wk.cycleHist && wk.cycleHist.length) && db.workers[wk.brigade]) {
+            var ow = db.workers[wk.brigade];
+            wk.cycle = ow.cycle || wk.cycle;
+            wk.cycleHist = (ow.cycleHist || []).map(function (s) { return { from: s.from, cycle: s.cycle }; });
+          }
+        });
+      }
       db.schema = SCHEMA;
       if (!db.workers) db.workers = {};
       memoryDB = db;
+      try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) {} // 22.09-215: сохранить миграцию сразу
     }
     return memoryDB;
   }
