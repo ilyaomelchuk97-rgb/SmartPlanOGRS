@@ -138,7 +138,7 @@ vm.createContext(sandbox);
     let code = fs.readFileSync(path.join(DIR, f), 'utf8');
     if (f === 'app.js') {
       const pos = code.lastIndexOf('})();');
-      code = code.slice(0, pos) + ';window.__probe={S:S,GS:GS,TITLES:TITLES,refresh:refresh,renderDashboard:renderDashboard,visibleMasters:visibleMasters,enterApp:enterApp,setScreen:setScreen,kpiTasks:kpiTasks,kpiMasters:kpiMasters,dayTaskSort:dayTaskSort,_drawCalendarGridImpl:_drawCalendarGridImpl,fmtH3:fmtH3,openGraphLaborModal:openGraphLaborModal,gwWorkTipHtml:gwWorkTipHtml,graphsFind:graphsFind,schDayHours:schDayHours,openWorkModal:openWorkModal,openWmJointPickModal:openWmJointPickModal,wmJointSelBoxHtml:wmJointSelBoxHtml,openSchEditorModal:openSchEditorModal,schEdPatternShift:schEdPatternShift,schEdMoveDay:schEdMoveDay,openSchEdDayModal:openSchEdDayModal,schEdDayApply:schEdDayApply,schEdDayReset:schEdDayReset,schEdCur:schEdCur,schEdSaveAll:schEdSaveAll,wkCycleFrom:wkCycleFrom,gwJointAlign:gwJointAlign,gprFirstFromServiceLife:gprFirstFromServiceLife,gwGenObjSeries:gwGenObjSeries,gwNextISO:gwNextISO,gprRowHtml:gprRowHtml,wkDayState:wkDayState,masterCapacity:masterCapacity,offToDate:offToDate,schCellHtml:schCellHtml,openSchDayEditModal:openSchDayEditModal,schDayEditSave:schDayEditSave,SP_BUILD:SP_BUILD,avaHtml:avaHtml,applyUser:applyUser,openUserModal:openUserModal,saveUserAvatar:saveUserAvatar,openWorkersSettingsModal:openWorkersSettingsModal,openFactMonthModal:openFactMonthModal,kpiMonth:kpiMonth,openWkCardModal:openWkCardModal,taskDurHours:taskDurHours,workCrewCount:workCrewCount,loadForDay:loadForDay,optimizeWorksCalendar:optimizeWorksCalendar,taskHours:taskHours,rebaseTaskDaysToToday:rebaseTaskDaysToToday,moveTaskToCell:moveTaskToCell,planUndoApply:planUndoApply,graphSnapSave:graphSnapSave,graphSnapsLoad:graphSnapsLoad,openGraphSnapsModal:openGraphSnapsModal,graphSnapApply:graphSnapApply,gwFindPlanTask:gwFindPlanTask,graphsDupWarnHtml:graphsDupWarnHtml,graphYearResync:graphYearResync,graphsLoad:graphsLoad,graphsSaveList:graphsSaveList,renderRefs:renderRefs,toggleWeatherDropdown:toggleWeatherDropdown,wxBlurCloudsHtml:wxBlurCloudsHtml,openWorkBulkModal:openWorkBulkModal,workBulkApply:workBulkApply,grpSelAll:grpSelAll,wselSelCount:wselSelCount,key:key};' + code.slice(pos);
+      code = code.slice(0, pos) + ';window.__probe={S:S,GS:GS,TITLES:TITLES,refresh:refresh,renderDashboard:renderDashboard,visibleMasters:visibleMasters,enterApp:enterApp,setScreen:setScreen,kpiTasks:kpiTasks,kpiMasters:kpiMasters,dayTaskSort:dayTaskSort,_drawCalendarGridImpl:_drawCalendarGridImpl,fmtH3:fmtH3,openGraphLaborModal:openGraphLaborModal,gwWorkTipHtml:gwWorkTipHtml,graphsFind:graphsFind,schDayHours:schDayHours,openWorkModal:openWorkModal,openWmJointPickModal:openWmJointPickModal,wmJointSelBoxHtml:wmJointSelBoxHtml,openSchEditorModal:openSchEditorModal,schEdPatternShift:schEdPatternShift,schEdMoveDay:schEdMoveDay,openSchEdDayModal:openSchEdDayModal,schEdDayApply:schEdDayApply,schEdDayReset:schEdDayReset,schEdCur:schEdCur,schEdSaveAll:schEdSaveAll,wkCycleFrom:wkCycleFrom,gwJointAlign:gwJointAlign,gprFirstFromServiceLife:gprFirstFromServiceLife,gwGenObjSeries:gwGenObjSeries,gwNextISO:gwNextISO,gprRowHtml:gprRowHtml,wkDayState:wkDayState,masterCapacity:masterCapacity,offToDate:offToDate,schCellHtml:schCellHtml,openSchDayEditModal:openSchDayEditModal,schDayEditSave:schDayEditSave,SP_BUILD:SP_BUILD,avaHtml:avaHtml,applyUser:applyUser,openUserModal:openUserModal,saveUserAvatar:saveUserAvatar,openWorkersSettingsModal:openWorkersSettingsModal,openFactMonthModal:openFactMonthModal,kpiMonth:kpiMonth,openWkCardModal:openWkCardModal,taskDurHours:taskDurHours,workCrewCount:workCrewCount,loadForDay:loadForDay,optimizeWorksCalendar:optimizeWorksCalendar,taskHours:taskHours,rebaseTaskDaysToToday:rebaseTaskDaysToToday,moveTaskToCell:moveTaskToCell,planUndoApply:planUndoApply,graphSnapSave:graphSnapSave,graphSnapsLoad:graphSnapsLoad,openGraphSnapsModal:openGraphSnapsModal,graphSnapApply:graphSnapApply,gwFindPlanTask:gwFindPlanTask,graphsDupWarnHtml:graphsDupWarnHtml,graphYearResync:graphYearResync,graphsLoad:graphsLoad,graphsSaveList:graphsSaveList,renderRefs:renderRefs,toggleWeatherDropdown:toggleWeatherDropdown,wxBlurCloudsHtml:wxBlurCloudsHtml,openWorkBulkModal:openWorkBulkModal,workBulkApply:workBulkApply,grpSelAll:grpSelAll,wselSelCount:wselSelCount,brouterCarDayRoute:brouterCarDayRoute,openGraphSnapPreviewModal:openGraphSnapPreviewModal,gwYearGridHtml:gwYearGridHtml,snapIterLabel:snapIterLabel,key:key};' + code.slice(pos);
     }
     vm.runInContext(code, sandbox, { filename: f });
   }
@@ -730,35 +730,37 @@ vm.createContext(sandbox);
     ok(viewHtml().indexOf('wsel-bar') >= 0 && viewHtml().indexOf('✏ Изменить выбранные') >= 0, '229: панель «Выбрано… Изменить выбранные» появилась внизу');
     P.grpSelAll('Тест совместных');
     ok(P.wselSelCount() === 0 && viewHtml().indexOf('wsel-bar') === -1, '229: повторный ☑ снял отметку — панель скрылась');
-    // окно групповой правки
+    // окно групповой правки — участок УБиРОГС: атрибуты как в карточке УБиРОГС (237)
     P.S.wsel = { w7: 1, w_j1: 1, w_j2: 1 };
     P.openWorkBulkModal();
     var mh229 = String(elCache.modal && elCache.modal.__v || '');
-    ok(mh229.indexOf('Групповое изменение работ · 3 шт.') >= 0 && mh229.indexOf('wb-on-season') >= 0 && mh229.indexOf('wbulk-j-replace') >= 0 && mh229.indexOf('wbulk-j-add') >= 0, '229: окно правки — атрибуты и кнопки «Заменить/Добавить связи»');
-    // применение атрибутов (сезон с запятой-нормой и температурой)
+    ok(mh229.indexOf('Групповое изменение работ · 3 шт.') >= 0 && mh229.indexOf('wb-on-season') >= 0 && mh229.indexOf('wb-on-needs_permit') >= 0 && mh229.indexOf('wb-on-depends_on_snow') >= 0, '229/237: окно правки УБиРОГС — атрибуты УБиРОГС (ордер, снегопад, сезон…)');
+    ok(mh229.indexOf('wbulk-j-replace') < 0 && mh229.indexOf('wb-on-norm') < 0, '229/237: у УБиРОГС нет нормы и связей — их нет и в карточке УБиРОГС');
+    // применение атрибутов УБиРОГС (сезон, температура); «чужая» норма не применяется
     var geb = function (id) { return documentStub.getElementById(id); };
-    geb('wb-on-season').checked = true; geb('wb-season').value = 'Зима';
-    geb('wb-on-temp').checked = true; geb('wb-temp').value = '-10';
-    geb('wb-on-norm').checked = true; geb('wb-norm').value = '0,25';
+    geb('wb-on-season').checked = true; geb('wb-v-season').value = 'Зима';
+    geb('wb-on-min_temp').checked = true; geb('wb-v-min_temp').value = '-10';
+    geb('wb-on-norm').checked = true; geb('wb-v-norm').value = '0,25';
+    var _n7 = WK.getWork('УБиРОГС', 'w7').norm;
     P.workBulkApply('');
     var w7n = WK.getWork('УБиРОГС', 'w7'), wj1n = WK.getWork('УБиРОГС', 'w_j1'), wbn = WK.getWork('УБиРОГС', 'w_big');
-    ok(w7n.season === 'Зима' && w7n.min_temp === -10 && Math.abs(w7n.norm - 0.25) < 1e-9 && wj1n.norm === 0.25, '229: сезон/температура/норма (с запятой) применились ко всем выбранным');
+    ok(w7n.season === 'Зима' && w7n.min_temp === -10 && wj1n.season === 'Зима' && wj1n.min_temp === -10, '229: сезон/температура применились ко всем выбранным');
+    ok(w7n.norm === _n7, '237: норма (атрибут ГРП) у работ УБиРОГС не изменилась');
     ok(wbn.season !== 'Зима', '229: невыбранная работа не изменилась');
-    // связи: добавить → проверка объединения; заменить → остались только отмеченные
+    // связи «Проводится совместно» — атрибут ГРП: у УБиРОГС не применяются
+    var _jw0 = JSON.stringify(WK.getWork('УБиРОГС', 'w_j1').joint_with || []);
     geb('wb-on-joint').checked = true;
     P.S.wmBulkJoint = ['ГруппаДым'];
-    P.workBulkApply('add');
-    var jw1 = WK.getWork('УБиРОГС', 'w_j1').joint_with || [];
-    ok(jw1.indexOf('w_j2') >= 0 && jw1.indexOf('ГруппаДым') >= 0, '229: «Добавить связи» — новые группы добавлены к имеющимся');
     P.workBulkApply('replace');
-    jw1 = WK.getWork('УБиРОГС', 'w_j1').joint_with || [];
-    ok(jw1.length === 1 && jw1[0] === 'ГруппаДым', '229: «Заменить связи» — остались только отмеченные группы');
+    ok(JSON.stringify(WK.getWork('УБиРОГС', 'w_j1').joint_with || []) === _jw0, '237: связи у УБиРОГС не тронуты (только у ГРП)');
+    geb('wb-on-joint').checked = false; P.S.wmBulkJoint = [];
     // перемещение в другую группу
     P.S.wsel = { w7: 1 };
-    ['wb-on-season', 'wb-on-temp', 'wb-on-norm', 'wb-on-joint'].forEach(function (id) { geb(id).checked = false; });
+    ['wb-on-season', 'wb-on-min_temp', 'wb-on-norm', 'wb-on-joint'].forEach(function (id) { geb(id).checked = false; });
     geb('wb-on-group').checked = true; geb('wb-group-group').value = 'НоваяГруппа';
     P.workBulkApply('');
     ok(String(WK.getWork('УБиРОГС', 'w7').group).indexOf('НоваяГруппа') >= 0, '229: работа перемещена в другую группу');
+    geb('wb-on-group').checked = false;
     // откат сидов
     WK.updateWork('УБиРОГС', 'w7', { norm: _o7.norm, season: _o7.season, min_temp: _o7.min_temp, group: _o7.group });
     WK.updateWork('УБиРОГС', 'w_j1', { norm: _o1.norm, season: _o1.season, min_temp: _o1.min_temp, joint_with: _o1.joint_with });
@@ -830,6 +832,154 @@ vm.createContext(sandbox);
     ok(tEl.textContent === 'Справочники', '233: шапка страницы берёт заголовок из TITLES');
     var crEl = documentStub.getElementById('screen-crumb');
     ok(String(crEl.textContent).indexOf('Сборка 22.09-') === 0, '233: в шапке — номер текущей сборки');
+  })();
+
+  /* ---------- 234: BRouter — сперва через наш сервер, запасной путь напрямую ---------- */
+  (function () {
+    ok(typeof P.brouterCarDayRoute === 'function', '234: модуль расчёта маршрута на месте');
+    var src = String(P.brouterCarDayRoute);
+    ok(src.indexOf('/api/route/brouter?') >= 0, '234: расчёт сперва идёт через наш сервер (прокси)');
+    ok(src.indexOf('https://brouter.de/brouter?') >= 0, '234: запасной прямой вызов оставлен');
+    ok(src.indexOf('handle(res1)') >= 0 && src.indexOf('handle(res2)') >= 0, '234: оба пути ведут в единый разбор ответа');
+  })();
+
+  /* ---------- 235: просмотр копии графика — окно в виде самого графика ---------- */
+  (function () {
+    var g235 = { id: 'g_235', name: 'График 235', year: Y, area: 'УБиРОГС', respId: 'm_smoke1', respName: 'Мастер Смоук', objs: [
+      { oid: 'o_235a', name: 'ГРП-235, ул. Тестовая, 1', type: 'ГРП', works: [
+        { sid: 's235', wid: 'w7', period: 3, dev: 0, first: '', occs: [{ date: Y + '-02-10', wid: 'w7' }, { date: Y + '-05-12', wid: 'w7' }] }
+      ] },
+      { oid: 'o_235b', name: 'ГРП-скрытый', type: 'ГРП', hide: true, works: [] }
+    ] };
+    var gl = P.graphsLoad(); gl.push(g235); P.graphsSaveList(gl);
+    P.GS.cur = 'g_235';
+    var sn = P.graphSnapSave(P.graphsFind('g_235'), 'смоук-235');
+    var m2 = documentStub.getElementById('modal2');
+    try { P.openGraphSnapPreviewModal(sn.id); } catch (e) { console.log('preview 235 err', e && e.message); }
+    var hv = String(m2.__v || '');
+    ok(hv.indexOf('gw-grid') >= 0 && hv.indexOf('gw-corner') >= 0 && hv.indexOf('Январь') >= 0 && hv.indexOf('Декабрь') >= 0, '235: просмотр копии — таблица графика «объекты × месяцы»');
+    ok(hv.indexOf('ГРП-235, ул. Тестовая, 1') >= 0 && (hv.split('gw-tri-w').length - 1) === 2, '235: в просмотре — объекты и треугольники работ, как в графике');
+    ok(hv.indexOf('gt-mid') >= 0 && hv.indexOf('График 235') >= 0 && hv.indexOf('Мастер Смоук') >= 0, '235: шапка как у графика — год, мастер, наименование');
+    ok(hv.indexOf('gw-ro') >= 0 && hv.indexOf('data-action="graphs-obj-month"') < 0 && hv.indexOf('data-action="graphs-month-view"') < 0, '235: только просмотр — ячейки и месяцы не нажимаются');
+    ok(hv.indexOf('ГРП-скрытый') < 0 && hv.indexOf('Объектов скрыто фильтром графика: 1') >= 0, '235: скрытые фильтром объекты — как в графике, с пометкой');
+    ok(hv.indexOf('Обозначения работ') >= 0 && hv.indexOf('data-action="graph-snap-apply"') >= 0, '235: обозначения работ и кнопка «Применить эту копию»');
+    ok(String(m2.style.width).indexOf('1500px') >= 0, '235: окно просмотра — широкое, во всю страницу');
+    var mainH = P.gwYearGridHtml(P.graphsFind('g_235'), false);
+    ok(mainH.indexOf('data-action="graphs-obj-month"') >= 0 && mainH.indexOf('gw-ro') < 0, '235: на странице «График работ» ячейки по-прежнему нажимаются');
+    P.graphsSaveList(P.graphsLoad().filter(function (x) { return x.id !== 'g_235'; }));
+    P.GS.cur = null;
+  })();
+
+  /* ---------- 236: копии графика — «Первая итерация», «Вторая итерация», … ---------- */
+  (function () {
+    ok(P.snapIterLabel(1) === 'Первая итерация' && P.snapIterLabel(2) === 'Вторая итерация' && P.snapIterLabel(3) === 'Третья итерация', '236: подписи «Первая/Вторая/Третья итерация»');
+    ok(P.snapIterLabel(21) === 'Двадцать первая итерация' && P.snapIterLabel(40) === 'Сороковая итерация' && P.snapIterLabel(123) === 'Сто двадцать третья итерация', '236: составные порядковые (21, 40, 123) — грамотно');
+    var g236 = { id: 'g_236', name: 'График 236', year: Y, area: 'УБиРОГС', respId: 'm_smoke1', respName: 'Мастер Смоук', objs: [
+      { oid: 'o_236', name: 'ГРП-236', type: 'ГРП', works: [{ sid: 's236', wid: 'w7', period: 3, dev: 0, first: '', occs: [{ date: Y + '-03-03', wid: 'w7' }] }] }
+    ] };
+    var gl = P.graphsLoad(); gl.push(g236); P.graphsSaveList(gl);
+    P.GS.cur = 'g_236';
+    var s1 = P.graphSnapSave(P.graphsFind('g_236'), 'печать графика');
+    var s2 = P.graphSnapSave(P.graphsFind('g_236'), 'печать графика');
+    ok(s1 && s1.iter === 1 && s2 && s2.iter === 2, '236: первая сохранённая копия — №1, следующая — №2');
+    try { P.openGraphSnapsModal(); } catch (e) { console.log('snaps 236 err', e && e.message); }
+    var lh = String(elCache.modal && elCache.modal.__v || '');
+    ok(lh.indexOf('Первая итерация') >= 0 && lh.indexOf('Вторая итерация') >= 0, '236: в списке копий — «Первая итерация» и «Вторая итерация»');
+    ok(lh.indexOf('data-sid="' + s2.id + '"') >= 0 && lh.indexOf('data-sid="' + s2.id + '"') < lh.indexOf('data-sid="' + s1.id + '"'), '236: порядок списка прежний — новые сверху');
+    try { P.openGraphSnapPreviewModal(s1.id); } catch (e) {}
+    ok(String(documentStub.getElementById('modal2').__v || '').indexOf('Первая итерация — копия графика от') >= 0, '236: окно просмотра подписано номером итерации');
+    // вытеснение старых (хранится до 20) — номера не сдвигаются
+    for (var k = 0; k < 20; k++) P.graphSnapSave(P.graphsFind('g_236'), 'печать графика');
+    var arr = P.graphSnapsLoad('g_236');
+    ok(arr.length === 20 && arr[0].iter === 22 && arr[19].iter === 3, '236: после вытеснения старых номера не сдвигаются (сверху «22-я», снизу «3-я»)');
+    ok(P.graphSnapSave(P.graphsFind('g_236'), 'печать графика').iter === 23, '236: следующая копия продолжает счёт (№23)');
+    // копии, сохранённые до сборки 236 (без номера), — номера по времени сохранения
+    var all = JSON.parse(store.get('smartplan_graph_snaps_v1') || '{}');
+    all.g_236_old = [
+      { id: 'sn_c', ts: 3000, via: 'печать', graph: g236 },
+      { id: 'sn_b', ts: 2000, via: 'печать', graph: g236 },
+      { id: 'sn_a', ts: 1000, via: 'печать', graph: g236 }
+    ];
+    store.set('smartplan_graph_snaps_v1', JSON.stringify(all));
+    var old = P.graphSnapsLoad('g_236_old');
+    var byId = {}; old.forEach(function (x) { byId[x.id] = x.iter; });
+    ok(byId.sn_a === 1 && byId.sn_b === 2 && byId.sn_c === 3, '236: старые копии без номера пронумерованы по времени (самая ранняя — «Первая итерация»)');
+    var again = JSON.parse(store.get('smartplan_graph_snaps_v1') || '{}').g_236_old || [];
+    ok(again.every(function (x) { return +x.iter > 0; }), '236: номера старых копий сохранены (больше не меняются)');
+    var all2 = JSON.parse(store.get('smartplan_graph_snaps_v1') || '{}'); delete all2.g_236; delete all2.g_236_old;
+    store.set('smartplan_graph_snaps_v1', JSON.stringify(all2));
+    P.graphsSaveList(P.graphsLoad().filter(function (x) { return x.id !== 'g_236'; }));
+    P.GS.cur = null;
+    elCache.overlay.classList.remove('show');
+  })();
+
+  /* ---------- 237: групповое изменение — атрибуты как в карточке выбранного участка ---------- */
+  (function () {
+    var WK = sandbox.SP_WORK;
+    var geb = function (id) { return documentStub.getElementById(id); };
+    P.S.role = 'admin'; P.S.refsTab = 'tree';
+    // --- ГРП ---
+    var g1 = WK.addWork('ГРП', { name: 'Групповая ГРП 1', group: 'Г237', norm: 1, unit: 'объект', object_categories: ['ГРП'], operations: ['Осмотр'] });
+    var g2 = WK.addWork('ГРП', { name: 'Групповая ГРП 2', group: 'Г237', norm: 1, unit: 'объект', object_categories: ['ШРП'] });
+    var g3 = WK.addWork('ГРП', { name: 'Групповая ГРП 3 (не выбрана)', group: 'Г237', norm: 1 });
+    P.S.workArea = 'ГРП';
+    P.S.wsel = {}; P.S.wsel[g1.id] = 1; P.S.wsel[g2.id] = 1;
+    P.openWorkBulkModal();
+    var mh = String(elCache.modal && elCache.modal.__v || '');
+    ok(mh.indexOf('📋 Атрибуты ГРП') >= 0 && mh.indexOf('Групповое изменение работ · 2 шт. · ГРП') >= 0, '237: ГРП — окно с блоком «📋 Атрибуты ГРП»');
+    ok(['norm', 'unit', 'object_categories', 'departments', 'season', 'periodicity_value', 'periodicity_dev', 'periodicity_basis', 'operations', 'lines_count', 'telemetry_req', 'telemetry_type', 'diag_equipment', 'heating_req', 'crew_size', 'crew', 'indicators', 'print_forms', 'op_journal', 'passport_entry', 'scan_attach'].every(function (k) { return mh.indexOf('id="wb-on-' + k + '"') >= 0; }), '237: ГРП — все атрибуты карточки ГРП (21 шт.)');
+    ok(mh.indexOf('wb-on-needs_permit') < 0 && mh.indexOf('wb-on-min_temp') < 0 && mh.indexOf('wb-on-equipment') < 0, '237: ГРП — без атрибутов УБиРОГС (ордер, температура, техника)');
+    ok(mh.indexOf('wbulk-j-replace') >= 0 && mh.indexOf('wbulk-j-add') >= 0 && mh.indexOf('id="wm-crew-rows"') >= 0, '237: ГРП — связи «Проводится совместно» и редактор состава бригады');
+    // применение
+    geb('wb-on-norm').checked = true; geb('wb-v-norm').value = '0,2';
+    geb('wb-on-periodicity_value').checked = true; geb('wb-v-periodicity_value').value = '6';
+    geb('wb-on-periodicity_basis').checked = true; geb('wb-v-periodicity_basis').value = 'commissioning_date';
+    geb('wb-on-diag_equipment').checked = true; geb('wb-v-diag_equipment').value = '1';
+    geb('wb-on-operations').checked = true; geb('wb-v-operations').value = 'Проверка, Осмотр'; geb('wb-m-operations').value = 'add';
+    geb('wb-on-crew_size').checked = true; geb('wm-crew-size').value = '3';
+    geb('wb-on-object_categories').checked = true; geb('wb-m-object_categories').value = 'add';
+    var _qsa = documentStub.querySelectorAll;
+    documentStub.querySelectorAll = function (sel) {
+      if (sel === '[data-wbm="object_categories"]') return [{ checked: true, getAttribute: function () { return 'ГРС'; } }, { checked: false, getAttribute: function () { return 'Иное'; } }];
+      return _qsa.call(documentStub, sel);
+    };
+    try { P.workBulkApply(''); } finally { documentStub.querySelectorAll = _qsa; }
+    var r1 = WK.getWork('ГРП', g1.id), r2 = WK.getWork('ГРП', g2.id), r3 = WK.getWork('ГРП', g3.id);
+    ok(Math.abs(r1.norm - 0.2) < 1e-9 && Math.abs(r2.norm - 0.2) < 1e-9, '237: норма (с запятой) — у обеих выбранных работ ГРП');
+    ok(r1.periodicity_value === 6 && r2.periodicity_basis === 'commissioning_date', '237: периодичность и реквизит отсчёта применились');
+    ok(r1.diag_equipment === true && r2.diag_equipment === true, '237: «Да/Нет» — диагностическое оборудование');
+    ok(JSON.stringify(r1.operations) === JSON.stringify(['Осмотр', 'Проверка']) && JSON.stringify(r2.operations) === JSON.stringify(['Проверка', 'Осмотр']), '237: список «Операции» — добавлено к имеющимся без дублей');
+    ok(JSON.stringify(r1.object_categories) === JSON.stringify(['ГРП', 'ГРС']) && JSON.stringify(r2.object_categories) === JSON.stringify(['ШРП', 'ГРС']), '237: категории — отмеченная добавлена к имеющимся');
+    ok(r1.crew_size === 3 && r1.min_workers === 3 && r1.opt_workers === 3, '237: кол-во исполнителей — как в карточке (мин/опт = общему)');
+    ok(r3.norm === 1 && !r3.diag_equipment, '237: невыбранная работа ГРП не изменилась');
+    // «убрать указанные» и связи у ГРП
+    ['wb-on-norm', 'wb-on-periodicity_value', 'wb-on-periodicity_basis', 'wb-on-diag_equipment', 'wb-on-crew_size', 'wb-on-object_categories'].forEach(function (id) { geb(id).checked = false; });
+    geb('wb-m-operations').value = 'remove'; geb('wb-v-operations').value = 'Осмотр';
+    P.workBulkApply('');
+    ok(JSON.stringify(WK.getWork('ГРП', g1.id).operations) === JSON.stringify(['Проверка']), '237: «убрать указанные» — значение убрано из списка');
+    geb('wb-on-operations').checked = false;
+    geb('wb-on-joint').checked = true; P.S.wmBulkJoint = ['Г237-связь'];
+    P.workBulkApply('add');
+    ok((WK.getWork('ГРП', g2.id).joint_with || []).indexOf('Г237-связь') >= 0, '237: у ГРП «Добавить связи» работает');
+    P.workBulkApply('replace');
+    ok(JSON.stringify(WK.getWork('ГРП', g1.id).joint_with || []) === JSON.stringify(['Г237-связь']), '237: у ГРП «Заменить связи» работает');
+    geb('wb-on-joint').checked = false; P.S.wmBulkJoint = [];
+    // --- прочий участок: собственных атрибутов в карточке нет — только структура ---
+    var o1 = WK.addWork('Прочий 237', { name: 'Работа прочего участка', group: 'ГП237' });
+    P.S.workArea = 'Прочий 237';
+    P.S.wsel = {}; P.S.wsel[o1.id] = 1;
+    P.openWorkBulkModal();
+    var mo = String(elCache.modal && elCache.modal.__v || '');
+    ok(mo.indexOf('нет собственных атрибутов') >= 0 && mo.indexOf('wb-on-season') < 0 && mo.indexOf('wb-on-norm') < 0 && mo.indexOf('wbulk-j-add') < 0, '237: прочий участок — только «Структура» (атрибутов в карточке нет)');
+    geb('wb-on-sub').checked = true; geb('wb-sub-group').value = 'Зима';
+    P.workBulkApply('');
+    ok(WK.getWork('Прочий 237', o1.id).group === 'ГП237 / Зима', '237: подгруппа задаётся группой (структура «Группа / Подгруппа»)');
+    geb('wb-on-sub').checked = false;
+    // уборка
+    [g1, g2, g3].forEach(function (w) { try { WK.deleteWork('ГРП', w.id); } catch (e) {} });
+    try { WK.deleteWork('Прочий 237', o1.id); } catch (e) {}
+    P.S.wsel = {}; P.S.workArea = 'УБиРОГС';
+    elCache.overlay.classList.remove('show');
   })();
 
   console.log('----------------------------------------');

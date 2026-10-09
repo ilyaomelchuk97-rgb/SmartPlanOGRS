@@ -411,6 +411,10 @@
   .gw-c:hover{background:#eff6ff}
   .gw-m{cursor:pointer;transition:color .15s;padding-top:16px;padding-bottom:0px}
   .gw-m:hover{color:var(--blue)}
+  /* 22.09-235: таблица графика в режиме «только просмотр» (окно копии) — без «нажимаемости» */
+  .gw-ro .gw-c,.gw-ro .gw-m{cursor:default}
+  .gw-ro .gw-c:hover{background:var(--card)}
+  .gw-ro .gw-m:hover{color:var(--ink)}
   /* Шапка дня: число + день недели; ячейка дня (не кликается) */
   .gd-h{padding:5px 2px!important}
   .gd-h b{display:block;font-size:12px}
@@ -1131,7 +1135,7 @@
           <div style="margin-top:6px;font-size:11px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-233 · техническая чистка кода: убран мёртвый и неиспользуемый код; поведение сайта не изменилось</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-237 · групповое изменение видов работ — атрибуты по выбранному участку, как в карточке (ГРП — атрибуты ГРП, УБиРОГС — атрибуты УБиРОГС)</div>
     </div>
   </div>
   </div>
@@ -1286,17 +1290,17 @@
   }
 })();
 </script>
-<script src="root_index/config.js?v=22.09-233"></script>
-<script src="root_index/data.js?v=22.09-233"></script>
-<script src="root_index/users_db.js?v=22.09-233"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-233"></script>
-<script src="root_index/areas_db.js?v=22.09-233"></script>
-<script src="root_index/professions_db.js?v=22.09-233"></script>
-<script src="root_index/work_db.js?v=22.09-233"></script>
-<script src="root_index/objects_db.js?v=22.09-233"></script>
-<script src="root_index/workers_db.js?v=22.09-233"></script>
-<script src="root_index/tasks_db.js?v=22.09-233"></script>
-<script src="root_index/db.js?v=22.09-233"></script>
+<script src="root_index/config.js?v=22.09-237"></script>
+<script src="root_index/data.js?v=22.09-237"></script>
+<script src="root_index/users_db.js?v=22.09-237"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-237"></script>
+<script src="root_index/areas_db.js?v=22.09-237"></script>
+<script src="root_index/professions_db.js?v=22.09-237"></script>
+<script src="root_index/work_db.js?v=22.09-237"></script>
+<script src="root_index/objects_db.js?v=22.09-237"></script>
+<script src="root_index/workers_db.js?v=22.09-237"></script>
+<script src="root_index/tasks_db.js?v=22.09-237"></script>
+<script src="root_index/db.js?v=22.09-237"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -1314,12 +1318,12 @@
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-233"></script>
-      <script src="root_index/error_log.js?v=22.09-233"></script>
-      <script src="root_index/api_client.js?v=22.09-233"></script>
-      <script src="root_index/sync_polling.js?v=22.09-233"></script>
-      <script src="root_index/zip_util.js?v=22.09-233"></script>
-      <script src="root_index/app.js?v=22.09-233"></script>
+<script src="root_index/object_attrs.js?v=22.09-237"></script>
+      <script src="root_index/error_log.js?v=22.09-237"></script>
+      <script src="root_index/api_client.js?v=22.09-237"></script>
+      <script src="root_index/sync_polling.js?v=22.09-237"></script>
+      <script src="root_index/zip_util.js?v=22.09-237"></script>
+      <script src="root_index/app.js?v=22.09-237"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {

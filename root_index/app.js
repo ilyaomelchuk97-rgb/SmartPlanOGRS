@@ -860,7 +860,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-233';
+  var SP_BUILD = '22.09-237';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -5694,6 +5694,7 @@
   }
 
   /* Запрос к единому роутеру BRouter car (economic): база → pts (в переданном порядке) → база.
+     22.09-234: сперва через наш сервер /api/route/brouter, запасной путь — напрямую на brouter.de.
      Колбэк получает объект формы, совместимой с fetchOSMRouteGeometry:
        { ok:true, by:'brouter-car-eco', km, min, jamMin, geometry:[[lng,lat]…], legs:[{distance,duration}…] }
      km — километры по дорогам; min — «чистое» время BRouter (мин);
@@ -5705,41 +5706,60 @@
     (pts || []).forEach(function (p) { if (p && p.lat != null && p.lng != null) wps.push([p.lng, p.lat]); });
     wps.push([base.lng, base.lat]);
     if (wps.length < 3) { cb({ ok: false, msg: 'BRouter: нет точек с координатами' }); return; }
-    var url = 'https://brouter.de/brouter?lonlats=' + encodeURIComponent(
+    // 22.09-234: расчёт идёт СПЕРВА через НАШ сервер (тот же сайт) — надёжнее:
+    // без CORS и блокировок brouter.de на самом устройстве (ошибка «failed to fetch»);
+    // при любом сбое прокси — автоматический запасной прямой вызов (как раньше).
+    var qs = 'lonlats=' + encodeURIComponent(
       wps.map(function (c) { return c[0].toFixed(6) + ',' + c[1].toFixed(6); }).join('|')
     ) + '&profile=car-eco&alternativeidx=0&format=geojson';
-    var ctrl = (typeof AbortController === 'function') ? new AbortController() : null;
-    var timer = setTimeout(function () { try { if (ctrl) ctrl.abort(); } catch (e) {} }, 30000);
-    fetch(url, ctrl ? { signal: ctrl.signal } : {})
-      .then(function (r) {
-        clearTimeout(timer);
-        if (!r.ok) return r.text().then(function (txt) { throw new Error('HTTP ' + r.status + (txt ? ' — ' + txt.slice(0, 120) : '')); });
-        return r.json();
-      })
-      .then(function (res) {
-        var f = res && res.features && res.features[0];
-        var pp = f && f.properties;
-        var km = pp ? (parseFloat(pp['track-length']) || 0) / 1000 : 0;
-        var min = pp ? Math.round((parseFloat(pp['total-time']) || 0) / 60) : 0;
-        var geom = (f && f.geometry && f.geometry.coordinates) || [];
-        if (!(km > 0) || geom.length < 2) { cb({ ok: false, msg: 'BRouter: пустой или неполный ответ' }); return; }
-        var jamK = jamKForOff(dayOff);
-        var jamMin = Math.max(1, Math.round(min * jamK));
-        // Доли отрезков по треку → legs в формате OSRM (distance — метры, duration — секунды С ПРОБКАМИ)
-        var legsM = trackLegMeters(geom, wps) || [];
-        var sumM = 0; legsM.forEach(function (v) { sumM += v; });
-        var legs = [];
-        for (var i = 0; i < wps.length - 1; i++) {
-          var share = (sumM > 0 && legsM[i] != null) ? (legsM[i] / sumM) : (1 / (wps.length - 1));
-          var lm = (legsM[i] != null) ? legsM[i] : (km * 1000 * share);
-          legs.push({ distance: lm, duration: Math.max(30, min * 60 * share * jamK) });
-        }
-        cb({ ok: true, by: 'brouter-car-eco', km: km, min: min, jamMin: jamMin, geometry: geom, legs: legs });
-      })
-      .catch(function (e) {
-        clearTimeout(timer);
-        cb({ ok: false, msg: 'BRouter: ' + ((e && e.message) ? e.message : 'ошибка сети') });
-      });
+    var viaProxy = '/api/route/brouter?' + qs;
+    var direct = 'https://brouter.de/brouter?' + qs;
+    function getJson(url, withAuth, done) {
+      var ctrl = (typeof AbortController === 'function') ? new AbortController() : null;
+      var timer = setTimeout(function () { try { if (ctrl) ctrl.abort(); } catch (e) {} }, 30000);
+      var opts = ctrl ? { signal: ctrl.signal } : {};
+      if (withAuth && window.SP_API && SP_API.getToken && SP_API.getToken()) {
+        opts.headers = { 'Authorization': 'Bearer ' + SP_API.getToken() };
+      }
+      fetch(url, opts)
+        .then(function (r) {
+          clearTimeout(timer);
+          if (!r.ok) return r.text().then(function (txt) { throw new Error('HTTP ' + r.status + (txt ? ' — ' + txt.slice(0, 120) : '')); });
+          return r.json();
+        })
+        .then(function (j) { done(null, j); })
+        .catch(function (e) { clearTimeout(timer); done(e); });
+    }
+    function handle(res) {
+      var f = res && res.features && res.features[0];
+      var pp = f && f.properties;
+      var km = pp ? (parseFloat(pp['track-length']) || 0) / 1000 : 0;
+      var min = pp ? Math.round((parseFloat(pp['total-time']) || 0) / 60) : 0;
+      var geom = (f && f.geometry && f.geometry.coordinates) || [];
+      if (!(km > 0) || geom.length < 2) { cb({ ok: false, msg: 'BRouter: пустой или неполный ответ' }); return; }
+      var jamK = jamKForOff(dayOff);
+      var jamMin = Math.max(1, Math.round(min * jamK));
+      // Доли отрезков по треку → legs в формате OSRM (distance — метры, duration — секунды С ПРОБКАМИ)
+      var legsM = trackLegMeters(geom, wps) || [];
+      var sumM = 0; legsM.forEach(function (v) { sumM += v; });
+      var legs = [];
+      for (var i = 0; i < wps.length - 1; i++) {
+        var share = (sumM > 0 && legsM[i] != null) ? (legsM[i] / sumM) : (1 / (wps.length - 1));
+        var lm = (legsM[i] != null) ? legsM[i] : (km * 1000 * share);
+        legs.push({ distance: lm, duration: Math.max(30, min * 60 * share * jamK) });
+      }
+      cb({ ok: true, by: 'brouter-car-eco', km: km, min: min, jamMin: jamMin, geometry: geom, legs: legs });
+    }
+    getJson(viaProxy, true, function (e1, res1) {
+      if (e1) {
+        getJson(direct, false, function (e2, res2) {
+          if (e2) { cb({ ok: false, msg: 'BRouter: ' + ((e2 && e2.message) ? e2.message : 'ошибка сети') }); return; }
+          handle(res2);
+        });
+        return;
+      }
+      handle(res1);
+    });
   }
 
   function updateDayListCards(orderedTasks) {
@@ -10782,6 +10802,9 @@
      сезон, мин. температура, норма, единица, исполнители, численность
      бригады, техника, а «Проводится совместно» — кнопками
      «Заменить связи» / «Добавить связи». Только для администратора.
+     22.09-237: набор атрибутов окна — КАК В КАРТОЧКЕ вида работ выбранного
+     участка (ГРП — атрибуты ГРП, УБиРОГС — атрибуты УБиРОГС, у прочих — только
+     структура), см. wbulkFieldsFor; в «Структуре» добавлена подгруппа.
      ===================================================================== */
   function wselSelCount() { var n = 0; if (S.wsel) Object.keys(S.wsel).forEach(function (k) { if (S.wsel[k]) n++; }); return n; }
   function wselBarHtml() {
@@ -10815,6 +10838,98 @@
     toast('ok', (allOn ? 'Снята отметка с группы' : 'Отмечена группа') + ' «' + path + '» — работ: ' + ids.length);
     renderRefs();
   }
+  /* 22.09-237: поля окна группового изменения — ТЕ ЖЕ атрибуты, что в карточке вида работ
+     ВЫБРАННОГО участка (подписи — как в карточке): ГРП → «📋 Атрибуты ГРП», УБиРОГС →
+     «⚙️ Атрибуты УБиРОГС»; у остальных участков в карточке собственных атрибутов нет —
+     остаётся только «Структура» (надгруппа / группа / подгруппа).
+     Поле: k — ключ работы; t — тип: dec (дробное, можно с запятой), int, num, text, sel, bool (Да/Нет),
+     multi (галочки + заменить/добавить/убрать), list (через запятую + заменить/добавить/убрать),
+     minopt (мин/оптим. исполнителей), crewsize (общее кол-во исполнителей), crew (состав бригады);
+     lb — подпись, hint — пояснение серым, sh — коротко для журнала, sec — подзаголовок блока. */
+  function wbulkFieldsFor(area) {
+    if (area === 'ГРП') {
+      var tel = []; try { tel = telemetryNames() || []; } catch (e) {}
+      var deps = []; try { if (window.SP_AREAS && typeof SP_AREAS.getAreas === 'function') deps = SP_AREAS.getAreas() || []; } catch (e) {}
+      if (!deps.length) deps = ['УБиРОГС'];
+      return [
+        { k: 'norm', t: 'dec', sec: '📏 Норма времени', lb: 'Норма времени (чел/ч на единицу)', hint: 'можно с запятой', sh: 'норма', ph: 'напр.: 0,15' },
+        { k: 'unit', t: 'text', lb: 'Единица измерения', sh: 'единица', dl: ['объект', 'шт', 'м', 'м2', 'км', 'компл.', 'ч'], def: 'объект', ph: 'объект' },
+        { k: 'object_categories', t: 'multi', sec: '🏷 Категории и подразделения', lb: 'Категория объекта обслуживания', sh: 'категории объекта', opts: ['ГРП', 'ШРП', 'ПГРП', 'ГРС', 'Узел учёта газа', 'Иное'] },
+        { k: 'departments', t: 'multi', lb: 'Доступно подразделениям', hint: 'Справочник Подразделения', sh: 'подразделения', opts: deps },
+        { k: 'season', t: 'sel', sec: '🔁 Сезон и периодичность выполнения', lb: 'Сезон проведения', sh: 'сезон', opts: ['Круглый год', 'Зима', 'Лето'] },
+        { k: 'periodicity_value', t: 'int', min: 0, lb: 'Периодичность, месяцев', sh: 'периодичность', ph: 'напр.: 12' },
+        { k: 'periodicity_dev', t: 'int', min: 0, lb: 'Отклонение, дней', sh: 'отклонение', ph: 'напр.: 2' },
+        { k: 'periodicity_basis', t: 'sel', lb: 'Реквизит отсчёта для выполнения работ', sh: 'реквизит отсчёта', opts: [['prev_date', 'Дата предыдущего выполнения'], ['commissioning_date', 'Дата ввода в эксплуатацию'], ['service_life_end', 'Дата окончания срока службы оборудования']] },
+        { k: 'operations', t: 'list', sec: '🧾 Операции и линии редуцирования', lb: 'Операции', hint: 'список значений, через запятую', sh: 'операции', ph: 'напр.: Подготовка, Монтаж, Проверка' },
+        { k: 'lines_count', t: 'int', min: 0, lb: 'Кол-во линий редуцирования (шт)', sh: 'линии редуцирования', ph: '0 — не задано' },
+        { k: 'telemetry_req', t: 'sel', sec: '🔌 Связь с оборудованием объекта — для автоподбора в графике', lb: 'Телеметрия на объекте', sh: 'телеметрия на объекте', empty: true, opts: [['', 'Не важно (работа для любых объектов)'], ['equipped', 'Только объекты, оборудованные телеметрией'], ['not_equipped', 'Только объекты БЕЗ телеметрии']] },
+        { k: 'telemetry_type', t: 'sel', lb: 'Тип телеметрии', sh: 'тип телеметрии', empty: true, opts: [['', '— любой тип —']].concat(tel.map(function (x) { return [x, x]; })) },
+        { k: 'diag_equipment', t: 'bool', lb: 'С использованием приборного диагностического оборудования', hint: 'добавляется объектам с видом обслуживания «Region-gas»', sh: 'диагностическое оборудование' },
+        { k: 'heating_req', t: 'bool', lb: 'ТО отопительного оборудования', hint: 'только объектам с отоплением — ГРП', sh: 'ТО отопления' },
+        { k: 'crew_size', t: 'crewsize', sec: '👷 Количество исполнителей и состав бригады', lb: 'Количество исполнителей (общее)', sh: 'кол-во исполнителей' },
+        { k: 'crew', t: 'crew', lb: 'Работники будут', hint: 'профессия из справочника «Профессии» — количество', sh: 'состав бригады' },
+        { k: 'indicators', t: 'list', sec: '📄 Показатели, печатные формы, записи', lb: 'Показатели эксплуатации (контролируемые)', hint: 'список значений', sh: 'показатели', ph: 'напр.: Давление, Температура, Расход' },
+        { k: 'print_forms', t: 'list', lb: 'Перечень печатных форм', hint: 'список, через запятую', sh: 'печатные формы', ph: 'напр.: Акт осмотра, Протокол измерений' },
+        { k: 'op_journal', t: 'bool', lb: 'Записи в оперативном журнале', sh: 'оперативный журнал' },
+        { k: 'passport_entry', t: 'bool', lb: 'Записи в эксплуатационном паспорте', sh: 'эксплуатационный паспорт' },
+        { k: 'scan_attach', t: 'bool', lb: 'Присоединение отсканированных подписанных документов', sh: 'сканы документов' }
+      ];
+    }
+    if (area === 'УБиРОГС') return [
+      { k: 'needs_permit', t: 'bool', lb: 'Требуется ордер', sh: 'ордер' },
+      { k: 'depends_on_snow', t: 'bool', lb: 'Зависит от снегопада', sh: 'снегопад' },
+      { k: 'min_temp', t: 'num', lb: 'Мин. температура, °C', hint: '-50 = без ограничений', sh: 'мин. температура', def: -50 },
+      { k: 'season', t: 'sel', lb: 'Сезон', sh: 'сезон', opts: ['Круглый год', 'Зима', 'Лето', 'Весна-осень'] },
+      { k: 'equipment', t: 'text', lb: 'Требуемая техника', sh: 'техника', def: '—', ph: 'Экскаватор, КДМ, ...' },
+      { k: 'min_workers', t: 'minopt', lb: 'Кол-во исполнителей (мин / оптим.)', sh: 'исполнители' }
+    ];
+    return [];
+  }
+  /* 22.09-237: элемент ввода поля окна группового изменения (по типу поля) */
+  function wbulkCtrlHtml(f) {
+    var id = 'wb-v-' + f.k;
+    function optHtml(o) {
+      var v = Array.isArray(o) ? o[0] : o, t = Array.isArray(o) ? o[1] : o;
+      return '<option value="' + esc(v) + '">' + esc(t) + '</option>';
+    }
+    var MODE = '<select id="wb-m-' + f.k + '" style="flex:0 0 auto;width:auto" title="Как применить к значениям каждой выбранной работы">' +
+      '<option value="replace">заменить на указанные</option>' +
+      '<option value="add">добавить к имеющимся</option>' +
+      '<option value="remove">убрать указанные</option></select>';
+    if (f.t === 'dec') return '<input id="' + id + '" type="text" inputmode="decimal" autocomplete="off" placeholder="' + esc(f.ph || '') + '">';
+    if (f.t === 'int') return '<input id="' + id + '" type="number" min="' + (f.min || 0) + '" step="1" placeholder="' + esc(f.ph || '') + '">';
+    if (f.t === 'num') return '<input id="' + id + '" type="number" value="' + esc(String(f.def != null ? f.def : '')) + '">';
+    if (f.t === 'text') {
+      return '<input id="' + id + '"' + (f.dl ? ' list="wb-dl-' + f.k + '"' : '') + ' autocomplete="off" placeholder="' + esc(f.ph || '') + '">' +
+        (f.dl ? '<datalist id="wb-dl-' + f.k + '">' + f.dl.map(function (u) { return '<option value="' + esc(u) + '">'; }).join('') + '</datalist>' : '');
+    }
+    if (f.t === 'sel') return '<select id="' + id + '">' + (f.opts || []).map(optHtml).join('') + '</select>';
+    if (f.t === 'bool') return '<select id="' + id + '"><option value="1">Да</option><option value="0">Нет</option></select>';
+    if (f.t === 'multi') {
+      return '<div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">' +
+        '<div style="flex:1;min-width:220px;display:flex;flex-wrap:wrap;gap:6px;padding:2px 0">' +
+        (f.opts || []).map(function (o) {
+          return '<label class="cb" style="border:1px solid #e2e8f0;border-radius:6px;padding:4px 9px;font-size:12px;font-weight:600;color:#1e3a8a;background:#fff;cursor:pointer;margin:0">' +
+            '<input type="checkbox" data-wbm="' + esc(f.k) + '" data-v="' + esc(o) + '">' + esc(o) + '</label>';
+        }).join('') +
+        '</div>' + MODE + '</div>';
+    }
+    if (f.t === 'list') return '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input id="' + id + '" style="flex:1;min-width:200px" autocomplete="off" placeholder="' + esc(f.ph || '') + '">' + MODE + '</div>';
+    if (f.t === 'minopt') return '<div style="display:flex;gap:8px"><input id="wb-v-min_workers" type="number" min="1" style="flex:1" placeholder="мин"><input id="wb-v-opt_workers" type="number" min="1" style="flex:1" placeholder="опт"></div>';
+    if (f.t === 'crewsize') {
+      return '<input id="wm-crew-size" type="number" min="0" step="1" placeholder="напр.: 3" style="width:140px">' +
+        '<div style="font-size:10.5px;color:var(--muted);margin-top:3px">Если больше 0 — как в карточке: мин. и оптим. число исполнителей станут равны этому числу</div>';
+    }
+    if (f.t === 'crew') {
+      var profsCnt = 0;
+      try { if (window.SP_PROFS && SP_PROFS.getAll) profsCnt = SP_PROFS.getAll().length; } catch (e) {}
+      return '<div id="wm-crew-rows"></div>' +
+        (profsCnt ? '' : '<div style="font-size:11.5px;color:#92400e;background:#fef9c3;border:1px solid #fde68a;border-radius:6px;padding:6px 9px;margin:2px 0 6px">⚠️ Справочник «Профессии» пока пуст — сначала добавьте профессии: «Справочники» → «Профессии».</div>') +
+        '<div style="display:flex;gap:12px;align-items:center;margin-top:4px;flex-wrap:wrap"><button type="button" id="wm-crew-add" class="btn sm" style="border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;font-weight:600">＋ Добавить профессию</button><span id="wm-crew-hint" style="font-size:11.5px;font-weight:600"></span></div>' +
+        '<div style="font-size:10.5px;color:var(--muted);margin-top:3px">Указанный состав ЗАМЕНИТ состав бригады у всех выбранных работ</div>';
+    }
+    return '';
+  }
   function openWorkBulkModal() {
     if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
     var area = S.workArea;
@@ -10824,61 +10939,80 @@
     ids.forEach(function (id) { var w = null; try { w = WORK.getWork(area, id); } catch (e) {} if (w) works.push(w); });
     if (!works.length) { toast('err', 'Выбранные работы не найдены на участке ' + area); return; }
     S.wmBulkJoint = []; // выбор групп «Проводится совместно» — чистый при каждом открытии
+    var fields = wbulkFieldsFor(area); // 22.09-237: атрибуты — как в карточке вида работ этого участка
+    var isGrp = (area === 'ГРП');
+    var hasJoint = isGrp; // «Проводится совместно» — атрибут карточки ГРП
     var grpLists = groupSuggest(area);
+    var subsAll = {};
+    grpLists.tops.forEach(function (t) { grpLists.subsFor(t).forEach(function (sb) { subsAll[sb] = 1; }); });
     function dlOptsHtml2(arr) { return arr.map(function (v) { return '<option value="' + esc(v) + '">'; }).join(''); }
     function fldRow(onId, label, ctrlHtml) {
-      return '<div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:8px">' +
-        '<label class="cb" style="flex:0 0 auto;padding-bottom:9px" title="Применять этот атрибут ко всем выбранным работам"><input type="checkbox" id="' + onId + '"></label>' +
+      return '<div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px">' +
+        '<label class="cb" style="flex:0 0 auto;padding-top:26px" title="Применять этот атрибут ко всем выбранным работам"><input type="checkbox" id="' + onId + '"></label>' +
         '<div class="fld" style="flex:1;margin:0"><label>' + label + '</label>' + ctrlHtml + '</div></div>';
     }
-    var h = '<div class="modal-h"><h3>☑ Групповое изменение работ · ' + works.length + ' шт.</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">';
+    var h = '<div class="modal-h"><h3>☑ Групповое изменение работ · ' + works.length + ' шт. · ' + esc(area) + '</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">';
     h += '<div style="max-height:110px;overflow:auto;border:1px dashed var(--line);border-radius:8px;padding:6px 8px;margin-bottom:12px;font-size:12px;line-height:1.6">';
     works.forEach(function (w) { h += '<div>▪ <b style="color:var(--ink)">' + esc(w.name) + '</b> <span style="color:#94a3b8">(' + esc(w.group || 'Без группы') + ')</span></div>'; });
     h += '</div>';
-    h += '<div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;line-height:1.5">Отметьте галочками атрибуты, которые нужно изменить СРАЗУ У ВСЕХ выбранных работ, задайте новые значения и нажмите кнопку внизу. Неотмеченные атрибуты останутся у работ как были.</div>';
+    h += '<div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;line-height:1.5">Отметьте галочками слева атрибуты, которые нужно изменить СРАЗУ У ВСЕХ выбранных работ, задайте новые значения и нажмите кнопку внизу. Неотмеченные атрибуты останутся у работ как были. Набор атрибутов — как в карточке вида работ участка «' + esc(area) + '».</div>';
+    // Структура — у всех участков (как верх карточки: надгруппа / группа / подгруппа)
     h += '<div style="background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:10px">';
     h += '<div style="font-size:12px;font-weight:700;margin-bottom:8px">🗂 Структура — переместить выбранные работы</div>';
     h += fldRow('wb-on-super', 'Надгруппа <span style="color:#94a3b8;font-weight:500">(пусто — снять надгруппу)</span>', '<input id="wb-super-group" list="wb-sup-dl" autocomplete="off" placeholder="Без надгруппы"><datalist id="wb-sup-dl">' + dlOptsHtml2(grpLists.tops) + '</datalist>');
     h += fldRow('wb-on-group', 'Группа работ', '<input id="wb-group-group" list="wb-grp-dl" autocomplete="off" placeholder="Напр.: Покраска газопроводов"><datalist id="wb-grp-dl">' + dlOptsHtml2(grpLists.tops) + '</datalist>');
+    h += fldRow('wb-on-sub', 'Подгруппа <span style="color:#94a3b8;font-weight:500">(пусто — без подгруппы)</span>', '<input id="wb-sub-group" list="wb-sub-dl" autocomplete="off" placeholder="Без подгруппы"><datalist id="wb-sub-dl">' + dlOptsHtml2(Object.keys(subsAll).sort(function (a, b) { return a.localeCompare(b, 'ru'); })) + '</datalist>');
     h += '</div>';
-    h += '<div style="background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:10px">';
-    h += '<div style="font-size:12px;font-weight:700;margin-bottom:8px">⚙️ Атрибуты</div>';
-    h += fldRow('wb-on-season', 'Сезон проведения', '<select id="wb-season">' + ['Круглый год', 'Зима', 'Лето', 'Весна-осень'].map(function (s) { return '<option value="' + s + '">' + s + '</option>'; }).join('') + '</select>');
-    h += fldRow('wb-on-temp', 'Мин. температура, °C <span style="color:#94a3b8;font-weight:500">(-50 = без ограничений)</span>', '<input id="wb-temp" type="number" value="-50">');
-    h += fldRow('wb-on-norm', 'Норма времени (чел/ч на единицу) <span style="color:#94a3b8;font-weight:500">(можно с запятой)</span>', '<input id="wb-norm" type="text" inputmode="decimal" placeholder="напр.: 0,15">');
-    h += fldRow('wb-on-unit', 'Единица измерения', '<input id="wb-unit" list="wb-unit-dl" autocomplete="off" placeholder="объект"><datalist id="wb-unit-dl">' + ['объект', 'шт', 'м', 'м2', 'км', 'компл.', 'ч'].map(function (u) { return '<option value="' + u + '">'; }).join('') + '</datalist>');
-    h += fldRow('wb-on-minw', 'Кол-во исполнителей (мин / оптим.)', '<div style="display:flex;gap:8px"><input id="wb-minw" type="number" min="1" style="flex:1" placeholder="мин"><input id="wb-optw" type="number" min="1" style="flex:1" placeholder="опт"></div>');
-    h += fldRow('wb-on-crew', 'Численность бригады <span style="color:#94a3b8;font-weight:500">(если задана у работы — главнее мин/опт)</span>', '<input id="wb-crew" type="number" min="1" placeholder="напр.: 2">');
-    h += fldRow('wb-on-equip', 'Требуемая техника', '<input id="wb-equip" placeholder="Автовышка, КДМ, —">');
-    h += '</div>';
-    h += '<div style="background:#eef6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 12px;margin-bottom:10px">';
-    h += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><label class="cb" title="Применять связи «Проводится совместно» ко всем выбранным"><input type="checkbox" id="wb-on-joint"></label><div style="font-size:12px;font-weight:700;color:#1d4ed8">🤝 Проводится совместно — связанные группы работ</div></div>';
-    var jgroups = []; try { jgroups = wmJointGroups(area); } catch (e) {}
-    var gcnt = {};
-    try { (WORK.getWorks(area) || []).forEach(function (ww) { var g = (ww && ww.group != null) ? String(ww.group).trim() : ''; if (g) gcnt[g] = (gcnt[g] || 0) + 1; }); } catch (e) {}
-    h += '<div style="max-height:150px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:6px;background:#fff">';
-    if (!jgroups.length) h += '<div style="color:#94a3b8;font-size:12.5px;padding:10px;text-align:center">На участке нет групп работ</div>';
-    jgroups.forEach(function (g) {
-      var on = S.wmBulkJoint.indexOf(g) >= 0;
-      h += '<label class="cb" style="display:flex;align-items:center;gap:7px;padding:4px 6px;font-size:12.5px;cursor:pointer"><input type="checkbox" data-action="wbulk-jt" data-g="' + esc(g) + '"' + (on ? ' checked' : '') + '><span style="flex:1"><b style="color:var(--ink)">' + esc(g) + '</b><span style="color:#64748b"> · работ: ' + (gcnt[g] || 0) + '</span></span></label>';
-    });
-    h += '</div>';
-    h += '<div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">Связи применяются отдельными кнопками внизу: «Заменить» — у всех выбранных работ останутся ТОЛЬКО отмеченные здесь группы; «Добавить» — отмеченные группы добавятся к уже имеющимся связям каждой работы.</div>';
-    h += '</div>';
+    // Атрибуты участка — те же, что в карточке вида работ этого участка
+    if (fields.length) {
+      h += '<div style="background:' + (isGrp ? '#eef6ff' : 'var(--panel-2)') + ';border:1px solid ' + (isGrp ? '#bfdbfe' : 'var(--line)') + ';border-radius:8px;padding:10px 12px;margin-bottom:10px">';
+      h += '<div style="font-size:12px;font-weight:700;color:' + (isGrp ? '#1d4ed8' : 'var(--ink)') + ';margin-bottom:8px">' + (isGrp ? '📋 Атрибуты ГРП' : '⚙️ Атрибуты ' + esc(area)) +
+        ' <span style="color:#94a3b8;font-weight:500">— как в карточке вида работ</span></div>';
+      var firstSec = true;
+      fields.forEach(function (f) {
+        if (f.sec) {
+          h += '<div style="font-size:11.5px;font-weight:800;color:' + (isGrp ? '#1e3a8a' : 'var(--ink)') + ';margin:' + (firstSec ? '2px' : '12px') + ' 0 6px;' + (firstSec ? '' : 'padding-top:9px;border-top:1px dashed ' + (isGrp ? '#bfdbfe' : 'var(--line)') + ';') + '">' + f.sec + '</div>';
+          firstSec = false;
+        }
+        h += fldRow('wb-on-' + f.k, esc(f.lb) + (f.hint ? ' <span style="color:#94a3b8;font-weight:500">(' + esc(f.hint) + ')</span>' : ''), wbulkCtrlHtml(f));
+      });
+      h += '</div>';
+    } else {
+      h += '<div class="calc" style="margin-bottom:10px;align-items:flex-start;font-size:12px;line-height:1.5">ℹ У участка «' + esc(area) + '» в карточке вида работ нет собственных атрибутов (они есть у участков ГРП и УБиРОГС) — для выбранных работ доступно перемещение по группам (блок «Структура» выше).</div>';
+    }
+    if (hasJoint) {
+      h += '<div style="background:#eef6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 12px;margin-bottom:10px">';
+      h += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><label class="cb" title="Применять связи «Проводится совместно» ко всем выбранным"><input type="checkbox" id="wb-on-joint"></label><div style="font-size:12px;font-weight:700;color:#1d4ed8">🤝 Проводится совместно — связанные группы работ</div></div>';
+      var jgroups = []; try { jgroups = wmJointGroups(area); } catch (e) {}
+      var gcnt = {};
+      try { (WORK.getWorks(area) || []).forEach(function (ww) { var g = (ww && ww.group != null) ? String(ww.group).trim() : ''; if (g) gcnt[g] = (gcnt[g] || 0) + 1; }); } catch (e) {}
+      h += '<div style="max-height:150px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:6px;background:#fff">';
+      if (!jgroups.length) h += '<div style="color:#94a3b8;font-size:12.5px;padding:10px;text-align:center">На участке нет групп работ</div>';
+      jgroups.forEach(function (g) {
+        var on = S.wmBulkJoint.indexOf(g) >= 0;
+        h += '<label class="cb" style="display:flex;align-items:center;gap:7px;padding:4px 6px;font-size:12.5px;cursor:pointer"><input type="checkbox" data-action="wbulk-jt" data-g="' + esc(g) + '"' + (on ? ' checked' : '') + '><span style="flex:1"><b style="color:var(--ink)">' + esc(g) + '</b><span style="color:#64748b"> · работ: ' + (gcnt[g] || 0) + '</span></span></label>';
+      });
+      h += '</div>';
+      h += '<div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">Связи применяются отдельными кнопками внизу: «Заменить» — у всех выбранных работ останутся ТОЛЬКО отмеченные здесь группы; «Добавить» — отмеченные группы добавятся к уже имеющимся связям каждой работы.</div>';
+      h += '</div>';
+    }
     h += '</div>';
     h += '<div class="modal-f" style="flex-wrap:wrap;gap:8px">' +
       '<button class="btn" data-action="close-modal">Отмена</button>' +
-      '<button class="btn primary" data-action="wbulk-apply" title="Применить отмеченные галочками атрибуты (кроме связей — для них свои кнопки)">💾 Применить атрибуты</button>' +
-      '<button class="btn primary" data-action="wbulk-j-replace" style="background:#7c3aed" title="Применить и ЗАМЕНИТЬ связи «Проводится совместно» у всех выбранных работ отмеченными группами">🤝 Заменить связи</button>' +
-      '<button class="btn primary" data-action="wbulk-j-add" style="background:#0e7490" title="Применить и ДОБАВИТЬ отмеченные группы к уже имеющимся связям выбранных работ">🤝 Добавить связи</button>' +
+      '<button class="btn primary" data-action="wbulk-apply" title="Применить отмеченные галочками атрибуты' + (hasJoint ? ' (кроме связей — для них свои кнопки)' : '') + '">💾 Применить атрибуты</button>' +
+      (hasJoint ?
+        '<button class="btn primary" data-action="wbulk-j-replace" style="background:#7c3aed" title="Применить и ЗАМЕНИТЬ связи «Проводится совместно» у всех выбранных работ отмеченными группами">🤝 Заменить связи</button>' +
+        '<button class="btn primary" data-action="wbulk-j-add" style="background:#0e7490" title="Применить и ДОБАВИТЬ отмеченные группы к уже имеющимся связям выбранных работ">🤝 Добавить связи</button>' : '') +
       '</div>';
     modal.innerHTML = h;
-    modal.style.maxWidth = '660px';
+    modal.style.width = ''; modal.style.maxWidth = isGrp ? '820px' : '660px';
     overlay.classList.add('show');
+    if (fields.some(function (f) { return f.t === 'crew'; })) initCrewEditor(null, 0); // состав бригады — тот же редактор, что в карточке ГРП
   }
   /* Применение групповой правки. jointMode: '' — только атрибуты;
-     'replace' / 'add' — плюс связи «Проводится совместно» (если у блока стоит
-     галочка): заменить связи отмеченными группами или добавить их к имеющимся. */
+     'replace' / 'add' — плюс связи «Проводится совместно» (только ГРП; если у блока стоит
+     галочка): заменить связи отмеченными группами или добавить их к имеющимся.
+     22.09-237: применяются ТОЛЬКО атрибуты карточки текущего участка (wbulkFieldsFor). */
   function workBulkApply(jointMode) {
     if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
     var area = S.workArea;
@@ -10886,47 +11020,91 @@
     if (!ids.length) { toast('warn', 'Нет выбранных работ'); return; }
     function val(id) { var el = document.getElementById(id); var v = el ? el.value : ''; return (typeof v === 'string') ? v.trim() : ''; } // только строки: иначе «не задано»
     function on(id) { var el = document.getElementById(id); return !!(el && el.checked === true); } // строго: галочка браузера — true/false
+    function plain(sv) { return String(sv || '').replace(/<[^>]*>/g, ''); }
     var doSuper = on('wb-on-super'), newSuper = normGroupPath(val('wb-super-group'));
     var doGroup = on('wb-on-group'), newGroup = normGroupPath(val('wb-group-group'));
+    var doSub = on('wb-on-sub'), newSub = normGroupPath(val('wb-sub-group'));
     if (doGroup && !newGroup) { toast('err', '«Группа работ» отмечена, но значение пустое — группа не может быть пустой'); return; }
-    var doSeason = on('wb-on-season'), newSeason = val('wb-season') || 'Круглый год';
-    var doTemp = on('wb-on-temp'), newTemp = parseFloat(String(val('wb-temp')).replace(',', '.'));
-    if (doTemp && !isFinite(newTemp)) { toast('err', 'Мин. температура — не число'); return; }
-    var doNorm = on('wb-on-norm'), normRaw = String(val('wb-norm')).replace(',', '.'), newNorm = parseFloat(normRaw);
-    if (doNorm && (normRaw === '' || !isFinite(newNorm) || newNorm < 0)) { toast('err', 'Норма времени — некорректное число (принимаем и запятую: 0,15)'); return; }
-    var doUnit = on('wb-on-unit'), newUnit = val('wb-unit') || 'объект';
-    var doMinW = on('wb-on-minw'), newMinW = parseInt(val('wb-minw'), 10), newOptW = parseInt(val('wb-optw'), 10);
-    if (doMinW && !(isFinite(newMinW) && newMinW >= 1) && !(isFinite(newOptW) && newOptW >= 1)) { toast('err', 'Кол-во исполнителей: укажите мин и/или оптим. (целое от 1)'); return; }
-    var doCrew = on('wb-on-crew'), newCrew = parseInt(val('wb-crew'), 10);
-    if (doCrew && (!isFinite(newCrew) || newCrew < 1)) { toast('err', 'Численность бригады — целое число от 1'); return; }
-    var doEquip = on('wb-on-equip'), newEquip = val('wb-equip') || '—';
-    var doJoint = (jointMode === 'replace' || jointMode === 'add') && on('wb-on-joint');
+    var fields = wbulkFieldsFor(area);
+    var set = {}, ops = [], errs = [], fieldsLog = [], crewSkipped = 0;
+    fields.forEach(function (f) {
+      if (!on('wb-on-' + f.k)) return;
+      var v = val('wb-v-' + f.k);
+      if (f.t === 'dec') {
+        var raw = v.replace(',', '.'), n = parseFloat(raw);
+        if (raw === '' || !isFinite(n) || n < 0) { errs.push(plain(f.lb) + ' — некорректное число (принимаем и запятую: 0,15)'); return; }
+        set[f.k] = n;
+      } else if (f.t === 'int' || f.t === 'crewsize') {
+        var vi = parseInt(f.t === 'crewsize' ? val('wm-crew-size') : v, 10);
+        if (!isFinite(vi) || vi < (f.min || 0)) { errs.push(plain(f.lb) + ' — целое число от ' + (f.min || 0)); return; }
+        set[f.k] = vi;
+      } else if (f.t === 'num') {
+        var nf = parseFloat(v.replace(',', '.'));
+        if (!isFinite(nf)) { errs.push(plain(f.lb) + ' — не число'); return; }
+        set[f.k] = nf;
+      } else if (f.t === 'text') {
+        set[f.k] = v || (f.def != null ? f.def : '');
+      } else if (f.t === 'sel') {
+        var okv = (f.opts || []).map(function (o) { return Array.isArray(o) ? o[0] : o; });
+        if (okv.indexOf(v) === -1 || (v === '' && !f.empty)) v = okv[0]; // в окне всегда одно из значений списка
+        set[f.k] = v;
+      } else if (f.t === 'bool') {
+        set[f.k] = (v !== '0'); // «Да» — по умолчанию (первый пункт)
+      } else if (f.t === 'multi' || f.t === 'list') {
+        var items = [];
+        if (f.t === 'multi') {
+          try { document.querySelectorAll('[data-wbm="' + f.k + '"]').forEach(function (nd) { if (nd && nd.checked === true) items.push(nd.getAttribute('data-v')); }); } catch (e) {}
+        } else {
+          items = v.split(',').map(function (sv) { return sv.trim(); }).filter(Boolean);
+        }
+        var mode = val('wb-m-' + f.k);
+        if (mode !== 'add' && mode !== 'remove') mode = 'replace';
+        if (mode !== 'replace' && !items.length) { errs.push(plain(f.lb) + ' — ' + (f.t === 'multi' ? 'отметьте значения' : 'впишите значения через запятую') + ', которые нужно ' + (mode === 'add' ? 'добавить' : 'убрать')); return; }
+        ops.push({ k: f.k, mode: mode, items: items, sh: f.sh });
+      } else if (f.t === 'minopt') {
+        var mn = parseInt(val('wb-v-min_workers'), 10), op = parseInt(val('wb-v-opt_workers'), 10);
+        if (!(isFinite(mn) && mn >= 1) && !(isFinite(op) && op >= 1)) { errs.push('Кол-во исполнителей: укажите мин и/или оптим. (целое от 1)'); return; }
+        if (isFinite(mn) && mn >= 1) set.min_workers = mn;
+        if (isFinite(op) && op >= 1) set.opt_workers = op;
+      } else if (f.t === 'crew') {
+        var cr = [];
+        try { cr = crewCollect(); } catch (e) { cr = []; }
+        crewSkipped = cr.skipped || 0;
+        set.crew = cr.slice();
+      }
+      fieldsLog.push(f.sh || plain(f.lb));
+    });
+    if (errs.length) { toast('err', errs[0]); return; }
+    var hasJoint = (area === 'ГРП');
+    var doJoint = hasJoint && (jointMode === 'replace' || jointMode === 'add') && on('wb-on-joint');
     var jSel = (Array.isArray(S.wmBulkJoint) ? S.wmBulkJoint.slice() : []);
     if (doJoint && jointMode === 'replace' && !jSel.length) {
       if (!window.confirm('Группы не отмечены — связи «Проводится совместно» будут ОЧИЩЕНЫ у всех выбранных работ. Продолжить?')) return;
     }
-    if (!doSuper && !doGroup && !doSeason && !doTemp && !doNorm && !doUnit && !doMinW && !doCrew && !doEquip && !doJoint) {
+    var clearing = [];
+    ops.forEach(function (o) { if (o.mode === 'replace' && !o.items.length) clearing.push(o.sh); });
+    if (set.crew && !set.crew.length) clearing.push('состав бригады');
+    if (clearing.length && !window.confirm('Значения не указаны — у всех выбранных работ будут ОЧИЩЕНЫ: ' + clearing.join(', ') + '. Продолжить?')) return;
+    if (!doSuper && !doGroup && !doSub && !Object.keys(set).length && !ops.length && !doJoint) {
       toast('warn', 'Не отмечен ни один атрибут для изменения — поставьте галочки у нужных'); return;
     }
-    var fieldsLog = [];
-    if (doSuper) fieldsLog.push('надгруппа'); if (doGroup) fieldsLog.push('группа');
-    if (doSeason) fieldsLog.push('сезон'); if (doTemp) fieldsLog.push('мин. температура');
-    if (doNorm) fieldsLog.push('норма'); if (doUnit) fieldsLog.push('единица');
-    if (doMinW) fieldsLog.push('исполнители'); if (doCrew) fieldsLog.push('численность бригады');
-    if (doEquip) fieldsLog.push('техника');
+    var structLog = [];
+    if (doSuper) structLog.push('надгруппа'); if (doGroup) structLog.push('группа'); if (doSub) structLog.push('подгруппа');
+    fieldsLog = structLog.concat(fieldsLog);
     if (doJoint) fieldsLog.push(jointMode === 'add' ? 'связи (добавлены)' : 'связи (заменены)');
     var applied = 0, fails = 0;
     ids.forEach(function (id) {
       var w = null; try { w = WORK.getWork(area, id); } catch (e) {}
       if (!w) return;
       var patch = {};
-      if (doSuper || doGroup) {
+      if (doSuper || doGroup || doSub) {
         var segs = normGroupPath(w.group || '').split(' / ').filter(Boolean);
         var sup = '', grp = '', subs = '';
         if (segs.length >= 3) { sup = segs[0]; grp = segs[1] || ''; subs = segs.slice(2).join(' / '); }
         else { grp = segs[0] || ''; subs = segs.slice(1).join(' / '); } // старые 1–2 сегмента — без надгруппы
         if (doSuper) sup = newSuper; // пусто — снять надгруппу
         if (doGroup) grp = newGroup;
+        if (doSub) subs = newSub; // пусто — без подгруппы
         if (!grp) { fails++; return; } // группа обязана остаться
         var parts = [];
         if (sup) parts.push(sup);
@@ -10934,16 +11112,16 @@
         if (subs) parts.push(subs);
         patch.group = parts.join(' / ');
       }
-      if (doSeason) patch.season = newSeason;
-      if (doTemp) patch.min_temp = newTemp;
-      if (doNorm) patch.norm = newNorm;
-      if (doUnit) patch.unit = newUnit;
-      if (doMinW) {
-        if (isFinite(newMinW) && newMinW >= 1) patch.min_workers = newMinW;
-        if (isFinite(newOptW) && newOptW >= 1) patch.opt_workers = newOptW;
-      }
-      if (doCrew) { patch.crew_size = newCrew; patch.min_workers = newCrew; patch.opt_workers = newCrew; } // как в карточке: размер бригады главнее
-      if (doEquip) patch.equipment = newEquip;
+      Object.keys(set).forEach(function (k) { patch[k] = Array.isArray(set[k]) ? set[k].map(function (x) { return (x && typeof x === 'object') ? Object.assign({}, x) : x; }) : set[k]; });
+      if (set.crew_size != null && set.crew_size > 0) { patch.min_workers = set.crew_size; patch.opt_workers = set.crew_size; } // как в карточке ГРП: общее кол-во исполнителей главнее мин/опт
+      ops.forEach(function (o) {
+        var ex = Array.isArray(w[o.k]) ? w[o.k].slice() : (w[o.k] ? [w[o.k]] : []);
+        var res;
+        if (o.mode === 'add') { res = ex.slice(); o.items.forEach(function (x) { if (res.indexOf(x) === -1) res.push(x); }); }
+        else if (o.mode === 'remove') { res = ex.filter(function (x) { return o.items.indexOf(x) === -1; }); }
+        else { res = o.items.slice(); }
+        patch[o.k] = res;
+      });
       if (doJoint) {
         var ex = Array.isArray(w.joint_with) ? w.joint_with.slice() : (w.joint_with ? [w.joint_with] : []);
         var merged = (jointMode === 'add') ? ex.slice() : [];
@@ -10955,7 +11133,7 @@
         var sw2 = WORK.updateWork(area, id, patch);
         // переезд в другую группу — наследование пометок группы (как в карточке, 22.09-137)
         try {
-          if ((doSuper || doGroup) && sw2 && sw2.id && WORK.groupFlagsOf) {
+          if ((doSuper || doGroup || doSub) && sw2 && sw2.id && WORK.groupFlagsOf) {
             var gfOwn = Array.isArray(sw2.group_flags) ? sw2.group_flags : [];
             var gfNew = WORK.groupFlagsOf(area, patch.group, sw2.id) || [];
             if (JSON.stringify(gfOwn) !== JSON.stringify(gfNew)) WORK.updateWork(area, sw2.id, { group_flags: gfNew });
@@ -10968,6 +11146,11 @@
     overlay.classList.remove('show'); modal.style.width = ''; modal.style.maxWidth = '';
     if (!fails) toast('ok', '✅ Групповое изменение применено — работ: ' + applied + ' (' + fieldsLog.join(', ') + ')');
     else toast('warn', 'Групповое изменение: применено к ' + applied + ' работам, не удалось — ' + fails);
+    if (crewSkipped) toast('warn', '⚠️ Строк состава бригады с количеством, но без профессии не сохранено: ' + crewSkipped);
+    if (set.crew && set.crew_size != null) {
+      var crewSum = set.crew.reduce(function (a, e) { return a + (e.count || 0); }, 0);
+      if (set.crew_size > 0 && crewSum !== set.crew_size) toast('warn', '⚠️ Состав исполнителей (' + crewSum + ') не совпадает с общим количеством (' + set.crew_size + ')');
+    }
     renderRefs();
   }
 
@@ -12449,6 +12632,7 @@
     }
     h += '</div></div>';
     h += '<div class="modal-f"><button class="btn" data-action="close-modal2">Отмена</button><button class="btn primary" data-action="save-joint-pick">Сохранить</button></div>';
+    modal2.style.width = ''; modal2.style.maxWidth = ''; // 22.09-235: ширина по умолчанию (не наследуем от широких окон)
     modal2.innerHTML = h;
     overlay2.classList.add('show');
   }
@@ -17287,7 +17471,7 @@
     else if (a === 'wo-save-close') { woSaveWriteoff(); closeTaskObjectPickers(); overlay.classList.remove('show'); modal.style.maxWidth = ''; modal.style.width = ''; S.wkModalUid = null; S.wmJointSel = null; } // 22.09-186: сохранить и закрыть карточку
     else if (a === 'wo-work-pick') { woPickWork(parseInt(el.dataset.idx, 10) || 0); } // 22.09-185: выбор вида работ для списания
     else if (a === 'close-modal') { closeTaskObjectPickers(); overlay.classList.remove('show'); modal.style.maxWidth = ''; modal.style.width = ''; if (S.wkModalUid && S.screen === 'workers') renderWorkers(); S.wkModalUid = null; S.wmJointSel = null; /* 22.09-162 */ S.schEd = null; S.schEdAll = null; S.schEdDay = null; S.schEdMode = null; /* 22.09-211/213 */ S.workersModal = false; S.factModal = false; /* 22.09-220 */ }
-    else if (a === 'close-modal2') { var ov2 = document.getElementById('overlay2'); if (ov2) ov2.classList.remove('show'); if (S.wkModalUid && S.workersModal) { renderWorkers(); } S.wkModalUid = null; /* 22.09-220 */ } // 22.09-162
+    else if (a === 'close-modal2') { var ov2 = document.getElementById('overlay2'); if (ov2) ov2.classList.remove('show'); var md2 = document.getElementById('modal2'); if (md2) { md2.style.width = ''; md2.style.maxWidth = ''; } /* 22.09-235: ширина окна — снова по умолчанию */ if (S.wkModalUid && S.workersModal) { renderWorkers(); } S.wkModalUid = null; /* 22.09-220 */ } // 22.09-162
     else if (a === 'close-modal3') { var ov3 = document.getElementById('overlay3'); if (ov3) ov3.classList.remove('show'); S.wkDay = null; } // 22.09-220
     else if (a === 'wm-joint-pick') { openWmJointPickModal(); } // 22.09-162
     else if (a === 'save-joint-pick') { saveWmJointPick(); } // 22.09-162
@@ -17813,6 +17997,31 @@
     document.addEventListener('change', clampGprYear);
   })();
 
+  /* 22.09-235: таблица графика на год (объекты × месяцы с треугольниками) — ОБЩАЯ
+     для страницы «График работ» и окна просмотра сохранённой копии графика.
+     ro = true — только просмотр: ячейки и месяцы не нажимаются (без data-action). */
+  function gwYearGridHtml(g, ro) {
+    var h = '<div class="gw-scroll' + (ro ? ' gw-ro' : '') + '"><div class="gw-grid">';
+    h += '<div class="gw-h gw-corner">Объект<span>' + esc(String(g.year)) + ' год</span></div>';
+    var winterM = gwWinterMonths(g); // 22.09-121: столбцы месяцев с зимними днями — голубее
+    for (var mi = 0; mi < 12; mi++) {
+      h += '<div class="gw-h gw-m"' + (winterM[mi] ? ' style="background:#e0f0fb"' : '') +
+        (ro ? '' : ' data-action="graphs-month-view" data-mi="' + mi + '" title="Открыть график всех объектов на ' + MONTHS_RU[mi] + '"') +
+        '>' + MONTHS_RU[mi] + '</div>';
+    }
+    (g.objs || []).forEach(function (ob, ri) {
+      if (!ob || ob.hide) return; // фильтр графика: скрытые объекты не показываются
+      h += '<div class="gw-obj"><span class="chip ' + esc(ob.type) + '">' + esc(ob.type) + '</span><span class="gw-obj-nm" title="' + esc(ob.name) + '">' + esc(ob.name) + '</span></div>';
+      for (var ci = 0; ci < 12; ci++) {
+        h += '<div class="gw-c"' + (winterM[ci] ? ' style="background:#e0f0fb"' : '') +
+          (ro ? '' : ' data-action="graphs-obj-month" data-ri="' + ri + '" data-mi="' + ci + '" title="График объекта · ' + MONTHS_RU[ci] + '"') +
+          '>' + gwMonthTriangles(g, ob, ci) + '</div>';
+      }
+    });
+    h += '</div></div>';
+    return h;
+  }
+
   function drawGraphsBody() {
     var body = document.getElementById('graphs-body');
     if (!body) return;
@@ -17827,25 +18036,12 @@
       return;
     }
     // Таблица графика: слева — объекты (строки), сверху — месяцы января→декабря
-    // года графика. Пересечения объект×месяц пока пустые — содержимое по следующей постановке.
+    // года графика, в ячейках — треугольники работ (общий построитель gwYearGridHtml, 22.09-235).
     if (g.objs && g.objs.length) {
       // ни у одного объекта нет работ — заметная подсказка вместо «пустых» ячеек
       var anyWork = g.objs.some(function (ob) { return !ob.hide && gwObjWorks(ob).some(function (w) { return w.wid; }); });
       var h = (anyWork ? '' : '<div class="calc" style="margin-bottom:10px;align-items:flex-start;border-left:4px solid var(--yellow)">⚠ Работы не заданы ни у одного объекта — треугольников нет. Нажмите «Настроить периодичность» на панели слева, выберите вид работы, периодичность и дату первого проведения.</div>') +
-        '<div class="gw-scroll"><div class="gw-grid">';
-      h += '<div class="gw-h gw-corner">Объект<span>' + esc(String(g.year)) + ' год</span></div>';
-      var winterM = gwWinterMonths(g); // 22.09-121: столбцы месяцев с зимними днями — голубее
-      for (var mi = 0; mi < 12; mi++) {
-        h += '<div class="gw-h gw-m"' + (winterM[mi] ? ' style="background:#e0f0fb"' : '') + ' data-action="graphs-month-view" data-mi="' + mi + '" title="Открыть график всех объектов на ' + MONTHS_RU[mi] + '">' + MONTHS_RU[mi] + '</div>';
-      }
-      g.objs.forEach(function (ob, ri) {
-        if (ob.hide) return; // фильтр графика: скрытые объекты не показываются
-        h += '<div class="gw-obj"><span class="chip ' + esc(ob.type) + '">' + esc(ob.type) + '</span><span class="gw-obj-nm" title="' + esc(ob.name) + '">' + esc(ob.name) + '</span></div>';
-        for (var ci = 0; ci < 12; ci++) {
-          h += '<div class="gw-c"' + (winterM[ci] ? ' style="background:#e0f0fb"' : '') + ' data-action="graphs-obj-month" data-ri="' + ri + '" data-mi="' + ci + '" title="График объекта · ' + MONTHS_RU[ci] + '">' + gwMonthTriangles(g, ob, ci) + '</div>';
-        }
-      });
-      h += '</div></div>';
+        gwYearGridHtml(g, false);
       body.innerHTML = h;
       return;
     }
@@ -20047,8 +20243,59 @@
      просмотр копии и кнопка «Применить» (восстановить текущий график из копии;
      задачи в планировании при этом НЕ пересоздаются). */
   var GRAPH_SNAPS_KEY = 'smartplan_graph_snaps_v1';
+  /* 22.09-236: подпись копии по порядку сохранения — «Первая итерация», «Вторая итерация», …,
+     «Двадцать первая итерация», … «Сто двадцать третья итерация» (женский род; после 999 — «N-я итерация»). */
+  function snapIterLabel(n) {
+    n = Math.floor(+n || 0);
+    if (n < 1) return 'Итерация';
+    var U = ['', 'первая', 'вторая', 'третья', 'четвёртая', 'пятая', 'шестая', 'седьмая', 'восьмая', 'девятая'];
+    var T1 = ['десятая', 'одиннадцатая', 'двенадцатая', 'тринадцатая', 'четырнадцатая', 'пятнадцатая', 'шестнадцатая', 'семнадцатая', 'восемнадцатая', 'девятнадцатая'];
+    var TO = ['', '', 'двадцатая', 'тридцатая', 'сороковая', 'пятидесятая', 'шестидесятая', 'семидесятая', 'восьмидесятая', 'девяностая'];
+    var TC = ['', '', 'двадцать', 'тридцать', 'сорок', 'пятьдесят', 'шестьдесят', 'семьдесят', 'восемьдесят', 'девяносто'];
+    var HO = ['', 'сотая', 'двухсотая', 'трёхсотая', 'четырёхсотая', 'пятисотая', 'шестисотая', 'семисотая', 'восьмисотая', 'девятисотая'];
+    var HC = ['', 'сто', 'двести', 'триста', 'четыреста', 'пятьсот', 'шестьсот', 'семьсот', 'восемьсот', 'девятьсот'];
+    var w;
+    if (n > 999) w = n + '-я';
+    else {
+      var h = Math.floor(n / 100), r = n % 100, t = Math.floor(r / 10), u = r % 10;
+      if (!r) w = HO[h];
+      else {
+        var pre = h ? HC[h] + ' ' : '';
+        if (r < 10) w = pre + U[r];
+        else if (r < 20) w = pre + T1[r - 10];
+        else w = pre + (u ? TC[t] + ' ' + U[u] : TO[t]);
+      }
+    }
+    return w.charAt(0).toUpperCase() + w.slice(1) + ' итерация';
+  }
+  /* 22.09-236: наибольший номер итерации среди копий графика */
+  function graphSnapsMaxIter(arr) {
+    var mx = 0;
+    (arr || []).forEach(function (sn) { if (sn && +sn.iter > mx) mx = +sn.iter; });
+    return mx;
+  }
+  /* 22.09-236: копиям без номера (сохранены до сборки 236) — номера по времени сохранения:
+     самая ранняя — «Первая итерация». Уже пронумерованные копии не меняются. */
+  function graphSnapsNumber(arr) {
+    var next = graphSnapsMaxIter(arr);
+    (arr || []).filter(function (sn) { return sn && !(+sn.iter > 0); })
+      .sort(function (x, y) { return (+x.ts || 0) - (+y.ts || 0); })
+      .forEach(function (sn) { sn.iter = ++next; });
+    return arr;
+  }
   function graphSnapsLoad(id) {
-    try { var all = JSON.parse(localStorage.getItem(GRAPH_SNAPS_KEY) || '{}'); var a = all[id]; return Array.isArray(a) ? a : []; } catch (e) { return []; }
+    try {
+      var all = JSON.parse(localStorage.getItem(GRAPH_SNAPS_KEY) || '{}');
+      var a = all[id];
+      if (!Array.isArray(a)) return [];
+      // 22.09-236: старые копии без номера — пронумеровать один раз и сохранить (номера больше не меняются)
+      if (a.some(function (sn) { return sn && !(+sn.iter > 0); })) {
+        graphSnapsNumber(a);
+        all[id] = a;
+        try { localStorage.setItem(GRAPH_SNAPS_KEY, JSON.stringify(all)); } catch (eW) {}
+      }
+      return a;
+    } catch (e) { return []; }
   }
   function graphSnapsSaveList(id, arr) {
     try { var all = JSON.parse(localStorage.getItem(GRAPH_SNAPS_KEY) || '{}'); all[id] = arr; localStorage.setItem(GRAPH_SNAPS_KEY, JSON.stringify(all)); } catch (e) {}
@@ -20064,6 +20311,7 @@
       var snap = {
         id: 'snap_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 5),
         ts: Date.now(), via: via || 'печать',
+        iter: graphSnapsMaxIter(arr) + 1, // 22.09-236: порядковый номер копии — «Первая итерация», «Вторая итерация», …
         name: g.name, year: g.year, respName: g.respName || '',
         objsCount: objs.length, worksCount: worksCnt,
         graph: JSON.parse(JSON.stringify(g))
@@ -20088,12 +20336,12 @@
     if (!arr.length) {
       h += '<div class="empty" style="padding:26px;text-align:center">Копий пока нет — они создаются автоматически при каждой печати графика (кнопка «Печать графика» на панели инструментов).</div>';
     } else {
-      h += '<div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">Каждая печать графика сохраняет его полную копию. Выберите копию: можно <b>предосмотреть</b> и <b>применить</b> её к текущему графику (задания в планировании при этом выстраиваются заново по датам восстановленного графика: невыполненные пересоздаются, выполненные остаются в истории, дубли не создаются; действие можно отменить кнопкой «⟲ Отмена» в календаре).</div>';
+      h += '<div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">Каждая печать графика сохраняет его полную копию. Копии подписаны по порядку сохранения: самая первая — «Первая итерация», следующая — «Вторая итерация» и так далее. Выберите копию: можно <b>предосмотреть</b> и <b>применить</b> её к текущему графику (задания в планировании при этом выстраиваются заново по датам восстановленного графика: невыполненные пересоздаются, выполненные остаются в истории, дубли не создаются; действие можно отменить кнопкой «⟲ Отмена» в календаре).</div>';
       arr.forEach(function (sn) {
         h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:var(--panel-2)">' +
-          '<div style="flex:1;min-width:0"><div style="font-weight:800;font-size:12.5px;color:var(--ink)">' + esc(_snapDT(sn.ts)) + '</div>' +
+          '<div style="flex:1;min-width:0"><div style="font-weight:800;font-size:12.5px;color:var(--ink)">' + esc(snapIterLabel(sn.iter)) + ' <span style="font-weight:600;color:var(--muted)">· ' + esc(_snapDT(sn.ts)) + '</span></div>' +
           '<div style="font-size:11px;color:var(--muted)">' + (sn.objsCount || 0) + ' объектов · ' + (sn.worksCount || 0) + ' видов работ · ' + esc(String(sn.year || '')) + ' год' + (sn.respName ? ' · ' + esc(sn.respName) : '') + '</div></div>' +
-          '<button class="btn sm" data-action="graph-snap-preview" data-sid="' + esc(sn.id) + '" title="Показать содержимое этой копии (объекты и работы с периодичностью)">👁 Просмотр</button>' +
+          '<button class="btn sm" data-action="graph-snap-preview" data-sid="' + esc(sn.id) + '" title="Открыть эту копию в виде графика (только просмотр)">👁 Просмотр</button>' +
           '<button class="btn sm primary" data-action="graph-snap-apply" data-sid="' + esc(sn.id) + '" title="Заменить текущий график этой копией (объекты, работы, периодичность, даты вхождений)">⤺ Применить</button>' +
           '</div>';
       });
@@ -20101,32 +20349,80 @@
     h += '</div>';
     modal.style.maxWidth = '660px'; modal.innerHTML = h; overlay.classList.add('show');
   }
+  /* 22.09-235: обозначения работ для окна просмотра копии — только группы (и работы
+     без группы), которые есть в видимых объектах копии, в цветах этой копии */
+  function gwSnapLegendHtml(g) {
+    var area = ''; try { area = graphAreaDefault(g); } catch (e) {}
+    var seen = {}, items = [];
+    (g.objs || []).forEach(function (ob) {
+      if (!ob || ob.hide) return;
+      gwObjWorks(ob).forEach(function (wrk) {
+        var wids = [wrk.wid];
+        (wrk.occs || []).forEach(function (oc) { if (oc && oc.wid) wids.push(oc.wid); });
+        wids.forEach(function (wid) {
+          if (!wid) return;
+          var w = null; try { w = area ? WORK.getWork(area, wid) : null; } catch (e) {}
+          var gp = gwWorkGroup(w);
+          var k = gp ? 'grp:' + gp : 'w:' + wid;
+          if (seen[k]) return;
+          seen[k] = 1;
+          items.push({ label: gp || (w && w.name) || wid, color: gwColorOf(g, wid) });
+        });
+      });
+    });
+    if (!items.length) return '';
+    items.sort(function (a, b) { return String(a.label).localeCompare(String(b.label), 'ru'); });
+    var h = '<div style="margin-top:12px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel-2)">' +
+      '<div style="font-size:11.5px;font-weight:800;color:var(--ink);margin-bottom:7px">Обозначения работ</div>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:7px 18px;align-items:center">';
+    items.forEach(function (it) {
+      h += '<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#4b5563;font-weight:600">' + gwTriangle(it.color, 13) + esc(it.label) + '</span>';
+    });
+    h += '<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);font-weight:600">' + gwDoneMark(14) + 'выполнено</span>';
+    h += '</div></div>';
+    return h;
+  }
+
+  /* 22.09-235: просмотр сохранённой копии — окно ПОВЕРХ страницы, внутри — сам график:
+     та же шапка (год, ответственный, наименование) и та же таблица «объекты × месяцы»
+     с треугольниками, что на странице «График работ», только для просмотра
+     (подсказки при наведении работают); внизу — обозначения и «⤺ Применить эту копию». */
   function openGraphSnapPreviewModal(sid) {
     var sn = graphSnapById(sid); if (!sn) return;
     var g = sn.graph || {};
-    var area = ''; try { area = graphAreaDefault(g); } catch (e) {}
-    var h = '<div class="modal-h"><h3>👁 Копия от ' + esc(_snapDT(sn.ts)) + '</h3><button class="x" data-action="close-modal2">×</button></div><div class="modal-b">';
-    h += '<div style="font-size:12.5px;margin-bottom:10px"><b>' + esc(g.name || '—') + '</b> · ' + esc(String(g.year || '')) + ' год' + (g.respName ? ' · ' + esc(g.respName) : '') + '</div>';
-    (g.objs || []).forEach(function (ob) {
-      var works = gwObjWorks(ob);
-      h += '<div style="border:1px solid var(--line);border-radius:8px;margin-bottom:6px;padding:6px 8px">' +
-        '<div style="font-weight:700;font-size:12px;color:var(--ink)">' + esc(ob.name || '?') + (ob.type ? ' <span style="color:var(--muted);font-weight:600">· ' + esc(ob.type) + '</span>' : '') + '</div>';
-      if (!works.length) h += '<div style="font-size:11px;color:var(--muted)">работ не назначено</div>';
-      works.forEach(function (w) {
-        var wi = null; try { wi = area ? WORK.getWork(area, w.wid) : null; } catch (e) {}
-        h += '<div style="font-size:11px;color:var(--muted);padding-left:10px">• ' + esc((wi && wi.name) || w.wid || '?') + ' · каждые ' + (w.period || 0) + ' мес' + ((+w.dev) ? ' (−' + (+w.dev) + ' дн)' : '') + (w.first ? ' · от ' + esc(fmtDmyIso(w.first)) : '') + ' · вхождений: ' + ((w.occs || []).length) + '</div>';
-      });
-      h += '</div>';
-    });
-    h += '</div>';
     var overlay2 = document.getElementById('overlay2'), modal2 = document.getElementById('modal2');
     if (!overlay2 || !modal2) return;
-    modal2.style.maxWidth = '720px'; modal2.innerHTML = h; overlay2.classList.add('show');
+    var objs = g.objs || [];
+    var hidden = objs.filter(function (ob) { return ob && ob.hide; }).length;
+    var h = '<div class="modal-h"><h3>👁 ' + esc(snapIterLabel(sn.iter)) + ' — копия графика от ' + esc(_snapDT(sn.ts)) + '</h3><button class="x" data-action="close-modal2">×</button></div>';
+    // шапка — как посередине панели графика: год, ответственный, под ними наименование
+    h += '<div class="gtb" style="justify-content:center"><div class="gt-mid">' +
+      '<div class="gt-mid-top">' +
+      '<span class="chip" style="background:#eff6ff;color:#1d4ed8">' + esc(String(g.year || '')) + '</span>' +
+      (g.respName ? '<span class="chip" style="background:#f0fdf4;color:#15803d">' + esc(g.respName) + '</span>' : '') +
+      '</div>' +
+      '<span class="gt-name" style="max-width:none" title="' + esc(g.name || '') + '">' + esc(g.name || '—') + '</span>' +
+      '</div></div>';
+    h += '<div class="modal-b">';
+    h += '<div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;line-height:1.5">📄 Сохранённая копия (' + esc(sn.via || 'печать') + ') — <b>только просмотр</b>: так график выглядел на момент копии. Наведите на треугольник — подсказка с работами и датами. Вернуть эту копию в график — кнопка «⤺ Применить эту копию» внизу.' +
+      (hidden ? ' <b>Объектов скрыто фильтром графика: ' + hidden + '</b> — в копии они есть и вернутся при применении.' : '') +
+      '</div>';
+    if (!objs.length) h += '<div class="empty" style="padding:30px 20px">В этой копии нет объектов.</div>';
+    else h += gwYearGridHtml(g, true);
+    h += gwSnapLegendHtml(g);
+    h += '</div>';
+    h += '<div class="modal-f">' +
+      '<button type="button" class="btn primary" data-action="graph-snap-apply" data-sid="' + esc(sn.id) + '" title="Заменить текущий график этой копией (объекты, работы, периодичность, даты)">⤺ Применить эту копию</button>' +
+      '<button type="button" class="btn" data-action="close-modal2">Закрыть</button>' +
+      '</div>';
+    modal2.innerHTML = h;
+    modal2.style.width = 'min(1500px,96vw)'; modal2.style.maxWidth = '96vw'; // график — широкое окно
+    overlay2.classList.add('show');
   }
   function graphSnapApply(sid) {
     var sn = graphSnapById(sid); if (!sn) return;
     var g = graphsFind(GS.cur); if (!g) return;
-    if (!window.confirm('Применить копию от ' + _snapDT(sn.ts) + ' к графику «' + g.name + '»?\n\nТекущие объекты, работы, периодичность и даты вхождений будут заменены содержимым копии, и задания в планировании будут выстроены заново по датам этого графика (выполненные останутся в истории). Отменить действие можно кнопкой «⟲ Отмена» в календаре.')) return;
+    if (!window.confirm('Применить копию «' + snapIterLabel(sn.iter) + '» от ' + _snapDT(sn.ts) + ' к графику «' + g.name + '»?\n\nТекущие объекты, работы, периодичность и даты вхождений будут заменены содержимым копии, и задания в планировании будут выстроены заново по датам этого графика (выполненные останутся в истории). Отменить действие можно кнопкой «⟲ Отмена» в календаре.')) return;
     var list = graphsLoad();
     var restored = null;
     for (var i = 0; i < list.length; i++) {
@@ -20151,8 +20447,8 @@
     } catch (eR) {}
     try { overlay.classList.remove('show'); } catch (e) {}
     try { document.getElementById('overlay2').classList.remove('show'); } catch (e2) {}
-    try { logAction('График: восстановление из копии', g.name + ' · копия от ' + _snapDT(sn.ts) + (rs ? ' · заданий создано: ' + (rs.created || 0) + ', убрано прежних: ' + (rs.removed || 0) : '')); } catch (e3) {}
-    toast('ok', '♻ График «' + g.name + '» восстановлен из копии.');
+    try { logAction('График: восстановление из копии', g.name + ' · ' + snapIterLabel(sn.iter) + ' · копия от ' + _snapDT(sn.ts) + (rs ? ' · заданий создано: ' + (rs.created || 0) + ', убрано прежних: ' + (rs.removed || 0) : '')); } catch (e3) {}
+    toast('ok', '♻ График «' + g.name + '» восстановлен из копии «' + snapIterLabel(sn.iter) + '».');
     if (rs) toast('ok', '📅 Задания в планировании выстроены по графику: создано ' + (rs.created || 0) + ', убрано прежних ' + (rs.removed || 0) + ', сохранено выполненных ' + (rs.kept || 0) + (rs.dup ? ', уже существовали (без дублей): ' + rs.dup : '') + '. Отменить всё: «⟲ Отмена» в календаре.');
     if (S.screen === 'calendar') { try { refresh(); } catch (eC) {} }
     renderGraphs();

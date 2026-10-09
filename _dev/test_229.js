@@ -24,8 +24,13 @@ ok(app.indexOf("☑ Групповое изменение</button>") >= 0, 'кн
 
 // 2) окно групповой правки
 ok(cnt('function openWorkBulkModal() {') === 1 && app.indexOf('☑ Групповое изменение работ · ') >= 0, 'окно групповой правки с числом выбранных');
-['wb-on-super', 'wb-on-group', 'wb-on-season', 'wb-on-temp', 'wb-on-norm', 'wb-on-unit', 'wb-on-minw', 'wb-on-crew', 'wb-on-equip'].forEach(function (id) {
+['wb-on-super', 'wb-on-group'].forEach(function (id) {
   ok(app.indexOf("fldRow('" + id + "',") >= 0, 'атрибут с галочкой применения: ' + id);
+});
+// 237: атрибуты — из описания полей участка (как в карточке), галочка у каждого
+ok(app.indexOf("fldRow('wb-on-' + f.k,") >= 0, 'атрибуты участка — с галочкой применения (237)');
+['season', 'min_temp', 'norm', 'unit', 'min_workers', 'crew_size', 'equipment'].forEach(function (k) {
+  ok(app.indexOf("{ k: '" + k + "'") >= 0, 'атрибут в описании полей (237): ' + k);
 });
 ok(app.indexOf('id="wb-on-joint"') >= 0, 'атрибут с галочкой применения: wb-on-joint');
 ok(app.indexOf('data-action="wbulk-jt"') >= 0 && app.indexOf('S.wmBulkJoint') >= 0, 'выбор связанных групп работ в окне');
@@ -36,7 +41,7 @@ ok(app.indexOf('будут ОЧИЩЕНЫ у всех выбранных раб�
 ok(cnt('function workBulkApply(jointMode) {') === 1, 'функция применения групповой правки');
 ok(app.indexOf("jointMode === 'add' ? ex.slice() : []") >= 0 || app.indexOf("(jointMode === 'add') ? ex.slice() : []") >= 0, '«Добавить» — к имеющимся; «Заменить» — заново');
 ok(app.indexOf("g !== id && merged.indexOf(g) === -1") >= 0, 'связи без дублей и без самоссылки');
-ok(app.indexOf("patch.crew_size = newCrew; patch.min_workers = newCrew; patch.opt_workers = newCrew;") >= 0, 'численность бригады — как в карточке (главнее мин/опт)');
+ok(app.indexOf("if (set.crew_size != null && set.crew_size > 0) { patch.min_workers = set.crew_size; patch.opt_workers = set.crew_size; }") >= 0, 'численность бригады — как в карточке (главнее мин/опт)');
 ok(app.indexOf('WORK.groupFlagsOf(area, patch.group') >= 0, 'переезд в другую группу обновляет пометки группы (наследование)');
 ok(app.indexOf("logAction('Групповое изменение работ'") >= 0, 'действие пишется в журнал');
 ok(app.indexOf("if (doGroup && !newGroup)") >= 0 && app.indexOf("if (!grp) { fails++; return; }") >= 0, 'группа не может стать пустой — защита');
