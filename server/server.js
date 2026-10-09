@@ -13,6 +13,7 @@
    · DELETE /api/<section>/:id   — удалить
    · GET  /api/sync?since=<ts>   — изменения всех разделов после <ts>
    · GET  /api/audit             — журнал действий (с пагинацией)
+   · POST/GET/DELETE /api/errors — ОБЩИЙ лог ошибок со всех устройств
    · GET  /healthz               — health-check для Render
    ============================================================ */
 'use strict';
@@ -29,10 +30,10 @@ const { initSchema } = require('./migrations/init');
 const authRoutes = require('./routes/auth');
 const syncRoutes = require('./routes/sync');
 const auditRoutes = require('./routes/audit');
+const errorsRoutes = require('./routes/errors');
 const sectionRoutes = require('./routes/section');
 const adminRoutes = require('./routes/admin');
 const usersRoutes = require('./routes/users');
-const _debugRoutes = require('./routes/_debug_users');
 const { requireAuth } = require('./middleware/auth');
 
 const PORT = process.env.PORT || 3000;
@@ -143,6 +144,7 @@ app.use('/api/auth', authRoutes(pool));
 app.use('/api/admin', adminRoutes(pool, initSchema));  // без авторизации — для первоначальной настройки
 app.use('/api/sync', requireAuth, syncRoutes(pool));
 app.use('/api/audit', requireAuth, auditRoutes(pool));
+app.use('/api/errors', requireAuth, errorsRoutes(pool)); // 22.09-232: общий лог ошибок со всех устройств
 // Специальный роут для users (специальная таблица с фиксированными колонками)
 app.use('/api/users', requireAuth, usersRoutes(pool));
 // Универсальный роутинг для остальных разделов

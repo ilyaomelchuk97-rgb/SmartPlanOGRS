@@ -861,6 +861,8 @@
   .wx-cloud{position:absolute;width:58px;height:20px;border-radius:20px;background:linear-gradient(180deg,#ffffff,#dbe4ec);box-shadow:0 2px 6px rgba(0,0,0,.08)}
   .wx-cloud:before{content:"";position:absolute;width:28px;height:28px;border-radius:50%;background:inherit;top:-13px;left:9px}
   .wx-cloud:after{content:"";position:absolute;width:20px;height:20px;border-radius:50%;background:inherit;top:-8px;left:32px}
+  /* 22.09-231: размытые облачка во весь блок — фон карточек прогноза погоды */
+  .wx-bgclouds{position:absolute;inset:0;overflow:hidden;border-radius:14px;pointer-events:none;z-index:0;filter:blur(8px);opacity:.55}
 
   /* Капля дождя — каплевидная форма (остриём вверх, как 💧) + блик */
   .wx-drop{position:absolute;width:5px;height:6px;animation:wxDropFall .85s linear infinite}
@@ -1129,7 +1131,7 @@
           <div style="margin-top:6px;font-size:11px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-228</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:10.5px;color:#94a3b8">Сборка 22.09-233 · техническая чистка кода: убран мёртвый и неиспользуемый код; поведение сайта не изменилось</div>
     </div>
   </div>
   </div>
@@ -1284,17 +1286,17 @@
   }
 })();
 </script>
-<script src="root_index/config.js?v=22.09-228"></script>
-<script src="root_index/data.js?v=22.09-228"></script>
-<script src="root_index/users_db.js?v=22.09-228"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-228"></script>
-<script src="root_index/areas_db.js?v=22.09-228"></script>
-<script src="root_index/professions_db.js?v=22.09-228"></script>
-<script src="root_index/work_db.js?v=22.09-228"></script>
-<script src="root_index/objects_db.js?v=22.09-228"></script>
-<script src="root_index/workers_db.js?v=22.09-228"></script>
-<script src="root_index/tasks_db.js?v=22.09-228"></script>
-<script src="root_index/db.js?v=22.09-228"></script>
+<script src="root_index/config.js?v=22.09-233"></script>
+<script src="root_index/data.js?v=22.09-233"></script>
+<script src="root_index/users_db.js?v=22.09-233"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-233"></script>
+<script src="root_index/areas_db.js?v=22.09-233"></script>
+<script src="root_index/professions_db.js?v=22.09-233"></script>
+<script src="root_index/work_db.js?v=22.09-233"></script>
+<script src="root_index/objects_db.js?v=22.09-233"></script>
+<script src="root_index/workers_db.js?v=22.09-233"></script>
+<script src="root_index/tasks_db.js?v=22.09-233"></script>
+<script src="root_index/db.js?v=22.09-233"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -1312,12 +1314,12 @@
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-228"></script>
-      <script src="root_index/error_log.js?v=22.09-228"></script>
-      <script src="root_index/api_client.js?v=22.09-228"></script>
-      <script src="root_index/sync_polling.js?v=22.09-228"></script>
-      <script src="root_index/zip_util.js?v=22.09-228"></script>
-      <script src="root_index/app.js?v=22.09-228"></script>
+<script src="root_index/object_attrs.js?v=22.09-233"></script>
+      <script src="root_index/error_log.js?v=22.09-233"></script>
+      <script src="root_index/api_client.js?v=22.09-233"></script>
+      <script src="root_index/sync_polling.js?v=22.09-233"></script>
+      <script src="root_index/zip_util.js?v=22.09-233"></script>
+      <script src="root_index/app.js?v=22.09-233"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {

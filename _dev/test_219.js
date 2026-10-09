@@ -34,7 +34,7 @@ ok(index.indexOf('data-screen="changelog"') >= 0, 'меню: «Журнал из
 ok(app.indexOf("else if (S.screen === 'testmap') renderTestMap();") >= 0 && app.indexOf("else if (S.screen === 'testdep') renderTestDep();") >= 0, 'страницы тестов в коде оставлены (сам полигон не ломался)');
 
 // 4) журнал изменений
-ok(app.indexOf("changelog: ['Журнал изменений'") >= 0, 'экран в TITLES');
+ok(app.indexOf("changelog: 'Журнал изменений',") >= 0, 'экран в TITLES');
 ok(app.indexOf('function renderChangelog()') >= 0, 'рендер журнала');
 ok(app.indexOf("else if (S.screen === 'changelog') renderChangelog();") >= 0, 'подключение рендера');
 ok(app.indexOf("(name === 'users' || name === 'logs' || name === 'changelog')") >= 0, 'экран — только админу');

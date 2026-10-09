@@ -29,8 +29,8 @@ ok(cnt('hours: taskHours(t)') === 0, 'старые taskHours из точек м�
 
 // 3) оптимизатор: совместные работы — единым блоком
 ok(app.indexOf('СОВМЕСТНЫЕ работы одного объекта') >= 0 && app.indexOf('function _ojPair(t1, t2) {') >= 0, 'оптимизатор ищет совместные пары (как в графике — id или группа)');
-ok(app.indexOf('u.isJoint = u.tasks.length > 1;') >= 0 && app.indexOf('a.isJoint ? -1 : 1') >= 0, 'совместные блоки собираются и обрабатываются первыми');
-ok(app.indexOf('if (!u.isJoint && curLoad > 0 && curLoad + h > masterCapacity(m.id, d)) continue;') >= 0, 'проверка вместимости только для одиночных задач');
+ok(app.indexOf('u.isJoint = u.tasks.length > 1') >= 0 && app.indexOf('a.isJoint ? 0 : (a.isObj ? 1 : 2)') >= 0, 'совместные блоки собираются и обрабатываются первыми');
+ok(app.indexOf('if (!u.isJoint && !u.isObj && curLoad > 0 && curLoad + h > masterCapacity(m.id, d)) continue;') >= 0, 'проверка вместимости только для одиночных задач');
 ok(app.indexOf('dayLoad[dOff] = (dayLoad[dOff] || 0) + taskDurHours(t);') >= 0, 'занятое время на дне — длительностями');
 ok(app.indexOf('остаются в один день, даже если часов не хватает') >= 0, 'тост оптимизации сообщает про совместные работы');
 

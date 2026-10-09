@@ -138,7 +138,7 @@ vm.createContext(sandbox);
     let code = fs.readFileSync(path.join(DIR, f), 'utf8');
     if (f === 'app.js') {
       const pos = code.lastIndexOf('})();');
-      code = code.slice(0, pos) + ';window.__probe={S:S,GS:GS,TITLES:TITLES,refresh:refresh,renderDashboard:renderDashboard,visibleMasters:visibleMasters,enterApp:enterApp,setScreen:setScreen,kpiTasks:kpiTasks,kpiMasters:kpiMasters,dayTaskSort:dayTaskSort,_drawCalendarGridImpl:_drawCalendarGridImpl,fmtH3:fmtH3,openGraphLaborModal:openGraphLaborModal,gwWorkTipHtml:gwWorkTipHtml,graphsFind:graphsFind,schDayHours:schDayHours,openWorkModal:openWorkModal,openWmJointPickModal:openWmJointPickModal,wmJointSelBoxHtml:wmJointSelBoxHtml,openSchEditorModal:openSchEditorModal,schEdPatternShift:schEdPatternShift,schEdMoveDay:schEdMoveDay,openSchEdDayModal:openSchEdDayModal,schEdDayApply:schEdDayApply,schEdDayReset:schEdDayReset,schEdCur:schEdCur,schEdSaveAll:schEdSaveAll,wkCycleFrom:wkCycleFrom,gwJointAlign:gwJointAlign,gprFirstFromServiceLife:gprFirstFromServiceLife,gwGenObjSeries:gwGenObjSeries,gwNextISO:gwNextISO,gprRowHtml:gprRowHtml,wkDayState:wkDayState,masterCapacity:masterCapacity,offToDate:offToDate,schCellHtml:schCellHtml,openSchDayEditModal:openSchDayEditModal,schDayEditSave:schDayEditSave,SP_BUILD:SP_BUILD,avaHtml:avaHtml,applyUser:applyUser,openUserModal:openUserModal,saveUserAvatar:saveUserAvatar,openWorkersSettingsModal:openWorkersSettingsModal,openFactMonthModal:openFactMonthModal,kpiMonth:kpiMonth,openWkCardModal:openWkCardModal,taskDurHours:taskDurHours,workCrewCount:workCrewCount,loadForDay:loadForDay,optimizeWorksCalendar:optimizeWorksCalendar,taskHours:taskHours,rebaseTaskDaysToToday:rebaseTaskDaysToToday,moveTaskToCell:moveTaskToCell,planUndoApply:planUndoApply,graphSnapSave:graphSnapSave,graphSnapsLoad:graphSnapsLoad,openGraphSnapsModal:openGraphSnapsModal,graphSnapApply:graphSnapApply,gwFindPlanTask:gwFindPlanTask,graphsDupWarnHtml:graphsDupWarnHtml,graphYearResync:graphYearResync,graphsLoad:graphsLoad,graphsSaveList:graphsSaveList,key:key};' + code.slice(pos);
+      code = code.slice(0, pos) + ';window.__probe={S:S,GS:GS,TITLES:TITLES,refresh:refresh,renderDashboard:renderDashboard,visibleMasters:visibleMasters,enterApp:enterApp,setScreen:setScreen,kpiTasks:kpiTasks,kpiMasters:kpiMasters,dayTaskSort:dayTaskSort,_drawCalendarGridImpl:_drawCalendarGridImpl,fmtH3:fmtH3,openGraphLaborModal:openGraphLaborModal,gwWorkTipHtml:gwWorkTipHtml,graphsFind:graphsFind,schDayHours:schDayHours,openWorkModal:openWorkModal,openWmJointPickModal:openWmJointPickModal,wmJointSelBoxHtml:wmJointSelBoxHtml,openSchEditorModal:openSchEditorModal,schEdPatternShift:schEdPatternShift,schEdMoveDay:schEdMoveDay,openSchEdDayModal:openSchEdDayModal,schEdDayApply:schEdDayApply,schEdDayReset:schEdDayReset,schEdCur:schEdCur,schEdSaveAll:schEdSaveAll,wkCycleFrom:wkCycleFrom,gwJointAlign:gwJointAlign,gprFirstFromServiceLife:gprFirstFromServiceLife,gwGenObjSeries:gwGenObjSeries,gwNextISO:gwNextISO,gprRowHtml:gprRowHtml,wkDayState:wkDayState,masterCapacity:masterCapacity,offToDate:offToDate,schCellHtml:schCellHtml,openSchDayEditModal:openSchDayEditModal,schDayEditSave:schDayEditSave,SP_BUILD:SP_BUILD,avaHtml:avaHtml,applyUser:applyUser,openUserModal:openUserModal,saveUserAvatar:saveUserAvatar,openWorkersSettingsModal:openWorkersSettingsModal,openFactMonthModal:openFactMonthModal,kpiMonth:kpiMonth,openWkCardModal:openWkCardModal,taskDurHours:taskDurHours,workCrewCount:workCrewCount,loadForDay:loadForDay,optimizeWorksCalendar:optimizeWorksCalendar,taskHours:taskHours,rebaseTaskDaysToToday:rebaseTaskDaysToToday,moveTaskToCell:moveTaskToCell,planUndoApply:planUndoApply,graphSnapSave:graphSnapSave,graphSnapsLoad:graphSnapsLoad,openGraphSnapsModal:openGraphSnapsModal,graphSnapApply:graphSnapApply,gwFindPlanTask:gwFindPlanTask,graphsDupWarnHtml:graphsDupWarnHtml,graphYearResync:graphYearResync,graphsLoad:graphsLoad,graphsSaveList:graphsSaveList,renderRefs:renderRefs,toggleWeatherDropdown:toggleWeatherDropdown,wxBlurCloudsHtml:wxBlurCloudsHtml,openWorkBulkModal:openWorkBulkModal,workBulkApply:workBulkApply,grpSelAll:grpSelAll,wselSelCount:wselSelCount,key:key};' + code.slice(pos);
     }
     vm.runInContext(code, sandbox, { filename: f });
   }
@@ -600,12 +600,14 @@ vm.createContext(sandbox);
   const _tJA = { id: 't_jA_sm', name: 'СовмА', type: 'work', m: 'm_smoke2', w: 'w_j1', o: 'o_joint', s: 'plan', status: 'plan', volume: 1, d: 0, dl: 1, priority: 2, created_at: T0, seq: 1 };
   const _tJB = { id: 't_jB_sm', name: 'СовмБ', type: 'work', m: 'm_smoke2', w: 'w_j2', o: 'o_joint', s: 'plan', status: 'plan', volume: 1, d: 0, dl: 1, priority: 2, created_at: T0, seq: 1 };
   const _tBG = { id: 't_bg_sm', name: 'Одиночная', type: 'work', m: 'm_smoke2', w: 'w_big', o: 'o_joint', s: 'plan', status: 'plan', volume: 1, d: 0, dl: 1, priority: 2, created_at: T0, seq: 1 };
-  P.S.tasks.push(_tJA, _tJB, _tBG);
+  const _tSL = { id: 't_alone_sm', name: 'ОдиночнаяЧужойОбъект', type: 'work', m: 'm_smoke2', w: 'w_big', o: 'o_alone', s: 'plan', status: 'plan', volume: 1, d: 0, dl: 1, priority: 2, created_at: T0, seq: 1 };
+  P.S.tasks.push(_tJA, _tJB, _tBG, _tSL);
   try { P.optimizeWorksCalendar(); } catch (e) { console.log('optimize err', e && e.message); }
   ok(_tJA.d === _tJB.d, '223: совместные выполнения — в один день, хотя мастеру не хватает часов');
-  ok(_tBG.d !== _tJA.d, '223: одиночная задача ушла с переполненного дня (правило для одиночных не изменилось)');
-  P.S.tasks = P.S.tasks.filter(function (x) { return ['t_jA_sm', 't_jB_sm', 't_bg_sm'].indexOf(x.id) === -1; });
-  (function () { try { var raw = JSON.parse(store.get('smartplan_tasks_db')); if (raw && raw.tasks) { raw.tasks = raw.tasks.filter(function (x) { return ['t_jA_sm', 't_jB_sm', 't_bg_sm', 't_dur_sm'].indexOf(x.id) === -1; }); seed('smartplan_tasks_db', raw); } } catch (e) {} })();
+  ok(_tBG.d === _tJA.d, '230: работы ОДНОГО объекта — в один день (блок объекта), хоть мастеру и не хватает часов');
+  ok(_tSL.d !== _tJA.d, '223/230: одиночная задача ДРУГОГО объекта ушла с переполненного дня (правило для одиночных не изменилось)');
+  P.S.tasks = P.S.tasks.filter(function (x) { return ['t_jA_sm', 't_jB_sm', 't_bg_sm', 't_alone_sm'].indexOf(x.id) === -1; });
+  (function () { try { var raw = JSON.parse(store.get('smartplan_tasks_db')); if (raw && raw.tasks) { raw.tasks = raw.tasks.filter(function (x) { return ['t_jA_sm', 't_jB_sm', 't_bg_sm', 't_alone_sm', 't_dur_sm'].indexOf(x.id) === -1; }); seed('smartplan_tasks_db', raw); } } catch (e) {} })();
 
   /* ---------- 224: задачи привязаны к календарной дате (якорь дня) ---------- */
   const _tA1 = sandbox.SP_TASKS.getTask('t_today1');
@@ -657,7 +659,7 @@ vm.createContext(sandbox);
   try { P.openGraphSnapsModal(); } catch (e) { console.log('snaps modal err', e && e.message); }
   const _snh = String(elCache.modal && elCache.modal.__v || '');
   ok(_snh.indexOf('Копии графика') >= 0 && _snh.indexOf('graph-snap-preview') >= 0 && _snh.indexOf('graph-snap-apply') >= 0, '226: окно копий — список с «Просмотр»/«Применить»');
-  ok(_snh.indexOf('не пересоздаются') >= 0, '226: подсказка — задания планирования не пересоздаются');
+  ok(_snh.indexOf('выстраиваются заново по датам') >= 0, '226/230: подсказка — задания выстраиваются по восстановленному графику');
   // «Применить» — график заменяется копией
   try { P.graphSnapApply(_snap.id); } catch (e) { console.log('snap apply err', e && e.message); }
   const _gS2 = P.graphsFind('g_smoke');
@@ -705,6 +707,129 @@ vm.createContext(sandbox);
     P.graphsSaveList(P.graphsLoad().filter(function (x) { return x.id !== 'g_smoke_dup'; }));
     ok(P.graphsDupWarnHtml() === '', '227: дублей нет — предупреждение не показывается');
     try { sandbox.SP_TASKS.hardDeleteTask(tid1); } catch (e) {}
+  })();
+
+  /* ---------- 229: групповое изменение видов работ ---------- */
+  (function () {
+    var WK = sandbox.SP_WORK;
+    // исходники для отката
+    var _ow7 = WK.getWork('УБиРОГС', 'w7');
+    var _oj1 = WK.getWork('УБиРОГС', 'w_j1');
+    var _o7 = { norm: _ow7.norm, season: _ow7.season, min_temp: _ow7.min_temp, group: _ow7.group };
+    var _o1 = { norm: _oj1.norm, season: _oj1.season, min_temp: _oj1.min_temp, joint_with: (_oj1.joint_with || []).slice() };
+    P.S.role = 'admin';
+    P.S.refsTab = 'tree';
+    P.S.workArea = 'УБиРОГС';
+    P.S.wsel = {};
+    P.renderRefs();
+    var rh = viewHtml();
+    ok(rh.indexOf('data-action="wsel-toggle"') >= 0 && rh.indexOf('data-action="grp-selall"') >= 0 && rh.indexOf('☑ Групповое изменение') >= 0, '229: галочки у работ, ☑ у групп и кнопка «Групповое изменение»');
+    // ☑ у группы — все её работы сразу
+    P.grpSelAll('Тест совместных');
+    ok(P.wselSelCount() === 3, '229: ☑ у группы отметил все её работы (3 шт.)');
+    ok(viewHtml().indexOf('wsel-bar') >= 0 && viewHtml().indexOf('✏ Изменить выбранные') >= 0, '229: панель «Выбрано… Изменить выбранные» появилась внизу');
+    P.grpSelAll('Тест совместных');
+    ok(P.wselSelCount() === 0 && viewHtml().indexOf('wsel-bar') === -1, '229: повторный ☑ снял отметку — панель скрылась');
+    // окно групповой правки
+    P.S.wsel = { w7: 1, w_j1: 1, w_j2: 1 };
+    P.openWorkBulkModal();
+    var mh229 = String(elCache.modal && elCache.modal.__v || '');
+    ok(mh229.indexOf('Групповое изменение работ · 3 шт.') >= 0 && mh229.indexOf('wb-on-season') >= 0 && mh229.indexOf('wbulk-j-replace') >= 0 && mh229.indexOf('wbulk-j-add') >= 0, '229: окно правки — атрибуты и кнопки «Заменить/Добавить связи»');
+    // применение атрибутов (сезон с запятой-нормой и температурой)
+    var geb = function (id) { return documentStub.getElementById(id); };
+    geb('wb-on-season').checked = true; geb('wb-season').value = 'Зима';
+    geb('wb-on-temp').checked = true; geb('wb-temp').value = '-10';
+    geb('wb-on-norm').checked = true; geb('wb-norm').value = '0,25';
+    P.workBulkApply('');
+    var w7n = WK.getWork('УБиРОГС', 'w7'), wj1n = WK.getWork('УБиРОГС', 'w_j1'), wbn = WK.getWork('УБиРОГС', 'w_big');
+    ok(w7n.season === 'Зима' && w7n.min_temp === -10 && Math.abs(w7n.norm - 0.25) < 1e-9 && wj1n.norm === 0.25, '229: сезон/температура/норма (с запятой) применились ко всем выбранным');
+    ok(wbn.season !== 'Зима', '229: невыбранная работа не изменилась');
+    // связи: добавить → проверка объединения; заменить → остались только отмеченные
+    geb('wb-on-joint').checked = true;
+    P.S.wmBulkJoint = ['ГруппаДым'];
+    P.workBulkApply('add');
+    var jw1 = WK.getWork('УБиРОГС', 'w_j1').joint_with || [];
+    ok(jw1.indexOf('w_j2') >= 0 && jw1.indexOf('ГруппаДым') >= 0, '229: «Добавить связи» — новые группы добавлены к имеющимся');
+    P.workBulkApply('replace');
+    jw1 = WK.getWork('УБиРОГС', 'w_j1').joint_with || [];
+    ok(jw1.length === 1 && jw1[0] === 'ГруппаДым', '229: «Заменить связи» — остались только отмеченные группы');
+    // перемещение в другую группу
+    P.S.wsel = { w7: 1 };
+    ['wb-on-season', 'wb-on-temp', 'wb-on-norm', 'wb-on-joint'].forEach(function (id) { geb(id).checked = false; });
+    geb('wb-on-group').checked = true; geb('wb-group-group').value = 'НоваяГруппа';
+    P.workBulkApply('');
+    ok(String(WK.getWork('УБиРОГС', 'w7').group).indexOf('НоваяГруппа') >= 0, '229: работа перемещена в другую группу');
+    // откат сидов
+    WK.updateWork('УБиРОГС', 'w7', { norm: _o7.norm, season: _o7.season, min_temp: _o7.min_temp, group: _o7.group });
+    WK.updateWork('УБиРОГС', 'w_j1', { norm: _o1.norm, season: _o1.season, min_temp: _o1.min_temp, joint_with: _o1.joint_with });
+    WK.updateWork('УБиРОГС', 'w_j2', { norm: 6, season: 'Круглый год', min_temp: -50 });
+    P.S.wsel = {};
+  })();
+
+  /* ---------- 230: восстановление графика из копии — задания выстраиваются по графику ---------- */
+  (function () {
+    var T = sandbox.SP_TASKS;
+    var undo0 = (P.S.planUndo || []).length;
+    var g230 = { id: 'g_230', name: 'График 230', year: Y, respId: 'm_smoke1', objs: [
+      { oid: 'o_230', name: 'Объект 230', type: 'ГРП', works: [
+        { sid: 's230', wid: 'w7', period: 400, dev: 0, first: isoOf(15), occs: [{ date: isoOf(15), wid: 'w7', tid: 't_old230' }] }
+      ] }
+    ] };
+    T.addTask({ id: 't_old230', type: 'work', m: 'm_smoke1', o: 'o_230', w: 'w7', s: 'plan', status: 'plan', volume: 1, d: 40, dl: 41, dl_date: isoOf(41) }); // «съехавшая» с даты графика
+    var gl = P.graphsLoad(); gl.push(g230); P.graphsSaveList(gl);
+    var snap = P.graphSnapSave(P.graphsFind('g_230'), 'смоук-230');
+    g230.objs[0].works = []; // график «испорчен» относительно копии
+    P.graphsSaveList(P.graphsLoad().map(function (x) { return x.id === 'g_230' ? g230 : x; }));
+    P.GS.cur = 'g_230';
+    try { P.graphSnapApply(snap.id); } catch (e) { console.log('snap apply 230 err', e && e.message); }
+    var t230 = T.getTasks().filter(function (x) { return x.o === 'o_230' && x.w === 'w7'; });
+    var g230r = P.graphsFind('g_230');
+    var occDate = g230r && g230r.objs[0] && g230r.objs[0].works[0] && g230r.objs[0].works[0].occs[0] ? g230r.objs[0].works[0].occs[0].date : '?';
+    ok(t230.length === 1 && P.key(P.offToDate(t230[0].d)) === occDate && t230[0].d !== 40, '230: задание выстроено по дате восстановленного графика (' + occDate + '), а не на съехавшей дате');
+    ok((P.S.planUndo || []).length === undo0 + 1, '230: перед восстановлением сделан снимок для «⟲ Отмена»');
+    try { P.planUndoApply(); } catch (e) {}
+    P.graphsSaveList(P.graphsLoad().filter(function (x) { return x.id !== 'g_230'; }));
+    (T.getTasks() || []).filter(function (x) { return x.o === 'o_230'; }).forEach(function (x) { try { T.hardDeleteTask(x.id); } catch (e) {} });
+    try { T.hardDeleteTask('t_old230'); } catch (e) {}
+    P.GS.cur = null;
+  })();
+
+  /* ---------- 231: «Отмена последнего действия» + облачный фон прогноза ---------- */
+  (function () {
+    var ch = P.wxBlurCloudsHtml(26);
+    ok(ch.indexOf('wx-bgclouds') >= 0 && (ch.split('wx-cloud').length - 1) === 26, '231: фон прогноза — размытые облачка во весь блок, облачков больше (26 шт.)');
+    ok(ch.indexOf('wxCloudRight') >= 0 && ch.indexOf('wxCloudLeft') >= 0, '231: облачка плывут той же анимацией, что над карточками');
+    var dd = documentStub.getElementById('weather-dropdown');
+    dd.classList = { contains: function () { return false; }, add: noop, remove: noop };
+    try { P.toggleWeatherDropdown(); } catch (e) { console.log('wx dd err', e && e.message); }
+    ok(String(dd.__v).indexOf('wd-day') >= 0 && String(dd.__v).indexOf('open-hourly') >= 0, '231: карточки прогноза погоды открываются');
+  })();
+
+  /* ---------- 232: общий лог ошибок со всех устройств ---------- */
+  (function () {
+    var E = sandbox.window.SP_ERRORS;
+    ok(typeof E.push === 'function', '232: у лога ошибок есть отправка на сервер (push)');
+    ok(typeof sandbox.window.SP_API.errorsPush === 'function' && typeof sandbox.window.SP_API.errorsGet === 'function' && typeof sandbox.window.SP_API.errorsClear === 'function', '232: SP_API умеет общий лог (push/get/clear)');
+    E.clear();
+    E.log('warn', 'smoke.232', 'проверка общего лога');
+    var arr = E.getAll();
+    ok(arr.length === 1 && arr[0].msg === 'проверка общего лога', '232: запись пишется в локальный резерв');
+    ok(typeof arr[0].device === 'string' && arr[0].device.length > 0, '232: у записи есть устройство (' + arr[0].device + ')');
+    ok(/^22\.09-\d+$/.test(arr[0].build || ''), '232: у записи есть версия сборки (' + arr[0].build + ')');
+    ok(arr[0].synced === false, '232: новая запись ждёт отправки на сервер');
+    E.clear();
+    ok(E.getAll().length === 0, '232: локальный резерв очищается');
+  })();
+
+  /* ---------- 233: техническая чистка — заголовки страниц остались на месте ---------- */
+  (function () {
+    ok(P.TITLES && P.TITLES.dashboard === 'Панель мониторинга' && P.TITLES.refs === 'Справочники' && P.TITLES.schedules === 'Графики смен' && P.TITLES.backup === 'Бэкапы баз данных', '233: заголовки страниц на месте после чистки');
+    var tEl = documentStub.getElementById('screen-title');
+    tEl.textContent = '';
+    try { P.setScreen('refs'); } catch (e) { console.log('refs render err 233', e && e.message); }
+    ok(tEl.textContent === 'Справочники', '233: шапка страницы берёт заголовок из TITLES');
+    var crEl = documentStub.getElementById('screen-crumb');
+    ok(String(crEl.textContent).indexOf('Сборка 22.09-') === 0, '233: в шапке — номер текущей сборки');
   })();
 
   console.log('----------------------------------------');

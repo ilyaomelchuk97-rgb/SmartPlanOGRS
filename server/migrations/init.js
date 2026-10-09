@@ -167,6 +167,27 @@ async function initSchema(pool) {
     `);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_log(ts DESC)`);
 
+    // 3b. Error log — ОБЩИЙ лог ошибок со всех устройств (22.09-232).
+    // "where" — зарезервированное слово SQL, поэтому колонка в двойных кавычках.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS error_log (
+        id          BIGSERIAL PRIMARY KEY,
+        ts          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        client_ts   BIGINT,
+        user_id     TEXT,
+        user_login  TEXT,
+        user_name   TEXT,
+        device      TEXT,
+        build       TEXT,
+        level       TEXT NOT NULL DEFAULT 'error',
+        "where"     TEXT,
+        msg         TEXT,
+        stack       TEXT,
+        extra       TEXT
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_error_log_ts ON error_log(ts DESC)`);
+
     // 4. Sessions — простая таблица токенов (без JWT, чтобы не возиться)
     await client.query(`
       CREATE TABLE IF NOT EXISTS sessions (
@@ -179,7 +200,7 @@ async function initSchema(pool) {
     `);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)`);
 
-    console.log(`✅ Схема БД: создано ${SECTIONS.length + 3} таблиц`);
+    console.log(`✅ Схема БД: создано ${SECTIONS.length + 4} таблиц (в т.ч. error_log)`);
   } finally {
     client.release();
   }

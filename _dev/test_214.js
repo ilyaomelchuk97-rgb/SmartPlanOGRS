@@ -11,7 +11,7 @@ ok(app.indexOf("_cr.indexOf(' Ранее, ')") === -1, 'обрезка цепо�
 ok(app.indexOf('_cr.slice(0, _cut)') === -1, 'срез первой записи 214 убран');
 ok(app.indexOf("История изменений страницы:") === -1, 'старая подсказка 214 убрана');
 ok(app.indexOf("_crEl.textContent = 'Сборка ' + SP_BUILD;") >= 0, 'теперь в шапке — номер сборки (219)');
-ok(app.indexOf("document.getElementById('screen-title').textContent = (TITLES[name] || ['', ''])[0];") >= 0, 'заголовок страницы (строка 1) без изменений');
+ok(app.indexOf("document.getElementById('screen-title').textContent = (TITLES[name] || '');") >= 0, 'заголовок страницы на месте (233: TITLES = простые строки)');
 
 console.log('----------------------------------------');
 if (fail) { console.log('FAILURES: ' + fail); process.exit(1); }

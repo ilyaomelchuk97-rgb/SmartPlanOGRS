@@ -256,6 +256,7 @@
     dashArea: null, // выбранный участок на панели мониторинга: действует во всех вкладках (кроме карты местоположения); null = все участки
     dashMaster: null, // 22.09-193: выбранный мастер в списке «КПД мастеров» на панели мониторинга; null = все мастера
     refsTab: 'tree',
+    wsel: {},            // 22.09-229: отмеченные галочками виды работ для группового изменения (id → 1)
     workArea: null, workModalMode: 'new', workModalWid: null,
     userModalMode: 'new', userModalUid: null,
     reportMonth: null, // {year, month} — выбранный отчётный месяц; null = текущий
@@ -859,31 +860,32 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-228';
+  var SP_BUILD = '22.09-233';
+  try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
   try { console.log('%cSmartPlan © 2026 Омельчук Илья Анатольевич · оператор ПЭВМ УП «МИНГАЗ» · все права защищены', 'color:#64748b;font-size:11px'); } catch (eC) {}
   var TITLES = {
-    dashboard: ['Панель мониторинга', 'Сборка 22.09-199 · выбор мастера для просмотра КПД перенесён внутрь блока «⚡ КПД мастеров»: выпадающий список — прямо в заголовке этой карточки, рядом с выбором месяца (вверху страницы его больше нет). Ранее, сборка 22.09-193 · выпадающий список «КПД мастеров» (админ, начальник СЭОГС, начальник участка, старший мастер): все показатели панели, списки по нажатию на цифры и блок «Сегодня» — по одному выбранному мастеру или по всем сразу. Ранее, сборка 22.09-190 · факт работы на объекте: кнопки «▶ Приступил» и «■ Закончил» в блоке «Сегодня» (пишут точное время, «Закончил» закрывает задачу); у мастера бейдж «🔨 на объекте с …»; время факта — в списаниях и в карточке задачи'],
-    calendar: ['Планирование / Календарь', 'Сборка 22.09-198 · строки календаря — только мастера: начальники участков и старшие мастера в «Планировании» больше не показываются. Ранее, сборка 22.09-181 · при отметке задачи выполненной (галочка) проставляется дата закрытия — закрытые задачи собраны на новой странице «Списания»'],
-    graphs: ['Планирование / График работ', 'Сборка 22.09-210 · настройка периодичности: «периодичность, месяцев» теперь принимает и дробные значения с одним знаком после запятой (0,5 и т.п., можно с запятой); шаг серии: целые месяцы — по календарю, дробная часть — днями (0,5 мес ≈ 15 дней). Ранее, сборка 22.09-209 · планирование от окончания срока службы: у вида работ реквизит отсчёта «Дата окончания срока службы оборудования» — работа ставится разово к дате из карточки объекта (в её год), дальше повторяется по периодичности (например, +5 лет); если дата ещё в будущем — в текущем году проведений нет и это не ошибка. Ранее, сборка 22.09-202 · подсказка при наведении на треугольник: только группа работ (без вида работ), для каждой работы — трудоёмкость; для выполненных — ещё и фактическая трудоёмкость. Ранее, сборка 22.09-201 · в настройке периодичности год в дате первого проведения нельзя ввести вручную длиннее 4 цифр. Ранее, сборка 22.09-200 · «Трудоёмкость графика»: часы в колонках трудоёмкости — до 3 знаков после запятой; таблица «По объектам» внизу убрана, осталась только кнопка «📍 По объектам» (переименована из «По объектам — новое окно») — открывает отдельное окно. Ранее, сборка 22.09-196 · в «Трудоёмкости графика» кнопка «📍 По объектам — новое окно»: трудоёмкость по каждому объекту за год / месяц / период месяцев; нажатие на объект — его карточка с работами, датами и часами выбранного периода. Ранее, сборка 22.09-195 · в окне «Настроить периодичность» убран АВТОМАТИЧЕСКИЙ подбор работ при открытии — работы на объект добавляются только вручную (кнопки «⚡» и «+ работа»). Ранее, сборка 22.09-164 · кнопка «Трудоёмкость графика» — слева от «Фильтра»; «Праздничные дни» перенесены в «Графики смен»'],
-    map: ['Карта маршрутов', 'Сборка 22.09-197 · порядок заданий на день после «Оптимизации маршрутов» сохраняется — в том же порядке работы показываются и в «Планировании» на этот день (и в списке «Задания на день» при повторном входе). Ранее, сборка 22.09-182 · техническая чистка кода: удалён недостижимый код старых роутеров и виджетов (страница стала легче, поведение не изменилось)'],
-    objmap: ['Карта объектов', 'Сборка 22.09-209 · в карточке объекта (атрибуты, раздел «Идентификация») — новое поле «Дата окончания срока службы»: заполняется вручную, используется для планирования работ «от окончания срока службы оборудования». Ранее, сборка 22.09-203 · в карточке объекта убран блок «Ответственный» из атрибутов: строка «Ответственный за безопасную эксплуатацию» и история назначений больше не показываются (поле «Ответственный» под адресом осталось). Ранее, сборка 22.09-184 · вид телеметрии «ПТК "Эксорт"» переименован в «ПТК "Эскорт"» — объекты и работы обновлены автоматически'],
-    testmap: ['Тест проезда', 'Сборка 22.09-176 · исправлена загрузка 3D-планеты (был ошибочный адрес библиотеки карты) + добавлен запасной сервер, если первый не отвечает'],
-    testdep: ['Тест зависимости', 'Полигон: 1 задача + 1 вид работы + 1 трудоёмкость — для отладки формул расчёта по параметрам объекта'],
-    livemap: ['Карта местоположения', 'Сборка 22.09-180 · маршруты, «весь маршрут ~N мин» и расписание дня считает единый роутер BRouter car (economic), время — с учётом пробок: совпадает с картой маршрутов'],
-    perms: ['Разрешения', 'Система разрешений на производство работ'],
-    refs: ['Справочники', 'Сборка 22.09-209 · карточка вида работ ГРП: в «Реквизите отсчёта для выполнения работ» добавлен вариант «Дата окончания срока службы оборудования» (дата берётся из одноимённого поля карточки объекта). Ранее, сборка 22.09-208 · надгруппы работ: в карточке вида работ добавлено поле «Надгруппа» (группа групп работ, необязательно) — справочник «Виды работ» группируется в три уровня: Надгруппа → Группа → Подгруппа; старые записи без надгруппы отображаются как раньше. Ранее, сборка 22.09-206 · карточка вида работ ГРП: удалён блок «Виды работ, от которых отсчёт периодичности»; «Проводится совместно» теперь выбирает группы работ (выравнивание совместных проведений в графике — по группам, старые записи по видам работ учитываются и видны с ⚠). Ранее, сборка 22.09-205 · карточка вида работ ГРП: добавлены поля «Норма времени» (чел/ч на единицу, можно с запятой) и «Единица измерения» (объект, шт, м, м2, км, компл., ч), значения сохраняются и участвуют в расчёте трудоёмкости. Ранее, сборка 22.09-162 · карточка работы ГРП: «Проводится совместно» теперь выбирается в отдельном окне (кнопка «📋 Выбор работ») — галочки, «Сохранить»/«Отмена»'],
-    writeoffs: ['Списания', 'Сборка 22.09-194 · в окне списания убрана дублирующая строка «Работа» под адресом — работа, произведённая на объекте, выбирается кнопками в блоке «Виды работ». Ранее, сборка 22.09-190 · в списке и в карточке списания — фактическое время работы (⏱ начал / закончил / сколько часов) по кнопкам мастера «Приступил»/«Закончил» из панели мониторинга'],
-    workcards: ['Карточки работ на день', 'Сборка 22.09-191 · клик по ФИО мастера в блоке «Сегодня» панели — страница с карточкой на каждую работу: адрес, виды работ, слесаря, план, крупные кнопки «Приступил»/«Закончил»'],
-    factmonth: ['Факт работ по объектам', 'Сборка 22.09-192 · месячный отчёт по объектам: кто, когда и сколько фактически работал (по кнопкам «Приступил»/«Закончил»), фактические часы против плановых; перелистывание месяцев'],
-    workers: ['Работники', 'Сборка 22.09-172 · окно карточки работника — ровно по ширине карточки (560px): без пустого места справа; панель и календарь — на всю ширину окна'],
-    schedules: ['Графики смен', 'Сборка 22.09-218 · в окне «✏ Изменить график» по прошедшему рабочему дню можно поправить количество часов: клик по квадратику — окошко дня, где «рабочий/выходной» в прошлом не меняется, а часы редактируются; изменение уходит в черновик и применяется по «Сохранить». Ранее, сборка 22.09-217 · в карточке работника — количество рабочих часов за выбранный месяц (⏱ X ч), в «Графике за год» справа — колонка с рабочими часами за год; в окне «✏ Изменить график» убраны пустые столбики перед 1-м числом. Ранее, сборка 22.09-216 · окно «✏ Изменить график» — на 90% ширины экрана, по центру. Ранее, сборка 22.09-215 · дни в графике меняются индивидуально у каждого работника: мастер и слесарь — независимо друг от друга (перенос дня и сдвиг 2/2 влияют только на того, у кого их делают); текущий цикл каждому разово скопирован — календари не изменились. Ранее, сборка 22.09-213 · окно «✏ Изменить график»: дни правятся прямо в таблице у всех работников (выпадающий список убран) — клик по будущему дню сразу открывает окошко «рабочий/выходной + часы» (там же кнопка «Вернуть по графику»); день перетаскивается мышью вдоль своей строки: у графика 5/2 переносится только этот день и график дальше не перестраивается, у 2/2 — весь график едет следом; блок «Сдвиг всего графика» удалён. Ранее, сборка 22.09-212 · окно «✏ Изменить график» теперь выглядит как общая таблица «Графики смен»: шапка с числами месяца, слева колонка «Бригада / работник», цветные квадратики, и в каждом рабочем квадратике написаны часы; клик по ФИО другой строки — перейти к редактированию этого работника. Ранее, сборка 22.09-211 · «✏ Изменить график» теперь открывает отдельное окно редактора: выбор работника и месяца, клик по будущему дню — выбрать, действия (рабочий/выходной/часы на день/перенос на день назад или вперёд/сброс), перетаскивание дней мышью; для графика 2/2 — блок «Сдвиг всего графика» (весь цикл передвигается следом начиная с сегодняшнего дня, отработанные дни не меняются); изменения применяются только по кнопке «Сохранить», «Отмена» всё отбрасывает. Ранее, сборка 22.09-207 · режим «✏ Изменить график» в шапке: клик по сегодняшнему/будущему дню — рабочий/выходной и часы на день, можно применить сразу ко всей бригаде; ручные изменения видны синей риской снизу ячейки и пометкой в подсказке, «Вернуть стандарт» отменяет их; прошедшие (отработанные) дни не редактируются. Ранее, сборка 22.09-204 · при наведении на рабочий квадратик видно, сколько часов человек работает в этот день: 12-часовая смена — мастер 12 ч, слесарь 11,5 ч; 8-часовая — пн–чт 8,25 ч, пт 7 ч. Ранее, сборка 22.09-164 · добавлена кнопка «🎉 Праздничные дни» (из графика работ) — слева от выбора месяца'],
-    users: ['Пользователи', 'Сборка 22.09-161 · увольнение работников: кнопка «Уволить» с датой, блок «Уволенные» с восстановлением; в истории задач ФИО остаются'],
-    reports: ['Отчёты', 'Печатные формы для подписи у руководства'],
-    logs: ['Журнал действий', 'Действия пользователей системы'],
-    changelog: ['Журнал изменений', 'История версий системы: дата · сборка · что изменилось'],
-    backup: ['Бэкапы баз данных', 'Сборка 22.09-139 · резервные копии всех баз: каждая отдельным файлом (2+ — ZIP) + восстановление без потерь']
+    dashboard: 'Панель мониторинга',
+    calendar: 'Планирование / Календарь',
+    graphs: 'Планирование / График работ',
+    map: 'Карта маршрутов',
+    objmap: 'Карта объектов',
+    testmap: 'Тест проезда',
+    testdep: 'Тест зависимости',
+    livemap: 'Карта местоположения',
+    perms: 'Разрешения',
+    refs: 'Справочники',
+    writeoffs: 'Списания',
+    workcards: 'Карточки работ на день',
+    factmonth: 'Факт работ по объектам',
+    workers: 'Работники',
+    schedules: 'Графики смен',
+    users: 'Пользователи',
+    reports: 'Отчёты',
+    logs: 'Журнал действий',
+    changelog: 'Журнал изменений',
+    backup: 'Бэкапы баз данных'
   };
 
   /* ---------- ИКОНКИ ---------- */
@@ -1093,6 +1095,23 @@
     // Морось — капель по стандарту (×1); сильный дождь/ливень/гроза — в 2 раза больше; прочий дождь — ×1.5
     var mult = heavy ? 2 : ((code >= 51 && code <= 57) ? 1 : 1.5);
     return { count: Math.round(count * mult), dur: dur };
+  }
+
+  /* 22.09-231: размытый слой анимированных облачков — фон блока прогноза
+     погоды в панели мониторинга. Те же облака, что в анимации над карточками
+     (css .wx-cloud + wxCloudRight/Left), но: БОЛЬШЕ (count), плывут по ВСЕМУ
+     блоку (top 0–100%) и размыты по всему блоку (blur — css .wx-bgclouds). */
+  function wxBlurCloudsHtml(count) {
+    var nc = count || 26;
+    var h = '<div class="wx-bgclouds">';
+    for (var i = 0; i < nc; i++) {
+      var cAnim = i % 2 === 0 ? 'wxCloudRight' : 'wxCloudLeft';
+      var cDur = 200 + Math.random() * 420;
+      var cScale = (0.8 + Math.random() * 0.9).toFixed(2);
+      var cTop = (Math.random() * 100).toFixed(0);
+      h += '<span class="wx-cloud" style="top:' + cTop + '%;transform:scale(' + cScale + ');opacity:.9;animation:' + cAnim + ' ' + cDur.toFixed(0) + 's linear infinite;animation-delay:-' + (Math.random() * cDur).toFixed(0) + 's"></span>';
+    }
+    return h + '</div>';
   }
 
   function weatherSceneHTML(wf, opt) {
@@ -3620,7 +3639,7 @@
     html += '<div id="cal-actions-row" style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">'
       + '<div style="flex:1;display:flex;justify-content:flex-start">' + (canPlan() ? '<button class="btn sm primary" data-action="new-task">' + IC.plus + ' Добавить задачу</button>' : '') + '</div>'
       + '<div style="flex:1;display:flex;justify-content:center;gap:6px">' + (canPlan() ? '<button class="btn sm" data-action="optimize-works" style="background:#6366f1;color:#fff;border-color:#6366f1;" title="Автоматическое распределение работ без просрочек с соблюдением 8-часового рабочего дня">⚡ Оптимизировать работы</button>' : '')
-      + '<button class="btn sm" data-action="cal-undo" title="Отмена последнего действия в планировании (как Ctrl+Z в Excel): перенос карточки, правка задачи или «Оптимизировать работы». Работает до перезагрузки страницы" style="background:#475569;color:#fff;border-color:#475569">⟲ Отмена</button></div>'
+      + '<button class="btn sm" data-action="cal-undo" title="Отмена последнего действия в планировании (как Ctrl+Z в Excel): перенос карточки, правка задачи или «Оптимизировать работы». Работает до перезагрузки страницы" style="background:#475569;color:#fff;border-color:#475569">⟲ Отмена последнего действия</button></div>'
       + '<div style="flex:1;display:flex;justify-content:flex-end"><div class="trash-zone" id="trash-zone" data-action="open-trash" title="Перетащите задачу для удаления или нажмите для просмотра удалённых" style="cursor:pointer;">' + IC.trash + ' <span>Корзина</span></div></div>'
       + '</div>';
     if (S.role === 'master') {
@@ -4124,13 +4143,22 @@
         var g1 = (w1.group ? String(w1.group).trim() : ''), g2 = (w2.group ? String(w2.group).trim() : '');
         return (g2 !== '' && j1.indexOf(g2) >= 0) || (g1 !== '' && j2.indexOf(g1) >= 0);
       }
+      // 22.09-230: «липкость» задач при оптимизации — вместе двигаем не только
+      // совместные 🤝 пары, но и ВСЕ задачи ОДНОГО объекта: они ставятся на
+      // один день (объект посещается один раз за день)
+      function _ojSticky(t1, t2) {
+        if (!t1 || !t2 || t1 === t2) return false;
+        if (_ojPair(t1, t2)) return true;
+        var o1 = t1.o != null ? String(t1.o) : '', o2 = t2.o != null ? String(t2.o) : '';
+        return o1 !== '' && o1 === o2;
+      }
       // Блоки взаимно-совместных задач (одно звено — одна задача)
       var ojUnits = [];
       mTasks.forEach(function (t) {
         var found = null;
         for (var ui = 0; ui < ojUnits.length && !found; ui++) {
           var us = ojUnits[ui].tasks;
-          for (var uj = 0; uj < us.length; uj++) if (_ojPair(t, us[uj])) { found = ojUnits[ui]; break; }
+          for (var uj = 0; uj < us.length; uj++) if (_ojSticky(t, us[uj])) { found = ojUnits[ui]; break; } // 22.09-230: блокируемся и по объекту
         }
         if (found) found.tasks.push(t); else ojUnits.push({ tasks: [t] });
       });
@@ -4144,7 +4172,7 @@
             var hit = false;
             for (var ci = 0; ci < ojUnits[ma].tasks.length && !hit; ci++)
               for (var cj = 0; cj < ojUnits[mb].tasks.length && !hit; cj++)
-                if (_ojPair(ojUnits[ma].tasks[ci], ojUnits[mb].tasks[cj])) hit = true;
+                if (_ojSticky(ojUnits[ma].tasks[ci], ojUnits[mb].tasks[cj])) hit = true; // 22.09-230
             if (hit) {
               ojUnits[ma].tasks = ojUnits[ma].tasks.concat(ojUnits[mb].tasks);
               ojUnits.splice(mb, 1);
@@ -4155,15 +4183,20 @@
         }
       }
       ojUnits.forEach(function (u) {
-        u.isJoint = u.tasks.length > 1;
+        // 22.09-230: совместный 🤝 блок — есть хотя бы одна взаимно-совместная пара;
+        // блок ОДНОГО ОБЪЕКТА без 🤝 — тоже в один день (u.isObj)
+        u.isJoint = u.tasks.length > 1 && u.tasks.some(function (ta, ia) { return u.tasks.some(function (tb, ib) { return ia < ib && _ojPair(ta, tb); }); });
+        u.isObj = !u.isJoint && u.tasks.length > 1;
         // 22.09-223: часы блока — ДЛИТЕЛЬНОСТЬ (чел.-часы / число исполнителей)
         u.h = u.tasks.reduce(function (s2, t2) { return s2 + taskDurHours(t2); }, 0);
         u.dl = Math.min.apply(null, u.tasks.map(function (t2) { return isFinite(+t2.dl) ? +t2.dl : 0; }));
         u.prefDay = Math.min.apply(null, u.tasks.map(function (t2) { return Math.max(0, t2.d); }));
       });
-      // Совместные блоки — первыми (их день обязателен), дальше — по дедлайну, затем по дате
+      // Совместные 🤝 блоки — первыми (их день обязателен), затем блоки одного
+      // объекта (22.09-230), дальше — по дедлайну, затем по дате
       ojUnits.sort(function (a, b) {
-        if (a.isJoint !== b.isJoint) return a.isJoint ? -1 : 1;
+        var ra = a.isJoint ? 0 : (a.isObj ? 1 : 2), rb = b.isJoint ? 0 : (b.isObj ? 1 : 2);
+        if (ra !== rb) return ra - rb;
         if (a.dl !== b.dl) return a.dl - b.dl;
         if (a.prefDay !== b.prefDay) return a.prefDay - b.prefDay;
         return b.h - a.h;
@@ -4184,9 +4217,10 @@
         var minPenalty = Infinity;
         for (var d = 0; d <= 90; d++) {
           var curLoad = dayLoad[d] || 0;
-          // 22.09-223: ОДИНОЧНАЯ задача — только на день, где часов хватает (как раньше);
-          // совместный БЛОК — всегда в один день, даже если часов не хватает.
-          if (!u.isJoint && curLoad > 0 && curLoad + h > masterCapacity(m.id, d)) continue;
+          // 22.09-223/230: ОДИНОЧНАЯ задача — только на день, где часов хватает
+          // (как раньше); совместный БЛОК и блок ОДНОГО ОБЪЕКТА — всегда в один
+          // день, даже если часов не хватает.
+          if (!u.isJoint && !u.isObj && curLoad > 0 && curLoad + h > masterCapacity(m.id, d)) continue;
           var penalty = Math.abs(d - prefDay) * 10;
           if (d > u.dl) { penalty += (d - u.dl) * 10000 + 50000; }
           if (d > prefDay) { penalty += 5; }
@@ -4207,7 +4241,7 @@
       });
     });
 
-    toast('ok', '⚡ Оптимизация работ выполнена: распределено без просрочек с соблюдением 8-часового рабочего дня. Совместные работы (🤝) переносятся единым блоком и остаются в один день, даже если часов не хватает.'); // 22.09-223
+    toast('ok', '⚡ Оптимизация работ выполнена: распределено без просрочек с соблюдением 8-часового рабочего дня. Совместные работы (🤝) переносятся единым блоком и остаются в один день, даже если часов не хватает. Все задачи одного объекта — тоже в один день (объект посещается один раз за день).'); // 22.09-223/230
     refresh();
   }
   function autoSchedule() { optimizeWorksCalendar(); }
@@ -10609,6 +10643,7 @@
     html += '<button class="btn ghost" data-action="' + ulAction + '" style="border:1px solid var(--line);background:var(--card);padding:7px 11px;font-size:12.5px;display:inline-flex;align-items:center;gap:6px;" title="Загрузить заполненный Excel файл в справочник">' + ulText + '</button>';
 
     if (admin) html += '<button class="btn primary" data-action="new-work">' + IC.plus + ' Добавить работу</button>';
+    if (admin && !isNorms) html += '<button class="btn ghost" data-action="wsel-open" style="border:1px solid var(--line);background:var(--card);padding:7px 11px;font-size:12.5px;display:inline-flex;align-items:center;gap:6px;" title="22.09-229: групповое изменение — отметьте работы галочками в списке (или всю группу кнопкой ☑ у её названия) и откройте окно правки сразу всех выбранных">☑ Групповое изменение</button>';
     html += '</div>';
 
     html += refsTabsHtml;
@@ -10672,6 +10707,7 @@
         g += ' <span class="equipment-badge" style="font-size:10px" title="' + _tip + '">' + (_isTel ? '📡 ' : _isNoTm ? '🚫📡 ' : '🏷 ') + esc(_isTel ? 'Работы с ТМ' : _fx) + '</span>';
       });
       if (admin) g += '<span style="margin-left:auto;display:inline-flex;gap:4px;flex-shrink:0">' +
+        (!isNorms ? '<button type="button" class="btn sm ghost" data-action="grp-selall" data-path="' + esc(ch.path) + '" title="22.09-229: отметить/снять все работы этой группы (вместе с подгруппами) для группового изменения" style="padding:2px 8px;font-size:12px;line-height:1.4">☑</button>' : '') +
         '<button type="button" class="btn sm ghost" data-action="grp-newwork" data-path="' + esc(ch.path) + '" title="Добавить работу в эту группу (подгруппа задаётся в карточке работы)" style="padding:2px 8px;font-size:12px;line-height:1.4">＋</button>' +
         (area === 'ГРП' ? '<button type="button" class="btn sm ghost" data-action="grp-props" data-path="' + esc(ch.path) + '" title="Свойства группы (только участок ГРП): «Работы с ТМ» — только объектам с телеметрией, «Без телеметрии» — только объектам без ТМ; применяются ко всем работам группы и её подгрупп" style="padding:2px 8px;font-size:12px;line-height:1.4">🏷</button>' : '') +
         '<button type="button" class="btn sm ghost" data-action="grp-rename" data-path="' + esc(ch.path) + '" title="Переименовать группу для всех работ сразу" style="padding:2px 8px;font-size:12px;line-height:1.4">✏️</button></span>';
@@ -10697,7 +10733,7 @@
         ch.works.forEach(function (w) {
           var attr = workRefBadgesHtml(w);
           // 22.09-98: название слева, свойства (вид объекта, линии и др.) и кнопки — по правому краю
-          h += '<li class="w"><span style="color:var(--blue)">▪</span><span>' + esc(w.name) + '</span><span style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end;text-align:right">' + attr + '</span>';
+          h += '<li class="w">' + (admin ? '<input type="checkbox" data-action="wsel-toggle" data-wid="' + esc(w.id) + '"' + (S.wsel && S.wsel[w.id] ? ' checked' : '') + ' title="22.09-229: отметить для группового изменения" style="flex:0 0 auto;margin:0 4px 0 0;cursor:pointer">' : '') + '<span style="color:var(--blue)">▪</span><span>' + esc(w.name) + '</span><span style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end;text-align:right">' + attr + '</span>';
           if (admin) h += '<span style="margin-left:10px;white-space:nowrap"><button class="btn sm" data-action="edit-work" data-wid="' + w.id + '">Изменить</button> <button class="btn sm" data-action="del-work" data-wid="' + w.id + '" style="color:var(--red)">Удалить</button></span>';
           h += '</li>';
         });
@@ -10716,11 +10752,14 @@
       html += '</ul>';
     }
     html += '</div></div></div>';
+    // 22.09-229: выбор галочек — убрать удалённые работы и дорисовать панель группового изменения
+    if (S.wsel) { var _wsKeep = {}; works.forEach(function (w) { _wsKeep[w.id] = 1; }); Object.keys(S.wsel).forEach(function (id) { if (!_wsKeep[id]) delete S.wsel[id]; }); }
+    if (admin && !isNorms) html += wselBarHtml();
     html += '<input type="file" id="ref-excel-file" accept=".xlsx,.xls,.csv" style="display:none">';
     view.innerHTML = html;
 
     var refArea = document.getElementById('ref-area');
-    if (refArea) refArea.addEventListener('change', function (e) { S.workArea = e.target.value; renderRefs(); });
+    if (refArea) refArea.addEventListener('change', function (e) { S.workArea = e.target.value; S.wsel = {}; renderRefs(); }); // 22.09-229: сменили участок — галочки группового изменения сброшены
     bindRefExcelFile();
   }
   // Привязка скрытого input файла (импорт Excel) — общая для всех вкладок справочников
@@ -10735,6 +10774,203 @@
       e.target.value = '';
     });
   }
+  /* =====================================================================
+     22.09-229: ГРУППОВОЕ ИЗМЕНЕНИЕ ВИДОВ РАБОТ (вкладка «Виды работ»)
+     Галочки у работ (или ☑ у группы — все её работы с подгруппами),
+     панель снизу «Изменить выбранные» → окно, где отмеченные атрибуты
+     применяются сразу ко всем выбранным: надгруппа/группа (перемещение),
+     сезон, мин. температура, норма, единица, исполнители, численность
+     бригады, техника, а «Проводится совместно» — кнопками
+     «Заменить связи» / «Добавить связи». Только для администратора.
+     ===================================================================== */
+  function wselSelCount() { var n = 0; if (S.wsel) Object.keys(S.wsel).forEach(function (k) { if (S.wsel[k]) n++; }); return n; }
+  function wselBarHtml() {
+    var n = wselSelCount();
+    if (!n) return '';
+    return '<div id="wsel-bar" style="position:fixed;left:50%;transform:translateX(-50%);bottom:12px;z-index:90;display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 6px 18px rgba(0,0,0,.18);padding:8px 12px;font-size:12.5px;font-weight:700">' +
+      '<span>☑ Выбрано работ: ' + n + '</span>' +
+      '<button type="button" class="btn primary sm" data-action="wsel-open" title="Открыть окно группового изменения выбранных работ">✏ Изменить выбранные</button>' +
+      '<button type="button" class="btn sm" data-action="wsel-clear" title="Снять все галочки">✕ Снять выбор</button>' +
+      '</div>';
+  }
+  /* ☑ у группы: отметить (повторное нажатие — снять) все её работы
+     вместе с подгруппами. Путь группы совпадает по префиксу «path» или
+     «path + " / "» — тот же разделитель, что в дереве справочника. */
+  function grpSelAll(path) {
+    if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
+    path = String(path || '');
+    if (!path) return;
+    S.wsel = S.wsel || {};
+    var ids = [];
+    try {
+      (WORK.getWorks(S.workArea) || []).forEach(function (w) {
+        var g = (w && w.group != null) ? String(w.group).trim() : '';
+        if (g === path || g.indexOf(path + ' / ') === 0) ids.push(w.id);
+      });
+    } catch (e) {}
+    if (!ids.length) { toast('warn', 'В группе «' + path + '» нет работ'); return; }
+    var allOn = true;
+    ids.forEach(function (id) { if (!S.wsel[id]) allOn = false; });
+    ids.forEach(function (id) { if (allOn) delete S.wsel[id]; else S.wsel[id] = 1; });
+    toast('ok', (allOn ? 'Снята отметка с группы' : 'Отмечена группа') + ' «' + path + '» — работ: ' + ids.length);
+    renderRefs();
+  }
+  function openWorkBulkModal() {
+    if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
+    var area = S.workArea;
+    var ids = S.wsel ? Object.keys(S.wsel).filter(function (k) { return S.wsel[k]; }) : [];
+    if (!ids.length) { toast('warn', 'Сначала отметьте работы галочками в списке (или кнопкой ☑ у группы — все работы группы сразу)'); return; }
+    var works = [];
+    ids.forEach(function (id) { var w = null; try { w = WORK.getWork(area, id); } catch (e) {} if (w) works.push(w); });
+    if (!works.length) { toast('err', 'Выбранные работы не найдены на участке ' + area); return; }
+    S.wmBulkJoint = []; // выбор групп «Проводится совместно» — чистый при каждом открытии
+    var grpLists = groupSuggest(area);
+    function dlOptsHtml2(arr) { return arr.map(function (v) { return '<option value="' + esc(v) + '">'; }).join(''); }
+    function fldRow(onId, label, ctrlHtml) {
+      return '<div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:8px">' +
+        '<label class="cb" style="flex:0 0 auto;padding-bottom:9px" title="Применять этот атрибут ко всем выбранным работам"><input type="checkbox" id="' + onId + '"></label>' +
+        '<div class="fld" style="flex:1;margin:0"><label>' + label + '</label>' + ctrlHtml + '</div></div>';
+    }
+    var h = '<div class="modal-h"><h3>☑ Групповое изменение работ · ' + works.length + ' шт.</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">';
+    h += '<div style="max-height:110px;overflow:auto;border:1px dashed var(--line);border-radius:8px;padding:6px 8px;margin-bottom:12px;font-size:12px;line-height:1.6">';
+    works.forEach(function (w) { h += '<div>▪ <b style="color:var(--ink)">' + esc(w.name) + '</b> <span style="color:#94a3b8">(' + esc(w.group || 'Без группы') + ')</span></div>'; });
+    h += '</div>';
+    h += '<div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;line-height:1.5">Отметьте галочками атрибуты, которые нужно изменить СРАЗУ У ВСЕХ выбранных работ, задайте новые значения и нажмите кнопку внизу. Неотмеченные атрибуты останутся у работ как были.</div>';
+    h += '<div style="background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:10px">';
+    h += '<div style="font-size:12px;font-weight:700;margin-bottom:8px">🗂 Структура — переместить выбранные работы</div>';
+    h += fldRow('wb-on-super', 'Надгруппа <span style="color:#94a3b8;font-weight:500">(пусто — снять надгруппу)</span>', '<input id="wb-super-group" list="wb-sup-dl" autocomplete="off" placeholder="Без надгруппы"><datalist id="wb-sup-dl">' + dlOptsHtml2(grpLists.tops) + '</datalist>');
+    h += fldRow('wb-on-group', 'Группа работ', '<input id="wb-group-group" list="wb-grp-dl" autocomplete="off" placeholder="Напр.: Покраска газопроводов"><datalist id="wb-grp-dl">' + dlOptsHtml2(grpLists.tops) + '</datalist>');
+    h += '</div>';
+    h += '<div style="background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:10px">';
+    h += '<div style="font-size:12px;font-weight:700;margin-bottom:8px">⚙️ Атрибуты</div>';
+    h += fldRow('wb-on-season', 'Сезон проведения', '<select id="wb-season">' + ['Круглый год', 'Зима', 'Лето', 'Весна-осень'].map(function (s) { return '<option value="' + s + '">' + s + '</option>'; }).join('') + '</select>');
+    h += fldRow('wb-on-temp', 'Мин. температура, °C <span style="color:#94a3b8;font-weight:500">(-50 = без ограничений)</span>', '<input id="wb-temp" type="number" value="-50">');
+    h += fldRow('wb-on-norm', 'Норма времени (чел/ч на единицу) <span style="color:#94a3b8;font-weight:500">(можно с запятой)</span>', '<input id="wb-norm" type="text" inputmode="decimal" placeholder="напр.: 0,15">');
+    h += fldRow('wb-on-unit', 'Единица измерения', '<input id="wb-unit" list="wb-unit-dl" autocomplete="off" placeholder="объект"><datalist id="wb-unit-dl">' + ['объект', 'шт', 'м', 'м2', 'км', 'компл.', 'ч'].map(function (u) { return '<option value="' + u + '">'; }).join('') + '</datalist>');
+    h += fldRow('wb-on-minw', 'Кол-во исполнителей (мин / оптим.)', '<div style="display:flex;gap:8px"><input id="wb-minw" type="number" min="1" style="flex:1" placeholder="мин"><input id="wb-optw" type="number" min="1" style="flex:1" placeholder="опт"></div>');
+    h += fldRow('wb-on-crew', 'Численность бригады <span style="color:#94a3b8;font-weight:500">(если задана у работы — главнее мин/опт)</span>', '<input id="wb-crew" type="number" min="1" placeholder="напр.: 2">');
+    h += fldRow('wb-on-equip', 'Требуемая техника', '<input id="wb-equip" placeholder="Автовышка, КДМ, —">');
+    h += '</div>';
+    h += '<div style="background:#eef6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 12px;margin-bottom:10px">';
+    h += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><label class="cb" title="Применять связи «Проводится совместно» ко всем выбранным"><input type="checkbox" id="wb-on-joint"></label><div style="font-size:12px;font-weight:700;color:#1d4ed8">🤝 Проводится совместно — связанные группы работ</div></div>';
+    var jgroups = []; try { jgroups = wmJointGroups(area); } catch (e) {}
+    var gcnt = {};
+    try { (WORK.getWorks(area) || []).forEach(function (ww) { var g = (ww && ww.group != null) ? String(ww.group).trim() : ''; if (g) gcnt[g] = (gcnt[g] || 0) + 1; }); } catch (e) {}
+    h += '<div style="max-height:150px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:6px;background:#fff">';
+    if (!jgroups.length) h += '<div style="color:#94a3b8;font-size:12.5px;padding:10px;text-align:center">На участке нет групп работ</div>';
+    jgroups.forEach(function (g) {
+      var on = S.wmBulkJoint.indexOf(g) >= 0;
+      h += '<label class="cb" style="display:flex;align-items:center;gap:7px;padding:4px 6px;font-size:12.5px;cursor:pointer"><input type="checkbox" data-action="wbulk-jt" data-g="' + esc(g) + '"' + (on ? ' checked' : '') + '><span style="flex:1"><b style="color:var(--ink)">' + esc(g) + '</b><span style="color:#64748b"> · работ: ' + (gcnt[g] || 0) + '</span></span></label>';
+    });
+    h += '</div>';
+    h += '<div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">Связи применяются отдельными кнопками внизу: «Заменить» — у всех выбранных работ останутся ТОЛЬКО отмеченные здесь группы; «Добавить» — отмеченные группы добавятся к уже имеющимся связям каждой работы.</div>';
+    h += '</div>';
+    h += '</div>';
+    h += '<div class="modal-f" style="flex-wrap:wrap;gap:8px">' +
+      '<button class="btn" data-action="close-modal">Отмена</button>' +
+      '<button class="btn primary" data-action="wbulk-apply" title="Применить отмеченные галочками атрибуты (кроме связей — для них свои кнопки)">💾 Применить атрибуты</button>' +
+      '<button class="btn primary" data-action="wbulk-j-replace" style="background:#7c3aed" title="Применить и ЗАМЕНИТЬ связи «Проводится совместно» у всех выбранных работ отмеченными группами">🤝 Заменить связи</button>' +
+      '<button class="btn primary" data-action="wbulk-j-add" style="background:#0e7490" title="Применить и ДОБАВИТЬ отмеченные группы к уже имеющимся связям выбранных работ">🤝 Добавить связи</button>' +
+      '</div>';
+    modal.innerHTML = h;
+    modal.style.maxWidth = '660px';
+    overlay.classList.add('show');
+  }
+  /* Применение групповой правки. jointMode: '' — только атрибуты;
+     'replace' / 'add' — плюс связи «Проводится совместно» (если у блока стоит
+     галочка): заменить связи отмеченными группами или добавить их к имеющимся. */
+  function workBulkApply(jointMode) {
+    if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
+    var area = S.workArea;
+    var ids = S.wsel ? Object.keys(S.wsel).filter(function (k) { return S.wsel[k]; }) : [];
+    if (!ids.length) { toast('warn', 'Нет выбранных работ'); return; }
+    function val(id) { var el = document.getElementById(id); var v = el ? el.value : ''; return (typeof v === 'string') ? v.trim() : ''; } // только строки: иначе «не задано»
+    function on(id) { var el = document.getElementById(id); return !!(el && el.checked === true); } // строго: галочка браузера — true/false
+    var doSuper = on('wb-on-super'), newSuper = normGroupPath(val('wb-super-group'));
+    var doGroup = on('wb-on-group'), newGroup = normGroupPath(val('wb-group-group'));
+    if (doGroup && !newGroup) { toast('err', '«Группа работ» отмечена, но значение пустое — группа не может быть пустой'); return; }
+    var doSeason = on('wb-on-season'), newSeason = val('wb-season') || 'Круглый год';
+    var doTemp = on('wb-on-temp'), newTemp = parseFloat(String(val('wb-temp')).replace(',', '.'));
+    if (doTemp && !isFinite(newTemp)) { toast('err', 'Мин. температура — не число'); return; }
+    var doNorm = on('wb-on-norm'), normRaw = String(val('wb-norm')).replace(',', '.'), newNorm = parseFloat(normRaw);
+    if (doNorm && (normRaw === '' || !isFinite(newNorm) || newNorm < 0)) { toast('err', 'Норма времени — некорректное число (принимаем и запятую: 0,15)'); return; }
+    var doUnit = on('wb-on-unit'), newUnit = val('wb-unit') || 'объект';
+    var doMinW = on('wb-on-minw'), newMinW = parseInt(val('wb-minw'), 10), newOptW = parseInt(val('wb-optw'), 10);
+    if (doMinW && !(isFinite(newMinW) && newMinW >= 1) && !(isFinite(newOptW) && newOptW >= 1)) { toast('err', 'Кол-во исполнителей: укажите мин и/или оптим. (целое от 1)'); return; }
+    var doCrew = on('wb-on-crew'), newCrew = parseInt(val('wb-crew'), 10);
+    if (doCrew && (!isFinite(newCrew) || newCrew < 1)) { toast('err', 'Численность бригады — целое число от 1'); return; }
+    var doEquip = on('wb-on-equip'), newEquip = val('wb-equip') || '—';
+    var doJoint = (jointMode === 'replace' || jointMode === 'add') && on('wb-on-joint');
+    var jSel = (Array.isArray(S.wmBulkJoint) ? S.wmBulkJoint.slice() : []);
+    if (doJoint && jointMode === 'replace' && !jSel.length) {
+      if (!window.confirm('Группы не отмечены — связи «Проводится совместно» будут ОЧИЩЕНЫ у всех выбранных работ. Продолжить?')) return;
+    }
+    if (!doSuper && !doGroup && !doSeason && !doTemp && !doNorm && !doUnit && !doMinW && !doCrew && !doEquip && !doJoint) {
+      toast('warn', 'Не отмечен ни один атрибут для изменения — поставьте галочки у нужных'); return;
+    }
+    var fieldsLog = [];
+    if (doSuper) fieldsLog.push('надгруппа'); if (doGroup) fieldsLog.push('группа');
+    if (doSeason) fieldsLog.push('сезон'); if (doTemp) fieldsLog.push('мин. температура');
+    if (doNorm) fieldsLog.push('норма'); if (doUnit) fieldsLog.push('единица');
+    if (doMinW) fieldsLog.push('исполнители'); if (doCrew) fieldsLog.push('численность бригады');
+    if (doEquip) fieldsLog.push('техника');
+    if (doJoint) fieldsLog.push(jointMode === 'add' ? 'связи (добавлены)' : 'связи (заменены)');
+    var applied = 0, fails = 0;
+    ids.forEach(function (id) {
+      var w = null; try { w = WORK.getWork(area, id); } catch (e) {}
+      if (!w) return;
+      var patch = {};
+      if (doSuper || doGroup) {
+        var segs = normGroupPath(w.group || '').split(' / ').filter(Boolean);
+        var sup = '', grp = '', subs = '';
+        if (segs.length >= 3) { sup = segs[0]; grp = segs[1] || ''; subs = segs.slice(2).join(' / '); }
+        else { grp = segs[0] || ''; subs = segs.slice(1).join(' / '); } // старые 1–2 сегмента — без надгруппы
+        if (doSuper) sup = newSuper; // пусто — снять надгруппу
+        if (doGroup) grp = newGroup;
+        if (!grp) { fails++; return; } // группа обязана остаться
+        var parts = [];
+        if (sup) parts.push(sup);
+        parts.push(grp);
+        if (subs) parts.push(subs);
+        patch.group = parts.join(' / ');
+      }
+      if (doSeason) patch.season = newSeason;
+      if (doTemp) patch.min_temp = newTemp;
+      if (doNorm) patch.norm = newNorm;
+      if (doUnit) patch.unit = newUnit;
+      if (doMinW) {
+        if (isFinite(newMinW) && newMinW >= 1) patch.min_workers = newMinW;
+        if (isFinite(newOptW) && newOptW >= 1) patch.opt_workers = newOptW;
+      }
+      if (doCrew) { patch.crew_size = newCrew; patch.min_workers = newCrew; patch.opt_workers = newCrew; } // как в карточке: размер бригады главнее
+      if (doEquip) patch.equipment = newEquip;
+      if (doJoint) {
+        var ex = Array.isArray(w.joint_with) ? w.joint_with.slice() : (w.joint_with ? [w.joint_with] : []);
+        var merged = (jointMode === 'add') ? ex.slice() : [];
+        jSel.forEach(function (g) { if (g && g !== id && merged.indexOf(g) === -1) merged.push(g); });
+        patch.joint_with = merged;
+      }
+      if (!Object.keys(patch).length) return;
+      try {
+        var sw2 = WORK.updateWork(area, id, patch);
+        // переезд в другую группу — наследование пометок группы (как в карточке, 22.09-137)
+        try {
+          if ((doSuper || doGroup) && sw2 && sw2.id && WORK.groupFlagsOf) {
+            var gfOwn = Array.isArray(sw2.group_flags) ? sw2.group_flags : [];
+            var gfNew = WORK.groupFlagsOf(area, patch.group, sw2.id) || [];
+            if (JSON.stringify(gfOwn) !== JSON.stringify(gfNew)) WORK.updateWork(area, sw2.id, { group_flags: gfNew });
+          }
+        } catch (eF) {}
+        applied++;
+      } catch (eU) { fails++; }
+    });
+    if (applied) logAction('Групповое изменение работ', area + ': ' + applied + ' работ — ' + fieldsLog.join(', '));
+    overlay.classList.remove('show'); modal.style.width = ''; modal.style.maxWidth = '';
+    if (!fails) toast('ok', '✅ Групповое изменение применено — работ: ' + applied + ' (' + fieldsLog.join(', ') + ')');
+    else toast('warn', 'Групповое изменение: применено к ' + applied + ' работам, не удалось — ' + fails);
+    renderRefs();
+  }
+
   function tabBtn(t, label) { return '<button class="' + (S.refsTab === t ? 'on' : '') + '" data-action="refs-tab" data-tab="' + t + '">' + label + '</button>'; }
 
   /* =====================================================================
@@ -13111,16 +13347,53 @@
   }
 
   /* =====================================================================
-     РЕНДЕР: ЛОГИ ОШИБОК КЛИЕНТА (SP_ERRORS, localStorage)
+     РЕНДЕР: ЛОГИ ОШИБОК — ОБЩИЙ список со всех устройств (сервер),
+     локальный лог устройства — только резерв при недоступном сервере.
      ===================================================================== */
   function renderErrLogs() {
-    var logs = (window.SP_ERRORS && SP_ERRORS.getAll) ? SP_ERRORS.getAll() : [];
+    var hasApi = !!(window.SP_API && SP_API.getToken && SP_API.getToken() && SP_API.errorsGet);
+    if (!hasApi) {
+      renderErrLogsTable((window.SP_ERRORS && SP_ERRORS.getAll) ? SP_ERRORS.getAll() : [], {
+        sub: 'записей на ЭТОМ устройстве: ',
+        shared: false,
+        note: '⚠ Нет связи с сервером — показан локальный лог ЭТОГО устройства. ' +
+          'Он сам уйдёт в общий список, как только появится связь и вход на сайт.'
+      });
+      return;
+    }
+    view.innerHTML = '<div class="card"><div class="card-h"><h2>🐞 Логи ошибок</h2></div>' +
+      '<div class="card-b"><div class="empty">⏳ Загружаю общий лог ошибок со всех устройств…</div></div></div>';
+    SP_API.errorsGet(500, 0).then(function (r) {
+      if (r && r.ok) {
+        renderErrLogsTable(r.records || [], { sub: 'записей со всех устройств: ', shared: true, note: '' });
+      } else {
+        renderErrLogsTable((window.SP_ERRORS && SP_ERRORS.getAll) ? SP_ERRORS.getAll() : [], {
+          sub: 'записей на ЭТОМ устройстве: ',
+          shared: false,
+          note: '⚠ Не удалось загрузить общий лог с сервера (' + esc((r && r.err) || 'ошибка') + ') — ' +
+            'показан локальный лог ЭТОГО устройства.'
+        });
+      }
+    })['catch'](function (e) {
+      renderErrLogsTable((window.SP_ERRORS && SP_ERRORS.getAll) ? SP_ERRORS.getAll() : [], {
+        sub: 'записей на ЭТОМ устройстве: ',
+        shared: false,
+        note: '⚠ Не удалось загрузить общий лог с сервера (' + esc(e && e.message || e) + ') — ' +
+          'показан локальный лог ЭТОГО устройства.'
+      });
+    });
+  }
+
+  function renderErrLogsTable(logs, opts) {
     var html = '<div class="card"><div class="card-h"><h2>🐞 Логи ошибок</h2>' +
-      '<span class="sub">' + logs.length + ' записей (локально)</span>' +
+      '<span class="sub">' + esc(opts.sub) + logs.length + '</span>' +
       '<div class="spacer"></div>' +
-      '<button class="btn sm" data-action="clear-errlogs" style="color:var(--red)">🗑 Очистить</button>' +
+      '<button class="btn sm" data-action="clear-errlogs" style="color:var(--red)">🗑 ' + (opts.shared ? 'Очистить общий лог' : 'Очистить') + '</button>' +
       '<button class="btn sm" data-action="test-errlog">+ Тестовая ошибка</button>' +
       '</div><div class="card-b">';
+    if (opts.note) {
+      html += '<div style="margin-bottom:12px;padding:10px 12px;background:#fef3c7;border:1px solid #fde68a;border-radius:10px;font-size:12.5px;color:#92400e">' + esc(opts.note) + '</div>';
+    }
     if (!logs.length) {
       html += '<div class="empty">✅ Ошибок нет. Все чисто.</div>';
     } else {
@@ -13132,21 +13405,33 @@
       html += '<option value="warn">Предупреждения</option>';
       html += '<option value="info">Информация</option>';
       html += '</select>';
-      html += '<input type="text" id="err-search" placeholder="Поиск по сообщению или месту..." style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;flex:1;min-width:180px">';
+      html += '<input type="text" id="err-search" placeholder="Поиск по сообщению, месту, пользователю или устройству..." style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;flex:1;min-width:180px">';
       html += '</div>';
       // Таблица
-      html += '<table class="dt"><thead><tr><th style="width:150px">Время</th><th style="width:80px">Уровень</th><th>Где</th><th>Сообщение</th></tr></thead><tbody>';
+      html += '<table class="dt"><thead><tr><th style="width:150px">Время</th>';
+      if (opts.shared) html += '<th style="width:210px">Устройство</th>';
+      html += '<th style="width:80px">Уровень</th><th>Где</th><th>Сообщение</th></tr></thead><tbody>';
       logs.forEach(function (l) {
         var lvl = l.level || 'error';
         var lvlColor = lvl === 'error' ? '#dc2626' : (lvl === 'warn' ? '#f59e0b' : '#16a34a');
         var ts = (window.SP_ERRORS && SP_ERRORS.fmtTs) ? SP_ERRORS.fmtTs(l.ts) : new Date(l.ts).toISOString();
         var extra = l.extra ? ('<div style="font-size:10.5px;color:var(--muted);margin-top:3px;font-family:monospace">' +
-          esc(JSON.stringify(l.extra).substring(0, 200)) + '</div>') : '';
+          esc((typeof l.extra === 'string' ? l.extra : JSON.stringify(l.extra)).substring(0, 200)) + '</div>') : '';
         var stack = l.stack ? ('<details style="margin-top:5px"><summary style="cursor:pointer;color:var(--blue);font-size:11px">stack</summary>' +
           '<pre style="font-size:10.5px;background:var(--panel-3);padding:6px 8px;border-radius:6px;overflow-x:auto;margin-top:5px;color:var(--muted)">' +
           esc((l.stack || '').substring(0, 1500)) + '</pre></details>') : '';
-        html += '<tr class="err-row" data-level="' + esc(lvl) + '" data-search="' + esc((l.where + ' ' + l.msg).toLowerCase()) + '">';
+        var who = '';
+        if (opts.shared) {
+          var whoName = l.user_name || l.user_login || 'это устройство';
+          who = '<td style="font-size:11.5px;line-height:1.35"><div style="font-weight:600">' + esc(whoName) + '</div>' +
+            '<div style="color:var(--muted);font-size:10.5px">' + esc(l.device || 'устройство не указано') + '</div>' +
+            (l.build ? '<div style="color:var(--muted);font-size:10px;font-family:monospace">💻 ' + esc(l.build) + '</div>' : '') +
+            '</td>';
+        }
+        html += '<tr class="err-row" data-level="' + esc(lvl) + '" data-search="' +
+          esc(((l.where || '') + ' ' + (l.msg || '') + ' ' + (l.user_name || '') + ' ' + (l.user_login || '') + ' ' + (l.device || '')).toLowerCase()) + '">';
         html += '<td style="white-space:nowrap;font-size:11.5px;color:var(--muted);font-family:monospace">' + esc(ts) + '</td>';
+        html += who;
         html += '<td><span style="display:inline-block;padding:1px 7px;background:' + lvlColor + ';color:#fff;border-radius:3px;font-size:10px;font-weight:700">' + esc(lvl.toUpperCase()) + '</span></td>';
         html += '<td style="font-size:12px;font-family:monospace;word-break:break-all">' + esc(l.where || '?') + '</td>';
         html += '<td style="font-size:12.5px"><div>' + esc(l.msg || '') + '</div>' + extra + stack + '</td>';
@@ -13160,23 +13445,32 @@
     var fLevel = document.getElementById('err-filter-level');
     var fSearch = document.getElementById('err-search');
     function applyFilter() {
-      var lv = fLevel && fLevel.value;
-      var sv = fSearch && fSearch.value.toLowerCase();
+      var lv = fLevel && typeof fLevel.value === 'string' ? fLevel.value : '';
+      var sv = fSearch && typeof fSearch.value === 'string' ? fSearch.value.toLowerCase() : '';
       view.querySelectorAll('.err-row').forEach(function (row) {
         var okLevel = !lv || row.dataset.level === lv;
         var okSearch = !sv || row.dataset.search.indexOf(sv) !== -1;
         row.style.display = (okLevel && okSearch) ? '' : 'none';
       });
     }
-    if (fLevel) fLevel.addEventListener('change', applyFilter);
-    if (fSearch) fSearch.addEventListener('input', applyFilter);
+    if (fLevel && fLevel.addEventListener) fLevel.addEventListener('change', applyFilter);
+    if (fSearch && fSearch.addEventListener) fSearch.addEventListener('input', applyFilter);
     // Кнопка очистки
     var btnClear = view.querySelector('[data-action="clear-errlogs"]');
     if (btnClear) btnClear.addEventListener('click', function () {
-      if (!window.confirm('Очистить весь локальный лог ошибок?')) return;
-      if (window.SP_ERRORS && SP_ERRORS.clear) SP_ERRORS.clear();
-      toast('ok', 'Лог ошибок очищен');
-      renderErrLogs();
+      if (opts.shared) {
+        if (!window.confirm('Очистить ОБЩИЙ лог ошибок на сервере? Он удалится у ВСЕХ устройств сразу.')) return;
+        Promise.resolve(SP_API.errorsClear()).then(function () {
+          if (window.SP_ERRORS && SP_ERRORS.clear) SP_ERRORS.clear(); // и локальный резерв
+          toast('ok', 'Общий лог ошибок очищен');
+          renderErrLogs();
+        });
+      } else {
+        if (!window.confirm('Очистить весь локальный лог ошибок этого устройства?')) return;
+        if (window.SP_ERRORS && SP_ERRORS.clear) SP_ERRORS.clear();
+        toast('ok', 'Лог ошибок очищен');
+        renderErrLogs();
+      }
     });
     // Кнопка тестовой ошибки
     var btnTest = view.querySelector('[data-action="test-errlog"]');
@@ -13184,8 +13478,11 @@
       try {
         throw new Error('Тестовая ошибка из UI ' + new Date().toLocaleTimeString('ru-RU'));
       } catch (e) {
-        if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log('error', 'ui.test', e.message, { stack: e.stack });
-        renderErrLogs();
+        if (window.SP_ERRORS && SP_ERRORS.log) {
+          SP_ERRORS.log('error', 'ui.test', e.message, { stack: e.stack });
+          if (SP_ERRORS.push) SP_ERRORS.push(); // сразу уходит в общий список
+        }
+        if (typeof setTimeout === 'function') setTimeout(function () { renderErrLogs(); }, 600);
       }
     });
   }
@@ -13978,6 +14275,11 @@
     html += '</div>';
     dd.innerHTML = html;
     dd.classList.add('open');
+    // 22.09-231: фон карточек прогноза — та же анимация погоды с облачками,
+    // что над ними, только облачков больше, во весь блок и размыто (blur)
+    var _cl = document.createElement('div');
+    _cl.innerHTML = wxBlurCloudsHtml(26);
+    dd.insertBefore(_cl.firstChild, dd.firstChild);
     var _tw = getWeatherForecast(0);
     var _windy = _tw && (_tw.wind || 0) >= 5; // ветер → снос снежинок вправо (амплитуда вправо ×2)
     var _ddRain = _tw && ((_tw.code >= 51 && _tw.code <= 67) || (_tw.code >= 80 && _tw.code <= 82) || _tw.code >= 95 || (_tw.rain && _tw.rain > 0));
@@ -16053,7 +16355,7 @@
       var sub = w.querySelector('.nav-sub a[data-screen]');
       w.classList.toggle('open', !!(sub && sub.dataset.screen === name));
     });
-    document.getElementById('screen-title').textContent = (TITLES[name] || ['', ''])[0];
+    document.getElementById('screen-title').textContent = (TITLES[name] || '');
     // 22.09-219: в шапке — только номер текущей сборки; описания изменений больше НЕ
     // пишутся в шапку — они в Администрировании → «Журнал изменений» (SP_CHANGELOG, data.js).
     var _crEl = document.getElementById('screen-crumb');
@@ -17232,6 +17534,28 @@
     else if (a === 'grp-rename') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } openGroupRenameModal(el.dataset.path); }
     else if (a === 'grp-rename-save') { saveGroupRename(); }
     else if (a === 'grp-newwork') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } S.workPresetGroup = el.dataset.path || ''; openWorkModal('new'); }
+    else if (a === 'grp-selall') { grpSelAll(el.dataset.path); } // 22.09-229
+    else if (a === 'wsel-toggle') { // 22.09-229: галочка у работы — панель обновляем без полной перерисовки
+      S.wsel = S.wsel || {};
+      var _wselWid = el.dataset.wid;
+      var _cntBefore = wselSelCount();
+      if (el.checked) S.wsel[_wselWid] = 1; else delete S.wsel[_wselWid];
+      var _cntAfter = wselSelCount();
+      if ((_cntBefore === 0) !== (_cntAfter === 0)) renderRefs();
+      else { var _bar = document.getElementById('wsel-bar'); if (_bar) _bar.outerHTML = wselBarHtml(); }
+    }
+    else if (a === 'wsel-clear') { S.wsel = {}; renderRefs(); } // 22.09-229
+    else if (a === 'wsel-open') { openWorkBulkModal(); } // 22.09-229
+    else if (a === 'wbulk-jt') { // 22.09-229: галочка группы «Проводится совместно» в окне групповой правки
+      S.wmBulkJoint = S.wmBulkJoint || [];
+      var _jg = el.dataset.g || '';
+      var _jix = S.wmBulkJoint.indexOf(_jg);
+      if (el.checked && _jix === -1) S.wmBulkJoint.push(_jg);
+      if (!el.checked && _jix !== -1) S.wmBulkJoint.splice(_jix, 1);
+    }
+    else if (a === 'wbulk-apply') { workBulkApply(''); } // 22.09-229
+    else if (a === 'wbulk-j-replace') { workBulkApply('replace'); } // 22.09-229
+    else if (a === 'wbulk-j-add') { workBulkApply('add'); } // 22.09-229
     else if (a === 'grp-props') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } openGroupPropsModal(el.dataset.path); } // 22.09-137
     else if (a === 'grp-props-save') { saveGroupProps(); } // 22.09-137
     else if (a === 'save-work') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } saveWork(); }
@@ -19764,7 +20088,7 @@
     if (!arr.length) {
       h += '<div class="empty" style="padding:26px;text-align:center">Копий пока нет — они создаются автоматически при каждой печати графика (кнопка «Печать графика» на панели инструментов).</div>';
     } else {
-      h += '<div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">Каждая печать графика сохраняет его полную копию. Выберите копию: можно <b>предосмотреть</b> и <b>применить</b> её к текущему графику (задания в планировании при этом не пересоздаются).</div>';
+      h += '<div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">Каждая печать графика сохраняет его полную копию. Выберите копию: можно <b>предосмотреть</b> и <b>применить</b> её к текущему графику (задания в планировании при этом выстраиваются заново по датам восстановленного графика: невыполненные пересоздаются, выполненные остаются в истории, дубли не создаются; действие можно отменить кнопкой «⟲ Отмена» в календаре).</div>';
       arr.forEach(function (sn) {
         h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:var(--panel-2)">' +
           '<div style="flex:1;min-width:0"><div style="font-weight:800;font-size:12.5px;color:var(--ink)">' + esc(_snapDT(sn.ts)) + '</div>' +
@@ -19802,22 +20126,35 @@
   function graphSnapApply(sid) {
     var sn = graphSnapById(sid); if (!sn) return;
     var g = graphsFind(GS.cur); if (!g) return;
-    if (!window.confirm('Применить копию от ' + _snapDT(sn.ts) + ' к графику «' + g.name + '»?\n\nТекущие объекты, работы, периодичность и даты вхождений будут заменены содержимым копии. Задания в планировании не пересоздаются.')) return;
+    if (!window.confirm('Применить копию от ' + _snapDT(sn.ts) + ' к графику «' + g.name + '»?\n\nТекущие объекты, работы, периодичность и даты вхождений будут заменены содержимым копии, и задания в планировании будут выстроены заново по датам этого графика (выполненные останутся в истории). Отменить действие можно кнопкой «⟲ Отмена» в календаре.')) return;
     var list = graphsLoad();
+    var restored = null;
     for (var i = 0; i < list.length; i++) {
       if (list[i] && list[i].id === g.id) {
         var clone = JSON.parse(JSON.stringify(sn.graph));
         clone.id = g.id;
         clone.restored_at = Date.now(); clone.restored_from = sn.ts;
         list[i] = clone;
+        restored = clone;
         break;
       }
     }
     graphsSaveList(list);
+    // 22.09-230: задания в планировании выстраиваются обратно согласно графику —
+    // пересчёт серий восстановленного графика: невыполненные пересоздаются по
+    // датам копии, выполненные остаются в истории, дубли не создаются (22.09-227)
+    var rs = null;
+    try {
+      planUndoPush('♻ восстановление графика «' + g.name + '» из копии'); // 22.09-225: всё действие откатывается одним снимком
+      if (restored) rs = graphYearResync(restored, 'all');
+      if (TASKS_DB) S.tasks = TASKS_DB.getTasks();
+    } catch (eR) {}
     try { overlay.classList.remove('show'); } catch (e) {}
     try { document.getElementById('overlay2').classList.remove('show'); } catch (e2) {}
-    try { logAction('График: восстановление из копии', g.name + ' · копия от ' + _snapDT(sn.ts)); } catch (e3) {}
-    toast('ok', '♻ График «' + g.name + '» восстановлен из копии. Задания в планировании не пересоздавались — при необходимости пересчитайте («Настроить периодичность» → «Сохранить»).');
+    try { logAction('График: восстановление из копии', g.name + ' · копия от ' + _snapDT(sn.ts) + (rs ? ' · заданий создано: ' + (rs.created || 0) + ', убрано прежних: ' + (rs.removed || 0) : '')); } catch (e3) {}
+    toast('ok', '♻ График «' + g.name + '» восстановлен из копии.');
+    if (rs) toast('ok', '📅 Задания в планировании выстроены по графику: создано ' + (rs.created || 0) + ', убрано прежних ' + (rs.removed || 0) + ', сохранено выполненных ' + (rs.kept || 0) + (rs.dup ? ', уже существовали (без дублей): ' + rs.dup : '') + '. Отменить всё: «⟲ Отмена» в календаре.');
+    if (S.screen === 'calendar') { try { refresh(); } catch (eC) {} }
     renderGraphs();
   }
 

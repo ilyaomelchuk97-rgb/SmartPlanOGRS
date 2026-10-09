@@ -17,6 +17,7 @@
    · SP_API.delete(section, id)     — DELETE /api/<section>/:id
    · SP_API.sync(since)             — GET /api/sync?since=<ts>
    · SP_API.audit(limit, since)     — GET /api/audit
+   · SP_API.errorsPush/errorsGet/errorsClear — общий лог ошибок (со всех устройств)
    · SP_API.health()                — GET /healthz
 
    Ошибки:
@@ -150,6 +151,21 @@ window.SP_API = (function () {
     return request('GET', '/audit' + (q.length ? '?' + q.join('&') : ''));
   }
 
+  // 22.09-232: ОБЩИЙ лог ошибок со всех устройств
+  function errorsPush(entries) {
+    if (!Array.isArray(entries) || !entries.length) return Promise.resolve({ ok: true, inserted: 0 });
+    return request('POST', '/errors', { entries: entries });
+  }
+  function errorsGet(limit, since) {
+    var q = [];
+    if (limit) q.push('limit=' + limit);
+    if (since) q.push('since=' + since);
+    return request('GET', '/errors' + (q.length ? '?' + q.join('&') : ''));
+  }
+  function errorsClear() {
+    return request('DELETE', '/errors');
+  }
+
   return {
     baseUrl: getBaseUrl,
     health: health,
@@ -162,6 +178,9 @@ window.SP_API = (function () {
     del: del,
     sync: sync,
     audit: audit,
+    errorsPush: errorsPush,
+    errorsGet: errorsGet,
+    errorsClear: errorsClear,
     getToken: getToken,
     setToken: setToken,
     getUser: getUser,
