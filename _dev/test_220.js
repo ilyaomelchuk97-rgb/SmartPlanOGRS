@@ -24,7 +24,7 @@ ok(app.indexOf("html += kpi(pct + '%', 'Выполнено за месяц'") >=
 // 2) строка кнопок планирования
 ok(app.indexOf('id="cal-actions-row"') >= 0, 'строка функциональных кнопок планирования');
 ok(app.indexOf("justify-content:flex-start\">' + (canPlan() ? '<button class=\"btn sm primary\" data-action=\"new-task\"") >= 0, '«Добавить задачу» — слева');
-ok(app.indexOf("justify-content:center\">' + (canPlan() ? '<button class=\"btn sm\" data-action=\"optimize-works\"") >= 0, '«Оптимизировать работы» — по центру');
+ok(app.indexOf("justify-content:center;gap:6px\">' + (canPlan() ? '<button class=\"btn sm\" data-action=\"optimize-works\"") >= 0, '«Оптимизировать работы» — по центру (с 225 — рядом кнопка «⟲ Отмена»)');
 ok(app.indexOf('justify-content:flex-end\"><div class="trash-zone" id="trash-zone"') >= 0, '«Корзина» — справа');
 ok(app.indexOf("if (canPlan()) {\n      html += '<button class=\"btn sm primary\" data-action=\"new-task\">" + "'") === -1, 'старые кнопки в шапке календаря убраны');
 

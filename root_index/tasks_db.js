@@ -55,7 +55,9 @@ window.SP_TASKS = (function () {
     return Promise.resolve(db);
   }
 
-  function getTasks() { return init().tasks; }
+  // 22.09-224: служебная запись-якорь календарных дат (t_day_anchor) —
+  // это НЕ задача; в списки задач она не входит (но синхронизируется, как все записи)
+  function getTasks() { return init().tasks.filter(function (t) { return t && t.id !== 't_day_anchor'; }); }
   function getTask(id) { var arr = init().tasks; for (var i = 0; i < arr.length; i++) if (arr[i].id === id) return arr[i]; return null; }
   function addTask(data) {
     var db = init();

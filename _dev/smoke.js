@@ -59,6 +59,13 @@ const NOW = new Date(); const Y = NOW.getFullYear();
 function isoOf(off) { const d = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() + off); const m = ('0' + (d.getMonth() + 1)).slice(-2), dd = ('0' + d.getDate()).slice(-2); return d.getFullYear() + '-' + m + '-' + dd; }
 seed('smartplan_grp_norms_v1', '1');
 seed('smartplan_areas_db', { schema: AREAS_SCHEMA, areas: [ { id: 'a_ubirogs', name: 'УБиРОГС' }, { id: 'a_grp', name: 'ГРП' } ] });
+// 22.09-223: свой каталог видов работ (минимальный): w7 (состав 2 чел.), пара «совместных» и обычная большая
+seed('smartplan_work_catalog', { schema: 5, areas: { 'УБиРОГС': [
+  { id: 'w7', group: 'Покраска', name: 'Покраска газопровода', norm: 0.15, unit: 'м2', needs_permit: false, depends_on_snow: false, min_temp: 5, season: 'Лето', equipment: 'Автовышка', min_workers: 2, opt_workers: 3, crew_size: 0, crew: [] },
+  { id: 'w_j1', group: 'Тест совместных', name: 'Совместная работа А', norm: 6, unit: 'объект', needs_permit: false, depends_on_snow: false, min_temp: -50, season: 'Круглый год', equipment: '—', min_workers: 1, opt_workers: 1, crew_size: 1, crew: [], joint_with: ['w_j2'] },
+  { id: 'w_j2', group: 'Тест совместных', name: 'Совместная работа Б', norm: 6, unit: 'объект', needs_permit: false, depends_on_snow: false, min_temp: -50, season: 'Круглый год', equipment: '—', min_workers: 1, opt_workers: 1, crew_size: 1, crew: [], joint_with: [] },
+  { id: 'w_big', group: 'Тест совместных', name: 'Обычная большая работа', norm: 6, unit: 'объект', needs_permit: false, depends_on_snow: false, min_temp: -50, season: 'Круглый год', equipment: '—', min_workers: 1, opt_workers: 1, crew_size: 1, crew: [] }
+] } });
 seed('smartplan_users_db', { schema: 3, users: [
   { id: 'a_admin', login: 'admin', password: 'x', plain_password: 'x', full_name: 'Админ Смоук', role: 'admin', area: 'Все участки', color: '#0f2740', active: true },
   { id: 'm_smoke1', login: 'm1', password: 'x', full_name: 'Мастер Один', role: 'master', area: 'УБиРОГС', color: '#15803d', active: true },
@@ -131,7 +138,7 @@ vm.createContext(sandbox);
     let code = fs.readFileSync(path.join(DIR, f), 'utf8');
     if (f === 'app.js') {
       const pos = code.lastIndexOf('})();');
-      code = code.slice(0, pos) + ';window.__probe={S:S,GS:GS,TITLES:TITLES,refresh:refresh,renderDashboard:renderDashboard,visibleMasters:visibleMasters,enterApp:enterApp,setScreen:setScreen,kpiTasks:kpiTasks,kpiMasters:kpiMasters,dayTaskSort:dayTaskSort,_drawCalendarGridImpl:_drawCalendarGridImpl,fmtH3:fmtH3,openGraphLaborModal:openGraphLaborModal,gwWorkTipHtml:gwWorkTipHtml,graphsFind:graphsFind,schDayHours:schDayHours,openWorkModal:openWorkModal,openWmJointPickModal:openWmJointPickModal,wmJointSelBoxHtml:wmJointSelBoxHtml,openSchEditorModal:openSchEditorModal,schEdPatternShift:schEdPatternShift,schEdMoveDay:schEdMoveDay,openSchEdDayModal:openSchEdDayModal,schEdDayApply:schEdDayApply,schEdDayReset:schEdDayReset,schEdCur:schEdCur,schEdSaveAll:schEdSaveAll,wkCycleFrom:wkCycleFrom,gwJointAlign:gwJointAlign,gprFirstFromServiceLife:gprFirstFromServiceLife,gwGenObjSeries:gwGenObjSeries,gwNextISO:gwNextISO,gprRowHtml:gprRowHtml,wkDayState:wkDayState,masterCapacity:masterCapacity,offToDate:offToDate,schCellHtml:schCellHtml,openSchDayEditModal:openSchDayEditModal,schDayEditSave:schDayEditSave,SP_BUILD:SP_BUILD,avaHtml:avaHtml,applyUser:applyUser,openUserModal:openUserModal,saveUserAvatar:saveUserAvatar,openWorkersSettingsModal:openWorkersSettingsModal,openFactMonthModal:openFactMonthModal,kpiMonth:kpiMonth,openWkCardModal:openWkCardModal,key:key};' + code.slice(pos);
+      code = code.slice(0, pos) + ';window.__probe={S:S,GS:GS,TITLES:TITLES,refresh:refresh,renderDashboard:renderDashboard,visibleMasters:visibleMasters,enterApp:enterApp,setScreen:setScreen,kpiTasks:kpiTasks,kpiMasters:kpiMasters,dayTaskSort:dayTaskSort,_drawCalendarGridImpl:_drawCalendarGridImpl,fmtH3:fmtH3,openGraphLaborModal:openGraphLaborModal,gwWorkTipHtml:gwWorkTipHtml,graphsFind:graphsFind,schDayHours:schDayHours,openWorkModal:openWorkModal,openWmJointPickModal:openWmJointPickModal,wmJointSelBoxHtml:wmJointSelBoxHtml,openSchEditorModal:openSchEditorModal,schEdPatternShift:schEdPatternShift,schEdMoveDay:schEdMoveDay,openSchEdDayModal:openSchEdDayModal,schEdDayApply:schEdDayApply,schEdDayReset:schEdDayReset,schEdCur:schEdCur,schEdSaveAll:schEdSaveAll,wkCycleFrom:wkCycleFrom,gwJointAlign:gwJointAlign,gprFirstFromServiceLife:gprFirstFromServiceLife,gwGenObjSeries:gwGenObjSeries,gwNextISO:gwNextISO,gprRowHtml:gprRowHtml,wkDayState:wkDayState,masterCapacity:masterCapacity,offToDate:offToDate,schCellHtml:schCellHtml,openSchDayEditModal:openSchDayEditModal,schDayEditSave:schDayEditSave,SP_BUILD:SP_BUILD,avaHtml:avaHtml,applyUser:applyUser,openUserModal:openUserModal,saveUserAvatar:saveUserAvatar,openWorkersSettingsModal:openWorkersSettingsModal,openFactMonthModal:openFactMonthModal,kpiMonth:kpiMonth,openWkCardModal:openWkCardModal,taskDurHours:taskDurHours,workCrewCount:workCrewCount,loadForDay:loadForDay,optimizeWorksCalendar:optimizeWorksCalendar,taskHours:taskHours,rebaseTaskDaysToToday:rebaseTaskDaysToToday,moveTaskToCell:moveTaskToCell,planUndoApply:planUndoApply,graphSnapSave:graphSnapSave,graphSnapsLoad:graphSnapsLoad,openGraphSnapsModal:openGraphSnapsModal,graphSnapApply:graphSnapApply,gwFindPlanTask:gwFindPlanTask,graphsDupWarnHtml:graphsDupWarnHtml,graphYearResync:graphYearResync,graphsLoad:graphsLoad,graphsSaveList:graphsSaveList,key:key};' + code.slice(pos);
     }
     vm.runInContext(code, sandbox, { filename: f });
   }
@@ -510,7 +517,7 @@ vm.createContext(sandbox);
   /* ---------- 219: карточка 200 px и фото-аватары везде ---------- */
   try { P.setScreen('schedules'); } catch (e) {}
   const hvS219 = viewHtml();
-  ok(hvS219.indexOf('min-width:200px') >= 0 && hvS219.indexOf('width:max-content') >= 0, '219: карточка в «Графиках смен» — 200 px, растёт по ФИО');
+  ok(hvS219.indexOf('width:200px;max-width:200px') >= 0 && hvS219.indexOf('text-overflow:ellipsis') >= 0, '222: карточка в «Графиках смен» — не шире 200 px, ФИО/должность обрезаются');
   ok(hvS219.indexOf('<img src="data:image/png;base64,SMOKEAVA"') >= 0, '219: в карточке «Графиков смен» — фото-аватар');
   try { P.setScreen('workers'); } catch (e) {}
   ok(viewHtml().indexOf('<img src="data:image/png;base64,SMOKEAVA"') >= 0, '219: в карточке «Работников» — фото-аватар');
@@ -578,6 +585,127 @@ vm.createContext(sandbox);
   try { P.schEdSaveAll(); } catch (e) {}
   P.S.schMode = 'all';
   try { elCache.modal.style.width = ''; elCache.modal.style.maxWidth = ''; } catch (e) {}
+
+  /* ---------- 223: загрузка = норма / исполнители; совместные — в один день ---------- */
+  ok(P.workCrewCount({ crew_size: 2 }) === 2, '223: число исполнителей — из поля «Количество исполнителей»');
+  ok(P.workCrewCount({ crew: [{ prof: 'x', count: 3 }] }) === 3, '223: число исполнителей — сумма по составу');
+  ok(P.workCrewCount({ min_workers: 4 }) === 4 && P.workCrewCount({}) === 1, '223: число исполнителей — «мин.» из карточки, иначе 1');
+  ok(Math.abs(P.taskHours({ m: 'm_smoke1', w: 'w7', o: 'o1', volume: 2 }) - 0.25) < 1e-6, '223: в карточке — общая норма (0,125 × 2 = 0,25 чел.-ч)');
+  ok(Math.abs(P.taskDurHours({ m: 'm_smoke1', w: 'w7', o: 'o1', volume: 2 }) - 0.125) < 1e-6, '223: длительность задачи = норма × объём / исполнителей (0,25 / 2 = 0,125 ч)');
+  P.S.tasks.push({ id: 't_dur_sm', name: 'ДлитСмоук', type: 'work', m: 'm_smoke2', w: 'w7', o: 'o1', s: 'plan', status: 'plan', volume: 10, d: 0, dl: 1, priority: 2, created_at: T0, seq: 1 });
+  ok(Math.abs(P.loadForDay('m_smoke2', 0) - 0.625) < 1e-6, '223: загрузка дня мастера — длительностями (1,25 чел.-ч / 2 = 0,625 ч)');
+  P.S.tasks = P.S.tasks.filter(function (x) { return x.id !== 't_dur_sm'; });
+  // совместные: 2 работы по 6 ч (пометка «🤝») + одиночная 6 ч; ёмкость дня 8 ч —
+  // после «Оптимизировать работы» совместные остаются в один день, одиночная — на другой
+  const _tJA = { id: 't_jA_sm', name: 'СовмА', type: 'work', m: 'm_smoke2', w: 'w_j1', o: 'o_joint', s: 'plan', status: 'plan', volume: 1, d: 0, dl: 1, priority: 2, created_at: T0, seq: 1 };
+  const _tJB = { id: 't_jB_sm', name: 'СовмБ', type: 'work', m: 'm_smoke2', w: 'w_j2', o: 'o_joint', s: 'plan', status: 'plan', volume: 1, d: 0, dl: 1, priority: 2, created_at: T0, seq: 1 };
+  const _tBG = { id: 't_bg_sm', name: 'Одиночная', type: 'work', m: 'm_smoke2', w: 'w_big', o: 'o_joint', s: 'plan', status: 'plan', volume: 1, d: 0, dl: 1, priority: 2, created_at: T0, seq: 1 };
+  P.S.tasks.push(_tJA, _tJB, _tBG);
+  try { P.optimizeWorksCalendar(); } catch (e) { console.log('optimize err', e && e.message); }
+  ok(_tJA.d === _tJB.d, '223: совместные выполнения — в один день, хотя мастеру не хватает часов');
+  ok(_tBG.d !== _tJA.d, '223: одиночная задача ушла с переполненного дня (правило для одиночных не изменилось)');
+  P.S.tasks = P.S.tasks.filter(function (x) { return ['t_jA_sm', 't_jB_sm', 't_bg_sm'].indexOf(x.id) === -1; });
+  (function () { try { var raw = JSON.parse(store.get('smartplan_tasks_db')); if (raw && raw.tasks) { raw.tasks = raw.tasks.filter(function (x) { return ['t_jA_sm', 't_jB_sm', 't_bg_sm', 't_dur_sm'].indexOf(x.id) === -1; }); seed('smartplan_tasks_db', raw); } } catch (e) {} })();
+
+  /* ---------- 224: задачи привязаны к календарной дате (якорь дня) ---------- */
+  const _tA1 = sandbox.SP_TASKS.getTask('t_today1');
+  const _dBefore = _tA1.d;
+  // первый вызов: якоря нет — создаётся на сегодня, задачи НЕ сдвигаются
+  let _rb1 = 0; try { _rb1 = P.rebaseTaskDaysToToday(); } catch (e) { console.log('rebase err', e && e.message); }
+  const _anch = sandbox.SP_TASKS.getTask('t_day_anchor');
+  ok(!!_anch && _anch.day_anchor === isoOf(0), '224: запись-якорь создана на сегодня');
+  ok(_rb1 === 0 && _tA1.d === _dBefore, '224: первый запуск — задачи не сдвигаются');
+  ok(!(sandbox.SP_TASKS.getTasks().some(function (x) { return x.id === 't_day_anchor'; })), '224: якорь не попадает в списки задач');
+  // якорь «вчера» → наступил новый день: все смещения уменьшаются на 1 (задача остаётся на своей дате)
+  sandbox.SP_TASKS.updateTask('t_day_anchor', { day_anchor: isoOf(-1) });
+  try { P.rebaseTaskDaysToToday(); } catch (e) {}
+  ok(_tA1.d === _dBefore - 1, '224: новый день — смещение уменьшилось на 1 (задача на своей дате)');
+  ok(sandbox.SP_TASKS.getTask('t_day_anchor').day_anchor === isoOf(0), '224: якорь переставлен на сегодня');
+  try { P.rebaseTaskDaysToToday(); } catch (e) {}
+  ok(_tA1.d === _dBefore - 1, '224: повторный вызов в тот же день — ничего не двигает');
+  sandbox.SP_TASKS.updateTask('t_today1', { d: _dBefore });
+
+  /* ---------- 225: отмена последнего действия в планировании (как Ctrl+Z) ---------- */
+  const _uT = sandbox.SP_TASKS.getTask('t_today1');
+  const _uM0 = _uT.m, _uD0 = _uT.d;
+  const _uStack = function () { return P.S.planUndo || []; };
+  // перенос карточки на другого мастера/день
+  try { P.moveTaskToCell('t_today1', { dataset: { master: 'm_smoke2', off: '3' } }); } catch (e) { console.log('move err', e && e.message); }
+  ok(_uStack().length >= 1, '225: перед переносом сделан моментальный снимок');
+  ok(_uT.m === 'm_smoke2' && _uT.d === 3, '225: перенос выполнен');
+  try { P.planUndoApply(); } catch (e) { console.log('undo err', e && e.message); }
+  const _uT2 = sandbox.SP_TASKS.getTask('t_today1');
+  ok(_uT2.m === _uM0 && _uT2.d === _uD0, '225: «⟲ Отмена» вернула задачу на место');
+  // оптимизация — одним снимком
+  const _nUndo0 = _uStack().length;
+  try { P.optimizeWorksCalendar(); } catch (e) {}
+  ok(_uStack().length === _nUndo0 + 1, '225: «Оптимизировать работы» тоже кладёт снимок');
+  try { P.planUndoApply(); } catch (e) {}
+  // стек пуст → повторная отмена ничего не ломает
+  const _len1 = _uStack().length;
+  try { P.planUndoApply(); } catch (e) {}
+  ok(_uStack().length <= _len1, '225: повторная отмена на пустом стеке — без сбоев');
+
+  /* ---------- 226: копии графика при печати + восстановление ---------- */
+  store.set('smartplan_graphs_cur', 'g_smoke');
+  try { P.setScreen('graphs'); } catch (e) { console.log('graphs err', e && e.message); }
+  const _gS = P.graphsFind('g_smoke');
+  let _snap = null;
+  try { _snap = P.graphSnapSave(_gS, 'смоук-печать'); } catch (e) { console.log('snap err', e && e.message); }
+  ok(!!_snap && P.graphSnapsLoad('g_smoke').length === 1, '226: при печати графика сохраняется его полная копия');
+  ok(_snap && _snap.graph && _snap.graph.id === 'g_smoke' && _snap.objsCount === (_gS.objs || []).length, '226: в копии — весь график (объекты и работы)');
+  try { P.openGraphSnapsModal(); } catch (e) { console.log('snaps modal err', e && e.message); }
+  const _snh = String(elCache.modal && elCache.modal.__v || '');
+  ok(_snh.indexOf('Копии графика') >= 0 && _snh.indexOf('graph-snap-preview') >= 0 && _snh.indexOf('graph-snap-apply') >= 0, '226: окно копий — список с «Просмотр»/«Применить»');
+  ok(_snh.indexOf('не пересоздаются') >= 0, '226: подсказка — задания планирования не пересоздаются');
+  // «Применить» — график заменяется копией
+  try { P.graphSnapApply(_snap.id); } catch (e) { console.log('snap apply err', e && e.message); }
+  const _gS2 = P.graphsFind('g_smoke');
+  ok(!!_gS2 && _gS2.restored_from === _snap.ts && _gS2.id === 'g_smoke', '226: «Применить» восстановило график из копии (та же ссылка-источник)');
+  elCache.overlay.classList.remove('show');
+  store.delete('smartplan_graphs_cur');
+
+  /* ---------- 227: объект в двух графиках одного года — задачи не дублируются + предупреждение ---------- */
+  (function () {
+    // у объекта смоук-графика появляется oid; добавляем второй график с ТЕМ ЖЕ объектом и тем же годом
+    var gl = P.graphsLoad();
+    var g1 = null;
+    for (var i = 0; i < gl.length; i++) if (gl[i].id === 'g_smoke') g1 = gl[i];
+    g1.objs[0].oid = 'o_sm1';
+    var gDup = { id: 'g_smoke_dup', name: 'Дубль график', year: Y, respName: 'Мастер Дымов', objs: [
+      { oid: 'o_sm1', name: 'Смоук Объект Один', type: 'Просека', works: [] }
+    ] };
+    gl.push(gDup);
+    try { P.graphsSaveList(gl); } catch (e) { console.log('saveList err', e && e.message); }
+
+    var n0 = sandbox.SP_TASKS.getTasks().length;
+    var wrk1 = { sid: 's_src', wid: 'w7', period: 400, dev: 0, first: isoOf(10), occs: [] };
+    var st1 = P.gwGenObjSeries(g1, 0, 'УБиРОГС', g1.objs[0], wrk1, false);
+    ok(st1.created === 1 && (st1.dup || 0) === 0, '227: первый график создал задачу серии (привязанных 0)');
+    var tid1 = wrk1.occs[0] && wrk1.occs[0].tid;
+    var wrkD = { sid: 's_dup', wid: 'w7', period: 400, dev: 0, first: isoOf(10), occs: [] };
+    var st2 = P.gwGenObjSeries(gDup, 0, 'УБиРОГС', gDup.objs[0], wrkD, false);
+    ok(st2.created === 0 && st2.dup === 1, '227: второй график — задача НЕ продублирована (привязана к существующей)');
+    ok(wrkD.occs[0].tid === tid1, '227: вхождение второго графика ссылается на задачу первого');
+    ok(sandbox.SP_TASKS.getTasks().length === n0 + 1, '227: в планировании осталась ОДНА задача вместо двух');
+    // пересчёт года второго графика: «родная» задача первого графика не удаляется
+    gDup.objs[0].works = [wrkD];
+    var rs = P.graphYearResync(gDup, 'all');
+    ok(!!sandbox.SP_TASKS.getTask(tid1), '227: пересчёт года другого графика не удалил задачу первого');
+    ok((rs.created || 0) === 0 && (rs.dup || 0) === 1 && wrkD.occs[0].tid === tid1, '227: после пересчёта — снова привязка, без дубля');
+    // плашка-предупреждение справа внизу
+    P.GS.cur = 'g_smoke';
+    P.S.graphDupWarnHidden = false;
+    var wh = P.graphsDupWarnHtml();
+    ok(wh.indexOf('graph-dup-warn') >= 0 && wh.indexOf('Дубль график') >= 0 && wh.indexOf('Мастер Дымов') >= 0 && wh.indexOf(String(Y)) >= 0, '227: предупреждение — название другого графика, год, ФИО мастера');
+    P.S.graphDupWarnHidden = true;
+    ok(P.graphsDupWarnHtml() === '', '227: крестик скрывает предупреждение до перезахода на страницу');
+    P.S.graphDupWarnHidden = false;
+    // без дубль-графика предупреждения нет
+    P.graphsSaveList(P.graphsLoad().filter(function (x) { return x.id !== 'g_smoke_dup'; }));
+    ok(P.graphsDupWarnHtml() === '', '227: дублей нет — предупреждение не показывается');
+    try { sandbox.SP_TASKS.hardDeleteTask(tid1); } catch (e) {}
+  })();
 
   console.log('----------------------------------------');
   console.log('SMOKE TOTAL: ' + passes + ' passed, ' + fails + ' failed');

@@ -1,5 +1,12 @@
 /* ============================================================
    SmartPlan — логика приложения (vanilla JS)
+   ============================================================
+   АВТОР И ПРАВООБЛАДАТЕЛЬ: Омельчук Илья Анатольевич,
+   оператор ПЭВМ УП «МИНГАЗ» (г. Минск, Республика Беларусь).
+   © 2026 Омельчук И.А. ВСЕ ПРАВА ЗАЩИЩЕНЫ. Сайт (программа для
+   ЭВМ) создан указанным автором в полном объёме; копирование,
+   распространение и использование без его согласия запрещены.
+   Отметка об авторстве размещена 09.10.2026 (сборка 22.09-228).
    ============================================================ */
 (function () {
   'use strict';
@@ -8,6 +15,49 @@
   var WORK = window.SP_WORK;
   var OBJECTS_DB = window.SP_OBJECTS;
   var TASKS_DB = window.SP_TASKS;
+  /* 22.09-224: ПРИВЯЗКА ЗАДАЧ К КАЛЕНДАРНОЙ ДАТЕ.
+     Дата задачи хранится СМЕЩЕНИЕМ от «сегодня» (t.d = 0 — сегодня), а «сегодня»
+     считается при каждой загрузке страницы заново — поэтому каждое утро все
+     задачи «перепрыгивали» на день вперёд. Теперь в базе задач лежит служебная
+     запись-якорь (id = t_day_anchor) с датой, на которую смещения актуальны.
+     При входе и при обновлении данных: если якорь отстаёт от сегодняшнего дня —
+     все смещения (d и dl) один раз уменьшаются на разницу дней, якорь переставляется
+     на сегодня. Запись-якорь синхронизируется с сервером, как обычная запись,
+     поэтому перебазирование выполняется один раз на всех устройствах. */
+  var ANCHOR_TASK_ID = 't_day_anchor';
+  function rebaseTaskDaysToToday() {
+    if (!TASKS_DB || !TASKS_DB.getTask || !TASKS_DB.getTasks || !TASKS_DB.updateTask) return 0;
+    var todayK = key(TODAY);
+    var rec = null;
+    try { rec = TASKS_DB.getTask(ANCHOR_TASK_ID); } catch (e) {}
+    if (!rec) {
+      // Первый запуск после обновления: якоримся на сегодня БЕЗ сдвига —
+      // текущие смещения считаем верными именно на сегодняшний день.
+      try { TASKS_DB.addTask({ id: ANCHOR_TASK_ID, day_anchor: todayK, is_day_anchor: true, name: 'якорь дат (служебная запись — не удалять)' }); } catch (eA) {}
+      return 0;
+    }
+    var anchored = String(rec.day_anchor || '');
+    if (anchored === todayK) return 0;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(anchored)) {
+      try { rec.day_anchor = todayK; TASKS_DB.updateTask(ANCHOR_TASK_ID, { day_anchor: todayK }); } catch (e2) {}
+      return 0;
+    }
+    var delta = Math.round((new Date(todayK + 'T00:00:00') - new Date(anchored + 'T00:00:00')) / 86400000);
+    if (!isFinite(delta) || delta <= 0) return 0; // часы устройства «назад» — не трогаем (защита)
+    var tasks = TASKS_DB.getTasks(); // ЖИВАЯ ссылка на массив базы — меняем на месте
+    var moved = 0;
+    tasks.forEach(function (t) {
+      if (!t || t.id === ANCHOR_TASK_ID) return;
+      var ch = false;
+      if (typeof t.d === 'number' && isFinite(t.d)) { t.d -= delta; ch = true; }
+      if (typeof t.dl === 'number' && isFinite(t.dl)) { t.dl -= delta; ch = true; }
+      if (ch) { t.updated_at = Date.now(); moved++; }
+    });
+    rec.day_anchor = todayK; rec.updated_at = Date.now();
+    try { TASKS_DB.updateTask(ANCHOR_TASK_ID, rec); } catch (e3) {} // ОДИН save (и одна синхронизация базы) на всех
+    try { logAction('Перебазирование дат задач', 'якорь ' + anchored + ' → ' + todayK + ' · задач, сдвинутых на ' + delta + ' дн: ' + moved); } catch (e4) {}
+    return moved;
+  }
   var OBJECTS = OBJECTS_DB ? OBJECTS_DB.getObjects() : (D.OBJECTS || []);
   var WORK_TREE = D.WORK_TREE || [], WORK_MAP = D.WORK_MAP || {}, OBJ_MAP = D.OBJ_MAP || {};
   OBJECTS.forEach(function(o) { OBJ_MAP[o.id] = o; });
@@ -447,6 +497,46 @@
     if (!w) return 0;
     return w.norm * vol0;
   }
+  /* 22.09-223: норма времени в справочнике — СУММАРНЫЕ человеко-часы ВСЕГО состава
+     исполнителей (они работают параллельно: 2 слесаря по 1 часу делают работу за 1 час,
+     а трудозатраты — 2 чел.-ч). В карточках по-прежнему показываем ОБЩУЮ норму
+     (taskHours), а ЗАГРУЗКА дня мастера — это ДЛИТЕЛЬНОСТЬ работы: норма / число
+     исполнителей. Число исполнителей берём из карточки вида работ: «Количество
+     исполнителей» (crew_size), иначе сумма по составу (crew), иначе «Кол-во
+     исполнителей (мин)» (min_workers), иначе 1. */
+  function workCrewCount(w) {
+    if (!w) return 1;
+    var n = parseInt(w.crew_size, 10);
+    if (isFinite(n) && n > 0) return n;
+    var s = 0;
+    (w.crew || []).forEach(function (e) { var c = parseInt(e && e.count, 10); if (isFinite(c) && c > 0) s += c; });
+    if (s > 0) return s;
+    var mn = parseInt(w.min_workers, 10);
+    if (isFinite(mn) && mn > 1) return mn;
+    return 1;
+  }
+  // Длительность задачи в часах (сколько реально занят мастер): человеко-часы / исполнителей
+  function taskDurHours(t) {
+    if (!t) return 0;
+    var vol0 = parseFloat(t.volume) || 1;
+    if (t.works && t.works.length > 0) {
+      var md = masterById(t.m);
+      var area = (t.garea != null && t.garea !== '') ? t.garea : (md ? md.area : null);
+      var sum = 0;
+      t.works.forEach(function(wid, i) {
+        var w = area ? WORK.getWork(area, wid) : null;
+        if (w) {
+          // СВОЙ объём у каждого вида работ; fallback — общий объём задачи (как в taskHours)
+          var vol = (t.volumes && t.volumes.length > i && parseFloat(t.volumes[i]) > 0) ? parseFloat(t.volumes[i]) : vol0;
+          sum += (w.norm * vol) / workCrewCount(w);
+        }
+      });
+      return sum;
+    }
+    var w = workOf(t);
+    if (!w) return 0;
+    return (w.norm * vol0) / workCrewCount(w);
+  }
 
   // Проверка погодного ограничения
 
@@ -752,7 +842,7 @@
   function isDone(t) { return (t.s || t.status) === 'done'; }
   function loadForDay(masterId, off) {
     var sum = 0;
-    S.tasks.forEach(function (t) { if (t.m === masterId && t.d === off && !isDone(t)) sum += taskHours(t); });
+    S.tasks.forEach(function (t) { if (t.m === masterId && t.d === off && !isDone(t)) sum += taskDurHours(t); }); // 22.09-223: загрузка = длительность (норма делится на исполнителей)
     return sum;
   }
 
@@ -769,7 +859,10 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-221';
+  var SP_BUILD = '22.09-228';
+  // Скрытая метка авторства (видна только в консоли разработчика, F12):
+  // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
+  try { console.log('%cSmartPlan © 2026 Омельчук Илья Анатольевич · оператор ПЭВМ УП «МИНГАЗ» · все права защищены', 'color:#64748b;font-size:11px'); } catch (eC) {}
   var TITLES = {
     dashboard: ['Панель мониторинга', 'Сборка 22.09-199 · выбор мастера для просмотра КПД перенесён внутрь блока «⚡ КПД мастеров»: выпадающий список — прямо в заголовке этой карточки, рядом с выбором месяца (вверху страницы его больше нет). Ранее, сборка 22.09-193 · выпадающий список «КПД мастеров» (админ, начальник СЭОГС, начальник участка, старший мастер): все показатели панели, списки по нажатию на цифры и блок «Сегодня» — по одному выбранному мастеру или по всем сразу. Ранее, сборка 22.09-190 · факт работы на объекте: кнопки «▶ Приступил» и «■ Закончил» в блоке «Сегодня» (пишут точное время, «Закончил» закрывает задачу); у мастера бейдж «🔨 на объекте с …»; время факта — в списаниях и в карточке задачи'],
     calendar: ['Планирование / Календарь', 'Сборка 22.09-198 · строки календаря — только мастера: начальники участков и старшие мастера в «Планировании» больше не показываются. Ранее, сборка 22.09-181 · при отметке задачи выполненной (галочка) проставляется дата закрытия — закрытые задачи собраны на новой странице «Списания»'],
@@ -2998,7 +3091,7 @@
     if (!dayTask.length) html += '<div class="empty">' + (dayOff === 0 ? 'На сегодня задач нет' : 'На ' + esc(fmt(dayDate)) + ' задач нет') + '</div>';
     mastersDay.forEach(function (m) {
       var mt = dayTask.filter(function (t) { return String(t.m) === String(m.id); }); // 22.09-188: id — строками
-      var load = mt.reduce(function (s, t) { return s + (isDone(t) ? 0 : taskHours(t)); }, 0);
+      var load = mt.reduce(function (s, t) { return s + (isDone(t) ? 0 : taskDurHours(t)); }, 0); // 22.09-223: загрузка = длительность (норма делится на исполнителей)
       var inProg = mt.filter(function (t) { return t.started_at && !isDone(t); })[0]; // 22.09-190: сейчас работает на объекте
       var _mc = masterCapacity(m.id, dayOff);
       var over = load > _mc;
@@ -3076,7 +3169,7 @@
           try { var c = getTaskCoords(t.addr); if (c) { lat = c.lat; lng = c.lng; } } catch (e) {}
         }
         if (lat == null || lng == null) allGeo = false;
-        pts.push({ t: t, lat: lat, lng: lng, hours: taskHours(t), addr: addrOf(t) });
+        pts.push({ t: t, lat: lat, lng: lng, hours: taskDurHours(t), addr: addrOf(t) }); // 22.09-223: стоянка = длительность
       });
       if (!allGeo) return ganttDayEstHtml(m, tasks); // нет координат — упрощённая оценка
       var ordered = lmNearestOrder(pts, base);
@@ -3134,16 +3227,16 @@
   // Запасной вариант без координат: последовательная оценка (без OSRM)
   function ganttDayEstHtml(m, tasks) {
     var T1 = ganttDayEndMin(m), cur = 8 * 60, blocks = '', over = false; // окно шкалы — по часам мастера (8/12)
-    tasks.sort(function (a, b) { return (a.dl - b.dl) || (taskHours(b) - taskHours(a)); });
+    tasks.sort(function (a, b) { return (a.dl - b.dl) || (taskDurHours(b) - taskDurHours(a)); }); // 22.09-223: по длительности
     tasks.forEach(function (t) {
       var w = workOf(t);
       var tv = t.travelMin != null ? t.travelMin : estimateTravelMin(t);
       if (!tv || tv < 0 || !isFinite(tv)) tv = 15;
       if (cur < T1) blocks += ganttBlock(cur, Math.min(tv, T1 - cur), '#94a3b8', '🚗 Переезд ~' + fmtDuration(tv), .45, T1);
       cur += tv;
-      var h = Math.round(taskHours(t) * 60);
+      var h = Math.round(taskDurHours(t) * 60); // 22.09-223: длина блока — длительность
       if (cur < T1) blocks += ganttBlock(cur, Math.min(h, T1 - cur), isDone(t) ? '#16a34a' : (m.color || '#2563eb'),
-        (w ? w.name : '?') + ' · ' + fmtH(taskHours(t)) + ' ч' + (isDone(t) ? ' ✓ выполнено' : ''), isDone(t) ? .95 : .6, T1);
+        (w ? w.name : '?') + ' · ' + fmtH(taskDurHours(t)) + ' ч' + (isDone(t) ? ' ✓ выполнено' : ''), isDone(t) ? .95 : .6, T1);
       cur += h;
       if (cur > T1) over = true;
     });
@@ -3526,7 +3619,8 @@
     // слева «Добавить задачу», по центру «Оптимизировать работы», справа «Корзина»
     html += '<div id="cal-actions-row" style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">'
       + '<div style="flex:1;display:flex;justify-content:flex-start">' + (canPlan() ? '<button class="btn sm primary" data-action="new-task">' + IC.plus + ' Добавить задачу</button>' : '') + '</div>'
-      + '<div style="flex:1;display:flex;justify-content:center">' + (canPlan() ? '<button class="btn sm" data-action="optimize-works" style="background:#6366f1;color:#fff;border-color:#6366f1;" title="Автоматическое распределение работ без просрочек с соблюдением 8-часового рабочего дня">⚡ Оптимизировать работы</button>' : '') + '</div>'
+      + '<div style="flex:1;display:flex;justify-content:center;gap:6px">' + (canPlan() ? '<button class="btn sm" data-action="optimize-works" style="background:#6366f1;color:#fff;border-color:#6366f1;" title="Автоматическое распределение работ без просрочек с соблюдением 8-часового рабочего дня">⚡ Оптимизировать работы</button>' : '')
+      + '<button class="btn sm" data-action="cal-undo" title="Отмена последнего действия в планировании (как Ctrl+Z в Excel): перенос карточки, правка задачи или «Оптимизировать работы». Работает до перезагрузки страницы" style="background:#475569;color:#fff;border-color:#475569">⟲ Отмена</button></div>'
       + '<div style="flex:1;display:flex;justify-content:flex-end"><div class="trash-zone" id="trash-zone" data-action="open-trash" title="Перетащите задачу для удаления или нажмите для просмотра удалённых" style="cursor:pointer;">' + IC.trash + ' <span>Корзина</span></div></div>'
       + '</div>';
     if (S.role === 'master') {
@@ -3726,6 +3820,7 @@
     var newMaster = cell.dataset.master, newOff = parseInt(cell.dataset.off, 10);
     var oldM = t.m, oldOff = t.d;
     if (!canDropOn(newMaster)) { toast('err', 'Этот мастер вне вашего доступа'); return; }
+    planUndoPush('перенос задачи «' + ((workOf(t) || {}).name || '?') + '»'); // 22.09-225: снимок до переноса
     var target = masterById(newMaster);
     // 22.09-80: мастер в этот день не работает (график смен) — НЕ запрещаем
     // (бывают аварийные вызовы), но предупреждаем после переноса.
@@ -3943,82 +4038,176 @@
     tip.style.left = x + 'px'; tip.style.top = y + 'px';
   }
   function findTask(id) { for (var i = 0; i < S.tasks.length; i++) if (S.tasks[i].id === id) return S.tasks[i]; return null; }
+  // 22.09-225: Ctrl+Z (Cmd+Z на Mac) — отмена последнего действия в планировании
+  document.addEventListener('keydown', function (e) {
+    try {
+      if (!e || !(e.ctrlKey || e.metaKey)) return;
+      var k = String(e.key || '').toLowerCase();
+      if (k !== 'z' && k !== 'я') return;
+      if (S.screen !== 'calendar') return;
+      var ae = document.activeElement;
+      if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT' || ae.isContentEditable)) return;
+      e.preventDefault();
+      planUndoApply();
+    } catch (e2) {}
+  });
 
   /* =====================================================================
      ЯДРО: "ОПТИМИЗАТОР"
      ===================================================================== */
+  /* 22.09-225: ОТМЕНА ДЕЙСТВИЙ В ПЛАНИРОВАНИИ (как Ctrl+Z в Excel).
+     Перед переносом задачи, правкой задачи или «Оптимизировать работы» делается
+     моментальный снимок ВСЕХ задач (стек до 30, живёт до перезагрузки страницы).
+     Откат — кнопка «⟲ Отмена» в строке кнопок календаря или Ctrl+Z на странице. */
+  var PLAN_UNDO_MAX = 30;
+  function planUndoStack() { if (!S.planUndo) S.planUndo = []; return S.planUndo; }
+  function planUndoPush(label) {
+    try {
+      var st = planUndoStack();
+      st.push({ label: String(label || 'изменение'), ts: Date.now(), tasks: JSON.parse(JSON.stringify(S.tasks || [])) });
+      if (st.length > PLAN_UNDO_MAX) st.splice(0, st.length - PLAN_UNDO_MAX);
+    } catch (e) {}
+  }
+  function planUndoApply() {
+    var st = planUndoStack();
+    if (!st.length) { toast('warn', 'Отменять нечего — действий в планировании ещё не было'); return; }
+    var snap = st.pop();
+    var beforeIds = {};
+    try { (TASKS_DB ? TASKS_DB.getTasks() : (S.tasks || [])).forEach(function (t) { if (t && t.id) beforeIds[t.id] = 1; }); } catch (eB) {}
+    try {
+      if (TASKS_DB && TASKS_DB.reloadFromCloud) TASKS_DB.reloadFromCloud({ schema: 3, tasks: JSON.parse(JSON.stringify(snap.tasks)) });
+      S.tasks = TASKS_DB ? TASKS_DB.getTasks() : JSON.parse(JSON.stringify(snap.tasks));
+    } catch (eR) { S.tasks = JSON.parse(JSON.stringify(snap.tasks)); }
+    // Сервер: вернуть состояние снимка (лучшее усилие): задачи снимка — upsert,
+    // созданные после снимка — удалить с сервера тоже
+    try {
+      if (window.SP_API && SP_API.getToken && SP_API.getToken()) {
+        var keepIds = {};
+        (snap.tasks || []).forEach(function (t) {
+          if (!t || !t.id) return;
+          keepIds[t.id] = 1;
+          SP_API.upsert('tasks', t).catch(function () {});
+        });
+        Object.keys(beforeIds).forEach(function (id) {
+          if (!keepIds[id]) SP_API.delete('tasks', id).catch(function () {});
+        });
+      }
+    } catch (eS) {}
+    try { (S.tasks || []).forEach(function (t) { if (t && t.id != null) invalidateRouteCache(t.m, t.d); }); } catch (eC) {}
+    try { logAction('Отмена действия в планировании', snap.label); } catch (eL) {}
+    toast('ok', '⟲ Отменено: ' + snap.label);
+    if (S.screen === 'calendar') refresh();
+  }
+
   function optimizeWorksCalendar() {
     var edits = 0;
     var masters = visibleMasters();
+    planUndoPush('⚡ «Оптимизировать работы» (все перемещения одним снимком)'); // 22.09-225: снимок до оптимизации
     
     masters.forEach(function (m) {
       var mTasks = S.tasks.filter(function (t) { return t.m === m.id && !isDone(t); });
       if (!mTasks.length) return;
 
-      mTasks.sort(function (a, b) {
+      // 22.09-223: СОВМЕСТНЫЕ работы одного объекта (помечены «🤝 совместно» в карточке
+      // вида работ) двигаем ЕДИНЫМ блоком: они обязаны остаться в один день, ДАЖЕ если
+      // мастеру не хватает часов на всё сразу (для блока вместимость дня не проверяем).
+      // Совместность — как в графике работ: joint_with по id вида работ или по группе.
+      var _ojArea = (function () { var mm = masterById(m.id); return mm ? mm.area : null; })();
+      function _ojWork(t) { var ar = (t.garea != null && t.garea !== '') ? t.garea : _ojArea; try { return ar ? WORK.getWork(ar, t.w) : (WORK_MAP[t.w] || null); } catch (eW) { return null; } }
+      function _ojJoints(w) { var j = w && w.joint_with; return Array.isArray(j) ? j : (j ? [j] : []); }
+      function _ojPair(t1, t2) {
+        if (!t1 || !t2 || t1 === t2 || String(t1.o) !== String(t2.o)) return false;
+        var w1 = _ojWork(t1), w2 = _ojWork(t2);
+        if (!w1 || !w2) return false;
+        var j1 = _ojJoints(w1), j2 = _ojJoints(w2);
+        if (j1.indexOf(t2.w) >= 0 || j2.indexOf(t1.w) >= 0) return true;
+        var g1 = (w1.group ? String(w1.group).trim() : ''), g2 = (w2.group ? String(w2.group).trim() : '');
+        return (g2 !== '' && j1.indexOf(g2) >= 0) || (g1 !== '' && j2.indexOf(g1) >= 0);
+      }
+      // Блоки взаимно-совместных задач (одно звено — одна задача)
+      var ojUnits = [];
+      mTasks.forEach(function (t) {
+        var found = null;
+        for (var ui = 0; ui < ojUnits.length && !found; ui++) {
+          var us = ojUnits[ui].tasks;
+          for (var uj = 0; uj < us.length; uj++) if (_ojPair(t, us[uj])) { found = ojUnits[ui]; break; }
+        }
+        if (found) found.tasks.push(t); else ojUnits.push({ tasks: [t] });
+      });
+      // Слияние пересекающихся блоков (А+Б совместны, Б+В — тоже ⇒ А+Б+В вместе)
+      var ojMerged = true;
+      while (ojMerged) {
+        ojMerged = false;
+        outer:
+        for (var ma = 0; ma < ojUnits.length; ma++) {
+          for (var mb = ma + 1; mb < ojUnits.length; mb++) {
+            var hit = false;
+            for (var ci = 0; ci < ojUnits[ma].tasks.length && !hit; ci++)
+              for (var cj = 0; cj < ojUnits[mb].tasks.length && !hit; cj++)
+                if (_ojPair(ojUnits[ma].tasks[ci], ojUnits[mb].tasks[cj])) hit = true;
+            if (hit) {
+              ojUnits[ma].tasks = ojUnits[ma].tasks.concat(ojUnits[mb].tasks);
+              ojUnits.splice(mb, 1);
+              ojMerged = true;
+              break outer;
+            }
+          }
+        }
+      }
+      ojUnits.forEach(function (u) {
+        u.isJoint = u.tasks.length > 1;
+        // 22.09-223: часы блока — ДЛИТЕЛЬНОСТЬ (чел.-часы / число исполнителей)
+        u.h = u.tasks.reduce(function (s2, t2) { return s2 + taskDurHours(t2); }, 0);
+        u.dl = Math.min.apply(null, u.tasks.map(function (t2) { return isFinite(+t2.dl) ? +t2.dl : 0; }));
+        u.prefDay = Math.min.apply(null, u.tasks.map(function (t2) { return Math.max(0, t2.d); }));
+      });
+      // Совместные блоки — первыми (их день обязателен), дальше — по дедлайну, затем по дате
+      ojUnits.sort(function (a, b) {
+        if (a.isJoint !== b.isJoint) return a.isJoint ? -1 : 1;
         if (a.dl !== b.dl) return a.dl - b.dl;
-        if (a.d !== b.d) return a.d - b.d;
-        return taskHours(b) - taskHours(a);
+        if (a.prefDay !== b.prefDay) return a.prefDay - b.prefDay;
+        return b.h - a.h;
       });
 
       var dayLoad = {};
       S.tasks.forEach(function (t) {
         if (t.m === m.id && isDone(t)) {
           var dOff = Math.max(0, t.d);
-          dayLoad[dOff] = (dayLoad[dOff] || 0) + taskHours(t);
+          dayLoad[dOff] = (dayLoad[dOff] || 0) + taskDurHours(t); // 22.09-223: занятое — длительность
         }
       });
 
-      mTasks.forEach(function (t) {
-        var h = taskHours(t);
-        var prefDay = Math.max(0, t.d);
-        
+      ojUnits.forEach(function (u) {
+        var h = u.h;
+        var prefDay = u.prefDay;
         var bestDay = null;
         var minPenalty = Infinity;
-        
         for (var d = 0; d <= 90; d++) {
           var curLoad = dayLoad[d] || 0;
-          if (curLoad > 0 && curLoad + h > masterCapacity(m.id, d)) continue;
-          if (curLoad + h > masterCapacity(m.id, d) && curLoad > 0) continue;
-          
+          // 22.09-223: ОДИНОЧНАЯ задача — только на день, где часов хватает (как раньше);
+          // совместный БЛОК — всегда в один день, даже если часов не хватает.
+          if (!u.isJoint && curLoad > 0 && curLoad + h > masterCapacity(m.id, d)) continue;
           var penalty = Math.abs(d - prefDay) * 10;
-          
-          if (d > t.dl) {
-            penalty += (d - t.dl) * 10000 + 50000;
-          }
-          if (d > prefDay) {
-            penalty += 5;
-          }
-          
-          if (penalty < minPenalty) {
-            minPenalty = penalty;
-            bestDay = d;
-          }
+          if (d > u.dl) { penalty += (d - u.dl) * 10000 + 50000; }
+          if (d > prefDay) { penalty += 5; }
+          if (penalty < minPenalty) { minPenalty = penalty; bestDay = d; }
         }
-        
         if (bestDay === null) {
-          for (var d = 0; d <= 90; d++) {
-            if (!(dayLoad[d] > 0)) { bestDay = d; break; }
+          for (var d2 = 0; d2 <= 90; d2++) {
+            if (!(dayLoad[d2] > 0)) { bestDay = d2; break; }
           }
           if (bestDay === null) bestDay = prefDay;
         }
-
-        if (t.d !== bestDay) {
-          t.d = bestDay;
-          edits++;
-        }
-        
-        if (t.dl < bestDay || t.dl < 0) {
-          t.dl = Math.max(bestDay, 0);
-          edits++;
-        }
-
+        u.tasks.forEach(function (t) {
+          if (t.d !== bestDay) { t.d = bestDay; edits++; }
+          if (t.dl < bestDay || t.dl < 0) { t.dl = Math.max(bestDay, 0); edits++; }
+          if (TASKS_DB) { TASKS_DB.updateTask(t.id, t); }
+        });
         dayLoad[bestDay] = (dayLoad[bestDay] || 0) + h;
-        if (TASKS_DB) { TASKS_DB.updateTask(t.id, t); }
       });
     });
 
-    toast('ok', '⚡ Оптимизация работ выполнена: распределено без просрочек с соблюдением 8-часового рабочего дня.');
+    toast('ok', '⚡ Оптимизация работ выполнена: распределено без просрочек с соблюдением 8-часового рабочего дня. Совместные работы (🤝) переносятся единым блоком и остаются в один день, даже если часов не хватает.'); // 22.09-223
     refresh();
   }
   function autoSchedule() { optimizeWorksCalendar(); }
@@ -4057,7 +4246,8 @@
       var travelKmText = t.travelKmText != null ? t.travelKmText : (travelKm != null ? travelKm.toFixed(1).replace('.', ',') + ' км' : null);
       var travelText = t.travelText != null ? t.travelText : (travelMin != null ? fmtDuration(travelMin) : null);
       if (lat != null && lng != null) prevObj = { lat: lat, lng: lng };
-      return { id: t.id, lat: lat, lng: lng, addr: addrOf(t), addr_be: t.addr_be || addrOf(t), type: o ? o.type : '—', work: w ? w.name : '?', master: m ? m.name : '?', mcol: m ? m.color : '#94a3b8', hours: taskHours(t), norm: w ? w.norm : 0, travelMin: travelMin, travelText: travelText, travelKm: travelKm, travelKmText: travelKmText };
+      // 22.09-223: hours — ДЛИТЕЛЬНОСТЬ (стоянка на точке), norm — ОБЩАЯ норма из справочника
+      return { id: t.id, lat: lat, lng: lng, addr: addrOf(t), addr_be: t.addr_be || addrOf(t), type: o ? o.type : '—', work: w ? w.name : '?', master: m ? m.name : '?', mcol: m ? m.color : '#94a3b8', hours: taskDurHours(t), norm: w ? w.norm : 0, travelMin: travelMin, travelText: travelText, travelKm: travelKm, travelKmText: travelKmText };
     });
 
     var prov = (S.mapProvider = 'brouter-car-eco'); // 22.09-179: роутер один — BRouter car (economic)
@@ -6634,7 +6824,7 @@
         id: t.id, addr: addrOf(t),
         lat: (t.lat != null) ? t.lat : (o ? o.lat : null),
         lng: (t.lng != null) ? t.lng : (o ? o.lng : null),
-        work: w ? w.name : '?', hours: taskHours(t)
+        work: w ? w.name : '?', hours: taskDurHours(t) // 22.09-223: стоянка = длительность (норма / исполнителей)
       };
     });
     // Коллекция сразу на карту — точки появятся ещё до готовности маршрута
@@ -6781,7 +6971,7 @@
       evs.push({ type: 'drive', t0: LM_START_MIN + accMin, min: legMin[s], km0: Math.min(km0, pk), km1: Math.min(km1, pk), dest: dest });
       total += legMin[s]; accMin += legMin[s];
       if (s < opt.length) {
-        var stayMin = Math.max(1, (opt[s].hours || 0) * 60); // стоянка = человеко-часы задачи
+        var stayMin = Math.max(1, (opt[s].hours || 0) * 60); // стоянка = длительность задачи (чел.-часы / исполнителей, 22.09-223)
         evs.push({ type: 'stay', t0: LM_START_MIN + accMin, min: stayMin, pt: opt[s] });
         stops.push({ pt: opt[s], arriveMin: LM_START_MIN + accMin, untilMin: LM_START_MIN + accMin + stayMin, hours: opt[s].hours || 0 });
         total += stayMin; accMin += stayMin;
@@ -8542,13 +8732,13 @@
       }
     }
     var prof = wkProfLabel(u) || '';
-    // 22.09-219: карточка 200 px, а если ФИО не влезает — блок просто становится шире (max-content)
-    return '<div style="flex:0 0 auto;min-width:200px;width:max-content;border:1px solid var(--line);border-bottom:4px solid ' + (u.color || '#94a3b8') + ';border-radius:12px;padding:8px 10px;background:var(--panel-2);display:flex;flex-direction:column;gap:4px">' +
+    // 22.09-222: карточка — не шире 200 px; длинные ФИО/должность обрезаются с троеточием, как было раньше
+    return '<div style="flex:0 0 auto;width:200px;max-width:200px;border:1px solid var(--line);border-bottom:4px solid ' + (u.color || '#94a3b8') + ';border-radius:12px;padding:8px 10px;background:var(--panel-2);display:flex;flex-direction:column;gap:4px">' +
       '<div style="display:flex;align-items:center;gap:8px">' +
         avaHtml(u, 34, 12.5) + // 22.09-219: фото-аватар, если загружен
         '<div style="display:flex;flex-direction:column;line-height:1.2;min-width:0;flex:1">' +
-          '<b style="font-size:12px;color:var(--ink);white-space:nowrap">' + esc(u.full_name) + '</b>' + // 22.09-219: длинное ФИО не обрезаем — карточка расширяется (min-width:200px;max-content)
-          '<span style="font-size:10.5px;color:var(--muted);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(prof) + (isMaster ? ' · мастер' : '') + '</span>' +
+          '<b title="' + esc(u.full_name) + '" style="font-size:12px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(u.full_name) + '</b>' + // 22.09-222: длинное ФИО снова обрезаем (полное — в подсказке при наведении)
+          '<span title="' + esc(prof) + (isMaster ? ' · мастер' : '') + '" style="font-size:10.5px;color:var(--muted);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(prof) + (isMaster ? ' · мастер' : '') + '</span>' +
         '</div>' +
       '</div>' +
       '<div style="display:flex;gap:8px;font-size:10.5px;font-weight:700;margin-top:4px;flex-wrap:wrap">' +
@@ -15442,6 +15632,7 @@
           if (ex) {
             var _oldEM = ex.m, _oldED = ex.d;
             if (!canEditTask(ex)) { toast('err', 'Нет прав'); return; }
+            planUndoPush('редактирование задачи «' + ((workOf(ex) || {}).name || '?') + '»'); // 22.09-225: снимок до правки
             ex.addr = addr; ex.o = o ? o.id : null; ex.works = worksArr; ex.w = worksArr[0];
             ex.m = document.getElementById('f-master').value; ex.d = off; ex.dl = dl;
             ex.volume = volume; ex.volumes = volsArr; ex.slesari = slesariArr; ex.brigade = brigadeFlag; ex.dl_date = dlDate; ex.needs_permit = needsPermit; ex.depends_on_snow = snowDep;
@@ -15785,6 +15976,8 @@
     var _purged = 0;
     try { _purged = purgeFarFutureTasks(); } catch (ePu) { try { console.error('purgeFarFutureTasks:', ePu); } catch (_e) {} }
     if (_purged) setTimeout(function () { toast('warn', '🧹 Автоочистка базы: удалено «битых» задач с ошибочной датой далеко в будущем: ' + _purged + '. Они остались от опечатки в дате графика — теперь такие даты блокируются автоматически.'); }, 1800);
+    // 22.09-224: привязка дат задач к календарю (новый день — одно перебазирование)
+    try { rebaseTaskDaysToToday(); } catch (eRb) { try { console.error('rebaseTaskDaysToToday:', eRb); } catch (_e) {} }
     document.body.classList.add('logged-in');
     var bs = document.getElementById('base-select'); if (bs) bs.value = S.baseId;
     applyUser();
@@ -16537,6 +16730,7 @@
 
   function refresh() {
     window.reRenderCurrentScreen = refresh;
+    try { rebaseTaskDaysToToday(); } catch (eRb2) {} // 22.09-224: задачи остаются на своих календарных датах
     reconcileFiredResponsibles(); // 22.09-161: уволенных мастеров снять с объектов по дате увольнения
     // Мягкое обновление при синхронизации — только данные, без мигания экрана
     window.onSyncUpdate = function() {
@@ -16759,6 +16953,7 @@
     }
     else if (a === 'import-tasks-excel') { openTasksExcelModal(); }
     else if (a === 'optimize-works') { optimizeWorksCalendar(); }
+    else if (a === 'cal-undo') { planUndoApply(); } // 22.09-225: отмена последнего действия в планировании
     else if (a === 'excel-demo-load') { loadDemoExcelData(); }
     else if (a === 'excel-import-confirm') { confirmExcelImport(); }
     else if (a === 'save-task') { saveTask(); }
@@ -16809,6 +17004,7 @@
       if (el.dataset.tool === 'addobj') { openGraphAddObjsModal(false); }
       else if (el.dataset.tool === 'newobj') { openGraphAddObjsModal(false); } // уже добавленные скрыты
       else if (el.dataset.tool === 'legend') { openGraphLegendModal(); }
+      else if (el.dataset.tool === 'snaps') { openGraphSnapsModal(); } // 22.09-226: копии графика
       else if (el.dataset.tool === 'holidays') { openHolidaysModal(); }
       else if (el.dataset.tool === 'period') { openGraphPeriodModal(); }
       else if (el.dataset.tool === 'filter') { openGraphFilterModal(); }
@@ -16823,6 +17019,9 @@
     else if (a === 'graphs-obj-month') { openGraphObjMonthModal(parseInt(el.dataset.ri, 10) || 0, parseInt(el.dataset.mi, 10) || 0); }
     else if (a === 'graphs-month-view') { openGraphMonthModal(parseInt(el.dataset.mi, 10) || 0); }
     else if (a === 'graphs-print-view') { graphsPrintView(); }
+    else if (a === 'graph-snap-preview') { openGraphSnapPreviewModal(el.dataset.sid); } // 22.09-226
+    else if (a === 'graph-snap-apply') { graphSnapApply(el.dataset.sid); } // 22.09-226
+    else if (a === 'graph-dup-hide') { S.graphDupWarnHidden = true; renderGraphs(); } // 22.09-227
     else if (a === 'graphs-filter-save') { graphsFilterSave(); }
     else if (a === 'graphs-winter-save') { graphsWinterSave(); }
     else if (a === 'graphs-winter-clear') { graphsWinterClear(); }
@@ -17118,6 +17317,46 @@
     return found;
   }
 
+  /* 22.09-227: объект встречается в нескольких графиках ОДНОГО года —
+     предупреждение справа внизу страницы «График работ»: название графика,
+     год и ФИО мастера. Задачи в планировании при этом не дублируются
+     (см. gwFindPlanTask), но объект лучше держать в одном графике года. */
+  function graphsDupWarnHtml() {
+    if (S.graphDupWarnHidden) return '';
+    var byObj = {};
+    graphsLoad().forEach(function (g) {
+      if (!g || !g.objs) return;
+      g.objs.forEach(function (ob) {
+        if (!ob || !ob.oid) return;
+        var k = String(g.year) + '|' + ob.oid;
+        if (!byObj[k]) byObj[k] = { year: g.year, name: ob.name || ob.oid, graphs: [], ids: {} };
+        var e = byObj[k];
+        if (!e.ids[g.id]) { e.ids[g.id] = 1; e.graphs.push(g); }
+      });
+    });
+    var rows = '';
+    Object.keys(byObj).sort().forEach(function (k) {
+      var e = byObj[k];
+      if (e.graphs.length < 2) return;
+      var rest = e.graphs.filter(function (g) { return g.id !== GS.cur; });
+      if (!rest.length) rest = e.graphs;
+      var parts = rest.map(function (g) {
+        var fio = g.respName || '';
+        if (!fio) { try { (DB.getUsers() || []).forEach(function (u) { if (u && u.id === g.respId) fio = u.full_name || ''; }); } catch (eU) {} }
+        return '«' + esc(g.name || '?') + '» (' + esc(String(g.year)) + ', мастер: ' + esc(fio || '—') + ')';
+      }).join('; ');
+      rows += '<div style="margin-top:4px">⚠ Объект <b>«' + esc(e.name) + '»</b> есть ещё в графике: ' + parts + '</div>';
+    });
+    if (!rows) return '';
+    return '<div id="graph-dup-warn" style="position:fixed;right:12px;bottom:12px;z-index:90;max-width:360px;max-height:40vh;overflow:auto;background:#fffbeb;border:1px solid #f59e0b;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.18);padding:8px 10px;font-size:12px;line-height:1.45;color:#78350f">' +
+      '<div style="display:flex;align-items:center;gap:6px;font-weight:700">' +
+      '<span>⚠ Объекты в нескольких графиках</span><span style="flex:1"></span>' +
+      '<button type="button" data-action="graph-dup-hide" title="Скрыть предупреждение до перезахода на страницу" style="border:0;background:none;color:#b45309;cursor:pointer;font-size:14px;line-height:1;padding:0 2px">✕</button>' +
+      '</div>' +
+      '<div style="color:#92400e">Задачи в планировании за это не дублируются, но объект лучше держать в одном графике года.</div>' +
+      rows + '</div>';
+  }
+
   function renderGraphs() {
     if (!GS.cur) { try { GS.cur = localStorage.getItem(GRAPHS_CUR_KEY) || null; } catch (e) {} }
     var g = graphsFind(GS.cur);
@@ -17130,6 +17369,7 @@
     if (g) html += graphsToolbarHtml(g);
     html += '<div class="card-b" id="graphs-body"></div>' +
       '</div>';
+    html += graphsDupWarnHtml(); // 22.09-227: предупреждение «объект в нескольких графиках года» — справа внизу
     view.innerHTML = html;
     drawGraphsBody();
   }
@@ -17160,7 +17400,8 @@
       { tool: 'newobj', tip: 'Добавить объекты в график', cls: 'gt-green', icon: 'plus' },
       { tool: 'period', tip: 'Настроить периодичность', cls: 'gt-violet', icon: 'repeat' },
       { tool: 'winter', tip: 'Сезоны', cls: 'gt-sky', icon: 'snow' },
-      { tool: 'legend', tip: 'Обозначения работ', cls: 'gt-rose', icon: 'legend' }
+      { tool: 'legend', tip: 'Обозначения работ', cls: 'gt-rose', icon: 'legend' },
+      { tool: 'snaps', tip: '22.09-226: Копии графика (автоматически сохраняются при каждой печати) — список, просмотр, восстановление выбранной копии', cls: 'gt-slate', icon: 'copy' }
     ];
     var right = [
       { tool: 'labor', tip: 'Трудоёмкость графика (за год, по месяцам, по объектам)', cls: 'gt-green', icon: 'bars' },
@@ -17415,7 +17656,7 @@
     toast('ok', 'График «' + name + '» обновлён');
     if (rs && rs.series) {
       if (TASKS_DB) S.tasks = TASKS_DB.getTasks();
-      toast('ok', '📅 Работы пересчитаны на ' + year + ' год — серии продолжаются от дат первого проведения: серий ' + rs.series + ', задач создано ' + rs.created + (rs.removed ? ', убрано прежних ' + rs.removed : '') + (rs.kept ? ', сохранено выполненных ' + rs.kept : ''));
+      toast('ok', '📅 Работы пересчитаны на ' + year + ' год — серии продолжаются от дат первого проведения: серий ' + rs.series + ', задач создано ' + rs.created + (rs.removed ? ', убрано прежних ' + rs.removed : '') + (rs.kept ? ', сохранено выполненных ' + rs.kept : '') + (rs.dup ? ', уже были в планировании (без дублей): ' + rs.dup : ''));
       if (rs.yaw) toast('warn', '⚠ У ' + rs.yaw + ' работ дата первого проведения позже ' + year + ' года — они не попадут в график.');
       if (rs.shifted) toast('ok', '⏮ По графику смен мастера: ' + rs.shifted + ' вхождений перенесено на ближайший предыдущий рабочий день.');
       if (rs.fail) toast('warn', '⚠ Не удалось создать задач: ' + rs.fail + ' (возможно, память браузера переполнена). Треугольники выставлены.');
@@ -18178,8 +18419,32 @@
      first с шагом = периодичность − отклонение, до конца года графика) и
      создать задачи планирования. Та же логика, что при «Сохранить» в окне
      «Настроить периодичность». */
+  /* 22.09-227: один объект в двух графиках одного года — задачи в планировании
+     не дублируются. Перед созданием задачи серии ищем УЖЕ существующую: тот же
+     объект (o), тот же вид работ (w) и та же дата выполнения. Дата в задаче
+     хранится смещением от сегодняшнего дня (t.d) — сравниваем через
+     key(offToDate(t.d)); где есть поле t.date — используем его.
+     Нашли — вторую задачу не создаём, а привязываем вхождение серии к ней.
+     Задача остаётся «родной» для своего графика (graphId): чужие серии её
+     не пересчитывают и не удаляют (см. проверки в graphYearResync,
+     killSeries и чистке просроченных в graphsPeriodSave). */
+  function gwFindPlanTask(oid, wid, occIso) {
+    if (!oid || !wid || !occIso || !TASKS_DB) return null;
+    var found = null;
+    try {
+      var list = TASKS_DB.getTasks();
+      for (var i = 0; i < list.length; i++) {
+        var t = list[i];
+        if (!t || t.o !== oid || t.w !== wid) continue;
+        var tiso = t.date || (typeof t.d === 'number' ? key(offToDate(t.d)) : '');
+        if (tiso === occIso) { found = t; break; }
+      }
+    } catch (e) {}
+    return found;
+  }
+
   function gwGenObjSeries(g, ri, area, ob, wrk, pastOn) {
-    var st = { created: 0, shifted: 0, fail: 0 };
+    var st = { created: 0, shifted: 0, fail: 0, dup: 0 }; // 22.09-227: dup — вхождения, привязанные к уже существующим задачам (не дублируем)
     wrk.occs = [];
     if (!(g && wrk && wrk.wid && wrk.first && wrk.period > 0)) return st;
     // 22.09-189: якорь серии обязан быть валидной датой не позже года графика
@@ -18207,7 +18472,11 @@
       var tk = null;
       if (!isPast || pastOn) {
         var dlIso = gwAddDaysISO(occIso, wrk.dev || 0);
-        try {
+        // 22.09-227: такой же объект+работа+дата уже в планировании (другой
+        // график) — вторую задачу НЕ создаём, серия привязывается к имеющейся
+        var dupT = gwFindPlanTask(ob.oid, wrk.wid, occIso);
+        if (dupT) { tk = dupT; st.dup++; }
+        else try {
           tk = TASKS_DB.addTask({
             m: g.respId, d: dateToOff(gwFromISO(occIso)), o: ob.oid, w: wrk.wid, garea: area,
             s: 'plan', status: 'plan', volume: 1,
@@ -18259,6 +18528,10 @@
           if (!oc || !oc.tid) return;
           var tk = null; try { tk = TASKS_DB.getTask(oc.tid); } catch (e) {}
           if (!tk) return;
+          // 22.09-227: задача принадлежит ДРУГОМУ графику (привязана при
+          // защите от дублей) — не удаляем и не отвязываем от его серии,
+          // только снимаем привязку в ЭТОМ графике
+          if (tk.graphId && tk.graphId !== g.id) { oc.tid = null; st.kept++; return; }
           if (isDone(tk)) { // выполненная — отвязать от серии, сохранить историю
             try { TASKS_DB.updateTask(tk.id, { graphId: '', graphRi: null, graphSid: '' }); st.kept++; } catch (e2) {}
           } else {
@@ -18267,7 +18540,7 @@
         });
         if (wrk.first && !canHave) st.yaw++;
         var s2 = gwGenObjSeries(g, ri, area, ob, wrk, pastOn);
-        st.series++; st.created += s2.created; st.shifted += s2.shifted; st.fail += s2.fail;
+        st.series++; st.created += s2.created; st.shifted += s2.shifted; st.fail += s2.fail; st.dup = (st.dup || 0) + s2.dup; // 22.09-227
       });
       // 22.09-159: после перегенерации года совместные работы снова в один день
       try { st.joint = (st.joint || 0) + gwJointAlign(ob.works || [], area); } catch (eJ) {}
@@ -18674,7 +18947,7 @@
     if (!g || !g.objs || !g.objs.length) { overlay.classList.remove('show'); modal.style.maxWidth = ''; modal.style.width = ''; return; }
     var areaSel = document.getElementById('gpr-area');
     var area = areaSel ? areaSel.value : graphAreaDefault(g);
-    var created = 0, removed = 0, yearWarn = 0, taskFail = 0, shiftedCnt = 0;
+    var created = 0, removed = 0, yearWarn = 0, taskFail = 0, shiftedCnt = 0, dupCnt = 0; // 22.09-227: dupCnt — привязанные к существующим (не дубли)
     var jointMoved = 0; // 22.09-159: перенесённые совместные проведения
     var propStat = { updated: 0, added: 0, removed: 0 }; // 22.09-138: распространение на другие графики
     g.objs.forEach(function (ob, ri) {
@@ -18712,7 +18985,14 @@
       var newWorks = [];
       var usedSids = {};
       function killSeries(w) {
-        (w.occs || []).forEach(function (oc) { if (oc.tid && TASKS_DB) { TASKS_DB.hardDeleteTask(oc.tid); removed++; } });
+        (w.occs || []).forEach(function (oc) {
+          if (!(oc.tid && TASKS_DB)) return;
+          // 22.09-227: задача «родная» для ДРУГОГО графика (к ней привязались
+          // при защите от дублей) — не удаляем, только снимаем привязку
+          var _kt = null; try { _kt = TASKS_DB.getTask(oc.tid); } catch (eK) {}
+          if (_kt && _kt.graphId && _kt.graphId !== g.id) { oc.tid = null; return; }
+          TASKS_DB.hardDeleteTask(oc.tid); removed++;
+        });
       }
       newRows.forEach(function (r) {
         var old = null;
@@ -18728,7 +19008,7 @@
           if (!pastOn) {
             (old.occs || []).forEach(function (oc) {
               var tk = oc.tid ? TASKS_DB.getTask(oc.tid) : null; // из БД: S.tasks может быть устаревшим
-              if (tk && !isDone(tk) && tk.d < 0) { TASKS_DB.hardDeleteTask(tk.id); oc.tid = null; removed++; }
+              if (tk && !isDone(tk) && tk.d < 0 && (!tk.graphId || tk.graphId === g.id)) { TASKS_DB.hardDeleteTask(tk.id); oc.tid = null; removed++; } // 22.09-227: чужую (привязанную из другого графика) не удаляем
             });
           }
           newWorks.push(old); return;
@@ -18761,7 +19041,11 @@
             if (!isPast || pastOn) {
               // дедлайн = (сдвинутая) дата выполнения + дни из отклонения
               var dlIso = gwAddDaysISO(occIso, r.dev || 0);
-              try {
+              // 22.09-227: объект+работа+дата уже есть в планировании (другой
+              // график) — задачу не дублируем, серия привязывается к имеющейся
+              var dupT2 = gwFindPlanTask(ob.oid, r.wid, occIso);
+              if (dupT2) { tk = dupT2; dupCnt++; }
+              else try {
                 tk = TASKS_DB.addTask({
                   m: g.respId, d: dateToOff(gwFromISO(occIso)), o: ob.oid, w: r.wid, garea: area,
                   s: 'plan', status: 'plan', volume: 1,
@@ -18812,7 +19096,7 @@
     var respIsMaster = getMasters().some(function (m) { return m.id === g.respId; });
     if (!respIsMaster) toast('warn', '⚠ Ответственный графика — не мастер: работы СОЗДАЮТСЯ, но не отображаются в планировании. Измените ответственного на мастера («Список графиков» → правка).');
     if (yearWarn) toast('warn', '⚠ У ' + yearWarn + ' работ дата первого проведения позже ' + g.year + ' года — они не попадут в график.');
-    if (created || removed) toast('ok', 'Работы в планировании: создано ' + created + (removed ? ', удалено старых ' + removed : '') + '. Треугольники выставлены в графике.');
+    if (created || removed || dupCnt) toast('ok', 'Работы в планировании: создано ' + created + (removed ? ', удалено старых ' + removed : '') + (dupCnt ? ', уже были в планировании (привязаны из другого графика, не дублируются): ' + dupCnt : '') + '. Треугольники выставлены в графике.');
     if (shiftedCnt) toast('ok', '⏮ По графику смен мастера: ' + shiftedCnt + ' вхождений перенесено на ближайший предыдущий рабочий день.');
     if (jointMoved) toast('ok', '🤝 Совместные работы: ' + jointMoved + ' проведений совмещены в один день с более ранней совместной работой того же месяца');
     if (taskFail) toast('warn', '⚠ Не удалось создать задач: ' + taskFail + ' (возможно, память браузера переполнена). Треугольники в графике выставлены.');
@@ -19432,9 +19716,115 @@
   /* ===== ПЕЧАТЬ ГРАФИКА: окно свойств печати ===== */
   /* Треугольники (выполненные — квадраты с крестиком), наименования работ
      и даты проведения — включаются/выключаются. Сверху над месяцами — год. */
+  /* 22.09-226: КОПИИ ГРАФИКА ПРИ ПЕЧАТИ.
+     Каждое открытие печати («Печать графика» на панели или «Распечатать» в окнах
+     объекта/месяца) сохраняет ПОЛНУЮ копию графика локально (до 20 последних на
+     график). Кнопка «Копии» (справа от «Обозначения работ») — список сохранений,
+     просмотр копии и кнопка «Применить» (восстановить текущий график из копии;
+     задачи в планировании при этом НЕ пересоздаются). */
+  var GRAPH_SNAPS_KEY = 'smartplan_graph_snaps_v1';
+  function graphSnapsLoad(id) {
+    try { var all = JSON.parse(localStorage.getItem(GRAPH_SNAPS_KEY) || '{}'); var a = all[id]; return Array.isArray(a) ? a : []; } catch (e) { return []; }
+  }
+  function graphSnapsSaveList(id, arr) {
+    try { var all = JSON.parse(localStorage.getItem(GRAPH_SNAPS_KEY) || '{}'); all[id] = arr; localStorage.setItem(GRAPH_SNAPS_KEY, JSON.stringify(all)); } catch (e) {}
+  }
+  function _snapDT(ts) { try { var d = new Date(ts); return d.getDate() + ' ' + MON[d.getMonth()] + ' ' + d.getFullYear() + ', ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); } catch (e) { return '—'; } }
+  function graphSnapSave(g, via) {
+    if (!g || !g.id) return null;
+    try {
+      var arr = graphSnapsLoad(g.id);
+      var objs = g.objs || [];
+      var worksCnt = 0;
+      objs.forEach(function (ob) { worksCnt += (gwObjWorks(ob) || []).length; });
+      var snap = {
+        id: 'snap_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 5),
+        ts: Date.now(), via: via || 'печать',
+        name: g.name, year: g.year, respName: g.respName || '',
+        objsCount: objs.length, worksCount: worksCnt,
+        graph: JSON.parse(JSON.stringify(g))
+      };
+      arr.unshift(snap);
+      if (arr.length > 20) arr.length = 20;
+      graphSnapsSaveList(g.id, arr);
+      return snap;
+    } catch (e) { return null; }
+  }
+  function graphSnapById(sid) {
+    var g = graphsFind(GS.cur); if (!g) return null;
+    var arr = graphSnapsLoad(g.id);
+    for (var i = 0; i < arr.length; i++) if (arr[i] && arr[i].id === sid) return arr[i];
+    return null;
+  }
+  function openGraphSnapsModal() {
+    var g = graphsFind(GS.cur);
+    if (!g) return;
+    var arr = graphSnapsLoad(g.id);
+    var h = '<div class="modal-h"><h3>♻ Копии графика «' + esc(g.name) + '»</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">';
+    if (!arr.length) {
+      h += '<div class="empty" style="padding:26px;text-align:center">Копий пока нет — они создаются автоматически при каждой печати графика (кнопка «Печать графика» на панели инструментов).</div>';
+    } else {
+      h += '<div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">Каждая печать графика сохраняет его полную копию. Выберите копию: можно <b>предосмотреть</b> и <b>применить</b> её к текущему графику (задания в планировании при этом не пересоздаются).</div>';
+      arr.forEach(function (sn) {
+        h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:var(--panel-2)">' +
+          '<div style="flex:1;min-width:0"><div style="font-weight:800;font-size:12.5px;color:var(--ink)">' + esc(_snapDT(sn.ts)) + '</div>' +
+          '<div style="font-size:11px;color:var(--muted)">' + (sn.objsCount || 0) + ' объектов · ' + (sn.worksCount || 0) + ' видов работ · ' + esc(String(sn.year || '')) + ' год' + (sn.respName ? ' · ' + esc(sn.respName) : '') + '</div></div>' +
+          '<button class="btn sm" data-action="graph-snap-preview" data-sid="' + esc(sn.id) + '" title="Показать содержимое этой копии (объекты и работы с периодичностью)">👁 Просмотр</button>' +
+          '<button class="btn sm primary" data-action="graph-snap-apply" data-sid="' + esc(sn.id) + '" title="Заменить текущий график этой копией (объекты, работы, периодичность, даты вхождений)">⤺ Применить</button>' +
+          '</div>';
+      });
+    }
+    h += '</div>';
+    modal.style.maxWidth = '660px'; modal.innerHTML = h; overlay.classList.add('show');
+  }
+  function openGraphSnapPreviewModal(sid) {
+    var sn = graphSnapById(sid); if (!sn) return;
+    var g = sn.graph || {};
+    var area = ''; try { area = graphAreaDefault(g); } catch (e) {}
+    var h = '<div class="modal-h"><h3>👁 Копия от ' + esc(_snapDT(sn.ts)) + '</h3><button class="x" data-action="close-modal2">×</button></div><div class="modal-b">';
+    h += '<div style="font-size:12.5px;margin-bottom:10px"><b>' + esc(g.name || '—') + '</b> · ' + esc(String(g.year || '')) + ' год' + (g.respName ? ' · ' + esc(g.respName) : '') + '</div>';
+    (g.objs || []).forEach(function (ob) {
+      var works = gwObjWorks(ob);
+      h += '<div style="border:1px solid var(--line);border-radius:8px;margin-bottom:6px;padding:6px 8px">' +
+        '<div style="font-weight:700;font-size:12px;color:var(--ink)">' + esc(ob.name || '?') + (ob.type ? ' <span style="color:var(--muted);font-weight:600">· ' + esc(ob.type) + '</span>' : '') + '</div>';
+      if (!works.length) h += '<div style="font-size:11px;color:var(--muted)">работ не назначено</div>';
+      works.forEach(function (w) {
+        var wi = null; try { wi = area ? WORK.getWork(area, w.wid) : null; } catch (e) {}
+        h += '<div style="font-size:11px;color:var(--muted);padding-left:10px">• ' + esc((wi && wi.name) || w.wid || '?') + ' · каждые ' + (w.period || 0) + ' мес' + ((+w.dev) ? ' (−' + (+w.dev) + ' дн)' : '') + (w.first ? ' · от ' + esc(fmtDmyIso(w.first)) : '') + ' · вхождений: ' + ((w.occs || []).length) + '</div>';
+      });
+      h += '</div>';
+    });
+    h += '</div>';
+    var overlay2 = document.getElementById('overlay2'), modal2 = document.getElementById('modal2');
+    if (!overlay2 || !modal2) return;
+    modal2.style.maxWidth = '720px'; modal2.innerHTML = h; overlay2.classList.add('show');
+  }
+  function graphSnapApply(sid) {
+    var sn = graphSnapById(sid); if (!sn) return;
+    var g = graphsFind(GS.cur); if (!g) return;
+    if (!window.confirm('Применить копию от ' + _snapDT(sn.ts) + ' к графику «' + g.name + '»?\n\nТекущие объекты, работы, периодичность и даты вхождений будут заменены содержимым копии. Задания в планировании не пересоздаются.')) return;
+    var list = graphsLoad();
+    for (var i = 0; i < list.length; i++) {
+      if (list[i] && list[i].id === g.id) {
+        var clone = JSON.parse(JSON.stringify(sn.graph));
+        clone.id = g.id;
+        clone.restored_at = Date.now(); clone.restored_from = sn.ts;
+        list[i] = clone;
+        break;
+      }
+    }
+    graphsSaveList(list);
+    try { overlay.classList.remove('show'); } catch (e) {}
+    try { document.getElementById('overlay2').classList.remove('show'); } catch (e2) {}
+    try { logAction('График: восстановление из копии', g.name + ' · копия от ' + _snapDT(sn.ts)); } catch (e3) {}
+    toast('ok', '♻ График «' + g.name + '» восстановлен из копии. Задания в планировании не пересоздавались — при необходимости пересчитайте («Настроить периодичность» → «Сохранить»).');
+    renderGraphs();
+  }
+
   function openGraphPrintModal() {
     var g = graphsFind(GS.cur);
     if (!g || !g.objs || !g.objs.length) { toast('err', 'Добавьте объекты в график'); return; }
+    graphSnapSave(g, 'печать графика'); // 22.09-226: каждая печать — полная копия графика
     var h = '<div class="modal-h"><h3>Печать графика</h3><button class="x" data-action="close-modal">×</button></div>';
     h += '<div class="modal-b">';
     h += '<label class="gpr-past" style="margin-bottom:10px;font-size:12.5px"><input type="checkbox" id="gp-tris" checked> Треугольники (выполненные — квадраты с крестиком)</label>';
@@ -19929,6 +20319,7 @@
     var g = graphsFind(GS.cur);
     var pv = GS.printView;
     if (!g || !pv) return;
+    graphSnapSave(g, 'печать из окна просмотра'); // 22.09-226
     var rows, title;
     if (pv.mode === 'obj') {
       var ob = g.objs && g.objs[pv.ri];
@@ -20216,7 +20607,8 @@
       var travelKmText = t.travelKmText != null ? t.travelKmText : (travelKm != null ? travelKm.toFixed(1).replace('.', ',') + ' км' : null);
       var travelText = t.travelText != null ? t.travelText : (travelMin != null ? fmtDuration(travelMin) : null);
       if (lat != null && lng != null) prevObj = { lat: lat, lng: lng };
-      return { id: t.id, lat: lat, lng: lng, addr: addrOf(t), addr_be: t.addr_be || addrOf(t), type: o ? o.type : '—', work: w ? w.name : '?', master: m ? m.name : '?', mcol: m ? m.color : '#94a3b8', hours: taskHours(t), norm: w ? w.norm : 0, travelMin: travelMin, travelText: travelText, travelKm: travelKm, travelKmText: travelKmText };
+      // 22.09-223: hours — ДЛИТЕЛЬНОСТЬ (стоянка на точке), norm — ОБЩАЯ норма из справочника
+      return { id: t.id, lat: lat, lng: lng, addr: addrOf(t), addr_be: t.addr_be || addrOf(t), type: o ? o.type : '—', work: w ? w.name : '?', master: m ? m.name : '?', mcol: m ? m.color : '#94a3b8', hours: taskDurHours(t), norm: w ? w.norm : 0, travelMin: travelMin, travelText: travelText, travelKm: travelKm, travelKmText: travelKmText };
     });
 
     // 22.09-167: выбор подложки карты — схема Яндекс или спутник Google Earth

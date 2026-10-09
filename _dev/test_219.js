@@ -12,9 +12,9 @@ let pass = 0, fail = 0;
 function ok(cond, name) { if (cond) { pass++; console.log('ok - ' + name); } else { fail++; console.log('FAIL - ' + name); } }
 
 // 1) карточка 200 px
-ok(app.indexOf('min-width:200px;width:max-content;border:1px solid var(--line);border-bottom:4px solid') >= 0, 'карточка: 200 px + расширение по ФИО');
+ok(app.indexOf('avaHtml(u, 34, 12.5)') >= 0, 'карточка: аватар на месте (ширину уточнила сборка 222 — см. test_222)');
 ok(app.indexOf("flex:0 0 auto;width:168px;border:1px solid var(--line);border-bottom:4px solid ' + (u.color || '#94a3b8') + ';border-radius:12px") === -1, 'старая ширина 168 px у карточки графика убрана');
-ok(app.indexOf("'<b style=\"font-size:12px;color:var(--ink);white-space:nowrap\">' + esc(u.full_name)") >= 0, 'ФИО в карточке больше не обрезается троеточием');
+ok(true, 'обрезка ФИО: сборка 222 вернула троеточие (см. test_222)');
 
 // 2) аватары
 ok(app.indexOf('function avaHtml(u, d, fs, extra)') >= 0, 'хелпер кружка-аватара');
