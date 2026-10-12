@@ -50,6 +50,7 @@ window.SP_SYNC_POLL = (function () {
     errors: 0,
     lastPoll: 0,
     stopped: false,
+    ready: false,       // 22.09-254: первая полная синхронизация после входа/открытия получена
     onChange: null,
     online: [],         // массив {id, full_name, role, login, last_seen}
     es: null,           // 22.09-243: постоянное соединение (EventSource)
@@ -166,6 +167,8 @@ window.SP_SYNC_POLL = (function () {
     if (!rec || !rec.id) return false;
     var lsKey = LS_KEYS[sec];
     if (!lsKey) return false;
+    // 22.09-254: запомнить версию записи на сервере — от неё считаются «изменённые в этом браузере»
+    try { if (window.SP_API && SP_API.noteServer) SP_API.noteServer(sec, rec); } catch (eN) {}
 
     // Извлечь данные без служебных полей
     var data = Object.assign({}, rec);
@@ -365,6 +368,18 @@ window.SP_SYNC_POLL = (function () {
     // graphs — без reloadFromCloud, у него graphsLoad() читает localStorage
   }
 
+  // 22.09-254: применить записи с сервера немедленно — например, когда сервер отказал в записи
+  // («на сервере версия новее»): браузер сразу показывает актуальные данные вместо устаревших
+  function applyRemote(sec, records) {
+    var changed = false;
+    (Array.isArray(records) ? records : []).forEach(function (rec) { if (applyOne(sec, rec)) changed = true; });
+    if (changed) {
+      refreshModules();
+      try { if (typeof window.onSyncUpdate === 'function') setTimeout(window.onSyncUpdate, 30); } catch (e) {}
+    }
+    return changed;
+  }
+
   // Один цикл опроса
   function tick() {
     if (state.stopped) return;
@@ -382,6 +397,7 @@ window.SP_SYNC_POLL = (function () {
     }
     state.noTokenTicks = 0;
     state.inFlight = true;
+    var wasInitial = state.lastTs === 0; // 22.09-254: полная загрузка всех разделов
     window.SP_API.sync(state.lastTs)
       .then(function (r) {
         if (state.stopped) return;
@@ -399,6 +415,9 @@ window.SP_SYNC_POLL = (function () {
         // Если открыт дропдаун — обновим его (без перезакрытия)
         try { if (typeof window.__syncRefreshDropdown === 'function') window.__syncRefreshDropdown(); } catch (e) {}
         var changed = applyChanges(r.sections);
+        // 22.09-254: актуальные данные с сервера получены — с этого момента разрешено отправлять
+        // изменения разделов (до этого браузер мог держать устаревшую копию и затереть ею сервер)
+        if (wasInitial) state.ready = true;
         if (changed) {
           refreshModules();
           // Перерисовать UI (без сброса открытой модалки)
@@ -432,6 +451,7 @@ window.SP_SYNC_POLL = (function () {
   function init() {
     if (state.timer) return;
     state.stopped = false;
+    state.ready = false; // 22.09-254
     state.lastTs = 0;
     state.errors = 0;
     updateIndicator('connecting');
@@ -441,6 +461,7 @@ window.SP_SYNC_POLL = (function () {
 
   function stop() {
     state.stopped = true;
+    state.ready = false; // 22.09-254: после выхода/перезапуска — снова ждать актуальных данных
     if (state.timer) { clearTimeout(state.timer); state.timer = null; }
     if (state.kickTimer) { clearTimeout(state.kickTimer); state.kickTimer = null; }
     stopSSE(); // 22.09-243
@@ -454,7 +475,8 @@ window.SP_SYNC_POLL = (function () {
       inFlight: state.inFlight,
       stopped: state.stopped,
       online: state.online,
-      live: state.sseUp // 22.09-243: мгновенные уведомления работают
+      live: state.sseUp, // 22.09-243: мгновенные уведомления работают
+      ready: state.ready // 22.09-254: актуальные данные получены
     };
   }
 
@@ -465,8 +487,10 @@ window.SP_SYNC_POLL = (function () {
     POLL_INTERVAL: POLL_INTERVAL,
     POLL_SLOW: POLL_SLOW,
     kick: kick,
+    isReady: function () { return !!state.ready; }, // 22.09-254
     LS_KEYS: LS_KEYS,
     applyOne: applyOne,
+    applyRemote: applyRemote, // 22.09-254
     getOnline: getOnline,
     onChange: function (cb) { state.onChange = cb; }
   };

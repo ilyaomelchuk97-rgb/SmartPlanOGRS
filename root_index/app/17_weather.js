@@ -2331,6 +2331,11 @@
     var cl = document.getElementById(id);
     if (cl && cl.addEventListener) cl.addEventListener('click', function (ev) { if (ev && ev.preventDefault) ev.preventDefault(); openConsentDialog(); });
   });
+  // 22.09-252: «Как разрешить — пошагово» под формой входа (браузер запрещает/переполнено хранилище)
+  (function () {
+    var shl = document.getElementById('storage-help-link');
+    if (shl && shl.addEventListener) shl.addEventListener('click', function (ev) { if (ev && ev.preventDefault) ev.preventDefault(); openStorageHelp(); });
+  })();
   // (кнопка sync-btn и её модалка удалены — синхронизация теперь через polling API)
   // Попап-календарь тоже сразу
   setTimeout(function() { try { initDatePicker(); } catch(e) { console.error('DatePicker init:', e); } }, 100);
@@ -2356,6 +2361,7 @@
     initWeatherPopup();
     // Инициализация локального лога ошибок (SP_ERRORS)
     try { if (window.SP_ERRORS && SP_ERRORS.init) SP_ERRORS.init(); } catch (e) {}
+    try { storageDiagReport(); } catch (eSD) {} // 22.09-252: причина проблем с хранилищем — в «Логи ошибок»
     // Real-time синхронизация с сервером Render (polling каждую секунду)
     // Заменяет старую логику с общей папкой (sync.js) и общим сервером (DB.syncFromServer)
     try {

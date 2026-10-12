@@ -49,6 +49,7 @@ window.SP_DB = (function () {
   function netSend(url, opts) {
     opts = opts || {};
     opts.headers = Object.assign({}, opts.headers || {});
+    if (!opts.headers['X-SP-Build']) opts.headers['X-SP-Build'] = String(window.SP_BUILD || ''); // 22.09-254: версия сайта для сервера
     if (window.SP_API && window.SP_API.getToken) {
       var tk = window.SP_API.getToken();
       if (tk && !opts.headers.Authorization) {

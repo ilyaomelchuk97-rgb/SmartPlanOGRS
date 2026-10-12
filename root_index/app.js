@@ -863,7 +863,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-249';
+  var SP_BUILD = '22.09-255';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -3118,13 +3118,14 @@
       var inProg = mt.filter(function (t) { return t.started_at && !isDone(t); })[0]; // 22.09-190: сейчас работает на объекте
       var _mc = masterCapacity(m.id, dayOff);
       var over = load > _mc;
-      html += '<div class="today-mstr"><span class="dot" style="background:' + m.color + '"></span><div><div class="nm" data-action="wc-open" data-mid="' + esc(m.id) + '" style="cursor:pointer" title="Нажмите — откроются карточки всех работ на этот день">' + esc(m.name) + ' <span style="color:var(--muted);font-weight:600;font-size:12px">→</span></div><div class="ar">' + esc(m.area) + '</div></div><div class="meta"><div class="h" style="color:' + (over ? 'var(--red)' : 'var(--ink)') + '">' + fmtH(load) + ' ч / ' + fmtH(_mc) + ' ч</div><span class="tag ' + (over ? 'over' : 'ok') + '">' + (over ? '⚠ Перегрузка +' + fmtH(load - _mc) + ' ч' : mt.length + ' заданий') + '</span>' + (dayOff === 0 && inProg ? ' <span class="tag ok" style="background:#dcfce7;color:#166534" title="Работа начата в ' + fmtClock(inProg.started_at) + '">🔨 на объекте с ' + fmtClock(inProg.started_at) + '</span>' : '') + '</div></div>';
+      // 22.09-251: «Карточки работ на день» открываются нажатием на ВЕСЬ блок мастера (а не только на ФИО)
+      html += '<div class="today-mstr" data-action="wc-open" data-mid="' + esc(m.id) + '" title="Нажмите — откроются карточки всех работ мастера на этот день"><span class="dot" style="background:' + m.color + '"></span><div><div class="nm">' + esc(m.name) + ' <span style="color:var(--muted);font-weight:600;font-size:12px">→</span></div><div class="ar">' + esc(m.area) + '</div></div><div class="meta"><div class="h" style="color:' + (over ? 'var(--red)' : 'var(--ink)') + '">' + fmtH(load) + ' ч / ' + fmtH(_mc) + ' ч</div><span class="tag ' + (over ? 'over' : 'ok') + '">' + (over ? '⚠ Перегрузка +' + fmtH(load - _mc) + ' ч' : mt.length + ' заданий') + '</span>' + (dayOff === 0 && inProg ? ' <span class="tag ok" style="background:#dcfce7;color:#166534" title="Работа начата в ' + fmtClock(inProg.started_at) + '">🔨 на объекте с ' + fmtClock(inProg.started_at) + '</span>' : '') + '</div></div>';
       // гант-шкала дня: 8:00–20:00, задачи и переезды
       html += ganttDayHtml(m, dayOff);
       mt.slice(0, 4).forEach(function (t) {
         var w = workOf(t);
         // 22.09-248: под мастером — ГРУППА работ (вид работ — во всплывающей подсказке); кнопок «Приступил/Закончил»
-        // здесь нет — они в «Карточках работ на день» (клик по ФИО мастера), здесь только отметка факта
+        // здесь нет — они в «Карточках работ на день» (клик по блоку мастера, 22.09-251), здесь только отметка факта
         var _gp = gwWorkGroup(w); if (_gp === 'Без группы') _gp = '';
         html += '<div class="taskline"><span class="pill" style="max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc((_gp ? 'Группа работ: ' + _gp + '\n' : '') + 'Вид работ: ' + (w ? w.name : '—')) + '">' + esc(_gp || (w ? w.name : '?')) + '</span><span>' + esc(addrOf(t)) + '</span>' + taskDayStatusHtml(t) + '<span style="margin-left:auto;color:var(--muted)">' + fmtH(taskHours(t)) + ' ч</span></div>';
       });
@@ -4117,7 +4118,7 @@
           SP_API.upsert('tasks', t).catch(function () {});
         });
         Object.keys(beforeIds).forEach(function (id) {
-          if (!keepIds[id]) SP_API.delete('tasks', id).catch(function () {});
+          if (!keepIds[id]) SP_API.del('tasks', id).catch(function () {}); // 22.09-254: был несуществующий SP_API.delete — удаление на сервере не срабатывало
         });
       }
     } catch (eS) {}
@@ -13037,7 +13038,14 @@
   }
   /* Автоснимок всей базы (страховка от чистки/сброса; живёт в smartplan_autobackup) */
   function snapshotAuto() {
-    try { localStorage.setItem('smartplan_autobackup', JSON.stringify({ ts: Date.now(), keys: backupCollectKeys() })); } catch (e) {}
+    // 22.09-252: автоснимок — копия ВСЕЙ базы в том же хранилище браузера (удваивает объём).
+    // Большая база (> 1,5 млн знаков) — снимок не делаем, а не поместился — убираем устаревший,
+    // чтобы не переполнить хранилище (данные и так на сервере; полная страховка — файл бэкапа).
+    try {
+      var json = JSON.stringify({ ts: Date.now(), keys: backupCollectKeys() });
+      if (json.length > 1500000) { localStorage.removeItem('smartplan_autobackup'); return; }
+      localStorage.setItem('smartplan_autobackup', json);
+    } catch (e) { try { localStorage.removeItem('smartplan_autobackup'); } catch (e2) {} }
   }
   /* Восстановление из файла бэкапа (JSON) */
   var RESTORE_PENDING = null;
@@ -13515,6 +13523,16 @@
       '<button type="button" class="btn sm ghost" data-action="backup-check-all">выбрать все</button>' +
       '<button type="button" class="btn sm ghost" data-action="backup-check-none">снять выбор</button>' +
       '</div>';
+    // 22.09-255: восстановление видов работ из копии этого браузера
+    var _wrc = wrLoad();
+    if (_wrc) {
+      var _wrn = wrCount(wrDiffs());
+      html += '<div class="calc wr-card" style="margin-bottom:14px;align-items:center;gap:10px;flex-wrap:wrap;line-height:1.5">♻ <b>Восстановление видов работ из копии этого браузера</b>' +
+        '<span style="color:var(--muted)">(копия сохранена ' + esc(wrFmtTs(_wrc.taken)) + ')</span>' +
+        (_wrn ? '<span>отличий от сервера: <b>' + _wrn + '</b></span><button type="button" class="btn sm primary" data-action="wr-open">👀 Посмотреть и восстановить</button>'
+          : '<span style="color:#166534">совпадает с сервером</span>') +
+        '<button type="button" class="btn sm ghost" data-action="wr-drop">🗑 Удалить копию</button></div>';
+    }
     html += '<table class="dt"><thead><tr><th style="width:34px"></th><th>База данных</th><th>Ключ хранения</th><th style="text-align:right">Записей</th><th style="text-align:right">Объём</th></tr></thead><tbody>';
     DB_REGISTRY.forEach(function (entry) {
       var d = dbReadLS(entry);
@@ -13535,6 +13553,151 @@
     view.innerHTML = html;
     var inp = document.getElementById('backup-file');
     if (inp) inp.addEventListener('change', function () { backupScanFiles(inp.files); try { inp.value = ''; } catch (e) {} });
+  }
+
+  /* =====================================================================
+     22.09-255: ВОССТАНОВЛЕНИЕ ВИДОВ РАБОТ ИЗ КОПИИ ЭТОГО БРАУЗЕРА.
+     До 22.09-254 браузер со старой копией затирал на сервере свежие настройки видов работ и
+     норм времени. Новая версия при первом запуске сохраняет копию каталога этого браузера ДО
+     синхронизации (work_db.js → smartplan_work_recovery). Здесь её сравнивают с сервером и
+     возвращают выбранные виды работ (сразу у всех). Окно появляется у администратора после
+     входа, пока копия отличается от сервера; доступно и на странице «Бэкапы баз данных».
+     ===================================================================== */
+  var WR_KEY = 'smartplan_work_recovery';
+  var WR_FIELDS = [
+    ['name', 'название'], ['group', 'группа'], ['norm', 'норма времени, чел.-ч'], ['unit', 'единица'], ['crew', 'состав бригады'],
+    ['crew_size', 'исполнителей'], ['min_workers', 'мин. исполнителей'], ['opt_workers', 'опт. исполнителей'], ['season', 'сезон'],
+    ['min_temp', 'мин. t°C'], ['needs_permit', 'ордер-допуск'], ['depends_on_snow', 'зависит от снега'], ['equipment', 'техника'],
+    ['object_categories', 'категории объектов'], ['lines_count', 'линий редуцирования'], ['periodicity_value', 'периодичность'],
+    ['periodicity_unit', 'единица периодичности'], ['periodicity_dev', 'отклонение, дн.'], ['periodicity_basis', 'отсчёт периодичности'],
+    ['periodicity_depends_on', 'зависит от работ'], ['joint_with', 'проводится совместно'], ['telemetry_req', 'телеметрия'],
+    ['telemetry_type', 'тип телеметрии'], ['heating_req', 'отопление'], ['diag_equipment', 'приборная диагностика'],
+    ['group_flags', 'свойства группы'], ['operations', 'операции'], ['indicators', 'показатели'], ['departments', 'подразделения'],
+    ['print_forms', 'печатные формы'], ['op_journal', 'оперативный журнал'], ['passport_entry', 'эксплуатационный паспорт'], ['scan_attach', 'сканы']
+  ];
+  // значение для сравнения: пустые ([], '', null, 0, false) равны; порядок полей не важен
+  function wrNormVal(v) {
+    if (v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length)) return '';
+    if (typeof v === 'number') return v === 0 ? '' : String(v);
+    if (typeof v === 'boolean') return v ? '1' : '';
+    if (Array.isArray(v)) return v.map(function (x) { return (x && typeof x === 'object') ? Object.keys(x).sort().map(function (k) { return k + ':' + JSON.stringify(x[k]); }).join(',') : JSON.stringify(x); }).sort().join('|');
+    if (typeof v === 'object') return (window.SP_API && SP_API.canon) ? SP_API.canon(v) : JSON.stringify(v);
+    return String(v);
+  }
+  function wrShowVal(f, v) {
+    if (v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length)) return '—';
+    if (f === 'crew' && Array.isArray(v)) return v.map(function (c) { return c ? (c.count || 1) + '× ' + (c.prof || '?') + (c.grade ? ' (' + c.grade + ' р.)' : '') : ''; }).join(' + ');
+    if (typeof v === 'boolean') return v ? 'да' : 'нет';
+    if (Array.isArray(v)) return v.map(function (x) { return typeof x === 'object' ? JSON.stringify(x) : String(x); }).join(', ');
+    if (typeof v === 'object') return JSON.stringify(v);
+    return String(v);
+  }
+  function wrLoad() { try { var r = JSON.parse(localStorage.getItem(WR_KEY) || 'null'); return r && Array.isArray(r.copies) ? r : null; } catch (e) { return null; } }
+  function wrFmtTs(ts) { try { return ts ? new Date(ts).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''; } catch (e) { return ''; } }
+  // отличия копий от текущего (после синхронизации — серверного) каталога
+  function wrDiffs() {
+    var rc = wrLoad(); if (!rc) return null;
+    var cur = {};
+    try { WORK.getAreas().forEach(function (a) { WORK.getWorks(a).forEach(function (w) { if (w && w.id) cur[w.id] = { area: a, w: w }; }); }); } catch (e) { return null; }
+    var FACT = {}; try { FACT = (WORK.factoryWorks && WORK.factoryWorks()) || {}; } catch (eF) {}
+    function isFactory(cw) { // в копии — заводской вариант работы (не настройки пользователя): не предлагаем
+      var fw = FACT[cw.id];
+      return !!fw && WR_FIELDS.every(function (fd) { return cw[fd[0]] === undefined || wrNormVal(cw[fd[0]]) === wrNormVal(fw[fd[0]]); });
+    }
+    var out = [];
+    rc.copies.forEach(function (c, ci) {
+      var items = [];
+      Object.keys(c.areas || {}).forEach(function (area) {
+        (Array.isArray(c.areas[area]) ? c.areas[area] : []).forEach(function (cw) {
+          if (!cw || !cw.id || isFactory(cw)) return;
+          var sv = cur[cw.id];
+          if (!sv) { items.push({ id: cw.id, area: area, name: cw.name || cw.id, missing: true, rec: cw, fields: [] }); return; }
+          var fields = [];
+          WR_FIELDS.forEach(function (fd) {
+            if (wrNormVal(cw[fd[0]]) !== wrNormVal(sv.w[fd[0]])) fields.push({ f: fd[0], label: fd[1], srv: sv.w[fd[0]], copy: cw[fd[0]] });
+          });
+          if (fields.length) items.push({ id: cw.id, area: sv.area, name: cw.name || sv.w.name || cw.id, missing: false, rec: cw, fields: fields });
+        });
+      });
+      if (items.length) out.push({ ci: ci, src: c.src, ts: c.ts, taken: rc.taken, items: items });
+    });
+    return out;
+  }
+  function wrCount(list) { return (list || []).reduce(function (a, c) { return a + c.items.length; }, 0); }
+  function wrDrop() {
+    spConfirm('Удалить сохранённую в этом браузере копию видов работ?\nВернуть её будет нельзя (данные на сервере не изменятся).', { title: 'Удалить копию', ok: 'Удалить', danger: true }, function () {
+      try { localStorage.removeItem(WR_KEY); } catch (e) {}
+      toast('ok', '🗑 Копия видов работ удалена');
+      try { if (S.screen === 'backup') renderBackup(); } catch (e) {}
+    });
+  }
+  function wrRestore(picked) {
+    if (!picked.length) { toast('warn', 'Ничего не отмечено'); return; }
+    if (!(window.SP_API && SP_API.getToken && SP_API.getToken() && SP_API.upsert)) { toast('err', 'Нет связи с сервером — восстановить сейчас нельзя'); return; }
+    var okN = 0, failN = 0, got = [];
+    Promise.all(picked.map(function (it) {
+      var rec = Object.assign({}, it.rec, { area: it.area });
+      return Promise.resolve(SP_API.upsert('work_catalog', rec)).then(function (res) {
+        if (res && res.ok) { okN++; if (res.record) got.push(res.record); } else failN++;
+      }, function () { failN++; });
+    })).then(function () {
+      try { if (got.length && window.SP_SYNC_POLL && SP_SYNC_POLL.applyRemote) SP_SYNC_POLL.applyRemote('work_catalog', got); } catch (e) {}
+      try { logAction('Восстановление видов работ из копии браузера', 'восстановлено: ' + okN + (failN ? ', не удалось: ' + failN : '')); } catch (e) {}
+      toast(failN ? 'warn' : 'ok', '♻ Восстановлено видов работ: ' + okN + (failN ? ' · не удалось: ' + failN + ' — повторите' : ' — они уже у всех пользователей'));
+      try { refresh(); } catch (e) {}
+    });
+  }
+  function openWorkRecovery(ci) {
+    var all = wrDiffs() || [];
+    if (!all.length) { toast('ok', 'Копия видов работ в этом браузере совпадает с сервером — восстанавливать нечего'); return; }
+    var c = all[0];
+    if (ci != null) all.forEach(function (x) { if (x.ci === ci) c = x; });
+    var SRC = { local: 'данные этого браузера', autobackup: 'автоснимок при входе', prev: 'снимок перед обновлением сайта' };
+    var sel = c.items.map(function (it) { return !it.missing; });
+    var h = '<p>В этом браузере сохранилась другая версия видов работ и норм времени (' + esc(SRC[c.src] || c.src) +
+      (c.ts ? ', последнее обновление — ' + esc(wrFmtTs(c.ts)) : '') + '). Отличий от сервера: <b>' + c.items.length + '</b>.</p>' +
+      '<p class="wr-hint">Зачёркнуто — как сейчас на сервере, жирным — как в копии. Отметьте виды работ, которые нужно вернуть: они сразу обновятся у всех пользователей.</p>';
+    if (all.length > 1) h += '<div class="wr-tools">' + all.map(function (x) { return '<button type="button" class="btn sm' + (x === c ? ' primary' : '') + '" data-wr-copy="' + x.ci + '">' + esc(SRC[x.src] || x.src) + ' (' + x.items.length + ')</button>'; }).join('') + '</div>';
+    h += '<div class="wr-tools"><button type="button" class="btn sm" data-wr-all="1">отметить все</button><button type="button" class="btn sm" data-wr-none="1">снять отметки</button></div>';
+    h += '<div class="wr-list">' + c.items.map(function (it, i) {
+      return '<label class="wr-item"><input type="checkbox" data-wr-i="' + i + '"' + (sel[i] ? ' checked' : '') + '><div><b>' + esc(it.name) + '</b> <span class="wr-area">· ' + esc(it.area) + '</span>' +
+        (it.missing ? '<div class="wr-f">на сервере нет (удалён) — будет создан заново</div>'
+          : it.fields.map(function (fd) { return '<div class="wr-f">' + esc(fd.label) + ': <s>' + esc(wrShowVal(fd.f, fd.srv)) + '</s> → <b>' + esc(wrShowVal(fd.f, fd.copy)) + '</b></div>'; }).join('')) +
+        '</div></label>';
+    }).join('') + '</div>';
+    spDialog('', {
+      title: 'Восстановление видов работ', icon: '♻', html: h, cancel: 'Закрыть',
+      choices: [{ label: '♻ Восстановить отмеченные', value: 'restore', cls: 'primary' }, { label: '🗑 Удалить копию', value: 'drop', cls: 'danger' }]
+    }, function (v) {
+      if (v === 'restore') wrRestore(c.items.filter(function (it, i) { return sel[i]; }));
+      else if (v === 'drop') wrDrop();
+    });
+    var ov = document.getElementById('sp-dlg');
+    if (!ov || !ov.querySelector) return;
+    var box = ov.querySelector('.sp-dlg-box'); if (box) box.style.width = 'min(820px,100%)';
+    ov.addEventListener('change', function (e) {
+      var t = e.target; if (!t || !t.getAttribute) return;
+      var i = t.getAttribute('data-wr-i'); if (i != null) sel[+i] = t.checked === true;
+    });
+    ov.addEventListener('click', function (e) {
+      var t = e.target && e.target.closest ? e.target.closest('[data-wr-all],[data-wr-none],[data-wr-copy]') : null;
+      if (!t) return;
+      e.stopPropagation();
+      if (t.hasAttribute('data-wr-copy')) { openWorkRecovery(+t.getAttribute('data-wr-copy')); return; }
+      var on = t.hasAttribute('data-wr-all');
+      Array.prototype.forEach.call(ov.querySelectorAll('[data-wr-i]'), function (cb) { cb.checked = on; sel[+cb.getAttribute('data-wr-i')] = on; });
+    });
+  }
+  // после входа администратора (когда получены данные с сервера): копия отличается — предложить
+  function workRecoveryNotify() {
+    if (S.role !== 'admin' || S.wrAsked) return;
+    var all = wrDiffs(); var n = wrCount(all);
+    if (!n) return;
+    S.wrAsked = true;
+    spChoice('В этом браузере сохранилась другая версия видов работ и норм времени — ' + n + ' отличий от сервера.\n' +
+      'Если ваши настройки видов работ пропали, их можно вернуть отсюда: посмотрите отличия и отметьте, что восстановить.',
+      { title: 'Найдена копия видов работ', icon: '♻', choices: [{ label: '👀 Посмотреть', value: 'open', cls: 'primary' }], cancel: 'Позже' },
+      function (v) { if (v === 'open') openWorkRecovery(); });
   }
 
   /* =====================================================================
@@ -14473,6 +14636,16 @@
     return '☀️';
   }
 
+  // 22.09-250: жива ли фоновая анимация прогноза (дождь/снег): блок прогноза есть на странице,
+  // он раскрыт, и слой анимации всё ещё внутри него. Раньше при уходе с панели мониторинга
+  // с раскрытым прогнозом блок исчезал, и анимация падала с ошибкой
+  // «Cannot read properties of null (reading 'classList')» (в _tickG/_tickS); при повторном
+  // открытии прогноза прежний цикл продолжал крутиться на уже снятом со страницы слое.
+  function wdAnimAlive(layer) {
+    var wd = document.getElementById('weather-dropdown');
+    return !!(wd && wd.classList.contains('open') && layer && layer.parentNode === wd);
+  }
+
   function toggleWeatherDropdown() {
     var dd = document.getElementById('weather-dropdown');
     if (!dd) return;
@@ -14526,7 +14699,7 @@
         _gdrops.push(d);
       }
       function _tickG() {
-        if (!document.getElementById('weather-dropdown').classList.contains('open')) { _gdrops = []; _gl.remove(); return; }
+        if (!wdAnimAlive(_gl)) { _gdrops = []; _gl.remove(); return; } // 22.09-250: без ошибки, если прогноз закрыт/перерисован или ушли с панели
         if (Math.random() < 0.3 && _gdrops.length < 22) _spawnG();
         var _H = _gl.offsetHeight || 300;
         for (var i = _gdrops.length - 1; i >= 0; i--) {
@@ -14561,7 +14734,7 @@
         _snow.push(d);
       }
       function _tickS() {
-        if (!document.getElementById('weather-dropdown').classList.contains('open')) { _snow = []; _sl.remove(); return; }
+        if (!wdAnimAlive(_sl)) { _snow = []; _sl.remove(); return; } // 22.09-250: то же для снежинок
         if (Math.random() < 0.4 && _snow.length < 30) _spawnS();
         var _H = _sl.offsetHeight || 300;
         for (var i = _snow.length - 1; i >= 0; i--) {
@@ -16381,7 +16554,7 @@
     ov.className = 'sp-dlg';
     ov.innerHTML = '<div class="sp-dlg-box' + (o.danger ? ' danger' : '') + '" role="dialog" aria-modal="true">' +
       '<div class="sp-dlg-h"><span class="sp-dlg-ic">' + esc(o.icon || '❓') + '</span><span>' + esc(o.title || 'Подтверждение') + '</span></div>' +
-      '<div class="sp-dlg-b">' + esc(String(message == null ? '' : message)).replace(/\n/g, '<br>') + '</div>' +
+      '<div class="sp-dlg-b">' + (o.html != null ? String(o.html) : esc(String(message == null ? '' : message)).replace(/\n/g, '<br>')) + '</div>' + // 22.09-252: o.html — готовая разметка
       '<div class="sp-dlg-f">' +
       (o.cancel === false ? '' : '<button type="button" class="btn" data-dlg="cancel">' + esc(o.cancel || 'Отмена') + '</button>') +
       choices.map(function (c, i) { return '<button type="button" class="btn ' + esc(c.cls || 'primary') + '" data-dlg="' + i + '">' + esc(c.label) + '</button>'; }).join('') +
@@ -16558,14 +16731,31 @@
     return badIds.length;
   }
 
+  /* 22.09-254: выполнить fn, когда сайт получил актуальные данные с сервера (первая синхронизация
+     после входа/открытия). Без связи с сервером (локальный режим) — сразу; если синхронизация
+     так и не пришла (~30 с) — в этот раз не выполнять (автоматические правки по устаревшей копии
+     данных недопустимы: они затирали свежие данные на сервере). */
+  function whenSyncReady(fn, tries) {
+    tries = tries || 0;
+    var ready = false, online = false;
+    try { ready = !!(window.SP_SYNC_POLL && SP_SYNC_POLL.isReady && SP_SYNC_POLL.isReady()); } catch (e) {}
+    try { online = !!(window.SP_API && SP_API.getToken && SP_API.getToken()); } catch (e) {}
+    if (ready || !online) { fn(); return; }
+    if (tries >= 100) return;
+    setTimeout(function () { whenSyncReady(fn, tries + 1); }, 300);
+  }
   function enterApp(u) {
     S.user = u; S.role = u.role; S.curMaster = u.id;
     S.dashArea = null; // фильтр участка не должен «протекать» между пользователями
     S.dashMaster = null; // 22.09-193: и выбор мастера в «КПД мастеров» — тоже
     // 22.09-189: автоочистка «битых» задач (дата дальше 3 лет — след опечатки в якоре серии графика)
-    var _purged = 0;
-    try { _purged = purgeFarFutureTasks(); } catch (ePu) { try { console.error('purgeFarFutureTasks:', ePu); } catch (_e) {} }
-    if (_purged) setTimeout(function () { toast('warn', '🧹 Автоочистка базы: удалено «битых» задач с ошибочной датой далеко в будущем: ' + _purged + '. Они остались от опечатки в дате графика — теперь такие даты блокируются автоматически.'); }, 1800);
+    // 22.09-254: автоочистка — только по актуальным данным с сервера (не по устаревшей копии браузера)
+    whenSyncReady(function () {
+      var _purged = 0;
+      try { _purged = purgeFarFutureTasks(); } catch (ePu) { try { console.error('purgeFarFutureTasks:', ePu); } catch (_e) {} }
+      if (_purged) setTimeout(function () { toast('warn', '🧹 Автоочистка базы: удалено «битых» задач с ошибочной датой далеко в будущем: ' + _purged + '. Они остались от опечатки в дате графика — теперь такие даты блокируются автоматически.'); }, 1800);
+      if (_purged) { try { refresh(); } catch (eRf) {} }
+    });
     // 22.09-224: привязка дат задач к календарю (новый день — одно перебазирование)
     try { rebaseTaskDaysToToday(); } catch (eRb) { try { console.error('rebaseTaskDaysToToday:', eRb); } catch (_e) {} }
     document.body.classList.add('logged-in');
@@ -16576,16 +16766,20 @@
     try { setupSyncDropdown(); } catch (e) { console.error('setupSyncDropdown:', e); }
     // 22.09-136: миграция видов телеметрии (идемпотентная): сразу после входа
     // и повторно через 3 с — когда завершится первая фоновая синхронизация
-    try { telemetryMigrateTypes(); } catch (e) { console.error('telemetryMigrateTypes:', e); }
-    setTimeout(function () { try { telemetryMigrateTypes(); } catch (e) { console.error('telemetryMigrateTypes:', e); } }, 3000);
+    // 22.09-254: только после получения актуальных данных с сервера — раньше по устаревшему
+    // списку браузера при КАЖДОМ входе создавались «недостающие» виды телеметрии с новыми id,
+    // а прежние удалялись как дубли
+    whenSyncReady(function () { try { telemetryMigrateTypes(); } catch (e) { console.error('telemetryMigrateTypes:', e); } });
+    // 22.09-255: в браузере сохранилась копия видов работ, отличающаяся от сервера — предложить вернуть настройки
+    if (u.role === 'admin') whenSyncReady(function () { setTimeout(function () { try { workRecoveryNotify(); } catch (e) {} }, 1500); });
     setTimeout(function () {
       var info = ROLE_INFO[u.role] || { label: u.role };
       logAction('Вход в систему', '');
       toast('ok', 'Добро пожаловать, ' + u.full_name + '! Роль: ' + info.label + (u.role === 'admin' ? ' — доступ ко всем участкам.' : ' · участок ' + u.area + '.'));
       // Хранилище браузера заблокировано (Edge/file://, «Блокировать все cookie»):
       // работает замена в памяти — данные живут только до перезагрузки страницы
-      if (window.SP_STORAGE_FALLBACK) {
-        toast('warn', '⚠ Хранилище браузера недоступно (Edge/настройки cookie) — все данные сохранятся только до перезагрузки страницы. Для сохранения между сессиями разрешите файлы cookie или используйте Chrome.');
+      if (storageNotSaved()) { // 22.09-252: точная причина и где снять запрет
+        toast('warn', '⚠ Браузер запрещает сайту сохранять данные — после закрытия вкладки придётся снова войти. Как снять запрет — ссылка «🍪 Cookie» внизу меню.');
       }
     }, 400);
   }
@@ -16595,6 +16789,139 @@
     var f = document.getElementById('login-form'); if (f) f.reset();
     var err = document.getElementById('li-err'); if (err) err.textContent = '';
   }
+  /* =====================================================================
+     22.09-252: ХРАНИЛИЩЕ БРАУЗЕРА ЗАПРЕЩЕНО / ПЕРЕПОЛНЕНО. Проверку делает первый
+     скрипт index.html → window.SP_STORAGE_DIAG: ls/ss.state — 'ok' | 'freed'
+     (было переполнено, место освобождено) | 'blocked' (браузер запрещает) |
+     'full' (переполнено, освободить не удалось); cookies — пишутся ли cookie;
+     frame — сайт внутри чужой страницы. Кнопка «Разрешить» в окне cookie запрет
+     браузера снять не может — поэтому экран входа и окно cookie объясняют, где
+     его снимают (пошаговая инструкция под браузер), а причина уходит в «Логи ошибок».
+     ===================================================================== */
+  function storageDiag() { try { return window.SP_STORAGE_DIAG || null; } catch (e) { return null; } }
+  function storageNotSaved() { var d = storageDiag(); return !!(d && d.ls && (d.ls.state === 'blocked' || d.ls.state === 'full')); }
+  function storageBrowser() {
+    var ua = ''; try { ua = String(navigator.userAgent || ''); } catch (e) {}
+    if (/Edg\//.test(ua)) return { key: 'edge', name: 'Microsoft Edge', inName: 'в Microsoft Edge' };
+    if (/YaBrowser/.test(ua)) return { key: 'yandex', name: 'Яндекс.Браузер', inName: 'в Яндекс.Браузере' };
+    if (/OPR\//.test(ua)) return { key: 'opera', name: 'Opera', inName: 'в Opera' };
+    if (/Firefox\//.test(ua)) return { key: 'firefox', name: 'Firefox', inName: 'в Firefox' };
+    if (/Chrome\//.test(ua)) return { key: 'chrome', name: 'Google Chrome', inName: 'в Google Chrome' };
+    return { key: 'other', name: 'браузер', inName: 'в браузере' };
+  }
+  function spCopyText(t, cb) {
+    function fallback() {
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = t; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+        document.body.appendChild(ta); ta.select();
+        var ok = document.execCommand && document.execCommand('copy');
+        ta.parentNode.removeChild(ta);
+        cb(ok === true);
+      } catch (e) { cb(false); }
+    }
+    try { if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(t).then(function () { cb(true); }, fallback); return; } } catch (e) {}
+    fallback();
+  }
+  function storageHelpHtml() {
+    var d = storageDiag() || {};
+    var b = storageBrowser();
+    var site = ''; try { site = String(location.origin || ''); } catch (e) {}
+    if (!/^https?:\/\//.test(site)) site = 'https://smartplanogrs1.onrender.com';
+    var host = site.replace(/^https?:\/\//, '');
+    function code(t) { return '<span class="sh-code">' + esc(t) + '</span><button type="button" class="sh-copy" data-copy="' + esc(t) + '">📋 Копировать</button>'; }
+    var full = !!(d.ls && d.ls.state === 'full');
+    var h = '';
+    if (d.proto === 'file:') h += '<div class="sh-note">📁 Сайт открыт как файл с диска — так браузер не даёт сохранять данные. Откройте сайт по адресу <b>https://smartplanogrs1.onrender.com</b>.</div>';
+    if (d.frame) h += '<div class="sh-note">🪟 Сайт открыт внутри другой страницы — в таком режиме браузер часто запрещает сохранять данные. Откройте сайт напрямую, в отдельной вкладке: <a href="' + esc(site) + '" target="_blank" rel="noopener">' + esc(site) + '</a>.</div>';
+    if (full) {
+      h += '<p>Хранилище браузера для этого сайта <b>переполнено</b>, и освободить место автоматически не удалось. Удалите сохранённые данные сайта — рабочие данные хранятся на сервере и загрузятся заново после входа:</p>' +
+        '<ol class="sh-ol"><li>Нажмите значок слева от адреса сайта (🔒) → «Файлы cookie и данные сайта» → «Управление…».</li>' +
+        '<li>Удалите данные сайта <b>' + esc(host) + '</b>.</li>' +
+        '<li>Обновите страницу (<b>Ctrl+Shift+R</b>) и войдите снова.</li></ol>';
+    } else {
+      h += '<p>Сейчас браузер <b>запрещает этому сайту сохранять данные</b> (файлы cookie и хранилище). Кнопка «Разрешить» в окне сайта этот запрет снять не может — он задаётся в настройках браузера. ' +
+        'Пока запрет действует, после закрытия вкладки придётся снова входить и разрешать cookie.</p>';
+      if (b.key === 'edge') {
+        h += '<div class="sh-h">Способ 1 — быстрый</div><ol class="sh-ol">' +
+          '<li>В адресной строке справа нажмите значок файлов cookie с крестиком («Файлы cookie заблокированы»).</li>' +
+          '<li>Выберите «Разрешить сайту сохранять файлы cookie» и нажмите «Готово».</li>' +
+          '<li>Обновите страницу: <b>Ctrl+Shift+R</b>.</li></ol>' +
+          '<div class="sh-h">Способ 2 — через настройки Edge</div><ol class="sh-ol">' +
+          '<li>Скопируйте адрес ' + code('edge://settings/content/cookies') + ', вставьте его в адресную строку Edge и нажмите Enter.</li>' +
+          '<li>Включите переключатель «Разрешить сайтам сохранять и читать данные файлов cookie (рекомендуется)».</li>' +
+          '<li>Если ниже, в списке «Блокировать», есть <b>' + esc(host) + '</b> или <b>onrender.com</b> — удалите их (⋯ → «Удалить»).</li>' +
+          '<li>В списке «Разрешить» нажмите «Добавить», вставьте адрес сайта ' + code(site) + ' и нажмите «Добавить».</li>' +
+          '<li>Вернитесь на сайт и нажмите <b>Ctrl+Shift+R</b>.</li></ol>';
+      } else if (b.key === 'chrome') {
+        h += '<ol class="sh-ol">' +
+          '<li>Скопируйте адрес ' + code('chrome://settings/content/siteData') + ', вставьте его в адресную строку Chrome и нажмите Enter (это «Настройки сайтов» → «Данные сайтов, сохраненные на устройстве»).</li>' +
+          '<li>Выберите «Разрешить сайтам сохранять данные на устройстве» — или ниже, в списке разрешённых сайтов, нажмите «Добавить» и вставьте адрес ' + code(site) + '.</li>' +
+          '<li>Вернитесь на сайт и нажмите <b>Ctrl+Shift+R</b>.</li></ol>';
+      } else if (b.key === 'yandex') {
+        h += '<ol class="sh-ol">' +
+          '<li>Скопируйте адрес ' + code('browser://settings/content') + ', вставьте его в адресную строку и нажмите Enter.</li>' +
+          '<li>В блоке «Cookie-файлы» выберите «Разрешены» (или добавьте сайт ' + code(site) + ' в исключения как разрешённый).</li>' +
+          '<li>Вернитесь на сайт и нажмите <b>Ctrl+Shift+R</b>.</li></ol>';
+      } else if (b.key === 'firefox') {
+        h += '<ol class="sh-ol">' +
+          '<li>Откройте «Настройки» → «Приватность и защита» → «Куки и данные сайтов» → «Управление исключениями…».</li>' +
+          '<li>Вставьте адрес сайта ' + code(site) + ', нажмите «Разрешить», затем «Сохранить изменения».</li>' +
+          '<li>Вернитесь на сайт и нажмите <b>Ctrl+Shift+R</b>.</li></ol>';
+      } else {
+        h += '<ol class="sh-ol">' +
+          '<li>Откройте настройки браузера → раздел «Файлы cookie» или «Данные сайтов».</li>' +
+          '<li>Разрешите сайтам сохранять данные — или добавьте адрес ' + code(site) + ' в список разрешённых.</li>' +
+          '<li>Вернитесь на сайт и нажмите <b>Ctrl+Shift+R</b>.</li></ol>';
+      }
+      h += '<div class="sh-note">🏢 Если переключатель серый и рядом написано «Управляется вашей организацией», настройки браузера на этом компьютере задаёт IT-отдел. ' +
+        'Попросите разрешить файлы cookie для сайта ' + code(site) + ' — или откройте сайт в другом браузере.</div>';
+    }
+    var tech = [];
+    if (d.ls && d.ls.state && d.ls.state !== 'ok') tech.push('хранилище: ' + (d.ls.err || d.ls.state));
+    tech.push('файлы cookie: ' + (d.cookies ? 'записываются' : 'заблокированы'));
+    h += '<div class="sh-diag">Техническая причина — ' + esc(tech.join('; ')) + '</div>';
+    return h;
+  }
+  function openStorageHelp() {
+    var d = storageDiag() || {};
+    var full = !!(d.ls && d.ls.state === 'full');
+    spDialog('', {
+      title: full ? 'Хранилище браузера переполнено' : 'Как разрешить сайту сохранять данные ' + storageBrowser().inName,
+      icon: full ? '🗄' : '🛡', html: storageHelpHtml(), cancel: false,
+      choices: [{ label: 'Понятно', value: true, cls: 'primary' }]
+    });
+    var ov = document.getElementById('sp-dlg');
+    if (!ov || !ov.querySelector) return;
+    ov.style.zIndex = '100002'; // поверх окна cookie (z-index 100001)
+    var box = ov.querySelector('.sp-dlg-box'); if (box) box.style.width = 'min(620px,100%)';
+    ov.addEventListener('click', function (e) {
+      var c = e.target && e.target.closest ? e.target.closest('[data-copy]') : null;
+      if (!c) return;
+      e.stopPropagation();
+      spCopyText(c.getAttribute('data-copy') || '', function (ok) {
+        c.textContent = ok ? '✓ Скопировано' : 'Выделите и скопируйте вручную';
+        setTimeout(function () { c.textContent = '📋 Копировать'; }, 1800);
+      });
+    });
+  }
+  /* причина — в общий «Логи ошибок» (после входа запись уйдёт на сервер) */
+  function storageDiagReport() {
+    var d = storageDiag();
+    if (!d || !window.SP_ERRORS || !SP_ERRORS.log) return false;
+    var badList = [d.ls, d.ss].filter(function (x) { return x && x.state && x.state !== 'ok'; });
+    if (!badList.length) return false;
+    var parts = badList.map(function (x) {
+      return x.name + ' — ' + (x.state === 'freed' ? 'было переполнено, освобождено место (' + (x.freed || []).join(', ') + ')'
+        : x.state === 'full' ? 'переполнено, работа без сохранения' : 'заблокировано браузером, работа без сохранения') + (x.err ? ' [' + x.err + ']' : '');
+    });
+    var onlyFreed = badList.every(function (x) { return x.state === 'freed'; });
+    var ua = ''; try { ua = String(navigator.userAgent || '').slice(0, 300); } catch (e) {}
+    SP_ERRORS.log(onlyFreed ? 'info' : 'warn', 'storage', 'Хранилище браузера: ' + parts.join('; ') + '; cookie: ' + (d.cookies ? 'записываются' : 'заблокированы') + (d.frame ? '; сайт открыт внутри другой страницы' : ''),
+      { ls: d.ls, ss: d.ss, cookies: d.cookies, frame: d.frame, proto: d.proto, ua: ua });
+    return true;
+  }
+
   /* =====================================================================
      22.09-247: РАЗРЕШЕНИЕ НА COOKIE. При первом открытии сайт спрашивает разрешение
      на cookie и хранилище браузера (без них не работают вход и данные). Выбор хранится
@@ -16640,7 +16967,7 @@
       : 'Чтобы войти, разрешите использование cookie.') + '</span>' +
       '<button type="button" class="btn sm primary" id="li-consent-ok">Разрешить</button>';
     var b2 = document.getElementById('li-consent-ok');
-    if (b2) b2.onclick = function () { consentSet('accept'); consentApplyLoginState(); toast('ok', '🍪 Cookie разрешены — можно входить'); };
+    if (b2) b2.onclick = function () { consentSet('accept'); consentApplyLoginState(); toast(storageNotSaved() ? 'warn' : 'ok', storageNotSaved() ? '🍪 Разрешено до закрытия вкладки (браузер запрещает сайту сохранять данные) — можно входить' : '🍪 Cookie разрешены — можно входить'); };
   }
   /* окно разрешения: закрывается только выбором (щелчок мимо и Esc не закрывают) */
   function openConsentDialog() {
@@ -16655,6 +16982,9 @@
       '<div class="sp-consent-b">' +
       '<p>Сайт SmartPlan использует <b>cookie и хранилище браузера</b>, чтобы вы могли войти в систему и работать: в браузере хранятся данные входа, ваши настройки и рабочие данные (в том числе для работы без связи с сервером). Подключаемые карты (Яндекс.Карты, OpenStreetMap и др.) могут устанавливать свои cookie.</p>' +
       '<p>Без разрешения вход в систему невозможен. Выбор сохраняется в этом браузере; изменить его можно в любой момент — ссылка «🍪 Cookie» на экране входа и внизу меню.</p>' +
+      (storageNotSaved() ? '<p class="sp-consent-warn">⚠ <b>Сейчас браузер запрещает сайту сохранять данные</b> — выбор будет действовать только до закрытия вкладки, ' +
+        'и при следующем открытии это окно появится снова. Это настройка браузера, а не сайта: ' +
+        '<a href="#" data-storage-help="1">как снять запрет ' + esc(storageBrowser().inName) + '</a>.</p>' : '') + // 22.09-252
       (cur ? '<p class="sp-consent-cur">Сейчас: ' + (cur === 'accept' ? '✅ разрешено' : '⛔ отказано') + '</p>' : '') +
       '</div>' +
       '<div class="sp-consent-f">' +
@@ -16663,6 +16993,8 @@
       '</div></div>';
     document.body.appendChild(ov);
     ov.addEventListener('click', function (e) {
+      var hl = e.target && e.target.closest ? e.target.closest('[data-storage-help]') : null; // 22.09-252: «как снять запрет»
+      if (hl) { if (e.preventDefault) e.preventDefault(); e.stopPropagation(); openStorageHelp(); return; }
       var b = e.target && e.target.closest ? e.target.closest('[data-consent]') : null;
       if (!b) return; // щелчок мимо окна — нужен выбор
       e.stopPropagation();
@@ -16674,7 +17006,11 @@
         toast('warn', '🍪 Вы отказались от cookie — без них работа на сайте невозможна, выполнен выход. Разрешить можно на экране входа.');
       }
       consentApplyLoginState();
-      if (ch === 'accept') toast('ok', '🍪 Спасибо! Cookie разрешены.');
+      if (ch === 'accept') {
+        // 22.09-252: браузер запрещает хранилище — честно: разрешение действует только до закрытия вкладки
+        if (storageNotSaved()) toast('warn', '🍪 Разрешено — но только до закрытия вкладки: браузер запрещает сайту сохранять данные. Как снять запрет — ссылка «Как разрешить» под формой входа.');
+        else toast('ok', '🍪 Спасибо! Cookie разрешены.');
+      }
     });
     setTimeout(function () { var f = ov.querySelector('[data-consent="accept"]'); if (f && f.focus) f.focus(); }, 30);
   }
@@ -17731,6 +18067,8 @@
     else if (a === 'backup-check-all') { document.querySelectorAll('[data-bk]').forEach(function (c) { c.checked = true; }); }
     else if (a === 'backup-check-none') { document.querySelectorAll('[data-bk]').forEach(function (c) { c.checked = false; }); }
     else if (a === 'backup-restore') { var _bf = document.getElementById('backup-file'); if (_bf) _bf.click(); }
+    else if (a === 'wr-open') { openWorkRecovery(); } // 22.09-255: восстановление видов работ из копии браузера
+    else if (a === 'wr-drop') { wrDrop(); }
     else if (a === 'backup-restore-go') { backupRestoreGo(); }
     else if (a === 'gl-color') { /* цвет обозначения — слушатель на инпуте */ }
     // ===== Страница «Работники» =====
@@ -18000,12 +18338,14 @@
   }
   function graphsSaveList(list) {
     try { localStorage.setItem(GRAPHS_KEY, JSON.stringify(list || [])); } catch (e) {}
-    // Сборка 22.09-25: синхронизация графиков с сервером Render
-    if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
+    // Сборка 22.09-25: синхронизация графиков с сервером Render.
+    // 22.09-254: на сервер — только изменённые в этом браузере графики и только после получения
+    // актуальных данных (раньше уходили ВСЕ графики — старая копия затирала свежие правки)
+    if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken() && window.SP_API.syncPush) {
       var arr = list || [];
       arr.forEach(function (g) {
         if (!g || !g.id) return;
-        window.SP_API.upsert('graphs', g).catch(function (e) {
+        window.SP_API.syncPush('graphs', g).catch(function (e) {
           console.warn('graphs sync failed for', g.id, e && e.err || e);
         });
       });
@@ -24998,6 +25338,11 @@
     var cl = document.getElementById(id);
     if (cl && cl.addEventListener) cl.addEventListener('click', function (ev) { if (ev && ev.preventDefault) ev.preventDefault(); openConsentDialog(); });
   });
+  // 22.09-252: «Как разрешить — пошагово» под формой входа (браузер запрещает/переполнено хранилище)
+  (function () {
+    var shl = document.getElementById('storage-help-link');
+    if (shl && shl.addEventListener) shl.addEventListener('click', function (ev) { if (ev && ev.preventDefault) ev.preventDefault(); openStorageHelp(); });
+  })();
   // (кнопка sync-btn и её модалка удалены — синхронизация теперь через polling API)
   // Попап-календарь тоже сразу
   setTimeout(function() { try { initDatePicker(); } catch(e) { console.error('DatePicker init:', e); } }, 100);
@@ -25023,6 +25368,7 @@
     initWeatherPopup();
     // Инициализация локального лога ошибок (SP_ERRORS)
     try { if (window.SP_ERRORS && SP_ERRORS.init) SP_ERRORS.init(); } catch (e) {}
+    try { storageDiagReport(); } catch (eSD) {} // 22.09-252: причина проблем с хранилищем — в «Логи ошибок»
     // Real-time синхронизация с сервером Render (polling каждую секунду)
     // Заменяет старую логику с общей папкой (sync.js) и общим сервером (DB.syncFromServer)
     try {

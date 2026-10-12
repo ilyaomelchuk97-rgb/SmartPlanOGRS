@@ -42,20 +42,52 @@ module.exports = function (pool, section) {
     }
   });
 
-  // POST /api/<section> — создать (id из тела)
+  // POST /api/<section> — создать/обновить (id из тела)
+  // 22.09-254: защита от затирания свежих данных старой копией. Клиент присылает base —
+  // updated_at версии, на которой основано его изменение. Если на сервере запись новее
+  // (её изменили на другом устройстве) — НЕ перезаписываем: 409 и актуальная запись.
+  // Если данные не изменились — ничего не пишем (без лишних «изменений» и уведомлений).
   router.post('/', async (req, res) => {
     try {
       const body = req.body || {};
       const id = body.id;
       if (!id) return res.status(400).json({ ok: false, err: 'нет id' });
       const data = body.data || body;     // поддержка обоих форматов
+      if (data && typeof data === 'object') { delete data._base; delete data._srv; delete data._deleted; delete data._updated_at; }
+      const base = (typeof body.base === 'number' && isFinite(body.base) && body.base >= 0) ? body.base : null;
 
-      const r = await pool.query(
-        `INSERT INTO ${section} (id, data) VALUES ($1, $2)
-         ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, deleted = FALSE, updated_at = NOW()
-         RETURNING id, data, deleted, updated_at`,
-        [id, data]
-      );
+      let r;
+      if (base === null) {
+        // служебные вызовы без версии — как раньше
+        r = await pool.query(
+          `INSERT INTO ${section} (id, data) VALUES ($1, $2)
+           ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, deleted = FALSE, updated_at = NOW()
+           RETURNING id, data, deleted, updated_at`,
+          [id, data]
+        );
+      } else {
+        r = await pool.query(
+          `INSERT INTO ${section} (id, data) VALUES ($1, $2)
+           ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, deleted = FALSE, updated_at = NOW()
+            WHERE (${section}.data IS DISTINCT FROM EXCLUDED.data OR ${section}.deleted)
+              AND ${section}.updated_at <= to_timestamp(($3::double precision + 1) / 1000.0)
+           RETURNING id, data, deleted, updated_at`,
+          [id, data, base]
+        );
+        if (!r.rows.length) {
+          const cur = await pool.query(
+            `SELECT id, data, deleted, updated_at, (data = $2::jsonb) AS same FROM ${section} WHERE id = $1`,
+            [id, data]
+          );
+          const row = cur.rows[0];
+          if (row && !row.deleted && row.same) {
+            res.locals.spUnchanged = true; // без уведомления остальным — ничего не изменилось
+            return res.json({ ok: true, unchanged: true, record: rowToRecord(row) });
+          }
+          await log(pool, { user: req.user, section, action: 'conflict', objectId: id, details: 'не перезаписано: на сервере новее — ' + (data.name || data.full_name || data.addr || id) });
+          return res.status(409).json({ ok: false, conflict: true, err: 'запись изменена на другом устройстве — не перезаписана', record: row ? rowToRecord(row) : null });
+        }
+      }
       await log(pool, { user: req.user, section, action: 'upsert', objectId: id, details: data.name || data.full_name || id });
       res.json({ ok: true, record: rowToRecord(r.rows[0]) });
     } catch (e) {

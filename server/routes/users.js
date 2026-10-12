@@ -93,6 +93,26 @@ module.exports = function (pool) {
       if (!login) return res.status(400).json({ ok: false, err: 'нет login' });
       if (!full_name) return res.status(400).json({ ok: false, err: 'нет full_name' });
 
+      // 22.09-254: защита от затирания свежих данных старой копией (как у остальных разделов):
+      // base — updated_at версии, на которой основано изменение. Смена пароля проходит всегда.
+      const base = (typeof body.base === 'number' && isFinite(body.base) && body.base >= 0) ? body.base : null;
+      if (base !== null && !data.plain_password) {
+        const cur = await pool.query(
+          `SELECT id, login, full_name, role, prof, active, deleted, updated_at, (data = $2::jsonb) AS same_data FROM users WHERE id = $1`,
+          [id, JSON.stringify(stripUnsafeData(data))]
+        );
+        const row = cur.rows[0];
+        if (row && new Date(row.updated_at).getTime() > base + 1) {
+          const same = !row.deleted && row.same_data && row.login === login && row.full_name === full_name && row.role === role &&
+            (row.prof || null) === (prof || null) && row.active === active;
+          const rec = { id: row.id, login: row.login, full_name: row.full_name, role: row.role, prof: row.prof, active: row.active,
+            _deleted: !!row.deleted, _updated_at: new Date(row.updated_at).getTime() };
+          if (same) { res.locals.spUnchanged = true; return res.json({ ok: true, unchanged: true, record: rec }); }
+          await log(pool, { user: req.user, section: 'users', action: 'conflict', objectId: id, details: 'не перезаписано: на сервере новее — ' + full_name });
+          return res.status(409).json({ ok: false, conflict: true, err: 'пользователь изменён на другом устройстве — не перезаписан', record: rec });
+        }
+      }
+
       // Если передан plain_password — хэшируем bcrypt.
       // Если ничего не передано — генерируем дефолтный пароль 'changeme'
       // (чтобы не падать с NOT NULL на password_hash).
@@ -157,7 +177,7 @@ module.exports = function (pool) {
         record: {
           id: row.id, login: row.login, full_name: row.full_name, role: row.role,
           prof: row.prof, active: row.active,
-          _deleted: false, _updated_at: Date.now()
+          _deleted: false, _updated_at: row.updated_at ? new Date(row.updated_at).getTime() : Date.now() // 22.09-254: настоящая версия
         }
       });
     } catch (e) {

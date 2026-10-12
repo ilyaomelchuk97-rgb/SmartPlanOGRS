@@ -32,6 +32,34 @@ window.SP_WORK = (function () {
     { id: 'w14', group: 'Иные СМР',                             name: 'Восстановление асфальта (ямочный)',    norm: 0.3,  unit: 'м2', needs_permit: false, depends_on_snow: false, min_temp: 5,   season: 'Лето',     equipment: '—',              min_workers: 2, opt_workers: 3 }
   ];
 
+  // 22.09-255: ОДНОРАЗОВАЯ КОПИЯ ДЛЯ ВОССТАНОВЛЕНИЯ. До 22.09-254 браузер со старой копией затирал
+  // на сервере свежие настройки видов работ и норм времени. Если в ЭТОМ браузере сохранилась своя
+  // версия каталога (например, здесь настраивали, а затёр другой браузер), при первом запуске новой
+  // версии сайта сохраняем её ДО синхронизации с сервером — администратор сможет сравнить её с
+  // сервером и вернуть нужное (окно после входа и «Бэкапы баз данных» → «Восстановление»).
+  var RECOVERY_KEY = 'smartplan_work_recovery';
+  (function takeRecoveryCopy() {
+    try {
+      if (localStorage.getItem(RECOVERY_KEY) || localStorage.getItem(RECOVERY_KEY + '_taken')) return;
+      var copies = [], seen = {};
+      function add(src, ts, raw) {
+        if (!raw) return;
+        var d = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        if (!d || !d.areas || typeof d.areas !== 'object') return;
+        var sig = JSON.stringify(d.areas);
+        if (seen[sig]) return; // одинаковые копии — одна
+        seen[sig] = 1;
+        copies.push({ src: src, ts: ts || null, areas: d.areas });
+      }
+      // одна копия — самое свежее, что было в браузере: его каталог; если его нет — автоснимок при входе
+      var cur = localStorage.getItem(KEY);
+      if (cur) { try { add('local', JSON.parse(cur).updated_at, cur); } catch (e1) {} }
+      if (!copies.length) { try { var ab = JSON.parse(localStorage.getItem('smartplan_autobackup') || 'null'); if (ab && ab.keys && ab.keys[KEY]) add('autobackup', ab.ts, ab.keys[KEY]); } catch (e2) {} }
+      if (copies.length) localStorage.setItem(RECOVERY_KEY, JSON.stringify({ taken: Date.now(), copies: copies }));
+      localStorage.setItem(RECOVERY_KEY + '_taken', String(Date.now()));
+    } catch (e) {}
+  })();
+
   var memoryDB = null;
   function load() {
     if (memoryDB) return memoryDB;
@@ -62,8 +90,11 @@ window.SP_WORK = (function () {
     if (cloudData && cloudData.areas) { memoryDB = cloudData; try { localStorage.setItem(KEY, JSON.stringify(cloudData)); } catch(e) {} }
   }
   function syncWithServer(db) {
-    // Сборка 22.09-26: SP_API.upsert для всех видов работ
-    if (!window.SP_API || !window.SP_API.getToken || !window.SP_API.getToken()) return;
+    // 22.09-254: раньше здесь на сервер уходили ВСЕ виды работ при каждом сохранении (и при
+    // открытии сайта — посев/проверка каталога). Браузер со старой копией так затирал на сервере
+    // свежие настройки видов работ и норм времени. Теперь — только изменённые в этом браузере
+    // и только после получения актуальных данных с сервера (SP_API.syncPush).
+    if (!window.SP_API || !window.SP_API.getToken || !window.SP_API.getToken() || !window.SP_API.syncPush) return;
     if (!db || !db.areas) return;
     Object.keys(db.areas).forEach(function (area) {
       var arr = db.areas[area];
@@ -71,11 +102,17 @@ window.SP_WORK = (function () {
       arr.forEach(function (w) {
         if (!w || !w.id) return;
         // Добавляем area в запись чтобы знать куда положить на сервере
-        var rec = Object.assign({ area: area }, w);
-        window.SP_API.upsert('work_catalog', rec).catch(function (e) {
+        window.SP_API.syncPush('work_catalog', Object.assign({ area: area }, w)).catch(function (e) {
           try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log("warn", "sync", "sync failed", { err: String(e && e.err || e), where: "work_db.js" }); } catch(_){ }
         });
       });
+    });
+  }
+  // 22.09-254: явная отправка одной работы — всегда с участком (по нему её раскладывают другие браузеры)
+  function pushWork(area, w) {
+    if (!w || !w.id || !window.SP_API || !window.SP_API.getToken || !window.SP_API.getToken()) return;
+    window.SP_API.upsert('work_catalog', Object.assign({ area: area }, w)).catch(function (e) {
+      try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log("warn", "sync", "sync failed", { err: String(e && e.err || e), where: "work_db.js" }); } catch(_){ }
     });
   }
   function newId() { return 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
@@ -140,6 +177,38 @@ window.SP_WORK = (function () {
     } catch (e) {}
     save(db);
     return Promise.resolve(db);
+  }
+
+  // 22.09-255: заводские виды работ (как их создаёт посев), БЕЗ сохранения: { id → работа }.
+  // Нужны восстановлению из копии браузера — заводские значения «восстанавливать» не предлагаем.
+  function factoryWorks() {
+    var out = {};
+    DEFAULTS.forEach(function (d) {
+      out[d.id] = Object.assign({
+        id: d.id, group: d.group, name: d.name, norm: d.norm, unit: d.unit,
+        needs_permit: d.needs_permit || false, depends_on_snow: d.depends_on_snow || false,
+        min_temp: d.min_temp != null ? d.min_temp : -50, season: d.season || 'Круглый год',
+        equipment: d.equipment || '—', min_workers: d.min_workers || 1, opt_workers: d.opt_workers || 2
+      }, _newAttrDefaults());
+    });
+    try {
+      var SG = window.SP_GRP_NORMS_SEED;
+      if (SG) {
+        var PS = SG.profs || [], TT = SG.types || [''];
+        (SG.rows || []).forEach(function (r, idx) {
+          var name = String(r[1] || '').trim(); if (!name) return;
+          var crew = (r[5] || []).map(function (c) { var pp = PS[c[0]] || { name: '?', grade: 0 }; return { prof: pp.name, grade: String(pp.grade), count: c[1] }; });
+          var crewSize = crew.reduce(function (a, e) { return a + e.count; }, 0);
+          var typ = TT[r[4]] || '';
+          out['w_grp_norm_' + (idx + 1)] = Object.assign({
+            id: 'w_grp_norm_' + (idx + 1), group: (SG.groups && SG.groups[r[0]]) || 'Без группы', name: name, norm: r[2] / 1000, unit: 'объект',
+            needs_permit: false, depends_on_snow: false, min_temp: -50, season: 'Круглый год', equipment: '—',
+            min_workers: crewSize || 1, opt_workers: crewSize || 1
+          }, _newAttrDefaults(), { object_categories: typ ? [typ] : [], lines_count: r[3] || 0, crew_size: crewSize, crew: crew });
+        });
+      }
+    } catch (e) {}
+    return out;
   }
 
   // Дефолты для новых атрибутов (по «4 Атрибуты видов работ.htm»):
@@ -259,7 +328,11 @@ window.SP_WORK = (function () {
     var arr = db.areas[name] || [];
     delete db.areas[name];
     save(db);
-    // Сервер: работы участка удаляются внутри DELETE /api/areas/:id
+    // 22.09-254: работы удалённого участка удаляем и на сервере (раньше они там оставались
+    // и при синхронизации возвращали участок обратно)
+    if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken() && window.SP_API.del) {
+      arr.forEach(function (w) { if (w && w.id) window.SP_API.del('work_catalog', w.id).catch(function () {}); });
+    }
     return arr;
   }
   function getWorks(area) {
@@ -317,12 +390,7 @@ window.SP_WORK = (function () {
       opt_workers: parseInt(data.opt_workers) || 2
     }, _newAttrDefaults(), _parseNewAttrs(data));
     db.areas[area].push(w); save(db);
-    // Сборка 22.09-25: SP_API
-    if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
-      window.SP_API.upsert('work_catalog', w).catch(function (e) {
-          try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log("warn", "sync", "sync failed", { err: String(e && e.err || e), where: "work_db.js" }); } catch(_){ }
-      });
-    }
+    pushWork(area, w); // Сборка 22.09-25: SP_API (22.09-254: с участком)
     return w;
   }
   function updateWork(area, id, data) {
@@ -345,11 +413,7 @@ window.SP_WORK = (function () {
       // у участков со скрытым блоком (openWorkModal) старые значения сохраняются.
       Object.keys(na).forEach(function (k) { if (data[k] !== undefined) arr[i][k] = na[k]; });
       save(db);
-      if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
-        window.SP_API.upsert('work_catalog', arr[i]).catch(function (e) {
-          try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log("warn", "sync", "sync failed", { err: String(e && e.err || e), where: "work_db.js" }); } catch(_){ }
-        });
-      }
+      pushWork(area, arr[i]); // 22.09-254: с участком
       return arr[i];
     }
     return null;
@@ -368,13 +432,7 @@ window.SP_WORK = (function () {
     });
     if (changed.length) {
       save(db);
-      if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
-        changed.forEach(function (w) {
-          window.SP_API.upsert('work_catalog', w).catch(function (e) {
-              try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log("warn", "sync", "sync failed", { err: String(e && e.err || e), where: "work_db.js" }); } catch(_){ }
-          });
-        });
-      }
+      changed.forEach(function (w) { pushWork(area, w); }); // 22.09-254: с участком
     }
     return changed.length;
   }
@@ -405,13 +463,7 @@ window.SP_WORK = (function () {
     });
     if (changed.length) {
       save(db);
-      if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
-        changed.forEach(function (w) {
-          window.SP_API.upsert('work_catalog', w).catch(function (e) {
-              try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log("warn", "sync", "sync failed", { err: String(e && e.err || e), where: "work_db.js" }); } catch(_){ }
-          });
-        });
-      }
+      changed.forEach(function (w) { pushWork(area, w); }); // 22.09-254: с участком
     }
     return changed.length;
   }
@@ -452,6 +504,7 @@ window.SP_WORK = (function () {
     getWorkById: getWorkById, getWorkTree: getWorkTree, addWork: addWork, updateWork: updateWork, deleteWork: deleteWork, renameGroup: renameGroup,
     setGroupFlags: setGroupFlags, groupFlagsOf: groupFlagsOf,
     ensureArea: ensureArea, renameArea: renameArea, deleteArea: deleteArea,
-    DEFAULTS: DEFAULTS, reloadFromCloud: reloadFromCloud, SCHEMA: SCHEMA
+    DEFAULTS: DEFAULTS, reloadFromCloud: reloadFromCloud, SCHEMA: SCHEMA,
+    factoryWorks: factoryWorks // 22.09-255
   };
 })();

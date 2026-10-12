@@ -319,6 +319,8 @@
     else if (a === 'backup-check-all') { document.querySelectorAll('[data-bk]').forEach(function (c) { c.checked = true; }); }
     else if (a === 'backup-check-none') { document.querySelectorAll('[data-bk]').forEach(function (c) { c.checked = false; }); }
     else if (a === 'backup-restore') { var _bf = document.getElementById('backup-file'); if (_bf) _bf.click(); }
+    else if (a === 'wr-open') { openWorkRecovery(); } // 22.09-255: восстановление видов работ из копии браузера
+    else if (a === 'wr-drop') { wrDrop(); }
     else if (a === 'backup-restore-go') { backupRestoreGo(); }
     else if (a === 'gl-color') { /* цвет обозначения — слушатель на инпуте */ }
     // ===== Страница «Работники» =====

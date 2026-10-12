@@ -38,7 +38,14 @@
   }
   /* Автоснимок всей базы (страховка от чистки/сброса; живёт в smartplan_autobackup) */
   function snapshotAuto() {
-    try { localStorage.setItem('smartplan_autobackup', JSON.stringify({ ts: Date.now(), keys: backupCollectKeys() })); } catch (e) {}
+    // 22.09-252: автоснимок — копия ВСЕЙ базы в том же хранилище браузера (удваивает объём).
+    // Большая база (> 1,5 млн знаков) — снимок не делаем, а не поместился — убираем устаревший,
+    // чтобы не переполнить хранилище (данные и так на сервере; полная страховка — файл бэкапа).
+    try {
+      var json = JSON.stringify({ ts: Date.now(), keys: backupCollectKeys() });
+      if (json.length > 1500000) { localStorage.removeItem('smartplan_autobackup'); return; }
+      localStorage.setItem('smartplan_autobackup', json);
+    } catch (e) { try { localStorage.removeItem('smartplan_autobackup'); } catch (e2) {} }
   }
   /* Восстановление из файла бэкапа (JSON) */
   var RESTORE_PENDING = null;
@@ -516,6 +523,16 @@
       '<button type="button" class="btn sm ghost" data-action="backup-check-all">выбрать все</button>' +
       '<button type="button" class="btn sm ghost" data-action="backup-check-none">снять выбор</button>' +
       '</div>';
+    // 22.09-255: восстановление видов работ из копии этого браузера
+    var _wrc = wrLoad();
+    if (_wrc) {
+      var _wrn = wrCount(wrDiffs());
+      html += '<div class="calc wr-card" style="margin-bottom:14px;align-items:center;gap:10px;flex-wrap:wrap;line-height:1.5">♻ <b>Восстановление видов работ из копии этого браузера</b>' +
+        '<span style="color:var(--muted)">(копия сохранена ' + esc(wrFmtTs(_wrc.taken)) + ')</span>' +
+        (_wrn ? '<span>отличий от сервера: <b>' + _wrn + '</b></span><button type="button" class="btn sm primary" data-action="wr-open">👀 Посмотреть и восстановить</button>'
+          : '<span style="color:#166534">совпадает с сервером</span>') +
+        '<button type="button" class="btn sm ghost" data-action="wr-drop">🗑 Удалить копию</button></div>';
+    }
     html += '<table class="dt"><thead><tr><th style="width:34px"></th><th>База данных</th><th>Ключ хранения</th><th style="text-align:right">Записей</th><th style="text-align:right">Объём</th></tr></thead><tbody>';
     DB_REGISTRY.forEach(function (entry) {
       var d = dbReadLS(entry);
@@ -536,6 +553,151 @@
     view.innerHTML = html;
     var inp = document.getElementById('backup-file');
     if (inp) inp.addEventListener('change', function () { backupScanFiles(inp.files); try { inp.value = ''; } catch (e) {} });
+  }
+
+  /* =====================================================================
+     22.09-255: ВОССТАНОВЛЕНИЕ ВИДОВ РАБОТ ИЗ КОПИИ ЭТОГО БРАУЗЕРА.
+     До 22.09-254 браузер со старой копией затирал на сервере свежие настройки видов работ и
+     норм времени. Новая версия при первом запуске сохраняет копию каталога этого браузера ДО
+     синхронизации (work_db.js → smartplan_work_recovery). Здесь её сравнивают с сервером и
+     возвращают выбранные виды работ (сразу у всех). Окно появляется у администратора после
+     входа, пока копия отличается от сервера; доступно и на странице «Бэкапы баз данных».
+     ===================================================================== */
+  var WR_KEY = 'smartplan_work_recovery';
+  var WR_FIELDS = [
+    ['name', 'название'], ['group', 'группа'], ['norm', 'норма времени, чел.-ч'], ['unit', 'единица'], ['crew', 'состав бригады'],
+    ['crew_size', 'исполнителей'], ['min_workers', 'мин. исполнителей'], ['opt_workers', 'опт. исполнителей'], ['season', 'сезон'],
+    ['min_temp', 'мин. t°C'], ['needs_permit', 'ордер-допуск'], ['depends_on_snow', 'зависит от снега'], ['equipment', 'техника'],
+    ['object_categories', 'категории объектов'], ['lines_count', 'линий редуцирования'], ['periodicity_value', 'периодичность'],
+    ['periodicity_unit', 'единица периодичности'], ['periodicity_dev', 'отклонение, дн.'], ['periodicity_basis', 'отсчёт периодичности'],
+    ['periodicity_depends_on', 'зависит от работ'], ['joint_with', 'проводится совместно'], ['telemetry_req', 'телеметрия'],
+    ['telemetry_type', 'тип телеметрии'], ['heating_req', 'отопление'], ['diag_equipment', 'приборная диагностика'],
+    ['group_flags', 'свойства группы'], ['operations', 'операции'], ['indicators', 'показатели'], ['departments', 'подразделения'],
+    ['print_forms', 'печатные формы'], ['op_journal', 'оперативный журнал'], ['passport_entry', 'эксплуатационный паспорт'], ['scan_attach', 'сканы']
+  ];
+  // значение для сравнения: пустые ([], '', null, 0, false) равны; порядок полей не важен
+  function wrNormVal(v) {
+    if (v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length)) return '';
+    if (typeof v === 'number') return v === 0 ? '' : String(v);
+    if (typeof v === 'boolean') return v ? '1' : '';
+    if (Array.isArray(v)) return v.map(function (x) { return (x && typeof x === 'object') ? Object.keys(x).sort().map(function (k) { return k + ':' + JSON.stringify(x[k]); }).join(',') : JSON.stringify(x); }).sort().join('|');
+    if (typeof v === 'object') return (window.SP_API && SP_API.canon) ? SP_API.canon(v) : JSON.stringify(v);
+    return String(v);
+  }
+  function wrShowVal(f, v) {
+    if (v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length)) return '—';
+    if (f === 'crew' && Array.isArray(v)) return v.map(function (c) { return c ? (c.count || 1) + '× ' + (c.prof || '?') + (c.grade ? ' (' + c.grade + ' р.)' : '') : ''; }).join(' + ');
+    if (typeof v === 'boolean') return v ? 'да' : 'нет';
+    if (Array.isArray(v)) return v.map(function (x) { return typeof x === 'object' ? JSON.stringify(x) : String(x); }).join(', ');
+    if (typeof v === 'object') return JSON.stringify(v);
+    return String(v);
+  }
+  function wrLoad() { try { var r = JSON.parse(localStorage.getItem(WR_KEY) || 'null'); return r && Array.isArray(r.copies) ? r : null; } catch (e) { return null; } }
+  function wrFmtTs(ts) { try { return ts ? new Date(ts).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''; } catch (e) { return ''; } }
+  // отличия копий от текущего (после синхронизации — серверного) каталога
+  function wrDiffs() {
+    var rc = wrLoad(); if (!rc) return null;
+    var cur = {};
+    try { WORK.getAreas().forEach(function (a) { WORK.getWorks(a).forEach(function (w) { if (w && w.id) cur[w.id] = { area: a, w: w }; }); }); } catch (e) { return null; }
+    var FACT = {}; try { FACT = (WORK.factoryWorks && WORK.factoryWorks()) || {}; } catch (eF) {}
+    function isFactory(cw) { // в копии — заводской вариант работы (не настройки пользователя): не предлагаем
+      var fw = FACT[cw.id];
+      return !!fw && WR_FIELDS.every(function (fd) { return cw[fd[0]] === undefined || wrNormVal(cw[fd[0]]) === wrNormVal(fw[fd[0]]); });
+    }
+    var out = [];
+    rc.copies.forEach(function (c, ci) {
+      var items = [];
+      Object.keys(c.areas || {}).forEach(function (area) {
+        (Array.isArray(c.areas[area]) ? c.areas[area] : []).forEach(function (cw) {
+          if (!cw || !cw.id || isFactory(cw)) return;
+          var sv = cur[cw.id];
+          if (!sv) { items.push({ id: cw.id, area: area, name: cw.name || cw.id, missing: true, rec: cw, fields: [] }); return; }
+          var fields = [];
+          WR_FIELDS.forEach(function (fd) {
+            if (wrNormVal(cw[fd[0]]) !== wrNormVal(sv.w[fd[0]])) fields.push({ f: fd[0], label: fd[1], srv: sv.w[fd[0]], copy: cw[fd[0]] });
+          });
+          if (fields.length) items.push({ id: cw.id, area: sv.area, name: cw.name || sv.w.name || cw.id, missing: false, rec: cw, fields: fields });
+        });
+      });
+      if (items.length) out.push({ ci: ci, src: c.src, ts: c.ts, taken: rc.taken, items: items });
+    });
+    return out;
+  }
+  function wrCount(list) { return (list || []).reduce(function (a, c) { return a + c.items.length; }, 0); }
+  function wrDrop() {
+    spConfirm('Удалить сохранённую в этом браузере копию видов работ?\nВернуть её будет нельзя (данные на сервере не изменятся).', { title: 'Удалить копию', ok: 'Удалить', danger: true }, function () {
+      try { localStorage.removeItem(WR_KEY); } catch (e) {}
+      toast('ok', '🗑 Копия видов работ удалена');
+      try { if (S.screen === 'backup') renderBackup(); } catch (e) {}
+    });
+  }
+  function wrRestore(picked) {
+    if (!picked.length) { toast('warn', 'Ничего не отмечено'); return; }
+    if (!(window.SP_API && SP_API.getToken && SP_API.getToken() && SP_API.upsert)) { toast('err', 'Нет связи с сервером — восстановить сейчас нельзя'); return; }
+    var okN = 0, failN = 0, got = [];
+    Promise.all(picked.map(function (it) {
+      var rec = Object.assign({}, it.rec, { area: it.area });
+      return Promise.resolve(SP_API.upsert('work_catalog', rec)).then(function (res) {
+        if (res && res.ok) { okN++; if (res.record) got.push(res.record); } else failN++;
+      }, function () { failN++; });
+    })).then(function () {
+      try { if (got.length && window.SP_SYNC_POLL && SP_SYNC_POLL.applyRemote) SP_SYNC_POLL.applyRemote('work_catalog', got); } catch (e) {}
+      try { logAction('Восстановление видов работ из копии браузера', 'восстановлено: ' + okN + (failN ? ', не удалось: ' + failN : '')); } catch (e) {}
+      toast(failN ? 'warn' : 'ok', '♻ Восстановлено видов работ: ' + okN + (failN ? ' · не удалось: ' + failN + ' — повторите' : ' — они уже у всех пользователей'));
+      try { refresh(); } catch (e) {}
+    });
+  }
+  function openWorkRecovery(ci) {
+    var all = wrDiffs() || [];
+    if (!all.length) { toast('ok', 'Копия видов работ в этом браузере совпадает с сервером — восстанавливать нечего'); return; }
+    var c = all[0];
+    if (ci != null) all.forEach(function (x) { if (x.ci === ci) c = x; });
+    var SRC = { local: 'данные этого браузера', autobackup: 'автоснимок при входе', prev: 'снимок перед обновлением сайта' };
+    var sel = c.items.map(function (it) { return !it.missing; });
+    var h = '<p>В этом браузере сохранилась другая версия видов работ и норм времени (' + esc(SRC[c.src] || c.src) +
+      (c.ts ? ', последнее обновление — ' + esc(wrFmtTs(c.ts)) : '') + '). Отличий от сервера: <b>' + c.items.length + '</b>.</p>' +
+      '<p class="wr-hint">Зачёркнуто — как сейчас на сервере, жирным — как в копии. Отметьте виды работ, которые нужно вернуть: они сразу обновятся у всех пользователей.</p>';
+    if (all.length > 1) h += '<div class="wr-tools">' + all.map(function (x) { return '<button type="button" class="btn sm' + (x === c ? ' primary' : '') + '" data-wr-copy="' + x.ci + '">' + esc(SRC[x.src] || x.src) + ' (' + x.items.length + ')</button>'; }).join('') + '</div>';
+    h += '<div class="wr-tools"><button type="button" class="btn sm" data-wr-all="1">отметить все</button><button type="button" class="btn sm" data-wr-none="1">снять отметки</button></div>';
+    h += '<div class="wr-list">' + c.items.map(function (it, i) {
+      return '<label class="wr-item"><input type="checkbox" data-wr-i="' + i + '"' + (sel[i] ? ' checked' : '') + '><div><b>' + esc(it.name) + '</b> <span class="wr-area">· ' + esc(it.area) + '</span>' +
+        (it.missing ? '<div class="wr-f">на сервере нет (удалён) — будет создан заново</div>'
+          : it.fields.map(function (fd) { return '<div class="wr-f">' + esc(fd.label) + ': <s>' + esc(wrShowVal(fd.f, fd.srv)) + '</s> → <b>' + esc(wrShowVal(fd.f, fd.copy)) + '</b></div>'; }).join('')) +
+        '</div></label>';
+    }).join('') + '</div>';
+    spDialog('', {
+      title: 'Восстановление видов работ', icon: '♻', html: h, cancel: 'Закрыть',
+      choices: [{ label: '♻ Восстановить отмеченные', value: 'restore', cls: 'primary' }, { label: '🗑 Удалить копию', value: 'drop', cls: 'danger' }]
+    }, function (v) {
+      if (v === 'restore') wrRestore(c.items.filter(function (it, i) { return sel[i]; }));
+      else if (v === 'drop') wrDrop();
+    });
+    var ov = document.getElementById('sp-dlg');
+    if (!ov || !ov.querySelector) return;
+    var box = ov.querySelector('.sp-dlg-box'); if (box) box.style.width = 'min(820px,100%)';
+    ov.addEventListener('change', function (e) {
+      var t = e.target; if (!t || !t.getAttribute) return;
+      var i = t.getAttribute('data-wr-i'); if (i != null) sel[+i] = t.checked === true;
+    });
+    ov.addEventListener('click', function (e) {
+      var t = e.target && e.target.closest ? e.target.closest('[data-wr-all],[data-wr-none],[data-wr-copy]') : null;
+      if (!t) return;
+      e.stopPropagation();
+      if (t.hasAttribute('data-wr-copy')) { openWorkRecovery(+t.getAttribute('data-wr-copy')); return; }
+      var on = t.hasAttribute('data-wr-all');
+      Array.prototype.forEach.call(ov.querySelectorAll('[data-wr-i]'), function (cb) { cb.checked = on; sel[+cb.getAttribute('data-wr-i')] = on; });
+    });
+  }
+  // после входа администратора (когда получены данные с сервера): копия отличается — предложить
+  function workRecoveryNotify() {
+    if (S.role !== 'admin' || S.wrAsked) return;
+    var all = wrDiffs(); var n = wrCount(all);
+    if (!n) return;
+    S.wrAsked = true;
+    spChoice('В этом браузере сохранилась другая версия видов работ и норм времени — ' + n + ' отличий от сервера.\n' +
+      'Если ваши настройки видов работ пропали, их можно вернуть отсюда: посмотрите отличия и отметьте, что восстановить.',
+      { title: 'Найдена копия видов работ', icon: '♻', choices: [{ label: '👀 Посмотреть', value: 'open', cls: 'primary' }], cancel: 'Позже' },
+      function (v) { if (v === 'open') openWorkRecovery(); });
   }
 
   /* =====================================================================

@@ -2211,13 +2211,14 @@
       var inProg = mt.filter(function (t) { return t.started_at && !isDone(t); })[0]; // 22.09-190: сейчас работает на объекте
       var _mc = masterCapacity(m.id, dayOff);
       var over = load > _mc;
-      html += '<div class="today-mstr"><span class="dot" style="background:' + m.color + '"></span><div><div class="nm" data-action="wc-open" data-mid="' + esc(m.id) + '" style="cursor:pointer" title="Нажмите — откроются карточки всех работ на этот день">' + esc(m.name) + ' <span style="color:var(--muted);font-weight:600;font-size:12px">→</span></div><div class="ar">' + esc(m.area) + '</div></div><div class="meta"><div class="h" style="color:' + (over ? 'var(--red)' : 'var(--ink)') + '">' + fmtH(load) + ' ч / ' + fmtH(_mc) + ' ч</div><span class="tag ' + (over ? 'over' : 'ok') + '">' + (over ? '⚠ Перегрузка +' + fmtH(load - _mc) + ' ч' : mt.length + ' заданий') + '</span>' + (dayOff === 0 && inProg ? ' <span class="tag ok" style="background:#dcfce7;color:#166534" title="Работа начата в ' + fmtClock(inProg.started_at) + '">🔨 на объекте с ' + fmtClock(inProg.started_at) + '</span>' : '') + '</div></div>';
+      // 22.09-251: «Карточки работ на день» открываются нажатием на ВЕСЬ блок мастера (а не только на ФИО)
+      html += '<div class="today-mstr" data-action="wc-open" data-mid="' + esc(m.id) + '" title="Нажмите — откроются карточки всех работ мастера на этот день"><span class="dot" style="background:' + m.color + '"></span><div><div class="nm">' + esc(m.name) + ' <span style="color:var(--muted);font-weight:600;font-size:12px">→</span></div><div class="ar">' + esc(m.area) + '</div></div><div class="meta"><div class="h" style="color:' + (over ? 'var(--red)' : 'var(--ink)') + '">' + fmtH(load) + ' ч / ' + fmtH(_mc) + ' ч</div><span class="tag ' + (over ? 'over' : 'ok') + '">' + (over ? '⚠ Перегрузка +' + fmtH(load - _mc) + ' ч' : mt.length + ' заданий') + '</span>' + (dayOff === 0 && inProg ? ' <span class="tag ok" style="background:#dcfce7;color:#166534" title="Работа начата в ' + fmtClock(inProg.started_at) + '">🔨 на объекте с ' + fmtClock(inProg.started_at) + '</span>' : '') + '</div></div>';
       // гант-шкала дня: 8:00–20:00, задачи и переезды
       html += ganttDayHtml(m, dayOff);
       mt.slice(0, 4).forEach(function (t) {
         var w = workOf(t);
         // 22.09-248: под мастером — ГРУППА работ (вид работ — во всплывающей подсказке); кнопок «Приступил/Закончил»
-        // здесь нет — они в «Карточках работ на день» (клик по ФИО мастера), здесь только отметка факта
+        // здесь нет — они в «Карточках работ на день» (клик по блоку мастера, 22.09-251), здесь только отметка факта
         var _gp = gwWorkGroup(w); if (_gp === 'Без группы') _gp = '';
         html += '<div class="taskline"><span class="pill" style="max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc((_gp ? 'Группа работ: ' + _gp + '\n' : '') + 'Вид работ: ' + (w ? w.name : '—')) + '">' + esc(_gp || (w ? w.name : '?')) + '</span><span>' + esc(addrOf(t)) + '</span>' + taskDayStatusHtml(t) + '<span style="margin-left:auto;color:var(--muted)">' + fmtH(taskHours(t)) + ' ч</span></div>';
       });

@@ -31,12 +31,14 @@
   }
   function graphsSaveList(list) {
     try { localStorage.setItem(GRAPHS_KEY, JSON.stringify(list || [])); } catch (e) {}
-    // Сборка 22.09-25: синхронизация графиков с сервером Render
-    if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
+    // Сборка 22.09-25: синхронизация графиков с сервером Render.
+    // 22.09-254: на сервер — только изменённые в этом браузере графики и только после получения
+    // актуальных данных (раньше уходили ВСЕ графики — старая копия затирала свежие правки)
+    if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken() && window.SP_API.syncPush) {
       var arr = list || [];
       arr.forEach(function (g) {
         if (!g || !g.id) return;
-        window.SP_API.upsert('graphs', g).catch(function (e) {
+        window.SP_API.syncPush('graphs', g).catch(function (e) {
           console.warn('graphs sync failed for', g.id, e && e.err || e);
         });
       });

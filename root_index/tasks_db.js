@@ -37,12 +37,13 @@ window.SP_TASKS = (function () {
     if (cloudData && cloudData.tasks) { memoryDB = cloudData; try { localStorage.setItem(KEY, JSON.stringify(cloudData)); } catch(e) {} }
   }
   function syncWithServer(db) {
+    // 22.09-254: на сервер — только записи, изменённые в этом браузере, и только после получения актуальных данных (раньше уходили ВСЕ записи — старая копия затирала свежие данные)
     // Сборка 22.09-25: синхронизация через SP_API (Render.com + PostgreSQL)
-    if (!window.SP_API || !window.SP_API.getToken || !window.SP_API.getToken()) return;
+    if (!window.SP_API || !window.SP_API.getToken || !window.SP_API.getToken() || !window.SP_API.syncPush) return;
     if (Array.isArray(db.tasks)) {
       db.tasks.forEach(function (t) {
         if (!t || !t.id) return;
-        window.SP_API.upsert('tasks', t).catch(function (e) {
+        window.SP_API.syncPush('tasks', t).catch(function (e) {
           try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log("warn", "sync", "sync failed", { err: String(e && e.err || e), where: "tasks_db.js" }); } catch(_){ }
         });
       });

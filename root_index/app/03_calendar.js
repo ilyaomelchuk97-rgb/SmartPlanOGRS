@@ -761,7 +761,7 @@
           SP_API.upsert('tasks', t).catch(function () {});
         });
         Object.keys(beforeIds).forEach(function (id) {
-          if (!keepIds[id]) SP_API.delete('tasks', id).catch(function () {});
+          if (!keepIds[id]) SP_API.del('tasks', id).catch(function () {}); // 22.09-254: был несуществующий SP_API.delete — удаление на сервере не срабатывало
         });
       }
     } catch (eS) {}

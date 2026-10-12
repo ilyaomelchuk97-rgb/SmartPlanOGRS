@@ -462,6 +462,30 @@
   .li-consent span{flex:1;min-width:180px}
   .cookie-link{color:#94a3b8;font-size:12px;text-decoration:none;border-bottom:1px dashed currentColor}
   .cookie-link:hover{color:var(--blue)}
+  /* 22.09-252: хранилище браузера запрещено/переполнено — предупреждение и пошаговая инструкция */
+  .storage-warn{margin-top:10px;padding:9px 11px;border-radius:9px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:11.5px;line-height:1.5;text-align:left}
+  .storage-warn a,.sp-consent-warn a{color:#1d4ed8;font-weight:700;text-decoration:none;border-bottom:1px dashed currentColor}
+  .storage-warn a:hover,.sp-consent-warn a:hover{color:var(--blue)}
+  .sp-consent-b p.sp-consent-warn{padding:9px 11px;border-radius:9px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:12.5px;line-height:1.5}
+  .sh-h{font-weight:800;margin:12px 0 4px;color:var(--ink)}
+  .sh-ol{margin:4px 0 6px;padding-left:22px}
+  .sh-ol li{margin:4px 0}
+  .sh-code{font-family:Consolas,'Courier New',monospace;font-size:12px;background:#f1f5f9;border:1px solid var(--line);border-radius:5px;padding:1px 5px;overflow-wrap:anywhere}
+  .sh-copy{margin-left:6px;padding:2px 8px;font-size:11.5px;font-family:inherit;border-radius:6px;border:1px solid #cbd5e1;background:#fff;color:var(--ink);cursor:pointer;white-space:nowrap}
+  .sh-copy:hover{border-color:var(--blue);color:var(--blue)}
+  .sh-note{margin-top:10px;padding:8px 10px;border-radius:8px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:12.5px;line-height:1.5}
+  .sh-diag{margin-top:10px;color:var(--muted);font-size:11.5px}
+  /* 22.09-255: восстановление видов работ из копии браузера */
+  .wr-hint{color:var(--muted);font-size:12.5px}
+  .wr-tools{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 8px}
+  .wr-list{display:flex;flex-direction:column;gap:6px}
+  .wr-item{display:flex;gap:9px;align-items:flex-start;padding:7px 10px;border:1px solid var(--line);border-radius:9px;cursor:pointer;background:#fff}
+  .wr-item:hover{border-color:var(--blue)}
+  .wr-item input{margin-top:3px}
+  .wr-area{font-size:11.5px;color:var(--muted)}
+  .wr-f{font-size:12px;color:#475569;margin-top:2px}
+  .wr-f s{color:#b91c1c}
+  .wr-f b{color:#166534}
   #li-btn:disabled{opacity:.55;cursor:not-allowed}
   .toast{background:var(--slate);color:#fff;padding:12px 15px;border-radius:10px;font-size:13px;box-shadow:var(--shadow-lg);max-width:340px;border-left:4px solid var(--blue);animation:in .2s ease;pointer-events:none}
   .toast.ok{border-left-color:var(--green)} .toast.warn{border-left-color:var(--yellow)} .toast.err{border-left-color:var(--red)}
@@ -731,6 +755,9 @@
   .cell{transition:background .15s,box-shadow .15s}
   .today-mstr{transition:transform .2s,box-shadow .2s}
   .today-mstr:hover{transform:translateX(3px)}
+  /* 22.09-251: блок мастера в «Сегодня» целиком открывает «Карточки работ на день» */
+  .today-mstr[data-action]{cursor:pointer}
+  .today-mstr[data-action]:hover{border-color:var(--blue);box-shadow:0 4px 14px rgba(37,99,235,.14)}
   .rz-item{transition:transform .2s,background .2s}
   .rz-item:hover{transform:translateX(4px);background:#f8fafc}
 
@@ -1168,7 +1195,7 @@
           <div style="margin-top:6px;font-size:12px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-249 · «Графики смен»: «Изменить график» слева от «Печать»; «Праздничные дни» и «Настройки бригад» — кнопки-значки с подписью при наведении</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-255 · восстановление затёртых видов работ из копии браузера (окно после входа и «Бэкапы баз данных»)</div>
         <div style="margin-top:6px;text-align:center"><a href="#" id="li-cookie-link" class="cookie-link" title="Посмотреть или изменить разрешение">🍪 Cookie и хранилище браузера</a></div>
     </div>
   </div>
@@ -1217,7 +1244,7 @@
       <a data-screen="errlogs" title="Логи ошибок приложения и API"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>Логи ошибок</a>
       <a data-screen="changelog" title="История версий системы: дата · сборка · что изменилось"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M12 11v4l2 2"/></svg>Журнал изменений</a>
     </nav>
-    <div class="sb-foot">УП «МИНГАЗ» · v0.9 прототип<br>© 2026 SmartPlan · <a href="#" id="sb-cookie-link" class="cookie-link" title="Разрешение на cookie и хранилище браузера">🍪 Cookie</a></div>
+    <div class="sb-foot">УП «МИНГАЗ»<br>© 2026 SmartPlan · <a href="#" id="sb-cookie-link" class="cookie-link" title="Разрешение на cookie и хранилище браузера">🍪 Cookie</a></div>
   </aside>
 
   <!-- MAIN -->
@@ -1269,18 +1296,33 @@
 <script>
 /* ============================================================
    ХРАНИЛИЩЕ-ФОЛБЭК (работа сайта одинаково во всех браузерах).
-   Edge при открытии сайта напрямую с диска (file://) или с
-   настройкой «Блокировать все файлы cookie» / корпоративной
-   политикой может ЗАПРЕЩАТЬ localStorage — любое обращение
-   бросает SecurityError. Ставим безопасную замену в памяти:
-   приложение полностью работает в любом браузере (данные живут
-   до перезагрузки страницы). Флаг window.SP_STORAGE_FALLBACK —
-   приложение показывает предупреждение.
+   Браузер может ЗАПРЕЩАТЬ сайту localStorage/sessionStorage:
+   Edge/Chrome с настройкой «Блокировать файлы cookie» (или сайт в
+   списке «Блокировать»), политика организации (IT-отдел), сайт внутри
+   чужой страницы (iframe), открытие файла с диска (file://) — любое
+   обращение бросает SecurityError. Тогда ставим безопасную замену в
+   памяти: приложение работает, но данные живут до закрытия вкладки.
+   22.09-252: ПЕРЕПОЛНЕННОЕ хранилище (QuotaExceededError) — это НЕ
+   запрет: сначала освобождаем место (автоснимок, старые копии, кэши —
+   всё это пересоздаётся или хранится на сервере) и работаем как обычно;
+   замена в памяти — только если и это не помогло. Итог проверки —
+   window.SP_STORAGE_DIAG (причина уходит в «Логи ошибок»);
+   window.SP_STORAGE_FALLBACK — стоит замена в памяти. На экране входа —
+   понятное предупреждение и ссылка «Как разрешить — пошагово».
    Скрипт стоит ПЕРВЫМ — раньше всех *_db.js и app.js. */
 (function () {
+  var PK = '__sp_probe__';
   function probe(store) {
-    try { store.setItem('__sp_probe__', '1'); store.removeItem('__sp_probe__'); return true; }
-    catch (e) { return false; }
+    try { store.setItem(PK, '1'); store.removeItem(PK); return null; }
+    catch (e) { return e || new Error('ошибка записи'); }
+  }
+  function isQuota(e) {
+    return !!e && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22 || e.code === 1014);
+  }
+  function errText(e) {
+    if (!e) return '';
+    var n = String(e.name || 'Error'), m = String(e.message || '');
+    return (n + (m ? ': ' + m : '')).slice(0, 200);
   }
   function makeShim() {
     var mem = {};
@@ -1294,47 +1336,88 @@
     Object.defineProperty(shim, 'length', { get: function () { return Object.keys(mem).length; } });
     return shim;
   }
-  function patch(name) {
-    var real = null;
-    try { real = window[name]; } catch (e) { real = null; }
-    if (real && probe(real)) return false; // хранилище доступно — ничего не делаем
-    var shim = makeShim();
-    try {
-      Object.defineProperty(window, name, { configurable: true, get: function () { return shim; } });
-    } catch (e) {
-      try { window[name] = shim; } catch (e2) { return false; }
+  /* переполнено: убираем только то, что пересоздаётся само или хранится на сервере */
+  var FREE_LS = [/^smartplan_autobackup$/, /^smartplan_prev_/, /^smartplan_wx_radar_cache$/, /^smartplan_weather_cache/, /^smartplan_route_time$/, /^smartplan_geocode$/];
+  var FREE_SS = [/^lmBr_/, /^lmOsrm_/, /^/]; // в sessionStorage — только кэши маршрутов (в крайнем случае — всё)
+  function freeSpace(store, rules) {
+    var freed = [];
+    for (var r = 0; r < rules.length; r++) {
+      var keys = [];
+      try { for (var i = 0; i < store.length; i++) keys.push(store.key(i)); } catch (e) {}
+      for (var j = 0; j < keys.length; j++) {
+        if (keys[j] && keys[j] !== PK && rules[r].test(keys[j])) { try { store.removeItem(keys[j]); freed.push(keys[j]); } catch (e) {} }
+      }
+      if (!probe(store)) break;
     }
-    return true;
+    return freed;
   }
-  var lsBroken = patch('localStorage');
-  var ssBroken = patch('sessionStorage');
-  if (lsBroken || ssBroken) {
-    window.SP_STORAGE_FALLBACK = true;
+  function check(name, rules) {
+    var d = { name: name, state: 'ok', err: '', freed: [] };
+    var real = null, err = null;
+    try { real = window[name]; } catch (e) { err = e; }
+    if (!err && !real) err = new Error('объект ' + name + ' отсутствует');
+    if (!err) err = probe(real);
+    if (err && real && isQuota(err)) {
+      d.freed = freeSpace(real, rules);
+      err = probe(real);
+      if (!err) { d.state = 'freed'; return d; } // место освобождено — работаем с настоящим хранилищем
+    }
+    if (!err) return d;
+    d.state = isQuota(err) ? 'full' : 'blocked';
+    d.err = errText(err);
+    var shim = makeShim();
+    try { Object.defineProperty(window, name, { configurable: true, get: function () { return shim; } }); }
+    catch (e) { try { window[name] = shim; } catch (e2) {} }
+    return d;
+  }
+  function cookieWorks() {
+    try {
+      var v = 'v' + Date.now();
+      document.cookie = 'sp_ck=' + v + '; path=/; SameSite=Lax';
+      var ok = String(document.cookie || '').indexOf('sp_ck=' + v) >= 0;
+      document.cookie = 'sp_ck=; max-age=0; path=/; SameSite=Lax';
+      return ok;
+    } catch (e) { return false; }
+  }
+  var diag = { ls: check('localStorage', FREE_LS), ss: check('sessionStorage', FREE_SS), cookies: cookieWorks(), frame: false, proto: String(location.protocol || '') };
+  try { diag.frame = window.top !== window.self; } catch (e) { diag.frame = true; }
+  window.SP_STORAGE_DIAG = diag;
+  function bad(x) { return x.state === 'blocked' || x.state === 'full'; }
+  if (bad(diag.ls) || bad(diag.ss)) window.SP_STORAGE_FALLBACK = true;
+  if (bad(diag.ls)) {
     /* Предупреждение на экране входа (маркер сборки уже есть в разметке выше) */
     try {
+      var ua = navigator.userAgent || '';
+      var br = /Edg\//.test(ua) ? 'Microsoft Edge' : /YaBrowser/.test(ua) ? 'Яндекс.Браузере' : /OPR\//.test(ua) ? 'Opera'
+        : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Google Chrome' : '';
       var mk = document.getElementById('build-marker');
       if (mk) {
         var w = document.createElement('div');
         w.id = 'storage-warn';
-        w.style.cssText = 'margin-top:8px;text-align:center;font-size:10.5px;color:#dc2626;font-weight:700;line-height:1.45;';
-        w.textContent = '⚠ Хранилище браузера недоступно — данные не сохранятся после закрытия страницы. Разрешите файлы cookie для этого сайта или откройте сайт в Chrome.';
+        w.className = 'storage-warn';
+        w.innerHTML = diag.ls.state === 'full'
+          ? '<b>⚠ Хранилище браузера переполнено</b> — вход и настройки не сохранятся после закрытия вкладки.<br>' +
+            '<a href="#" id="storage-help-link">Что сделать — пошагово</a>'
+          : '<b>⚠ Браузер запрещает этому сайту сохранять данные</b> (файлы cookie и хранилище заблокированы в настройках браузера), ' +
+            'поэтому после закрытия вкладки вход и настройки не сохранятся. Кнопка «Разрешить» в окне сайта этот запрет не снимает — ' +
+            'его снимают в настройках браузера.<br><a href="#" id="storage-help-link">Как разрешить' + (br ? ' в ' + br : '') + ' — пошагово</a>';
         mk.parentNode.insertBefore(w, mk.nextSibling);
       }
     } catch (e) {}
   }
 })();
 </script>
-<script src="root_index/config.js?v=22.09-249"></script>
-<script src="root_index/data.js?v=22.09-249"></script>
-<script src="root_index/users_db.js?v=22.09-249"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-249"></script>
-<script src="root_index/areas_db.js?v=22.09-249"></script>
-<script src="root_index/professions_db.js?v=22.09-249"></script>
-<script src="root_index/work_db.js?v=22.09-249"></script>
-<script src="root_index/objects_db.js?v=22.09-249"></script>
-<script src="root_index/workers_db.js?v=22.09-249"></script>
-<script src="root_index/tasks_db.js?v=22.09-249"></script>
-<script src="root_index/db.js?v=22.09-249"></script>
+<script src="root_index/config.js?v=22.09-255"></script>
+<script src="root_index/data.js?v=22.09-255"></script>
+<script src="root_index/users_db.js?v=22.09-255"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-255"></script>
+<script src="root_index/areas_db.js?v=22.09-255"></script>
+<script src="root_index/professions_db.js?v=22.09-255"></script>
+<script src="root_index/work_db.js?v=22.09-255"></script>
+<script src="root_index/objects_db.js?v=22.09-255"></script>
+<script src="root_index/workers_db.js?v=22.09-255"></script>
+<script src="root_index/tasks_db.js?v=22.09-255"></script>
+<script src="root_index/db.js?v=22.09-255"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -1352,12 +1435,12 @@
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-249"></script>
-      <script src="root_index/error_log.js?v=22.09-249"></script>
-      <script src="root_index/api_client.js?v=22.09-249"></script>
-      <script src="root_index/sync_polling.js?v=22.09-249"></script>
-      <script src="root_index/zip_util.js?v=22.09-249"></script>
-      <script src="root_index/app.js?v=22.09-249"></script>
+<script src="root_index/object_attrs.js?v=22.09-255"></script>
+      <script src="root_index/error_log.js?v=22.09-255"></script>
+      <script src="root_index/api_client.js?v=22.09-255"></script>
+      <script src="root_index/sync_polling.js?v=22.09-255"></script>
+      <script src="root_index/zip_util.js?v=22.09-255"></script>
+      <script src="root_index/app.js?v=22.09-255"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {

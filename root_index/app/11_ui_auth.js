@@ -28,7 +28,7 @@
     ov.className = 'sp-dlg';
     ov.innerHTML = '<div class="sp-dlg-box' + (o.danger ? ' danger' : '') + '" role="dialog" aria-modal="true">' +
       '<div class="sp-dlg-h"><span class="sp-dlg-ic">' + esc(o.icon || '❓') + '</span><span>' + esc(o.title || 'Подтверждение') + '</span></div>' +
-      '<div class="sp-dlg-b">' + esc(String(message == null ? '' : message)).replace(/\n/g, '<br>') + '</div>' +
+      '<div class="sp-dlg-b">' + (o.html != null ? String(o.html) : esc(String(message == null ? '' : message)).replace(/\n/g, '<br>')) + '</div>' + // 22.09-252: o.html — готовая разметка
       '<div class="sp-dlg-f">' +
       (o.cancel === false ? '' : '<button type="button" class="btn" data-dlg="cancel">' + esc(o.cancel || 'Отмена') + '</button>') +
       choices.map(function (c, i) { return '<button type="button" class="btn ' + esc(c.cls || 'primary') + '" data-dlg="' + i + '">' + esc(c.label) + '</button>'; }).join('') +
@@ -205,14 +205,31 @@
     return badIds.length;
   }
 
+  /* 22.09-254: выполнить fn, когда сайт получил актуальные данные с сервера (первая синхронизация
+     после входа/открытия). Без связи с сервером (локальный режим) — сразу; если синхронизация
+     так и не пришла (~30 с) — в этот раз не выполнять (автоматические правки по устаревшей копии
+     данных недопустимы: они затирали свежие данные на сервере). */
+  function whenSyncReady(fn, tries) {
+    tries = tries || 0;
+    var ready = false, online = false;
+    try { ready = !!(window.SP_SYNC_POLL && SP_SYNC_POLL.isReady && SP_SYNC_POLL.isReady()); } catch (e) {}
+    try { online = !!(window.SP_API && SP_API.getToken && SP_API.getToken()); } catch (e) {}
+    if (ready || !online) { fn(); return; }
+    if (tries >= 100) return;
+    setTimeout(function () { whenSyncReady(fn, tries + 1); }, 300);
+  }
   function enterApp(u) {
     S.user = u; S.role = u.role; S.curMaster = u.id;
     S.dashArea = null; // фильтр участка не должен «протекать» между пользователями
     S.dashMaster = null; // 22.09-193: и выбор мастера в «КПД мастеров» — тоже
     // 22.09-189: автоочистка «битых» задач (дата дальше 3 лет — след опечатки в якоре серии графика)
-    var _purged = 0;
-    try { _purged = purgeFarFutureTasks(); } catch (ePu) { try { console.error('purgeFarFutureTasks:', ePu); } catch (_e) {} }
-    if (_purged) setTimeout(function () { toast('warn', '🧹 Автоочистка базы: удалено «битых» задач с ошибочной датой далеко в будущем: ' + _purged + '. Они остались от опечатки в дате графика — теперь такие даты блокируются автоматически.'); }, 1800);
+    // 22.09-254: автоочистка — только по актуальным данным с сервера (не по устаревшей копии браузера)
+    whenSyncReady(function () {
+      var _purged = 0;
+      try { _purged = purgeFarFutureTasks(); } catch (ePu) { try { console.error('purgeFarFutureTasks:', ePu); } catch (_e) {} }
+      if (_purged) setTimeout(function () { toast('warn', '🧹 Автоочистка базы: удалено «битых» задач с ошибочной датой далеко в будущем: ' + _purged + '. Они остались от опечатки в дате графика — теперь такие даты блокируются автоматически.'); }, 1800);
+      if (_purged) { try { refresh(); } catch (eRf) {} }
+    });
     // 22.09-224: привязка дат задач к календарю (новый день — одно перебазирование)
     try { rebaseTaskDaysToToday(); } catch (eRb) { try { console.error('rebaseTaskDaysToToday:', eRb); } catch (_e) {} }
     document.body.classList.add('logged-in');
@@ -223,16 +240,20 @@
     try { setupSyncDropdown(); } catch (e) { console.error('setupSyncDropdown:', e); }
     // 22.09-136: миграция видов телеметрии (идемпотентная): сразу после входа
     // и повторно через 3 с — когда завершится первая фоновая синхронизация
-    try { telemetryMigrateTypes(); } catch (e) { console.error('telemetryMigrateTypes:', e); }
-    setTimeout(function () { try { telemetryMigrateTypes(); } catch (e) { console.error('telemetryMigrateTypes:', e); } }, 3000);
+    // 22.09-254: только после получения актуальных данных с сервера — раньше по устаревшему
+    // списку браузера при КАЖДОМ входе создавались «недостающие» виды телеметрии с новыми id,
+    // а прежние удалялись как дубли
+    whenSyncReady(function () { try { telemetryMigrateTypes(); } catch (e) { console.error('telemetryMigrateTypes:', e); } });
+    // 22.09-255: в браузере сохранилась копия видов работ, отличающаяся от сервера — предложить вернуть настройки
+    if (u.role === 'admin') whenSyncReady(function () { setTimeout(function () { try { workRecoveryNotify(); } catch (e) {} }, 1500); });
     setTimeout(function () {
       var info = ROLE_INFO[u.role] || { label: u.role };
       logAction('Вход в систему', '');
       toast('ok', 'Добро пожаловать, ' + u.full_name + '! Роль: ' + info.label + (u.role === 'admin' ? ' — доступ ко всем участкам.' : ' · участок ' + u.area + '.'));
       // Хранилище браузера заблокировано (Edge/file://, «Блокировать все cookie»):
       // работает замена в памяти — данные живут только до перезагрузки страницы
-      if (window.SP_STORAGE_FALLBACK) {
-        toast('warn', '⚠ Хранилище браузера недоступно (Edge/настройки cookie) — все данные сохранятся только до перезагрузки страницы. Для сохранения между сессиями разрешите файлы cookie или используйте Chrome.');
+      if (storageNotSaved()) { // 22.09-252: точная причина и где снять запрет
+        toast('warn', '⚠ Браузер запрещает сайту сохранять данные — после закрытия вкладки придётся снова войти. Как снять запрет — ссылка «🍪 Cookie» внизу меню.');
       }
     }, 400);
   }
@@ -242,6 +263,139 @@
     var f = document.getElementById('login-form'); if (f) f.reset();
     var err = document.getElementById('li-err'); if (err) err.textContent = '';
   }
+  /* =====================================================================
+     22.09-252: ХРАНИЛИЩЕ БРАУЗЕРА ЗАПРЕЩЕНО / ПЕРЕПОЛНЕНО. Проверку делает первый
+     скрипт index.html → window.SP_STORAGE_DIAG: ls/ss.state — 'ok' | 'freed'
+     (было переполнено, место освобождено) | 'blocked' (браузер запрещает) |
+     'full' (переполнено, освободить не удалось); cookies — пишутся ли cookie;
+     frame — сайт внутри чужой страницы. Кнопка «Разрешить» в окне cookie запрет
+     браузера снять не может — поэтому экран входа и окно cookie объясняют, где
+     его снимают (пошаговая инструкция под браузер), а причина уходит в «Логи ошибок».
+     ===================================================================== */
+  function storageDiag() { try { return window.SP_STORAGE_DIAG || null; } catch (e) { return null; } }
+  function storageNotSaved() { var d = storageDiag(); return !!(d && d.ls && (d.ls.state === 'blocked' || d.ls.state === 'full')); }
+  function storageBrowser() {
+    var ua = ''; try { ua = String(navigator.userAgent || ''); } catch (e) {}
+    if (/Edg\//.test(ua)) return { key: 'edge', name: 'Microsoft Edge', inName: 'в Microsoft Edge' };
+    if (/YaBrowser/.test(ua)) return { key: 'yandex', name: 'Яндекс.Браузер', inName: 'в Яндекс.Браузере' };
+    if (/OPR\//.test(ua)) return { key: 'opera', name: 'Opera', inName: 'в Opera' };
+    if (/Firefox\//.test(ua)) return { key: 'firefox', name: 'Firefox', inName: 'в Firefox' };
+    if (/Chrome\//.test(ua)) return { key: 'chrome', name: 'Google Chrome', inName: 'в Google Chrome' };
+    return { key: 'other', name: 'браузер', inName: 'в браузере' };
+  }
+  function spCopyText(t, cb) {
+    function fallback() {
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = t; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+        document.body.appendChild(ta); ta.select();
+        var ok = document.execCommand && document.execCommand('copy');
+        ta.parentNode.removeChild(ta);
+        cb(ok === true);
+      } catch (e) { cb(false); }
+    }
+    try { if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(t).then(function () { cb(true); }, fallback); return; } } catch (e) {}
+    fallback();
+  }
+  function storageHelpHtml() {
+    var d = storageDiag() || {};
+    var b = storageBrowser();
+    var site = ''; try { site = String(location.origin || ''); } catch (e) {}
+    if (!/^https?:\/\//.test(site)) site = 'https://smartplanogrs1.onrender.com';
+    var host = site.replace(/^https?:\/\//, '');
+    function code(t) { return '<span class="sh-code">' + esc(t) + '</span><button type="button" class="sh-copy" data-copy="' + esc(t) + '">📋 Копировать</button>'; }
+    var full = !!(d.ls && d.ls.state === 'full');
+    var h = '';
+    if (d.proto === 'file:') h += '<div class="sh-note">📁 Сайт открыт как файл с диска — так браузер не даёт сохранять данные. Откройте сайт по адресу <b>https://smartplanogrs1.onrender.com</b>.</div>';
+    if (d.frame) h += '<div class="sh-note">🪟 Сайт открыт внутри другой страницы — в таком режиме браузер часто запрещает сохранять данные. Откройте сайт напрямую, в отдельной вкладке: <a href="' + esc(site) + '" target="_blank" rel="noopener">' + esc(site) + '</a>.</div>';
+    if (full) {
+      h += '<p>Хранилище браузера для этого сайта <b>переполнено</b>, и освободить место автоматически не удалось. Удалите сохранённые данные сайта — рабочие данные хранятся на сервере и загрузятся заново после входа:</p>' +
+        '<ol class="sh-ol"><li>Нажмите значок слева от адреса сайта (🔒) → «Файлы cookie и данные сайта» → «Управление…».</li>' +
+        '<li>Удалите данные сайта <b>' + esc(host) + '</b>.</li>' +
+        '<li>Обновите страницу (<b>Ctrl+Shift+R</b>) и войдите снова.</li></ol>';
+    } else {
+      h += '<p>Сейчас браузер <b>запрещает этому сайту сохранять данные</b> (файлы cookie и хранилище). Кнопка «Разрешить» в окне сайта этот запрет снять не может — он задаётся в настройках браузера. ' +
+        'Пока запрет действует, после закрытия вкладки придётся снова входить и разрешать cookie.</p>';
+      if (b.key === 'edge') {
+        h += '<div class="sh-h">Способ 1 — быстрый</div><ol class="sh-ol">' +
+          '<li>В адресной строке справа нажмите значок файлов cookie с крестиком («Файлы cookie заблокированы»).</li>' +
+          '<li>Выберите «Разрешить сайту сохранять файлы cookie» и нажмите «Готово».</li>' +
+          '<li>Обновите страницу: <b>Ctrl+Shift+R</b>.</li></ol>' +
+          '<div class="sh-h">Способ 2 — через настройки Edge</div><ol class="sh-ol">' +
+          '<li>Скопируйте адрес ' + code('edge://settings/content/cookies') + ', вставьте его в адресную строку Edge и нажмите Enter.</li>' +
+          '<li>Включите переключатель «Разрешить сайтам сохранять и читать данные файлов cookie (рекомендуется)».</li>' +
+          '<li>Если ниже, в списке «Блокировать», есть <b>' + esc(host) + '</b> или <b>onrender.com</b> — удалите их (⋯ → «Удалить»).</li>' +
+          '<li>В списке «Разрешить» нажмите «Добавить», вставьте адрес сайта ' + code(site) + ' и нажмите «Добавить».</li>' +
+          '<li>Вернитесь на сайт и нажмите <b>Ctrl+Shift+R</b>.</li></ol>';
+      } else if (b.key === 'chrome') {
+        h += '<ol class="sh-ol">' +
+          '<li>Скопируйте адрес ' + code('chrome://settings/content/siteData') + ', вставьте его в адресную строку Chrome и нажмите Enter (это «Настройки сайтов» → «Данные сайтов, сохраненные на устройстве»).</li>' +
+          '<li>Выберите «Разрешить сайтам сохранять данные на устройстве» — или ниже, в списке разрешённых сайтов, нажмите «Добавить» и вставьте адрес ' + code(site) + '.</li>' +
+          '<li>Вернитесь на сайт и нажмите <b>Ctrl+Shift+R</b>.</li></ol>';
+      } else if (b.key === 'yandex') {
+        h += '<ol class="sh-ol">' +
+          '<li>Скопируйте адрес ' + code('browser://settings/content') + ', вставьте его в адресную строку и нажмите Enter.</li>' +
+          '<li>В блоке «Cookie-файлы» выберите «Разрешены» (или добавьте сайт ' + code(site) + ' в исключения как разрешённый).</li>' +
+          '<li>Вернитесь на сайт и нажмите <b>Ctrl+Shift+R</b>.</li></ol>';
+      } else if (b.key === 'firefox') {
+        h += '<ol class="sh-ol">' +
+          '<li>Откройте «Настройки» → «Приватность и защита» → «Куки и данные сайтов» → «Управление исключениями…».</li>' +
+          '<li>Вставьте адрес сайта ' + code(site) + ', нажмите «Разрешить», затем «Сохранить изменения».</li>' +
+          '<li>Вернитесь на сайт и нажмите <b>Ctrl+Shift+R</b>.</li></ol>';
+      } else {
+        h += '<ol class="sh-ol">' +
+          '<li>Откройте настройки браузера → раздел «Файлы cookie» или «Данные сайтов».</li>' +
+          '<li>Разрешите сайтам сохранять данные — или добавьте адрес ' + code(site) + ' в список разрешённых.</li>' +
+          '<li>Вернитесь на сайт и нажмите <b>Ctrl+Shift+R</b>.</li></ol>';
+      }
+      h += '<div class="sh-note">🏢 Если переключатель серый и рядом написано «Управляется вашей организацией», настройки браузера на этом компьютере задаёт IT-отдел. ' +
+        'Попросите разрешить файлы cookie для сайта ' + code(site) + ' — или откройте сайт в другом браузере.</div>';
+    }
+    var tech = [];
+    if (d.ls && d.ls.state && d.ls.state !== 'ok') tech.push('хранилище: ' + (d.ls.err || d.ls.state));
+    tech.push('файлы cookie: ' + (d.cookies ? 'записываются' : 'заблокированы'));
+    h += '<div class="sh-diag">Техническая причина — ' + esc(tech.join('; ')) + '</div>';
+    return h;
+  }
+  function openStorageHelp() {
+    var d = storageDiag() || {};
+    var full = !!(d.ls && d.ls.state === 'full');
+    spDialog('', {
+      title: full ? 'Хранилище браузера переполнено' : 'Как разрешить сайту сохранять данные ' + storageBrowser().inName,
+      icon: full ? '🗄' : '🛡', html: storageHelpHtml(), cancel: false,
+      choices: [{ label: 'Понятно', value: true, cls: 'primary' }]
+    });
+    var ov = document.getElementById('sp-dlg');
+    if (!ov || !ov.querySelector) return;
+    ov.style.zIndex = '100002'; // поверх окна cookie (z-index 100001)
+    var box = ov.querySelector('.sp-dlg-box'); if (box) box.style.width = 'min(620px,100%)';
+    ov.addEventListener('click', function (e) {
+      var c = e.target && e.target.closest ? e.target.closest('[data-copy]') : null;
+      if (!c) return;
+      e.stopPropagation();
+      spCopyText(c.getAttribute('data-copy') || '', function (ok) {
+        c.textContent = ok ? '✓ Скопировано' : 'Выделите и скопируйте вручную';
+        setTimeout(function () { c.textContent = '📋 Копировать'; }, 1800);
+      });
+    });
+  }
+  /* причина — в общий «Логи ошибок» (после входа запись уйдёт на сервер) */
+  function storageDiagReport() {
+    var d = storageDiag();
+    if (!d || !window.SP_ERRORS || !SP_ERRORS.log) return false;
+    var badList = [d.ls, d.ss].filter(function (x) { return x && x.state && x.state !== 'ok'; });
+    if (!badList.length) return false;
+    var parts = badList.map(function (x) {
+      return x.name + ' — ' + (x.state === 'freed' ? 'было переполнено, освобождено место (' + (x.freed || []).join(', ') + ')'
+        : x.state === 'full' ? 'переполнено, работа без сохранения' : 'заблокировано браузером, работа без сохранения') + (x.err ? ' [' + x.err + ']' : '');
+    });
+    var onlyFreed = badList.every(function (x) { return x.state === 'freed'; });
+    var ua = ''; try { ua = String(navigator.userAgent || '').slice(0, 300); } catch (e) {}
+    SP_ERRORS.log(onlyFreed ? 'info' : 'warn', 'storage', 'Хранилище браузера: ' + parts.join('; ') + '; cookie: ' + (d.cookies ? 'записываются' : 'заблокированы') + (d.frame ? '; сайт открыт внутри другой страницы' : ''),
+      { ls: d.ls, ss: d.ss, cookies: d.cookies, frame: d.frame, proto: d.proto, ua: ua });
+    return true;
+  }
+
   /* =====================================================================
      22.09-247: РАЗРЕШЕНИЕ НА COOKIE. При первом открытии сайт спрашивает разрешение
      на cookie и хранилище браузера (без них не работают вход и данные). Выбор хранится
@@ -287,7 +441,7 @@
       : 'Чтобы войти, разрешите использование cookie.') + '</span>' +
       '<button type="button" class="btn sm primary" id="li-consent-ok">Разрешить</button>';
     var b2 = document.getElementById('li-consent-ok');
-    if (b2) b2.onclick = function () { consentSet('accept'); consentApplyLoginState(); toast('ok', '🍪 Cookie разрешены — можно входить'); };
+    if (b2) b2.onclick = function () { consentSet('accept'); consentApplyLoginState(); toast(storageNotSaved() ? 'warn' : 'ok', storageNotSaved() ? '🍪 Разрешено до закрытия вкладки (браузер запрещает сайту сохранять данные) — можно входить' : '🍪 Cookie разрешены — можно входить'); };
   }
   /* окно разрешения: закрывается только выбором (щелчок мимо и Esc не закрывают) */
   function openConsentDialog() {
@@ -302,6 +456,9 @@
       '<div class="sp-consent-b">' +
       '<p>Сайт SmartPlan использует <b>cookie и хранилище браузера</b>, чтобы вы могли войти в систему и работать: в браузере хранятся данные входа, ваши настройки и рабочие данные (в том числе для работы без связи с сервером). Подключаемые карты (Яндекс.Карты, OpenStreetMap и др.) могут устанавливать свои cookie.</p>' +
       '<p>Без разрешения вход в систему невозможен. Выбор сохраняется в этом браузере; изменить его можно в любой момент — ссылка «🍪 Cookie» на экране входа и внизу меню.</p>' +
+      (storageNotSaved() ? '<p class="sp-consent-warn">⚠ <b>Сейчас браузер запрещает сайту сохранять данные</b> — выбор будет действовать только до закрытия вкладки, ' +
+        'и при следующем открытии это окно появится снова. Это настройка браузера, а не сайта: ' +
+        '<a href="#" data-storage-help="1">как снять запрет ' + esc(storageBrowser().inName) + '</a>.</p>' : '') + // 22.09-252
       (cur ? '<p class="sp-consent-cur">Сейчас: ' + (cur === 'accept' ? '✅ разрешено' : '⛔ отказано') + '</p>' : '') +
       '</div>' +
       '<div class="sp-consent-f">' +
@@ -310,6 +467,8 @@
       '</div></div>';
     document.body.appendChild(ov);
     ov.addEventListener('click', function (e) {
+      var hl = e.target && e.target.closest ? e.target.closest('[data-storage-help]') : null; // 22.09-252: «как снять запрет»
+      if (hl) { if (e.preventDefault) e.preventDefault(); e.stopPropagation(); openStorageHelp(); return; }
       var b = e.target && e.target.closest ? e.target.closest('[data-consent]') : null;
       if (!b) return; // щелчок мимо окна — нужен выбор
       e.stopPropagation();
@@ -321,7 +480,11 @@
         toast('warn', '🍪 Вы отказались от cookie — без них работа на сайте невозможна, выполнен выход. Разрешить можно на экране входа.');
       }
       consentApplyLoginState();
-      if (ch === 'accept') toast('ok', '🍪 Спасибо! Cookie разрешены.');
+      if (ch === 'accept') {
+        // 22.09-252: браузер запрещает хранилище — честно: разрешение действует только до закрытия вкладки
+        if (storageNotSaved()) toast('warn', '🍪 Разрешено — но только до закрытия вкладки: браузер запрещает сайту сохранять данные. Как снять запрет — ссылка «Как разрешить» под формой входа.');
+        else toast('ok', '🍪 Спасибо! Cookie разрешены.');
+      }
     });
     setTimeout(function () { var f = ov.querySelector('[data-consent="accept"]'); if (f && f.focus) f.focus(); }, 30);
   }

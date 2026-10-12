@@ -84,12 +84,13 @@ window.SP_OBJECTS = (function () {
   }
 
   function syncWithServer(db) {
+    // 22.09-254: на сервер — только записи, изменённые в этом браузере, и только после получения актуальных данных (раньше уходили ВСЕ записи — старая копия затирала свежие данные)
     // Сборка 22.09-26: SP_API.upsert через Render
-    if (!window.SP_API || !window.SP_API.getToken || !window.SP_API.getToken()) return;
+    if (!window.SP_API || !window.SP_API.getToken || !window.SP_API.getToken() || !window.SP_API.syncPush) return;
     if (Array.isArray(db.objects)) {
       db.objects.forEach(function (o) {
         if (!o || !o.id) return;
-        window.SP_API.upsert('objects', o).catch(function (e) {
+        window.SP_API.syncPush('objects', o).catch(function (e) {
           if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log('warn', 'objects.sync', e && e.err || e);
         });
       });

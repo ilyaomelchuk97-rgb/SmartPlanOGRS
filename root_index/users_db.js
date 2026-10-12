@@ -52,18 +52,19 @@ window.SP_USERS_DB = (function () {
   }
 
   function syncWithServer(db) {
+    // 22.09-254: на сервер — только записи, изменённые в этом браузере, и только после получения актуальных данных (раньше уходили ВСЕ записи — старая копия затирала свежие данные)
     // Сборка 22.09-25: SP_API (Render.com)
     // Не отправляем стандартных пользователей (они уже созданы на сервере
     // через /api/admin/init-db с фиксированными id и bcrypt-паролями).
     // Отправляем только тех, кто создан НЕ через seed.
-    if (!window.SP_API || !window.SP_API.getToken || !window.SP_API.getToken()) return;
+    if (!window.SP_API || !window.SP_API.getToken || !window.SP_API.getToken() || !window.SP_API.syncPush) return;
     if (Array.isArray(db.users)) {
       db.users.forEach(function (u) {
         if (!u || !u.id) return;
         if (u.seed) return; // стандартные — не трогаем на сервере
         // Не отправляем хэши паролей — сервер хранит свои bcrypt-хэши
         var safeU = Object.assign({}, u, { password: undefined, plain_password: undefined });
-        window.SP_API.upsert('users', safeU).catch(function (e) {
+        window.SP_API.syncPush('users', safeU).catch(function (e) {
           try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log("warn", "sync", "sync failed", { err: String(e && e.err || e), where: "users_db.js" }); } catch(_){ }
         });
       });

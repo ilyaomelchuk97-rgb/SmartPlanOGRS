@@ -151,12 +151,27 @@ const SECTIONS = ['objects', 'tasks', 'areas', 'workers', 'work_catalog', 'graph
 // 22.09-243: после УСПЕШНОГО изменения данных раздела — мгновенное уведомление всем открытым сайтам
 // (они сразу забирают новое через /api/sync; by — id вкладки-автора, чтобы она не дёргалась сама на себя)
 const LIVE_SECTIONS = new Set(SECTIONS.concat(['users']));
+// 22.09-254: изменения данных принимаются только от актуальной версии сайта. До 22.09-254 сайт
+// при каждом сохранении (и при открытии) отправлял ВСЕ записи раздела из памяти браузера —
+// вкладка со старой копией затирала свежие данные (так пропадали настройки видов работ и норм
+// времени). Старая, не обновлённая вкладка получает отказ с просьбой обновить страницу.
+const SP_MIN_WRITE_BUILD = 254;
+app.use('/api', (req, res, next) => {
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
+  const sec = String(req.path || '').split('/')[1] || '';
+  if (!LIVE_SECTIONS.has(sec)) return next();
+  const m = /^22\.09-(\d+)/.exec(String(req.headers['x-sp-build'] || ''));
+  if (m && +m[1] >= SP_MIN_WRITE_BUILD) return next();
+  return res.status(409).json({ ok: false, stale_client: true,
+    err: 'Устаревшая версия сайта в этой вкладке — обновите страницу (Ctrl+Shift+R). Изменение не сохранено.' });
+});
 app.use('/api', (req, res, next) => {
   if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
   const sec = String(req.path || '').split('/')[1] || '';
   if (!LIVE_SECTIONS.has(sec)) return next();
   res.on('finish', () => {
-    if (res.statusCode < 400) eventsHub.broadcast({ section: sec, by: String(req.headers['x-client-id'] || '').slice(0, 40), ts: Date.now() });
+    // 22.09-254: «ничего не изменилось» — остальных не беспокоим
+    if (res.statusCode < 400 && !res.locals.spUnchanged) eventsHub.broadcast({ section: sec, by: String(req.headers['x-client-id'] || '').slice(0, 40), ts: Date.now() });
   });
   next();
 });
@@ -180,7 +195,7 @@ const FRONTEND_DIR = process.env.NODE_ENV === 'production' ? '/app' : require('p
 // JS-файлы не кэшируем (cache-bust через ETag/304), чтобы после каждого
 // деплоя клиент сразу получал новый код без Ctrl+Shift+R.
 app.use((req, res, next) => {
-  if (/\/root_index\/.*\.js$/.test(req.path) || /\/index\.html$/.test(req.path)) {
+  if (/\/root_index\/.*\.js$/.test(req.path) || /\/index\.html$/.test(req.path) || req.path === '/') { // 22.09-254: и главная «/» — новая версия сразу после деплоя
     res.setHeader('Cache-Control', 'no-cache, must-revalidate');
   }
   next();

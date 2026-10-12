@@ -123,12 +123,13 @@ window.SP_WORKERS = (function () {
     }
   }
   function syncWithServer(db) {
+    // 22.09-254: на сервер — только записи, изменённые в этом браузере, и только после получения актуальных данных (раньше уходили ВСЕ записи — старая копия затирала свежие данные)
     // Сборка 22.09-26: SP_API.upsert
-    if (!window.SP_API || !window.SP_API.getToken || !window.SP_API.getToken()) return;
+    if (!window.SP_API || !window.SP_API.getToken || !window.SP_API.getToken() || !window.SP_API.syncPush) return;
     if (db && db.workers) {
       Object.keys(db.workers).forEach(function (uid) {
         var w = Object.assign({ id: uid }, db.workers[uid]);
-        window.SP_API.upsert('workers', w).catch(function (e) {
+        window.SP_API.syncPush('workers', w).catch(function (e) {
           if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log('warn', 'workers.sync', e && e.err || e);
         });
       });

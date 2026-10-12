@@ -324,6 +324,16 @@
     return '☀️';
   }
 
+  // 22.09-250: жива ли фоновая анимация прогноза (дождь/снег): блок прогноза есть на странице,
+  // он раскрыт, и слой анимации всё ещё внутри него. Раньше при уходе с панели мониторинга
+  // с раскрытым прогнозом блок исчезал, и анимация падала с ошибкой
+  // «Cannot read properties of null (reading 'classList')» (в _tickG/_tickS); при повторном
+  // открытии прогноза прежний цикл продолжал крутиться на уже снятом со страницы слое.
+  function wdAnimAlive(layer) {
+    var wd = document.getElementById('weather-dropdown');
+    return !!(wd && wd.classList.contains('open') && layer && layer.parentNode === wd);
+  }
+
   function toggleWeatherDropdown() {
     var dd = document.getElementById('weather-dropdown');
     if (!dd) return;
@@ -377,7 +387,7 @@
         _gdrops.push(d);
       }
       function _tickG() {
-        if (!document.getElementById('weather-dropdown').classList.contains('open')) { _gdrops = []; _gl.remove(); return; }
+        if (!wdAnimAlive(_gl)) { _gdrops = []; _gl.remove(); return; } // 22.09-250: без ошибки, если прогноз закрыт/перерисован или ушли с панели
         if (Math.random() < 0.3 && _gdrops.length < 22) _spawnG();
         var _H = _gl.offsetHeight || 300;
         for (var i = _gdrops.length - 1; i >= 0; i--) {
@@ -412,7 +422,7 @@
         _snow.push(d);
       }
       function _tickS() {
-        if (!document.getElementById('weather-dropdown').classList.contains('open')) { _snow = []; _sl.remove(); return; }
+        if (!wdAnimAlive(_sl)) { _snow = []; _sl.remove(); return; } // 22.09-250: то же для снежинок
         if (Math.random() < 0.4 && _snow.length < 30) _spawnS();
         var _H = _sl.offsetHeight || 300;
         for (var i = _snow.length - 1; i >= 0; i--) {

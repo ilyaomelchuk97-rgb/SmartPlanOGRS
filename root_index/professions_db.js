@@ -103,16 +103,17 @@ window.SP_PROFS = (function () {
   function newId() { return 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
   function newNameId() { return 'pn' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
   function syncWithServer(db) {
-    if (!window.SP_API || !window.SP_API.getToken || !window.SP_API.getToken()) return;
+    // 22.09-254: на сервер — только записи, изменённые в этом браузере, и только после получения актуальных данных (раньше уходили ВСЕ записи — старая копия затирала свежие данные)
+    if (!window.SP_API || !window.SP_API.getToken || !window.SP_API.getToken() || !window.SP_API.syncPush) return;
     (db.professions || []).forEach(function (p) {
       if (!p || !p.id) return;
-      window.SP_API.upsert('professions', Object.assign({}, p)).catch(function (e) {
+      window.SP_API.syncPush('professions', Object.assign({}, p)).catch(function (e) {
         if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log('warn', 'profs.sync', e && e.err || e);
       });
     });
     (db.profNames || []).forEach(function (n) {
       if (!n || !n.id) return;
-      window.SP_API.upsert('professions', Object.assign({ kind: 'prof_name' }, n)).catch(function (e) {
+      window.SP_API.syncPush('professions', Object.assign({ kind: 'prof_name' }, n)).catch(function (e) {
         if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log('warn', 'profnames.sync', e && e.err || e);
       });
     });

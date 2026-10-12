@@ -52,11 +52,12 @@ window.SP_AREAS = (function () {
   // создание/переименование/удаление участка через интерфейс падало у всех
   // залогиненных пользователей. Теперь как в workers_db.js — upsert каждой записи.
   function syncWithServer(db) {
-    if (!window.SP_API || !window.SP_API.getToken || !window.SP_API.getToken()) return;
+    // 22.09-254: на сервер — только записи, изменённые в этом браузере, и только после получения актуальных данных (раньше уходили ВСЕ записи — старая копия затирала свежие данные)
+    if (!window.SP_API || !window.SP_API.getToken || !window.SP_API.getToken() || !window.SP_API.syncPush) return;
     if (db && db.areas) {
       db.areas.forEach(function (a) {
         if (!a || !a.id) return;
-        window.SP_API.upsert('areas', Object.assign({}, a)).catch(function (e) {
+        window.SP_API.syncPush('areas', Object.assign({}, a)).catch(function (e) {
           if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log('warn', 'areas.sync', e && e.err || e);
         });
       });
