@@ -71,6 +71,13 @@
   html.theme-dark .fld input::placeholder{color:#5b6f92}
   html.theme-dark #sync-indicator{background:var(--panel-2)!important;color:var(--txt)!important;border-color:var(--line)!important}
   html.theme-dark #map-stats{background:var(--panel-2)!important}
+  html.a11y-contrast #map-stats{background:#000!important;color:#fff!important}
+  /* подписи сайдбара и индикатор сервера — светлые в тёмных режимах */
+  html.theme-dark .base-lbl,html.theme-dark .nav .grp,html.theme-dark .sb-foot,html.theme-dark #sync-text{color:var(--muted)!important}
+  html.a11y-contrast .base-lbl,html.a11y-contrast .nav .grp,html.a11y-contrast .sb-foot,html.a11y-contrast #sync-text{color:#e6e6e6!important}
+  /* «Корзина» в планировании */
+  html.theme-dark .trash-zone{color:#f5b3ad;border-color:#5c2a2a}
+  html.a11y-contrast .trash-zone{color:#fff;border-color:#fff;background:#000}
   html.theme-dark .sp-dlg-f,html.theme-dark .sp-consent-f{background:var(--panel-2)}
   html.theme-dark .li-consent{background:#33290f;border-color:#5c4d1d;color:#e3d08f}
   html.theme-dark .storage-warn{background:var(--red-l);border-color:#5c2a2a;color:#f0b1ab}
@@ -124,6 +131,121 @@
   html.a11y-contrast .tile{background:#1a1a1a}
   html.a11y-contrast .tile .tw,html.a11y-contrast .tile.t-green .tw,html.a11y-contrast .tile.t-yellow .tw,html.a11y-contrast .tile.t-red .tw,html.a11y-contrast .tile.t-done .tw,html.a11y-contrast .tile.t-weather .tw{color:#fff!important}
   html.a11y-contrast #sync-indicator{color:#fff!important;background:#000!important}
+
+  /* ===== 22.09-259b: ДОВОДКА — светлые блоки, закреплённые жёсткими/инлайн-стилями,
+     и тёмные тексты, которые в тёмной/контрастной теме должны стать светлыми.
+     Инлайн-цвета перебиваются через !important только в этих двух режимах. ===== */
+  /* таблицы */
+  html.theme-dark table.dt th,html.a11y-contrast table.dt th{background:var(--panel-2);color:var(--muted)}
+  html.theme-dark table.dt tr:hover td,html.a11y-contrast table.dt tr:hover td{background:var(--panel-3)}
+  /* календарь */
+  html.theme-dark .col-head,html.a11y-contrast .col-head{background:var(--panel-2)}
+  html.theme-dark .cell.we,html.a11y-contrast .cell.we{background:var(--panel-3)}
+  html.theme-dark .cell.today,html.a11y-contrast .cell.today{background:var(--panel-2);box-shadow:inset 0 0 0 2px var(--blue)}
+  /* карты */
+  html.theme-dark .map-box{background:#26344a}
+  html.a11y-contrast .map-box{background:#111}
+  /* блок-подсказка «.calc» и кнопка «карта погоды» */
+  html.theme-dark .calc,html.a11y-contrast .calc{background:var(--panel-2);border-color:var(--line);color:var(--txt)}
+  html.theme-dark .wx-map-fab{background:rgba(13,22,38,.55);border-color:rgba(139,160,191,.55);color:var(--ink)}
+  html.a11y-contrast .wx-map-fab{background:#000;border-color:#fff;color:#fff}
+  /* чипы участков и ролей (жёсткие светлые фоны) */
+  html.theme-dark .chip.ГРП,html.theme-dark .chip.blue,html.a11y-contrast .chip.ГРП,html.a11y-contrast .chip.blue{background:#16294d;color:#a8c6f5}
+  html.theme-dark .chip.ШРП,html.a11y-contrast .chip.ШРП{background:var(--green-l);color:#9fe8c4}
+  html.theme-dark .chip.ГРС,html.theme-dark .chip.teal,html.a11y-contrast .chip.ГРС,html.a11y-contrast .chip.teal{background:#0e3038;color:#9fe8e0}
+  html.theme-dark .chip.ПГРП,html.a11y-contrast .chip.ПГРП{background:#3a250f;color:#f5cfa0}
+  html.theme-dark .chip.Трасса,html.a11y-contrast .chip.Трасса{background:#3a2f14;color:#f0d48a}
+  html.theme-dark .chip.navy,html.theme-dark .chip.slate,html.a11y-contrast .chip.navy,html.a11y-contrast .chip.slate{background:var(--panel-3);color:var(--txt)}
+  html.theme-dark .chip.purple,html.a11y-contrast .chip.purple{background:#2a2144;color:#d3c6f5}
+  html.a11y-contrast .chip{background:#1a1a1a}
+  /* --- инлайн-фоны (задаются в разметке страниц): светлые → тёмные --- */
+  html.theme-dark [style*="background:#f1f5f9"],html.a11y-contrast [style*="background:#f1f5f9"],
+  html.theme-dark [style*="background:#f8fafc"],html.a11y-contrast [style*="background:#f8fafc"],
+  html.theme-dark [style*="background:#fafafa"],html.a11y-contrast [style*="background:#fafafa"],
+  html.theme-dark [style*="background:#fafbfc"],html.a11y-contrast [style*="background:#fafbfc"],
+  html.theme-dark [style*="background:#f3f4f6"],html.a11y-contrast [style*="background:#f3f4f6"]{background:var(--panel-2)!important}
+  html.theme-dark [style*="background:#eef2f6"],html.a11y-contrast [style*="background:#eef2f6"],
+  html.theme-dark [style*="background:#e2e8f0"],html.a11y-contrast [style*="background:#e2e8f0"],
+  html.theme-dark [style*="background:#e8eef3"],html.a11y-contrast [style*="background:#e8eef3"]{background:var(--panel-3)!important}
+  html.theme-dark [style*="background:#eff6ff"],html.a11y-contrast [style*="background:#eff6ff"],
+  html.theme-dark [style*="background:#f5f9ff"],html.a11y-contrast [style*="background:#f5f9ff"]{background:var(--panel-2)!important;color:var(--txt)!important}
+  html.theme-dark [style*="background:#dcfce7"],html.a11y-contrast [style*="background:#dcfce7"],
+  html.theme-dark [style*="background:#f0fdf4"],html.a11y-contrast [style*="background:#f0fdf4"]{background:var(--green-l)!important;color:#9fe8c4!important}
+  html.theme-dark [style*="background:#fee2e2"],html.a11y-contrast [style*="background:#fee2e2"]{background:var(--red-l)!important;color:#f5b3ad!important}
+  html.theme-dark [style*="background:#fef9c3"],html.a11y-contrast [style*="background:#fef9c3"]{background:var(--yellow-l)!important;color:#f0d9a0!important}
+  html.theme-dark [style*="background:#fef3c7"],html.a11y-contrast [style*="background:#fef3c7"]{background:#3a2f14!important;color:#f0d48a!important}
+  html.theme-dark [style*="background:#dbeafe"],html.a11y-contrast [style*="background:#dbeafe"]{background:#16294d!important;color:#a8c6f5!important}
+  html.theme-dark [style*="background:#cffafe"],html.a11y-contrast [style*="background:#cffafe"]{background:#0e3038!important;color:#9fe8e0!important}
+  html.theme-dark [style*="background:#fed7aa"],html.a11y-contrast [style*="background:#fed7aa"]{background:#3a250f!important;color:#f5cfa0!important}
+  html.theme-dark [style*="background:#ede9fe"],html.a11y-contrast [style*="background:#ede9fe"]{background:#2a2144!important;color:#d3c6f5!important}
+  html.theme-dark [style*="background:#ccfbf1"],html.a11y-contrast [style*="background:#ccfbf1"]{background:#0e3038!important;color:#9fe8e0!important}
+  html.theme-dark [style*="background:#fff"],html.a11y-contrast [style*="background:#fff"],
+  html.theme-dark [style*="background:#ffffff"],html.a11y-contrast [style*="background:#ffffff"]{background:var(--card)!important;color:var(--txt)!important}
+  /* тот же список для записи background-color:#... (график смен и пр.) */
+  html.theme-dark [style*="background-color:#f1f5f9"],html.a11y-contrast [style*="background-color:#f1f5f9"],
+  html.theme-dark [style*="background-color:#f8fafc"],html.a11y-contrast [style*="background-color:#f8fafc"],
+  html.theme-dark [style*="background-color:#fafafa"],html.a11y-contrast [style*="background-color:#fafafa"],
+  html.theme-dark [style*="background-color:#fafbfc"],html.a11y-contrast [style*="background-color:#fafbfc"],
+  html.theme-dark [style*="background-color:#f3f4f6"],html.a11y-contrast [style*="background-color:#f3f4f6"]{background:var(--panel-2)!important}
+  html.theme-dark [style*="background-color:#eef2f6"],html.a11y-contrast [style*="background-color:#eef2f6"],
+  html.theme-dark [style*="background-color:#eef2f7"],html.a11y-contrast [style*="background-color:#eef2f7"],
+  html.theme-dark [style*="background:#eef2f7"],html.a11y-contrast [style*="background:#eef2f7"],
+  html.theme-dark [style*="background-color:#e2e8f0"],html.a11y-contrast [style*="background-color:#e2e8f0"],
+  html.theme-dark [style*="background-color:#e8eef3"],html.a11y-contrast [style*="background-color:#e8eef3"]{background:var(--panel-3)!important}
+  html.theme-dark [style*="background-color:#eff6ff"],html.a11y-contrast [style*="background-color:#eff6ff"],
+  html.theme-dark [style*="background-color:#f5f9ff"],html.a11y-contrast [style*="background-color:#f5f9ff"]{background:var(--panel-2)!important;color:var(--txt)!important}
+  html.theme-dark [style*="background-color:#dcfce7"],html.a11y-contrast [style*="background-color:#dcfce7"],
+  html.theme-dark [style*="background-color:#f0fdf4"],html.a11y-contrast [style*="background-color:#f0fdf4"]{background:var(--green-l)!important;color:#9fe8c4!important}
+  html.theme-dark [style*="background-color:#fee2e2"],html.a11y-contrast [style*="background-color:#fee2e2"]{background:var(--red-l)!important;color:#f5b3ad!important}
+  html.theme-dark [style*="background-color:#fef9c3"],html.a11y-contrast [style*="background-color:#fef9c3"]{background:var(--yellow-l)!important;color:#f0d9a0!important}
+  html.theme-dark [style*="background-color:#fef3c7"],html.a11y-contrast [style*="background-color:#fef3c7"]{background:#3a2f14!important;color:#f0d48a!important}
+  html.theme-dark [style*="background-color:#dbeafe"],html.a11y-contrast [style*="background-color:#dbeafe"]{background:#16294d!important;color:#a8c6f5!important}
+  html.theme-dark [style*="background-color:#cffafe"],html.a11y-contrast [style*="background-color:#cffafe"]{background:#0e3038!important;color:#9fe8e0!important}
+  html.theme-dark [style*="background-color:#fed7aa"],html.a11y-contrast [style*="background-color:#fed7aa"]{background:#3a250f!important;color:#f5cfa0!important}
+  html.theme-dark [style*="background-color:#ede9fe"],html.a11y-contrast [style*="background-color:#ede9fe"]{background:#2a2144!important;color:#d3c6f5!important}
+  html.theme-dark [style*="background-color:#ccfbf1"],html.a11y-contrast [style*="background-color:#ccfbf1"]{background:#0e3038!important;color:#9fe8e0!important}
+  html.theme-dark [style*="background-color:#fff"],html.a11y-contrast [style*="background-color:#fff"],
+  html.theme-dark [style*="background-color:#ffffff"],html.a11y-contrast [style*="background-color:#ffffff"]{background:var(--card)!important;color:var(--txt)!important}
+  /* часы «Карты местоположения» — полупрозрачный белый бокс */
+  html.theme-dark #lm-clock-box{background:rgba(21,34,56,.97)!important;color:var(--txt)!important}
+  html.a11y-contrast #lm-clock-box{background:rgba(0,0,0,.97)!important;color:#fff!important}
+  /* текстовые поля без инлайн-фона (поиск логов и пр.) */
+  html.theme-dark input,html.theme-dark select,html.theme-dark textarea{background-color:var(--panel-3);color:var(--txt)}
+  html.a11y-contrast input,html.a11y-contrast select,html.a11y-contrast textarea{background-color:var(--panel-3);color:#fff;border-color:#fff}
+  /* сегментные переключатели в контрастном режиме */
+  html.a11y-contrast .seg{background:#161616}
+  /* --- инлайн-тексты: тёмные → светлые (в тёмной теме шрифты должны быть светлые) --- */
+  html.theme-dark [style*="color:#1f2937"],html.a11y-contrast [style*="color:#1f2937"],
+  html.theme-dark [style*="color:#334155"],html.a11y-contrast [style*="color:#334155"],
+  html.theme-dark [style*="color:#475569"],html.a11y-contrast [style*="color:#475569"],
+  html.theme-dark [style*="color:#0f2740"],html.a11y-contrast [style*="color:#0f2740"],
+  html.theme-dark [style*="color:#111827"],html.a11y-contrast [style*="color:#111827"]{color:var(--txt)!important}
+  html.theme-dark [style*="color:#16a34a"],html.a11y-contrast [style*="color:#16a34a"],
+  html.theme-dark [style*="color:#10b981"],html.a11y-contrast [style*="color:#10b981"]{color:#3ecf8e!important}
+  html.theme-dark [style*="color:#15803d"],html.a11y-contrast [style*="color:#15803d"],
+  html.theme-dark [style*="color:#166534"],html.a11y-contrast [style*="color:#166534"],
+  html.theme-dark [style*="color:#14532d"],html.a11y-contrast [style*="color:#14532d"]{color:#9fe8c4!important}
+  html.theme-dark [style*="color:#0d9488"],html.a11y-contrast [style*="color:#0d9488"]{color:#5eead4!important}
+  html.theme-dark [style*="color:#0369a1"],html.a11y-contrast [style*="color:#0369a1"]{color:#7dd3fc!important}
+  html.theme-dark [style*="color:#dc2626"],html.a11y-contrast [style*="color:#dc2626"],
+  html.theme-dark [style*="color:#c8102e"],html.a11y-contrast [style*="color:#c8102e"],
+  html.theme-dark [style*="color:#fc3f1d"],html.a11y-contrast [style*="color:#fc3f1d"]{color:#ef7a72!important}
+  html.theme-dark [style*="color:#b91c1c"],html.a11y-contrast [style*="color:#b91c1c"],
+  html.theme-dark [style*="color:#991b1b"],html.a11y-contrast [style*="color:#991b1b"],
+  html.theme-dark [style*="color:#7f1d1d"],html.a11y-contrast [style*="color:#7f1d1d"]{color:#f5b3ad!important}
+  html.theme-dark [style*="color:#2563eb"],html.a11y-contrast [style*="color:#2563eb"]{color:#5b96f7!important}
+  html.theme-dark [style*="color:#1d4ed8"],html.a11y-contrast [style*="color:#1d4ed8"],
+  html.theme-dark [style*="color:#1e40af"],html.a11y-contrast [style*="color:#1e40af"]{color:#a8c6f5!important}
+  html.theme-dark [style*="color:#1e3a8a"],html.a11y-contrast [style*="color:#1e3a8a"]{color:#a8c6f5!important}
+  html.theme-dark [style*="color:#92400e"],html.a11y-contrast [style*="color:#92400e"],
+  html.theme-dark [style*="color:#b45309"],html.a11y-contrast [style*="color:#b45309"],
+  html.theme-dark [style*="color:#ca8a04"],html.a11y-contrast [style*="color:#ca8a04"],
+  html.theme-dark [style*="color:#854d0e"],html.a11y-contrast [style*="color:#854d0e"],
+  html.theme-dark [style*="color:#78350f"],html.a11y-contrast [style*="color:#78350f"]{color:#f0d9a0!important}
+  html.theme-dark [style*="color:#d97706"],html.a11y-contrast [style*="color:#d97706"],
+  html.theme-dark [style*="color:#f59e0b"],html.a11y-contrast [style*="color:#f59e0b"],
+  html.theme-dark [style*="color:#fbbf24"],html.a11y-contrast [style*="color:#fbbf24"]{color:#f0c060!important}
+  html.theme-dark [style*="color:#c2410c"],html.a11y-contrast [style*="color:#c2410c"]{color:#f5cfa0!important}
   *{box-sizing:border-box}
   /* ===== Оффлайн-баннер ===== */
   #net-banner{position:fixed;top:0;left:50%;transform:translate(-50%,-120%);z-index:999990;background:#b45309;color:#fff;font-size:12.5px;font-weight:700;padding:8px 18px;border-radius:0 0 12px 12px;transition:transform .3s ease;max-width:92vw;text-align:center}
@@ -1290,7 +1412,7 @@
           <div style="margin-top:6px;font-size:12px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-259 · светлая/тёмная тема (кнопка в шапке) и режимы для слабовидящих: крупный шрифт, высокий контраст, моноширинный шрифт, без анимаций</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-261 · правки, сделанные пока сервер спит, больше не теряются — уходят в очередь и отправляются автоматически</div>
         <div style="margin-top:6px;text-align:center"><a href="#" id="li-cookie-link" class="cookie-link" title="Посмотреть или изменить разрешение">🍪 Cookie и хранилище браузера</a></div>
     </div>
   </div>
@@ -1535,17 +1657,17 @@
   } catch (e) {}
 })();
 </script>
-<script src="root_index/config.js?v=22.09-259"></script>
-<script src="root_index/data.js?v=22.09-259"></script>
-<script src="root_index/users_db.js?v=22.09-259"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-259"></script>
-<script src="root_index/areas_db.js?v=22.09-259"></script>
-<script src="root_index/professions_db.js?v=22.09-259"></script>
-<script src="root_index/work_db.js?v=22.09-259"></script>
-<script src="root_index/objects_db.js?v=22.09-259"></script>
-<script src="root_index/workers_db.js?v=22.09-259"></script>
-<script src="root_index/tasks_db.js?v=22.09-259"></script>
-<script src="root_index/db.js?v=22.09-259"></script>
+<script src="root_index/config.js?v=22.09-261"></script>
+<script src="root_index/data.js?v=22.09-261"></script>
+<script src="root_index/users_db.js?v=22.09-261"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-261"></script>
+<script src="root_index/areas_db.js?v=22.09-261"></script>
+<script src="root_index/professions_db.js?v=22.09-261"></script>
+<script src="root_index/work_db.js?v=22.09-261"></script>
+<script src="root_index/objects_db.js?v=22.09-261"></script>
+<script src="root_index/workers_db.js?v=22.09-261"></script>
+<script src="root_index/tasks_db.js?v=22.09-261"></script>
+<script src="root_index/db.js?v=22.09-261"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -1563,12 +1685,12 @@
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-259"></script>
-      <script src="root_index/error_log.js?v=22.09-259"></script>
-      <script src="root_index/api_client.js?v=22.09-259"></script>
-      <script src="root_index/sync_polling.js?v=22.09-259"></script>
-      <script src="root_index/zip_util.js?v=22.09-259"></script>
-      <script src="root_index/app.js?v=22.09-259"></script>
+<script src="root_index/object_attrs.js?v=22.09-261"></script>
+      <script src="root_index/error_log.js?v=22.09-261"></script>
+      <script src="root_index/api_client.js?v=22.09-261"></script>
+      <script src="root_index/sync_polling.js?v=22.09-261"></script>
+      <script src="root_index/zip_util.js?v=22.09-261"></script>
+      <script src="root_index/app.js?v=22.09-261"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {

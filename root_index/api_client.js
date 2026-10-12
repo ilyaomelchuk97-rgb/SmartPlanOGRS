@@ -184,12 +184,58 @@ window.SP_API = (function () {
       } catch (e) {}
     }
   }
-  function sendOne(section, record, json) {
+  /* ---------- 22.09-261: ОЧЕРЕДЬ ОТПРАВКИ (outbox) на случай спящего/недоступного сервера ----------
+     Бесплатный Render засыпает через 15 минут без посетителей; во время сна запросы получают
+     404/таймаут. Правка, сделанная в этот момент (вид работы, норма, пользователь…), раньше
+     терялась: оставалась только в этом браузере, а на сервере и у других — старое значение
+     («настройки пропадают»). Теперь запись попадает в очередь localStorage и автоматически
+     уходит при следующем удачном опросе сервера. Если за это время запись изменили на другом
+     устройстве (сервер новее) — отправка отклоняется конфликтом и применяется серверная версия. */
+  var OUTBOX_KEY = 'smartplan_outbox_records';
+  var _flushing = false;
+  function outboxRead() { try { var a = JSON.parse(localStorage.getItem(OUTBOX_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+  function outboxWrite(q) { try { if (q.length > 200) q = q.slice(-200); localStorage.setItem(OUTBOX_KEY, JSON.stringify(q)); } catch (e) {} }
+  // сервер «лежит» (сон Render / сеть упала) — 404/408/5xx/сеть; 400/401/409 — НЕ сон
+  function isServerDown(r) { return !!(r && (r._network || r._status === 404 || r._status === 408 || r._status >= 500)); }
+  function outboxPush(section, record, base) {
+    try {
+      var q = outboxRead();
+      for (var i = q.length - 1; i >= 0; i--) if (q[i].s === section && q[i].id === record.id) q.splice(i, 1); // свежая версия заменяет старую
+      q.push({ s: section, id: record.id, d: record, base: (typeof base === 'number' && isFinite(base)) ? base : null, ts: Date.now() });
+      outboxWrite(q);
+    } catch (e) {}
+  }
+  function outboxFlush() {
+    if (_flushing) return;
+    try {
+      if (!getToken()) return;
+      if (!outboxRead().length) return;
+      _flushing = true;
+      (function next() {
+        var it = outboxRead()[0];
+        if (!it) { _flushing = false; return; }
+        sendOne(it.s, it.d, canon(it.d), it.base, true).then(function (r) { // canon — чтобы после отправки тень версии была честной
+          if (r && (r.ok || r.unchanged || r.conflict)) {
+            var cur = outboxRead();
+            for (var i = 0; i < cur.length; i++) if (cur[i].s === it.s && cur[i].id === it.id) { cur.splice(i, 1); break; }
+            outboxWrite(cur);
+            next();
+          } else {
+            _flushing = false; // сервер ещё спит (404/5xx/сеть) или 401 — повторим при следующем удачном опросе
+          }
+        }).catch(function () { _flushing = false; });
+      })();
+    } catch (e) { _flushing = false; }
+  }
+  try { if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('online', function () { try { outboxFlush(); } catch (e) {} }); } catch (e) {}
+
+  function sendOne(section, record, json, baseOverride, fromQueue) {
     var k = keyOf(section, record.id);
     // base — версия, которую этот браузер знает; если он её ещё не получал от сервера
     // (до первой синхронизации), пишем как раньше (без проверки) — иначе правка, сделанная
     // в первые секунды после входа, терялась (409 + подмена на серверную версию)
-    var base = (typeof VER[k] === 'number' && isFinite(VER[k])) ? VER[k] : null;
+    var base = (typeof baseOverride === 'number' && isFinite(baseOverride)) ? baseOverride
+      : ((typeof VER[k] === 'number' && isFinite(VER[k])) ? VER[k] : null);
     return request('POST', '/' + section, { id: record.id, data: record, base: base }).then(function (r) {
       if (r && r.ok) {
         var rr = r.record || r.user;
@@ -204,6 +250,9 @@ window.SP_API = (function () {
         try { if (r.record && window.SP_SYNC_POLL && SP_SYNC_POLL.applyRemote) applied = SP_SYNC_POLL.applyRemote(section, [r.record]) || true; } catch (eA) {}
         if (!applied && r.record) noteServer(section, r.record);
         onConflict(section, record, r);
+      } else if (isServerDown(r) && !fromQueue) {
+        // 22.09-261: сервер заснул/недоступен — запись в очередь, уйдёт при следующем удачном опросе
+        outboxPush(section, record, VER[k]);
       }
       return r;
     });
@@ -305,7 +354,8 @@ window.SP_API = (function () {
     me: me,
     get: get,
     upsert: upsert,
-    syncPush: syncPush,     // 22.09-254: общее сохранение раздела — только изменённое и только после синхронизации
+    syncPush: syncPush,
+    outboxFlush: outboxFlush, // 22.09-261: отправить записи из очереди (вызывается при удачном опросе сервера)     // 22.09-254: общее сохранение раздела — только изменённое и только после синхронизации
     noteServer: noteServer, // 22.09-254: версия записи с сервера (вызывает синхронизация)
     canon: canon,
     update: update,

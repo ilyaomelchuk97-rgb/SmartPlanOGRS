@@ -429,6 +429,8 @@ window.SP_SYNC_POLL = (function () {
         }
         state.errors = 0;
         state.lastPoll = Date.now();
+        // 22.09-261: сервер доступен — отправить накопившиеся записи (правки, сделанные, пока он спал)
+        try { if (window.SP_API && SP_API.outboxFlush) SP_API.outboxFlush(); } catch (eFl) {}
         state.lastTs = r.now || Date.now();
         state.online = Array.isArray(r.online) ? r.online.slice() : [];
         updateIndicator('connected', { online: state.online.length });
