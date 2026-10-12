@@ -2326,6 +2326,11 @@
 
   /* ---------- СТАРТ ---------- */
   document.getElementById('login-form').addEventListener('submit', onLoginSubmit);
+  // 22.09-247: ссылки «🍪 Cookie» (экран входа и низ меню) — посмотреть/изменить разрешение
+  ['li-cookie-link', 'sb-cookie-link'].forEach(function (id) {
+    var cl = document.getElementById(id);
+    if (cl && cl.addEventListener) cl.addEventListener('click', function (ev) { if (ev && ev.preventDefault) ev.preventDefault(); openConsentDialog(); });
+  });
   // (кнопка sync-btn и её модалка удалены — синхронизация теперь через polling API)
   // Попап-календарь тоже сразу
   setTimeout(function() { try { initDatePicker(); } catch(e) { console.error('DatePicker init:', e); } }, 100);
@@ -2343,6 +2348,7 @@
     } else {
       showLoginScreen();
     }
+    try { consentOnStart(); } catch (eCS) {} // 22.09-247: при первом открытии — разрешение на cookie
     // Загрузка прогноза погоды
     loadWeatherForecast();
     setInterval(loadWeatherForecast, 3600000);

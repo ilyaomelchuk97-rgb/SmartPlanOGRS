@@ -2215,8 +2215,11 @@
       // гант-шкала дня: 8:00–20:00, задачи и переезды
       html += ganttDayHtml(m, dayOff);
       mt.slice(0, 4).forEach(function (t) {
-        var o = OBJ_MAP[t.o], w = workOf(t);
-        html += '<div class="taskline"><span class="pill">' + esc(w ? w.name : '?') + '</span><span>' + esc(addrOf(t)) + '</span>' + taskDayCtlHtml(t, dayOff) + '<span style="margin-left:auto;color:var(--muted)">' + fmtH(taskHours(t)) + ' ч</span></div>';
+        var w = workOf(t);
+        // 22.09-248: под мастером — ГРУППА работ (вид работ — во всплывающей подсказке); кнопок «Приступил/Закончил»
+        // здесь нет — они в «Карточках работ на день» (клик по ФИО мастера), здесь только отметка факта
+        var _gp = gwWorkGroup(w); if (_gp === 'Без группы') _gp = '';
+        html += '<div class="taskline"><span class="pill" style="max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc((_gp ? 'Группа работ: ' + _gp + '\n' : '') + 'Вид работ: ' + (w ? w.name : '—')) + '">' + esc(_gp || (w ? w.name : '?')) + '</span><span>' + esc(addrOf(t)) + '</span>' + taskDayStatusHtml(t) + '<span style="margin-left:auto;color:var(--muted)">' + fmtH(taskHours(t)) + ' ч</span></div>';
       });
       if (mt.length > 4) html += '<div class="taskline" style="color:var(--muted)">и ещё ' + (mt.length - 4) + '…</div>';
     });

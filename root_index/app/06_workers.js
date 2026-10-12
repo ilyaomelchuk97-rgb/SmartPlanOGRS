@@ -776,15 +776,15 @@
     html += '<span class="sub">' + masters.length + ' бригад · ' + slesars.length + ' слесарей · ' + users.length + ' чел.</span><div class="spacer"></div>';
     // Управление: переключатель месяца + режим отображения.
     // 22.09-164: «Праздничные дни» перенесены сюда из графика работ — слева от выбора месяца
-    html += '<button type="button" class="btn sm" data-action="sch-holidays" style="margin-right:8px" title="Праздничные дни (РБ) — список нерабочих дней; учитываются в графиках работ">🎉 Праздничные дни</button>';
+    // 22.09-249: «Праздничные дни» и «Настройки бригад» — кнопки-значки, подпись появляется при наведении
+    // (как на панели «Графика работ»: data-tip → всплывающее окошко #gt-tip); «Изменить график» — слева от «Печать»
+    html += '<button type="button" class="gt-btn gt-sm gt-rose" data-action="sch-holidays" aria-label="Праздничные дни" data-tip="Праздничные дни (РБ) — список нерабочих дней; учитываются в графиках работ" style="margin-right:6px">' + GT_ICONS.gift + '</button>';
+    html += '<button type="button" class="gt-btn gt-sm gt-sky" data-action="wk-settings-open" aria-label="Настройки бригад" data-tip="Настройки бригад — состав бригад, работники, их графики и отсутствия" style="margin-right:10px">' + GT_ICONS.team + '</button>';
     // 22.09-211: редактор графика — отдельное окно (черновик + кнопка «Сохранить»)
     var _canAnySch = users.some(function (u) { return wkCanEdit(u); });
-    if (_canAnySch) html += '<button type="button" class="btn sm" data-action="sch-ed-open" style="margin-right:8px" title="Открыть окно редактирования графика смен: клик по дню — рабочий/выходной и часы, перетаскивание дней мышью (у 5/2 — только этот день, у 2/2 — весь график следом) — применяются по кнопке «Сохранить». Отработанные дни не редактируются. Если слева в списке выбрана конкретная бригада — в окне будет только она; «Все бригады» — все работники">✏ Изменить график</button>';
-    // 22.09-220: «Настройки бригад» — функционал бывшей страницы «Работники» окном над графиком
-    html += '<button type="button" class="btn sm" data-action="wk-settings-open" style="margin-right:8px" title="Настройки бригад: состав бригад, работники, их графики и отсутствия — то же, что было на странице «Работники», теперь окном над графиком">⚙ Настройки бригад</button>';
     html += '<span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">';
     html += '<button type="button" class="btn sm" data-action="sch-month-prev" title="Предыдущий месяц">‹</button>';
-    html += '<b data-action="sch-month-label" style="font-size:13px;color:var(--ink);min-width:140px;text-align:center">' + MON_NOM[wm.m] + ' ' + wm.y + '</b>';
+    html += '<b data-action="sch-month-label" style="font-size:13px;color:var(--ink);min-width:118px;text-align:center">' + MON_NOM[wm.m] + ' ' + wm.y + '</b>';
     html += '<button type="button" class="btn sm" data-action="sch-month-next" title="Следующий месяц">›</button>';
     html += '<span style="width:1px;height:20px;background:var(--line);margin:0 4px"></span>';
     var modes = [
@@ -798,9 +798,11 @@
       html += '<option value="' + esc(m.id) + '"' + (m.id === curMode ? ' selected' : '') + '>' + esc(m.label) + '</option>';
     });
     html += '</select>';
-    html += '<span style="width:1px;height:20px;background:var(--line);margin:0 4px"></span>';
+    html += '<span style="display:inline-flex;gap:6px;align-items:center;white-space:nowrap;margin-left:4px">'; // 22.09-249: «Изменить график» · «Печать» · «Excel» — переносятся только вместе
+    if (_canAnySch) html += '<button type="button" class="btn sm" data-action="sch-ed-open" title="Открыть окно редактирования графика смен: клик по дню — рабочий/выходной и часы, перетаскивание дней мышью (у 5/2 — только этот день, у 2/2 — весь график следом) — применяются по кнопке «Сохранить». Отработанные дни не редактируются. Если слева в списке выбрана конкретная бригада — в окне будет только она; «Все бригады» — все работники">✏ Изменить график</button>'; // 22.09-249: слева от «Печать»
     html += '<button type="button" class="btn sm" data-action="sch-print" title="Печать сводного графика (текущий период, выбранный режим)" style="background:#475569;color:#fff;border-color:#475569">🖨 Печать</button>';
     html += '<button type="button" class="btn sm" data-action="sch-excel" title="Скачать в Excel — текущий период, выбранный режим" style="background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border-color:#15803d">📥 Excel</button>';
+    html += '</span>';
     html += '</span></div>';
     html += '<div class="card-b">';
     // 22.09-123: кнопка «Праздники» перенесена в графики работ (панель слева, после «Обозначения работ»)

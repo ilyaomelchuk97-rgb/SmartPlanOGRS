@@ -128,6 +128,7 @@
   /* ---------- ВХОД / СЕССИЯ ---------- */
   function onLoginSubmit(e) {
     e.preventDefault();
+    if (!consentOk()) { openConsentDialog(); return; } // 22.09-247: без разрешения на cookie вход невозможен
     var login = document.getElementById('li-login').value.trim();
     var pass = document.getElementById('li-pass').value.trim();
     var err = document.getElementById('li-err');
@@ -241,6 +242,97 @@
     var f = document.getElementById('login-form'); if (f) f.reset();
     var err = document.getElementById('li-err'); if (err) err.textContent = '';
   }
+  /* =====================================================================
+     22.09-247: РАЗРЕШЕНИЕ НА COOKIE. При первом открытии сайт спрашивает разрешение
+     на cookie и хранилище браузера (без них не работают вход и данные). Выбор хранится
+     в этом браузере (localStorage + cookie sp_consent, на год); изменить — ссылка
+     «🍪 Cookie» на экране входа и внизу меню. Отказ: вход закрыт (если уже вошли — выход).
+     ===================================================================== */
+  var CONSENT_KEY = 'smartplan_cookie_consent';
+  function consentGet() {
+    try { var o = JSON.parse(localStorage.getItem(CONSENT_KEY) || 'null'); if (o && (o.choice === 'accept' || o.choice === 'decline')) return o.choice; } catch (e) {}
+    try { var mm = String(document.cookie || '').match(/(?:^|;\s*)sp_consent=(accept|decline)/); if (mm) return mm[1]; } catch (e2) {}
+    return '';
+  }
+  function consentOk() { return consentGet() === 'accept'; }
+  function consentSet(choice) {
+    try { localStorage.setItem(CONSENT_KEY, JSON.stringify({ choice: choice, ts: Date.now(), v: 1 })); } catch (e) {}
+    try { document.cookie = 'sp_consent=' + choice + '; max-age=31536000; path=/; SameSite=Lax'; } catch (e2) {}
+  }
+  function isLoggedIn() { try { return document.body.classList.contains('logged-in') === true; } catch (e) { return false; } }
+  /* общий выход из системы — кнопка «Выйти» и отказ от cookie */
+  function doLogout() {
+    try { if (window.SP_SYNC_POLL && SP_SYNC_POLL.stop) SP_SYNC_POLL.stop(); } catch (e) {}
+    try { if (window.SP_API && SP_API.logout) SP_API.logout(); } catch (e) {}
+    DB.clearSession();
+    showLoginScreen();
+  }
+  /* экран входа: без разрешения — кнопка «Войти» недоступна, над формой — пояснение и «Разрешить» */
+  function consentApplyLoginState() {
+    var ok = consentOk();
+    var btn = document.getElementById('li-btn');
+    if (btn) { btn.disabled = !ok; btn.title = ok ? '' : 'Вход возможен после разрешения на cookie'; }
+    var box = document.getElementById('li-consent');
+    if (ok) { if (box && box.parentNode) box.parentNode.removeChild(box); return; }
+    if (!box) {
+      var form = document.getElementById('login-form');
+      if (!form || !form.parentNode) return;
+      box = document.createElement('div');
+      box.id = 'li-consent';
+      box.className = 'li-consent';
+      form.parentNode.insertBefore(box, form);
+    }
+    box.innerHTML = '<span>🍪 ' + (consentGet() === 'decline'
+      ? 'Вы отказались от cookie. Без них вход невозможен — данные входа и рабочие данные хранятся в браузере.'
+      : 'Чтобы войти, разрешите использование cookie.') + '</span>' +
+      '<button type="button" class="btn sm primary" id="li-consent-ok">Разрешить</button>';
+    var b2 = document.getElementById('li-consent-ok');
+    if (b2) b2.onclick = function () { consentSet('accept'); consentApplyLoginState(); toast('ok', '🍪 Cookie разрешены — можно входить'); };
+  }
+  /* окно разрешения: закрывается только выбором (щелчок мимо и Esc не закрывают) */
+  function openConsentDialog() {
+    var prev = document.getElementById('sp-consent');
+    if (prev && prev.parentNode) prev.parentNode.removeChild(prev);
+    var ov = document.createElement('div');
+    ov.id = 'sp-consent';
+    ov.className = 'sp-consent';
+    var cur = consentGet();
+    ov.innerHTML = '<div class="sp-consent-box" role="dialog" aria-modal="true" aria-labelledby="sp-consent-t">' +
+      '<div class="sp-consent-h"><span class="sp-consent-ic">🍪</span><span id="sp-consent-t">Разрешение на использование cookie</span></div>' +
+      '<div class="sp-consent-b">' +
+      '<p>Сайт SmartPlan использует <b>cookie и хранилище браузера</b>, чтобы вы могли войти в систему и работать: в браузере хранятся данные входа, ваши настройки и рабочие данные (в том числе для работы без связи с сервером). Подключаемые карты (Яндекс.Карты, OpenStreetMap и др.) могут устанавливать свои cookie.</p>' +
+      '<p>Без разрешения вход в систему невозможен. Выбор сохраняется в этом браузере; изменить его можно в любой момент — ссылка «🍪 Cookie» на экране входа и внизу меню.</p>' +
+      (cur ? '<p class="sp-consent-cur">Сейчас: ' + (cur === 'accept' ? '✅ разрешено' : '⛔ отказано') + '</p>' : '') +
+      '</div>' +
+      '<div class="sp-consent-f">' +
+      '<button type="button" class="btn" data-consent="decline">Отказаться</button>' +
+      '<button type="button" class="btn primary" data-consent="accept">✅ Разрешить</button>' +
+      '</div></div>';
+    document.body.appendChild(ov);
+    ov.addEventListener('click', function (e) {
+      var b = e.target && e.target.closest ? e.target.closest('[data-consent]') : null;
+      if (!b) return; // щелчок мимо окна — нужен выбор
+      e.stopPropagation();
+      var ch = b.getAttribute('data-consent');
+      consentSet(ch);
+      if (ov.parentNode) ov.parentNode.removeChild(ov);
+      if (ch === 'decline' && isLoggedIn()) {
+        doLogout();
+        toast('warn', '🍪 Вы отказались от cookie — без них работа на сайте невозможна, выполнен выход. Разрешить можно на экране входа.');
+      }
+      consentApplyLoginState();
+      if (ch === 'accept') toast('ok', '🍪 Спасибо! Cookie разрешены.');
+    });
+    setTimeout(function () { var f = ov.querySelector('[data-consent="accept"]'); if (f && f.focus) f.focus(); }, 30);
+  }
+  /* при запуске: решение ещё не принято — спросить; был отказ — вход закрыт (если вход был — выход) */
+  function consentOnStart() {
+    var c = consentGet();
+    if (c === 'decline' && isLoggedIn()) doLogout();
+    consentApplyLoginState();
+    if (!c) openConsentDialog();
+  }
+
   // 22.09-101: polling потерял токен (истёк/сброшен сервером) — не «висим» без
   // синхронизации, а просим войти заново; после входа токен новый, всё подтянется.
   window.SP_FORCE_RELOGIN = function () {

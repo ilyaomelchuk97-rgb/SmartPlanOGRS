@@ -863,7 +863,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-246';
+  var SP_BUILD = '22.09-249';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -3122,8 +3122,11 @@
       // гант-шкала дня: 8:00–20:00, задачи и переезды
       html += ganttDayHtml(m, dayOff);
       mt.slice(0, 4).forEach(function (t) {
-        var o = OBJ_MAP[t.o], w = workOf(t);
-        html += '<div class="taskline"><span class="pill">' + esc(w ? w.name : '?') + '</span><span>' + esc(addrOf(t)) + '</span>' + taskDayCtlHtml(t, dayOff) + '<span style="margin-left:auto;color:var(--muted)">' + fmtH(taskHours(t)) + ' ч</span></div>';
+        var w = workOf(t);
+        // 22.09-248: под мастером — ГРУППА работ (вид работ — во всплывающей подсказке); кнопок «Приступил/Закончил»
+        // здесь нет — они в «Карточках работ на день» (клик по ФИО мастера), здесь только отметка факта
+        var _gp = gwWorkGroup(w); if (_gp === 'Без группы') _gp = '';
+        html += '<div class="taskline"><span class="pill" style="max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc((_gp ? 'Группа работ: ' + _gp + '\n' : '') + 'Вид работ: ' + (w ? w.name : '—')) + '">' + esc(_gp || (w ? w.name : '?')) + '</span><span>' + esc(addrOf(t)) + '</span>' + taskDayStatusHtml(t) + '<span style="margin-left:auto;color:var(--muted)">' + fmtH(taskHours(t)) + ' ч</span></div>';
       });
       if (mt.length > 4) html += '<div class="taskline" style="color:var(--muted)">и ещё ' + (mt.length - 4) + '…</div>';
     });
@@ -8374,15 +8377,15 @@
     html += '<span class="sub">' + masters.length + ' бригад · ' + slesars.length + ' слесарей · ' + users.length + ' чел.</span><div class="spacer"></div>';
     // Управление: переключатель месяца + режим отображения.
     // 22.09-164: «Праздничные дни» перенесены сюда из графика работ — слева от выбора месяца
-    html += '<button type="button" class="btn sm" data-action="sch-holidays" style="margin-right:8px" title="Праздничные дни (РБ) — список нерабочих дней; учитываются в графиках работ">🎉 Праздничные дни</button>';
+    // 22.09-249: «Праздничные дни» и «Настройки бригад» — кнопки-значки, подпись появляется при наведении
+    // (как на панели «Графика работ»: data-tip → всплывающее окошко #gt-tip); «Изменить график» — слева от «Печать»
+    html += '<button type="button" class="gt-btn gt-sm gt-rose" data-action="sch-holidays" aria-label="Праздничные дни" data-tip="Праздничные дни (РБ) — список нерабочих дней; учитываются в графиках работ" style="margin-right:6px">' + GT_ICONS.gift + '</button>';
+    html += '<button type="button" class="gt-btn gt-sm gt-sky" data-action="wk-settings-open" aria-label="Настройки бригад" data-tip="Настройки бригад — состав бригад, работники, их графики и отсутствия" style="margin-right:10px">' + GT_ICONS.team + '</button>';
     // 22.09-211: редактор графика — отдельное окно (черновик + кнопка «Сохранить»)
     var _canAnySch = users.some(function (u) { return wkCanEdit(u); });
-    if (_canAnySch) html += '<button type="button" class="btn sm" data-action="sch-ed-open" style="margin-right:8px" title="Открыть окно редактирования графика смен: клик по дню — рабочий/выходной и часы, перетаскивание дней мышью (у 5/2 — только этот день, у 2/2 — весь график следом) — применяются по кнопке «Сохранить». Отработанные дни не редактируются. Если слева в списке выбрана конкретная бригада — в окне будет только она; «Все бригады» — все работники">✏ Изменить график</button>';
-    // 22.09-220: «Настройки бригад» — функционал бывшей страницы «Работники» окном над графиком
-    html += '<button type="button" class="btn sm" data-action="wk-settings-open" style="margin-right:8px" title="Настройки бригад: состав бригад, работники, их графики и отсутствия — то же, что было на странице «Работники», теперь окном над графиком">⚙ Настройки бригад</button>';
     html += '<span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">';
     html += '<button type="button" class="btn sm" data-action="sch-month-prev" title="Предыдущий месяц">‹</button>';
-    html += '<b data-action="sch-month-label" style="font-size:13px;color:var(--ink);min-width:140px;text-align:center">' + MON_NOM[wm.m] + ' ' + wm.y + '</b>';
+    html += '<b data-action="sch-month-label" style="font-size:13px;color:var(--ink);min-width:118px;text-align:center">' + MON_NOM[wm.m] + ' ' + wm.y + '</b>';
     html += '<button type="button" class="btn sm" data-action="sch-month-next" title="Следующий месяц">›</button>';
     html += '<span style="width:1px;height:20px;background:var(--line);margin:0 4px"></span>';
     var modes = [
@@ -8396,9 +8399,11 @@
       html += '<option value="' + esc(m.id) + '"' + (m.id === curMode ? ' selected' : '') + '>' + esc(m.label) + '</option>';
     });
     html += '</select>';
-    html += '<span style="width:1px;height:20px;background:var(--line);margin:0 4px"></span>';
+    html += '<span style="display:inline-flex;gap:6px;align-items:center;white-space:nowrap;margin-left:4px">'; // 22.09-249: «Изменить график» · «Печать» · «Excel» — переносятся только вместе
+    if (_canAnySch) html += '<button type="button" class="btn sm" data-action="sch-ed-open" title="Открыть окно редактирования графика смен: клик по дню — рабочий/выходной и часы, перетаскивание дней мышью (у 5/2 — только этот день, у 2/2 — весь график следом) — применяются по кнопке «Сохранить». Отработанные дни не редактируются. Если слева в списке выбрана конкретная бригада — в окне будет только она; «Все бригады» — все работники">✏ Изменить график</button>'; // 22.09-249: слева от «Печать»
     html += '<button type="button" class="btn sm" data-action="sch-print" title="Печать сводного графика (текущий период, выбранный режим)" style="background:#475569;color:#fff;border-color:#475569">🖨 Печать</button>';
     html += '<button type="button" class="btn sm" data-action="sch-excel" title="Скачать в Excel — текущий период, выбранный режим" style="background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border-color:#15803d">📥 Excel</button>';
+    html += '</span>';
     html += '</span></div>';
     html += '<div class="card-b">';
     // 22.09-123: кнопка «Праздники» перенесена в графики работ (панель слева, после «Обозначения работ»)
@@ -16476,6 +16481,7 @@
   /* ---------- ВХОД / СЕССИЯ ---------- */
   function onLoginSubmit(e) {
     e.preventDefault();
+    if (!consentOk()) { openConsentDialog(); return; } // 22.09-247: без разрешения на cookie вход невозможен
     var login = document.getElementById('li-login').value.trim();
     var pass = document.getElementById('li-pass').value.trim();
     var err = document.getElementById('li-err');
@@ -16589,6 +16595,97 @@
     var f = document.getElementById('login-form'); if (f) f.reset();
     var err = document.getElementById('li-err'); if (err) err.textContent = '';
   }
+  /* =====================================================================
+     22.09-247: РАЗРЕШЕНИЕ НА COOKIE. При первом открытии сайт спрашивает разрешение
+     на cookie и хранилище браузера (без них не работают вход и данные). Выбор хранится
+     в этом браузере (localStorage + cookie sp_consent, на год); изменить — ссылка
+     «🍪 Cookie» на экране входа и внизу меню. Отказ: вход закрыт (если уже вошли — выход).
+     ===================================================================== */
+  var CONSENT_KEY = 'smartplan_cookie_consent';
+  function consentGet() {
+    try { var o = JSON.parse(localStorage.getItem(CONSENT_KEY) || 'null'); if (o && (o.choice === 'accept' || o.choice === 'decline')) return o.choice; } catch (e) {}
+    try { var mm = String(document.cookie || '').match(/(?:^|;\s*)sp_consent=(accept|decline)/); if (mm) return mm[1]; } catch (e2) {}
+    return '';
+  }
+  function consentOk() { return consentGet() === 'accept'; }
+  function consentSet(choice) {
+    try { localStorage.setItem(CONSENT_KEY, JSON.stringify({ choice: choice, ts: Date.now(), v: 1 })); } catch (e) {}
+    try { document.cookie = 'sp_consent=' + choice + '; max-age=31536000; path=/; SameSite=Lax'; } catch (e2) {}
+  }
+  function isLoggedIn() { try { return document.body.classList.contains('logged-in') === true; } catch (e) { return false; } }
+  /* общий выход из системы — кнопка «Выйти» и отказ от cookie */
+  function doLogout() {
+    try { if (window.SP_SYNC_POLL && SP_SYNC_POLL.stop) SP_SYNC_POLL.stop(); } catch (e) {}
+    try { if (window.SP_API && SP_API.logout) SP_API.logout(); } catch (e) {}
+    DB.clearSession();
+    showLoginScreen();
+  }
+  /* экран входа: без разрешения — кнопка «Войти» недоступна, над формой — пояснение и «Разрешить» */
+  function consentApplyLoginState() {
+    var ok = consentOk();
+    var btn = document.getElementById('li-btn');
+    if (btn) { btn.disabled = !ok; btn.title = ok ? '' : 'Вход возможен после разрешения на cookie'; }
+    var box = document.getElementById('li-consent');
+    if (ok) { if (box && box.parentNode) box.parentNode.removeChild(box); return; }
+    if (!box) {
+      var form = document.getElementById('login-form');
+      if (!form || !form.parentNode) return;
+      box = document.createElement('div');
+      box.id = 'li-consent';
+      box.className = 'li-consent';
+      form.parentNode.insertBefore(box, form);
+    }
+    box.innerHTML = '<span>🍪 ' + (consentGet() === 'decline'
+      ? 'Вы отказались от cookie. Без них вход невозможен — данные входа и рабочие данные хранятся в браузере.'
+      : 'Чтобы войти, разрешите использование cookie.') + '</span>' +
+      '<button type="button" class="btn sm primary" id="li-consent-ok">Разрешить</button>';
+    var b2 = document.getElementById('li-consent-ok');
+    if (b2) b2.onclick = function () { consentSet('accept'); consentApplyLoginState(); toast('ok', '🍪 Cookie разрешены — можно входить'); };
+  }
+  /* окно разрешения: закрывается только выбором (щелчок мимо и Esc не закрывают) */
+  function openConsentDialog() {
+    var prev = document.getElementById('sp-consent');
+    if (prev && prev.parentNode) prev.parentNode.removeChild(prev);
+    var ov = document.createElement('div');
+    ov.id = 'sp-consent';
+    ov.className = 'sp-consent';
+    var cur = consentGet();
+    ov.innerHTML = '<div class="sp-consent-box" role="dialog" aria-modal="true" aria-labelledby="sp-consent-t">' +
+      '<div class="sp-consent-h"><span class="sp-consent-ic">🍪</span><span id="sp-consent-t">Разрешение на использование cookie</span></div>' +
+      '<div class="sp-consent-b">' +
+      '<p>Сайт SmartPlan использует <b>cookie и хранилище браузера</b>, чтобы вы могли войти в систему и работать: в браузере хранятся данные входа, ваши настройки и рабочие данные (в том числе для работы без связи с сервером). Подключаемые карты (Яндекс.Карты, OpenStreetMap и др.) могут устанавливать свои cookie.</p>' +
+      '<p>Без разрешения вход в систему невозможен. Выбор сохраняется в этом браузере; изменить его можно в любой момент — ссылка «🍪 Cookie» на экране входа и внизу меню.</p>' +
+      (cur ? '<p class="sp-consent-cur">Сейчас: ' + (cur === 'accept' ? '✅ разрешено' : '⛔ отказано') + '</p>' : '') +
+      '</div>' +
+      '<div class="sp-consent-f">' +
+      '<button type="button" class="btn" data-consent="decline">Отказаться</button>' +
+      '<button type="button" class="btn primary" data-consent="accept">✅ Разрешить</button>' +
+      '</div></div>';
+    document.body.appendChild(ov);
+    ov.addEventListener('click', function (e) {
+      var b = e.target && e.target.closest ? e.target.closest('[data-consent]') : null;
+      if (!b) return; // щелчок мимо окна — нужен выбор
+      e.stopPropagation();
+      var ch = b.getAttribute('data-consent');
+      consentSet(ch);
+      if (ov.parentNode) ov.parentNode.removeChild(ov);
+      if (ch === 'decline' && isLoggedIn()) {
+        doLogout();
+        toast('warn', '🍪 Вы отказались от cookie — без них работа на сайте невозможна, выполнен выход. Разрешить можно на экране входа.');
+      }
+      consentApplyLoginState();
+      if (ch === 'accept') toast('ok', '🍪 Спасибо! Cookie разрешены.');
+    });
+    setTimeout(function () { var f = ov.querySelector('[data-consent="accept"]'); if (f && f.focus) f.focus(); }, 30);
+  }
+  /* при запуске: решение ещё не принято — спросить; был отказ — вход закрыт (если вход был — выход) */
+  function consentOnStart() {
+    var c = consentGet();
+    if (c === 'decline' && isLoggedIn()) doLogout();
+    consentApplyLoginState();
+    if (!c) openConsentDialog();
+  }
+
   // 22.09-101: polling потерял токен (истёк/сброшен сервером) — не «висим» без
   // синхронизации, а просим войти заново; после входа токен новый, всё подтянется.
   window.SP_FORCE_RELOGIN = function () {
@@ -16697,17 +16794,16 @@
     });
   }
   // Ячейка факта в строке задачи блока «Сегодня»: кнопки / пометка / итог
-  function taskDayCtlHtml(t, dayOff) {
+  /* 22.09-248: в блоке «Сегодня» панели мониторинга — только отметка факта, БЕЗ кнопок:
+     «Приступил» / «Закончил» нажимают в «Карточках работ на день» (клик по ФИО мастера). */
+  function taskDayStatusHtml(t) {
     if (isDone(t)) {
       if (!t.finished_at) return '';
       var span = (t.started_at ? fmtClock(t.started_at) + '–' : '') + fmtClock(t.finished_at);
       var fh0 = taskFactHours(t);
       return '<span style="color:#16a34a;font-weight:700;font-size:12.5px;white-space:nowrap" title="Фактическое время работы на объекте">✓ ' + span + (fh0 != null ? ' (' + fmtH(fh0) + ' ч)' : '') + '</span>';
     }
-    var startedMark = t.started_at ? '<span style="color:#d97706;font-size:12px;font-weight:700;white-space:nowrap" title="Работа начата — ждём oкончания">⏳ с ' + fmtClock(t.started_at) + '</span>' : '';
-    if (dayOff !== 0 || !canEditTask(t)) return startedMark; // не сегодня или нет прав — только пометка
-    if (!t.started_at) return '<button type="button" class="btn sm" data-action="task-start" data-tid="' + esc(t.id) + '" title="Нажмите, когда приступили к работе на объекте — запишется время начала" style="background:#dcfce7;border-color:#86efac;color:#166534;font-weight:700;white-space:nowrap">▶ Приступил</button>';
-    return startedMark + '<button type="button" class="btn sm" data-action="task-finish" data-tid="' + esc(t.id) + '" title="Нажмите по окончании работ — запишется время конца и задача закроется" style="background:#fee2e2;border-color:#fca5a5;color:#b91c1c;font-weight:700;white-space:nowrap">■ Закончил</button>';
+    return t.started_at ? '<span style="color:#d97706;font-size:12px;font-weight:700;white-space:nowrap" title="Работа начата — ждём окончания">⏳ с ' + fmtClock(t.started_at) + '</span>' : '';
   }
 
   /* ===== 22.09-191: КАРТОЧКИ РАБОТ НА ДЕНЬ =====
@@ -17749,13 +17845,7 @@
     else if (a === 'usr-menu') { // 22.09-106: стрелочка на сенсоре — открыть/закрыть меню пользователя
       var umDd = document.getElementById('usr-dd'); if (umDd) umDd.classList.toggle('show');
     }
-    else if (a === 'logout') {
-      // Сборка 22.09-25: при выходе останавливаем polling и чистим токен
-      try { if (window.SP_SYNC_POLL && SP_SYNC_POLL.stop) SP_SYNC_POLL.stop(); } catch (e) {}
-      try { if (window.SP_API && SP_API.logout) SP_API.logout(); } catch (e) {}
-      DB.clearSession();
-      showLoginScreen();
-    }
+    else if (a === 'logout') { doLogout(); } // 22.09-25/247: остановить синхронизацию, выйти (общая функция — и для отказа от cookie)
     else if (a === 'optimize') { autoSchedule(); }
     else if (a === 'build-route') { buildYandexRoute(false); }
     else if (a === 't-map-off') { TS.off = parseInt(el.dataset.off, 10) || 0; renderTestMap(); }
@@ -18006,7 +18096,8 @@
     snow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/><path d="m20 16-4-4 4-4"/><path d="m4 8 4 4-4 4"/><path d="m16 4-4 4-4-4"/><path d="m8 20 4-4 4 4"/></svg>',
     gift: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 01-2 2H7a2 2 0 01-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 010-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 010 5"/></svg>',
     pencil: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>',
-    copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>'
+    copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>',
+    team: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.6"/><path d="M15.6 14.2c3 .3 5.4 2.7 5.4 5.8"/></svg>' // 22.09-249: «Настройки бригад»
   };
   function graphsToolbarHtml(g) {
     // 22.09-124: «Сезоны» (бывш. «Настройка периодов») — после «Настроить периодичность».
@@ -24902,6 +24993,11 @@
 
   /* ---------- СТАРТ ---------- */
   document.getElementById('login-form').addEventListener('submit', onLoginSubmit);
+  // 22.09-247: ссылки «🍪 Cookie» (экран входа и низ меню) — посмотреть/изменить разрешение
+  ['li-cookie-link', 'sb-cookie-link'].forEach(function (id) {
+    var cl = document.getElementById(id);
+    if (cl && cl.addEventListener) cl.addEventListener('click', function (ev) { if (ev && ev.preventDefault) ev.preventDefault(); openConsentDialog(); });
+  });
   // (кнопка sync-btn и её модалка удалены — синхронизация теперь через polling API)
   // Попап-календарь тоже сразу
   setTimeout(function() { try { initDatePicker(); } catch(e) { console.error('DatePicker init:', e); } }, 100);
@@ -24919,6 +25015,7 @@
     } else {
       showLoginScreen();
     }
+    try { consentOnStart(); } catch (eCS) {} // 22.09-247: при первом открытии — разрешение на cookie
     // Загрузка прогноза погоды
     loadWeatherForecast();
     setInterval(loadWeatherForecast, 3600000);

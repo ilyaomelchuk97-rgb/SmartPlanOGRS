@@ -171,7 +171,7 @@
   .tag.over{background:var(--red-l);color:var(--red)}
   .tag.ok{background:var(--green-l);color:var(--green)}
   .taskline{display:flex;gap:8px;font-size:12px;color:var(--txt);margin-top:6px;align-items:center}
-  .taskline .pill{font-size:10.5px;padding:1px 6px;border-radius:5px;background:#eef2f6;color:var(--muted)}
+  .taskline .pill{font-size:11.5px;padding:1px 7px;border-radius:5px;background:#eef2f6;color:var(--muted)} /* 22.09-248: группа работ — читаемее */
   .rz-item{display:flex;gap:10px;padding:11px 0;border-bottom:1px dashed var(--line)}
   .rz-item:last-child{border-bottom:none}
   .rz-bar{width:4px;border-radius:4px;flex:0 0 4px}
@@ -355,6 +355,8 @@
   .gt-btn svg{width:18px;height:18px;display:block}
   .gt-btn:hover{transform:translateY(-1px)}
   .gt-btn:active{transform:scale(.93)}
+  .gt-btn.gt-sm{width:32px;height:32px;border-radius:9px} /* 22.09-249: кнопки-значки в шапке «Графиков смен» — под высоту соседних кнопок */
+  .gt-btn.gt-sm svg{width:17px;height:17px}
   .gt-blue{border-color:#2563eb;color:#2563eb}.gt-blue:hover{background:rgba(37,99,235,.09)}
   .gt-green{border-color:#16a34a;color:#16a34a}.gt-green:hover{background:rgba(22,163,74,.09)}
   .gt-amber{border-color:#ca8a04;color:#ca8a04}.gt-amber:hover{background:rgba(202,138,4,.1)}
@@ -447,6 +449,20 @@
   .sp-dlg-ic{font-size:21px;line-height:1}
   .sp-dlg-b{padding:6px 18px 16px;font-size:13.5px;line-height:1.55;color:var(--ink);max-height:60vh;overflow:auto;overflow-wrap:anywhere}
   .sp-dlg-f{display:flex;justify-content:flex-end;gap:9px;padding:12px 18px;border-top:1px solid var(--line);background:#f8fafc;flex-wrap:wrap}
+  /* 22.09-247: разрешение на cookie — при первом открытии сайта */
+  .sp-consent{position:fixed;inset:0;z-index:100001;background:rgba(15,23,42,.55);display:flex;align-items:flex-end;justify-content:center;padding:18px;animation:fadeIn .2s ease}
+  .sp-consent-box{background:var(--card);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.35);width:min(620px,100%);overflow:hidden;border-top:4px solid #d97706;animation:popIn .25s cubic-bezier(.34,1.56,.64,1)}
+  .sp-consent-h{display:flex;align-items:center;gap:10px;padding:16px 20px 4px;font-size:16px;font-weight:800;color:var(--ink)}
+  .sp-consent-ic{font-size:24px;line-height:1}
+  .sp-consent-b{padding:4px 20px 8px;font-size:13.5px;line-height:1.55;color:var(--ink)}
+  .sp-consent-b p{margin:8px 0}
+  .sp-consent-cur{color:var(--muted);font-weight:700}
+  .sp-consent-f{display:flex;justify-content:flex-end;gap:10px;padding:12px 20px;border-top:1px solid var(--line);background:#f8fafc;flex-wrap:wrap}
+  .li-consent{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;padding:10px 12px;border-radius:10px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:12.5px;line-height:1.45}
+  .li-consent span{flex:1;min-width:180px}
+  .cookie-link{color:#94a3b8;font-size:12px;text-decoration:none;border-bottom:1px dashed currentColor}
+  .cookie-link:hover{color:var(--blue)}
+  #li-btn:disabled{opacity:.55;cursor:not-allowed}
   .toast{background:var(--slate);color:#fff;padding:12px 15px;border-radius:10px;font-size:13px;box-shadow:var(--shadow-lg);max-width:340px;border-left:4px solid var(--blue);animation:in .2s ease;pointer-events:none}
   .toast.ok{border-left-color:var(--green)} .toast.warn{border-left-color:var(--yellow)} .toast.err{border-left-color:var(--red)}
   @keyframes in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
@@ -1152,7 +1168,8 @@
           <div style="margin-top:6px;font-size:12px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-246 · программа разделена на 17 частей по разделам (для надёжных правок); работа сайта не изменилась</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-249 · «Графики смен»: «Изменить график» слева от «Печать»; «Праздничные дни» и «Настройки бригад» — кнопки-значки с подписью при наведении</div>
+        <div style="margin-top:6px;text-align:center"><a href="#" id="li-cookie-link" class="cookie-link" title="Посмотреть или изменить разрешение">🍪 Cookie и хранилище браузера</a></div>
     </div>
   </div>
   </div>
@@ -1200,7 +1217,7 @@
       <a data-screen="errlogs" title="Логи ошибок приложения и API"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>Логи ошибок</a>
       <a data-screen="changelog" title="История версий системы: дата · сборка · что изменилось"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M12 11v4l2 2"/></svg>Журнал изменений</a>
     </nav>
-    <div class="sb-foot">УП «МИНГАЗ» · v0.9 прототип<br>© 2026 SmartPlan</div>
+    <div class="sb-foot">УП «МИНГАЗ» · v0.9 прототип<br>© 2026 SmartPlan · <a href="#" id="sb-cookie-link" class="cookie-link" title="Разрешение на cookie и хранилище браузера">🍪 Cookie</a></div>
   </aside>
 
   <!-- MAIN -->
@@ -1307,17 +1324,17 @@
   }
 })();
 </script>
-<script src="root_index/config.js?v=22.09-246"></script>
-<script src="root_index/data.js?v=22.09-246"></script>
-<script src="root_index/users_db.js?v=22.09-246"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-246"></script>
-<script src="root_index/areas_db.js?v=22.09-246"></script>
-<script src="root_index/professions_db.js?v=22.09-246"></script>
-<script src="root_index/work_db.js?v=22.09-246"></script>
-<script src="root_index/objects_db.js?v=22.09-246"></script>
-<script src="root_index/workers_db.js?v=22.09-246"></script>
-<script src="root_index/tasks_db.js?v=22.09-246"></script>
-<script src="root_index/db.js?v=22.09-246"></script>
+<script src="root_index/config.js?v=22.09-249"></script>
+<script src="root_index/data.js?v=22.09-249"></script>
+<script src="root_index/users_db.js?v=22.09-249"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-249"></script>
+<script src="root_index/areas_db.js?v=22.09-249"></script>
+<script src="root_index/professions_db.js?v=22.09-249"></script>
+<script src="root_index/work_db.js?v=22.09-249"></script>
+<script src="root_index/objects_db.js?v=22.09-249"></script>
+<script src="root_index/workers_db.js?v=22.09-249"></script>
+<script src="root_index/tasks_db.js?v=22.09-249"></script>
+<script src="root_index/db.js?v=22.09-249"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -1335,12 +1352,12 @@
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-246"></script>
-      <script src="root_index/error_log.js?v=22.09-246"></script>
-      <script src="root_index/api_client.js?v=22.09-246"></script>
-      <script src="root_index/sync_polling.js?v=22.09-246"></script>
-      <script src="root_index/zip_util.js?v=22.09-246"></script>
-      <script src="root_index/app.js?v=22.09-246"></script>
+<script src="root_index/object_attrs.js?v=22.09-249"></script>
+      <script src="root_index/error_log.js?v=22.09-249"></script>
+      <script src="root_index/api_client.js?v=22.09-249"></script>
+      <script src="root_index/sync_polling.js?v=22.09-249"></script>
+      <script src="root_index/zip_util.js?v=22.09-249"></script>
+      <script src="root_index/app.js?v=22.09-249"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {

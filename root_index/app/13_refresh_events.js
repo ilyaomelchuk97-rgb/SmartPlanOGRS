@@ -433,13 +433,7 @@
     else if (a === 'usr-menu') { // 22.09-106: стрелочка на сенсоре — открыть/закрыть меню пользователя
       var umDd = document.getElementById('usr-dd'); if (umDd) umDd.classList.toggle('show');
     }
-    else if (a === 'logout') {
-      // Сборка 22.09-25: при выходе останавливаем polling и чистим токен
-      try { if (window.SP_SYNC_POLL && SP_SYNC_POLL.stop) SP_SYNC_POLL.stop(); } catch (e) {}
-      try { if (window.SP_API && SP_API.logout) SP_API.logout(); } catch (e) {}
-      DB.clearSession();
-      showLoginScreen();
-    }
+    else if (a === 'logout') { doLogout(); } // 22.09-25/247: остановить синхронизацию, выйти (общая функция — и для отказа от cookie)
     else if (a === 'optimize') { autoSchedule(); }
     else if (a === 'build-route') { buildYandexRoute(false); }
     else if (a === 't-map-off') { TS.off = parseInt(el.dataset.off, 10) || 0; renderTestMap(); }

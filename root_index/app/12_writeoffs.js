@@ -49,17 +49,16 @@
     });
   }
   // Ячейка факта в строке задачи блока «Сегодня»: кнопки / пометка / итог
-  function taskDayCtlHtml(t, dayOff) {
+  /* 22.09-248: в блоке «Сегодня» панели мониторинга — только отметка факта, БЕЗ кнопок:
+     «Приступил» / «Закончил» нажимают в «Карточках работ на день» (клик по ФИО мастера). */
+  function taskDayStatusHtml(t) {
     if (isDone(t)) {
       if (!t.finished_at) return '';
       var span = (t.started_at ? fmtClock(t.started_at) + '–' : '') + fmtClock(t.finished_at);
       var fh0 = taskFactHours(t);
       return '<span style="color:#16a34a;font-weight:700;font-size:12.5px;white-space:nowrap" title="Фактическое время работы на объекте">✓ ' + span + (fh0 != null ? ' (' + fmtH(fh0) + ' ч)' : '') + '</span>';
     }
-    var startedMark = t.started_at ? '<span style="color:#d97706;font-size:12px;font-weight:700;white-space:nowrap" title="Работа начата — ждём oкончания">⏳ с ' + fmtClock(t.started_at) + '</span>' : '';
-    if (dayOff !== 0 || !canEditTask(t)) return startedMark; // не сегодня или нет прав — только пометка
-    if (!t.started_at) return '<button type="button" class="btn sm" data-action="task-start" data-tid="' + esc(t.id) + '" title="Нажмите, когда приступили к работе на объекте — запишется время начала" style="background:#dcfce7;border-color:#86efac;color:#166534;font-weight:700;white-space:nowrap">▶ Приступил</button>';
-    return startedMark + '<button type="button" class="btn sm" data-action="task-finish" data-tid="' + esc(t.id) + '" title="Нажмите по окончании работ — запишется время конца и задача закроется" style="background:#fee2e2;border-color:#fca5a5;color:#b91c1c;font-weight:700;white-space:nowrap">■ Закончил</button>';
+    return t.started_at ? '<span style="color:#d97706;font-size:12px;font-weight:700;white-space:nowrap" title="Работа начата — ждём окончания">⏳ с ' + fmtClock(t.started_at) + '</span>' : '';
   }
 
   /* ===== 22.09-191: КАРТОЧКИ РАБОТ НА ДЕНЬ =====
