@@ -2331,6 +2331,58 @@
     var cl = document.getElementById(id);
     if (cl && cl.addEventListener) cl.addEventListener('click', function (ev) { if (ev && ev.preventDefault) ev.preventDefault(); openConsentDialog(); });
   });
+
+  /* 22.09-259: ТЕМА (светлая/тёмная) + РЕЖИМЫ ДОСТУПНОСТИ (для слабовидящих: крупный шрифт,
+     высокий контраст, моноширинный шрифт, без анимаций). Настройки — в localStorage
+     'smartplan_ui_prefs'; на <html> накладываются классы theme-dark / a11y-*, которые
+     переключают дизайн-токены (CSS в index.html). Тема применяется и до входа (скрипт в
+     index.html делает это до отрисовки), здесь — только кнопки и сохранение. */
+  (function uiPrefsWire() {
+    var PREF_KEY = 'smartplan_ui_prefs';
+    var KEYS = ['large', 'contrast', 'mono', 'calm'];
+    function prefsRead() { try { var p = JSON.parse(localStorage.getItem(PREF_KEY) || '{}'); return p && typeof p === 'object' ? p : {}; } catch (e) { return {}; } }
+    function prefsWrite(p) { try { localStorage.setItem(PREF_KEY, JSON.stringify(p)); } catch (e) {} }
+    function apply(p) {
+      var h = document.documentElement;
+      h.classList.toggle('theme-dark', p.theme === 'dark');
+      KEYS.forEach(function (k) { h.classList.toggle('a11y-' + k, !!p[k]); });
+    }
+    var tt = document.getElementById('theme-toggle');
+    var at = document.getElementById('a11y-toggle');
+    var dd = document.getElementById('a11y-dropdown');
+    if (!tt || !at || !dd) return;
+    function syncBtns() {
+      var p = prefsRead();
+      at.classList.toggle('on', KEYS.some(function (k) { return !!p[k]; }));
+      KEYS.forEach(function (k) { var cb = dd.querySelector('input[data-pref="' + k + '"]'); if (cb) cb.checked = !!p[k]; });
+    }
+    function closeDd() { dd.style.display = 'none'; }
+    tt.addEventListener('click', function () {
+      var p = prefsRead();
+      p.theme = (p.theme === 'dark') ? 'light' : 'dark';
+      prefsWrite(p); apply(p);
+    });
+    at.addEventListener('click', function (e) {
+      if (e && e.stopPropagation) e.stopPropagation();
+      if (dd.style.display === 'block') { closeDd(); return; }
+      dd.style.display = 'block';
+      syncBtns();
+      try {
+        var r = at.getBoundingClientRect();
+        dd.style.right = Math.max(8, Math.round(window.innerWidth - r.left)) + 'px';
+        if (window.innerWidth < 640) dd.style.right = '8px';
+      } catch (ePos) {}
+    });
+    dd.addEventListener('click', function (e) { if (e && e.stopPropagation) e.stopPropagation(); });
+    dd.addEventListener('change', function (e) {
+      var t = e.target; if (!t || !t.getAttribute) return;
+      var k = t.getAttribute('data-pref');
+      if (KEYS.indexOf(k) === -1) return;
+      var p = prefsRead(); p[k] = !!t.checked; prefsWrite(p); apply(p); syncBtns();
+    });
+    document.addEventListener('click', function () { closeDd(); });
+    document.addEventListener('keydown', function (e) { if (e && e.key === 'Escape') closeDd(); });
+  })();
   // 22.09-252: «Как разрешить — пошагово» под формой входа (браузер запрещает/переполнено хранилище)
   (function () {
     var shl = document.getElementById('storage-help-link');

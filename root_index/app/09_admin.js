@@ -195,7 +195,7 @@
       if (users.length <= 1) {
         html += '<div style="margin-bottom:14px;background:var(--yellow-l);border:1px solid #fde68a;border-left:4px solid var(--yellow);border-radius:10px;padding:13px 15px;display:flex;gap:12px;align-items:flex-start">' + IC.info + '<div style="flex:1;font-size:12.5px;color:#78350f;line-height:1.6"><b>Новый браузер или компьютер?</b><br>Каждый браузер хранит свою базу пользователей отдельно (в Chrome их не видно из Edge и наоборот). Если пользователи уже заведены в другом браузере — перенесите их файлом:<div style="margin-top:9px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm primary" data-action="import-db">' + IC.upload + ' Импорт из файла</button><a href="#" style="font-size:12px;color:var(--blue);align-self:center" data-action="how-transfer">Как это сделать?</a></div></div></div>';
       }
-      html += '<table class="dt"><thead><tr><th>ФИО</th><th>Логин</th><th>Пароль</th><th>Роль</th><th>Участок</th><th>Статус</th><th style="text-align:right">Действия</th></tr></thead><tbody>';
+      html += '<table class="dt"><thead><tr><th>ФИО</th><th>Логин</th><th>Таб. №</th><th>Пароль</th><th>Роль</th><th>Участок</th><th>Статус</th><th style="text-align:right">Действия</th></tr></thead><tbody>';
       users.forEach(function (u) {
         if (!u) return;
         var me = (S.user && u.id === S.user.id) ? ' <span style="color:var(--green);font-size:12px">(вы)</span>' : '';
@@ -206,15 +206,15 @@
         var passLabel = '<span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="font-family:monospace;background:var(--panel-3);padding:2px 7px;border-radius:4px;color:var(--muted);font-weight:700;letter-spacing:1px" title="Пароль скрыт — он хранится на сервере в зашифрованном виде">🔒 ••••••</span>' +
           (S.role === 'admin' ? '<button class="btn sm" data-action="pwd-user" data-uid="' + esc(u.id) + '" title="Задать пользователю новый пароль для входа">🔑 Сменить пароль</button>' : '') + '</span>';
         var actionsHtml = (S.role === 'admin') ? '<button class="btn sm" data-action="edit-user" data-uid="' + u.id + '">Изменить</button> ' + fireBtn + delBtn : '<span style="color:#94a3b8;font-size:12.5px;">Доступно админу</span>';
-        html += '<tr><td><div style="display:flex;align-items:center;gap:8px">' + avaHtml(u, 28, 10.5) + '<b>' + esc(u.full_name) + '</b>' + me + '</div></td><td style="font-family:monospace;font-weight:700;color:var(--blue);">' + esc(u.login) + '</td><td>' + passLabel + '</td><td>' + roleChip(u.role) + (u.prof ? '<div style="font-size:12px;color:var(--muted);margin-top:3px">' + esc(u.prof) + '</div>' : '') + '</td><td>' + esc(u.area || '—') + '</td><td>' + (u.active ? '<span class="chip" style="background:#dcfce7;color:#15803d">активен</span>' : '<span class="chip" style="background:#fee2e2;color:#b91c1c">отключён</span>') + '</td><td style="white-space:nowrap;text-align:right">' + actionsHtml + '</td></tr>';
+        html += '<tr><td><div style="display:flex;align-items:center;gap:8px">' + avaHtml(u, 28, 10.5) + '<b>' + esc(u.full_name) + '</b>' + me + '</div></td><td style="font-family:monospace;font-weight:700;color:var(--blue);">' + esc(u.login) + '</td><td>' + (u.table_number ? '<span style="font-family:monospace;font-weight:700;">' + esc(u.table_number) + '</span>' : '<span style="color:#cbd5e1">—</span>') + '</td><td>' + passLabel + '</td><td>' + roleChip(u.role) + (u.prof ? '<div style="font-size:12px;color:var(--muted);margin-top:3px">' + esc(u.prof) + '</div>' : '') + '</td><td>' + esc(u.area || '—') + '</td><td>' + (u.active ? '<span class="chip" style="background:#dcfce7;color:#15803d">активен</span>' : '<span class="chip" style="background:#fee2e2;color:#b91c1c">отключён</span>') + '</td><td style="white-space:nowrap;text-align:right">' + actionsHtml + '</td></tr>';
       });
       html += '</tbody></table></div></div>';
       // 22.09-161: уволенные — без логина/пароля, с восстановлением (для истории задач запись остаётся)
       if (firedUsers.length) {
         html += '<div class="card" style="margin-top:14px"><div class="card-h"><h2>👤 Уволенные</h2><span class="sub">' + firedUsers.length + ' чел. · вход закрыт, логин/пароль убраны · в истории задач ФИО сохраняются</span></div><div class="card-b">';
-        html += '<table class="dt"><thead><tr><th>ФИО</th><th>Дата увольнения</th><th>Роль</th><th>Участок</th>' + (S.role === 'admin' ? '<th style="text-align:right">Действия</th>' : '') + '</tr></thead><tbody>';
+        html += '<table class="dt"><thead><tr><th>ФИО</th><th>Таб. №</th><th>Дата увольнения</th><th>Роль</th><th>Участок</th>' + (S.role === 'admin' ? '<th style="text-align:right">Действия</th>' : '') + '</tr></thead><tbody>';
         firedUsers.forEach(function (u) {
-          html += '<tr style="opacity:.78"><td><b>' + esc(u.full_name) + '</b></td><td>' + esc(fmtDmyIso(u.fired_date)) + '</td><td>' + roleChip(u.role) + '</td><td>' + esc(u.area || '—') + '</td>' + (S.role === 'admin' ? '<td style="white-space:nowrap;text-align:right"><button class="btn sm" data-action="restore-user" data-uid="' + u.id + '" title="Вернуть в штат: задаются новые логин и пароль">↩ Восстановить</button></td>' : '') + '</tr>';
+          html += '<tr style="opacity:.78"><td><b>' + esc(u.full_name) + '</b></td><td>' + (u.table_number ? '<span style="font-family:monospace;font-weight:700;">' + esc(u.table_number) + '</span>' : '<span style="color:#cbd5e1">—</span>') + '</td><td>' + esc(fmtDmyIso(u.fired_date)) + '</td><td>' + roleChip(u.role) + '</td><td>' + esc(u.area || '—') + '</td>' + (S.role === 'admin' ? '<td style="white-space:nowrap;text-align:right"><button class="btn sm" data-action="restore-user" data-uid="' + u.id + '" title="Вернуть в штат: задаются новые логин и пароль">↩ Восстановить</button></td>' : '') + '</tr>';
         });
         html += '</tbody></table></div></div>';
       }
@@ -952,6 +952,8 @@
     } else {
       h += '<div class="fld"><label>ФИО</label><input id="um-name" value="' + (u ? esc(u.full_name) : '') + '" placeholder="Иванов И.И."></div>';
       h += '<div class="fld"><label>Логин</label><input id="um-login" value="' + (u ? esc(u.login) : '') + '" placeholder="ivanov"></div>';
+      // 22.09-258: табельный номер работника — задаёт администратор вручную; только цифры; уникален
+      h += '<div class="fld"><label>Табельный номер <span style="font-weight:400;color:#64748b;font-size:12px;">(только цифры; по нему в будущем отслеживаются действия работника)</span></label><input id="um-tabel" inputmode="numeric" pattern="[0-9]*" value="' + (u && u.table_number ? esc(u.table_number) : '') + '" placeholder="12345" autocomplete="off"><div id="um-tabel-err" style="display:none;font-size:12px;color:var(--red);margin-top:4px"></div></div>';
       h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div class="fld"><label>Роль <span style="font-weight:400;color:#64748b;font-size:12px;">(должность из штатного списка)</span></label><select id="um-role">';
       // базовые роли системы + профессии штатного списка (без повторов)
       // старое название (до переименования) → новое
@@ -992,6 +994,12 @@
     h += '</div><div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="save-user">Сохранить</button></div>';
     modal.style.maxWidth = ''; // сброс автоширины карточки задачи
     modal.innerHTML = h; overlay.classList.add('show');
+    // 22.09-258: в табельном номере — только цифры (лишние символы не вставляются)
+    var _umTabel = document.getElementById('um-tabel');
+    if (_umTabel) _umTabel.addEventListener('input', function () {
+      var v = _umTabel.value.replace(/\D/g, '');
+      if (v !== _umTabel.value) _umTabel.value = v;
+    });
     var _umAvaFile = document.getElementById('um-ava-file'); // 22.09-219
     if (_umAvaFile) _umAvaFile.onchange = function (e) {
       var f = e.target.files && e.target.files[0];
@@ -1010,6 +1018,19 @@
       return;
     }
     var full_name = val('um-name'), login = val('um-login'), area = val('um-area');
+    // 22.09-258: табельный номер — только цифры; у двух работников один номер быть не может
+    var tabel = (function () { var el = document.getElementById('um-tabel'); return el ? el.value.replace(/\D/g, '') : ''; })();
+    var _tErr = document.getElementById('um-tabel-err');
+    if (_tErr) _tErr.style.display = 'none';
+    if (tabel) {
+      var dup = null;
+      (DB.getUsers() || []).forEach(function (x) { if (x && x.id !== uid && x.table_number && String(x.table_number) === tabel) dup = x; });
+      if (dup) {
+        if (_tErr) { _tErr.textContent = 'Этот номер уже у работника: ' + dup.full_name + (dup.fired ? ' (уволен)' : ''); _tErr.style.display = ''; }
+        toast('err', 'Табельный номер «' + tabel + '» уже занят: ' + dup.full_name);
+        return;
+      }
+    }
     var _roleSel = val('um-role') === 'Заместитель начальника службы' ? 'Заместитель начальника СЭОГС' : val('um-role'); // старое название → новое
     var role = roleKeyOfSel(_roleSel);   // базовая роль или роль профессии
     var profTitle = roleProfOfSel(_roleSel); // название профессии (для базовых ролей — пусто)
@@ -1019,9 +1040,9 @@
     if (mode === 'new') {
       var pw = val('um-pass');
       if (!pw) { toast('err', 'Укажите пароль'); return; }
-      op = DB.addUser({ full_name: full_name, login: login, password: pw, role: role, area: area, active: active, prof: profTitle });
+      op = DB.addUser({ full_name: full_name, login: login, password: pw, role: role, area: area, active: active, prof: profTitle, table_number: tabel });
     } else {
-      var updateData = { full_name: full_name, login: login, role: role, area: area, active: active, prof: profTitle };
+      var updateData = { full_name: full_name, login: login, role: role, area: area, active: active, prof: profTitle, table_number: tabel };
       var newPw = val('um-pass');
       if (newPw) {
         updateData.password = newPw;
@@ -1190,16 +1211,17 @@
     var users = DB.getUsers() || [];
     var data = [];
     // 22.09-241: пароли не выгружаются — столбец пустой; заполните его, только если при загрузке нужно задать новый пароль
-    data.push(['ФИО', 'Логин', 'Новый пароль (заполнить только для смены)', 'Роль', 'Участок', 'Статус', 'Действия']);
+    // 22.09-258: колонка «Табельный номер» — при загрузке файла номер обновится
+    data.push(['ФИО', 'Логин', 'Табельный номер', 'Новый пароль (заполнить только для смены)', 'Роль', 'Участок', 'Статус', 'Действия']);
     users.forEach(function (u) {
       if (!u) return;
       var roleName = (ROLE_INFO[u.role] || { label: u.role }).label;
       var status = u.active ? 'активен' : 'отключён';
-      data.push([u.full_name || '', u.login || '', '', roleName, u.area || '—', status, '']);
+      data.push([u.full_name || '', u.login || '', u.table_number || '', '', roleName, u.area || '—', status, '']);
     });
     var wb = XLSX.utils.book_new();
     var ws = XLSX.utils.aoa_to_sheet(data);
-    ws['!cols'] = [{ wch: 24 }, { wch: 16 }, { wch: 18 }, { wch: 20 }, { wch: 16 }, { wch: 12 }, { wch: 12 }];
+    ws['!cols'] = [{ wch: 24 }, { wch: 16 }, { wch: 14 }, { wch: 18 }, { wch: 20 }, { wch: 16 }, { wch: 12 }, { wch: 12 }];
     XLSX.utils.book_append_sheet(wb, ws, 'Пользователи');
     var fileName = 'База_пользователей_' + key(TODAY) + '.xlsx';
     try {
@@ -1224,10 +1246,11 @@
 
         // Поиск столбцов по заголовкам
         var headers = rows[0].map(function (h) { return String(h || '').toLowerCase().trim(); });
-        var idxName = -1, idxLogin = -1, idxPass = -1, idxRole = -1, idxArea = -1, idxStatus = -1;
+        var idxName = -1, idxLogin = -1, idxTabel = -1, idxPass = -1, idxRole = -1, idxArea = -1, idxStatus = -1;
         headers.forEach(function (h, i) {
           if (h.indexOf('фио') !== -1 || h.indexOf('имя') !== -1) idxName = i;
           else if (h.indexOf('логин') !== -1) idxLogin = i;
+          else if (h.indexOf('табел') !== -1) idxTabel = i; // 22.09-258
           else if (h.indexOf('пароль') !== -1) idxPass = i;
           else if (h.indexOf('роль') !== -1) idxRole = i;
           else if (h.indexOf('участ') !== -1) idxArea = i;
@@ -1252,7 +1275,7 @@
         try {
 
         var existingUsers = DB.getUsers();
-        var added = 0, updated = 0;
+        var added = 0, updated = 0, failed = 0; // 22.09-258: failed — строки, которые сервер отклонил (например, чужой табельный номер)
         var pending = 0;
         var noPass = []; // 22.09-241: новые без пароля — не созданы
 
@@ -1272,6 +1295,8 @@
           if (area === '—' || area === '') area = '';
           var statusStr = String(row[idxStatus] != null ? row[idxStatus] : '').trim().toLowerCase();
           var active = statusStr.indexOf('актив') !== -1 || statusStr === '';
+          // 22.09-258: табельный номер (только цифры; пустая ячейка в новом формате — снять номер)
+          var tabel = idxTabel >= 0 ? String(row[idxTabel] != null ? row[idxTabel] : '').replace(/\D/g, '') : undefined;
 
           // Поиск существующего
           var existing = null;
@@ -1283,20 +1308,24 @@
             pending++;
             var _upd = { full_name: fullName || existing.full_name, login: login, role: role, area: area, active: active };
             if (password) _upd.password = password;
-            DB.updateUser(existing.id, _upd).then(function () { updated++; }).catch(function () {});
+            if (tabel !== undefined) _upd.table_number = tabel;
+            DB.updateUser(existing.id, _upd).then(function () { updated++; }).catch(function () { failed++; });
           } else if (!existing) {
             if (!password) { noPass.push(login); continue; } // 22.09-241
             pending++;
-            DB.addUser({
-              full_name: fullName || login, login: login, password: password,
-              role: role, area: area, active: active
-            }).then(function () { added++; }).catch(function () {});
+            var _newData = { full_name: fullName || login, login: login, password: password, role: role, area: area, active: active };
+            if (tabel !== undefined) _newData.table_number = tabel;
+            DB.addUser(_newData).then(function () { added++; }).catch(function () { failed++; });
           }
         }
 
         toast('ok', '✓ Импорт запущен: добавляется ' + (pending) + ' записей');
         if (noPass.length) toast('warn', '⚠ Не добавлены (не указан пароль в столбце «Новый пароль»): ' + noPass.slice(0, 8).join(', ') + (noPass.length > 8 ? ' и ещё ' + (noPass.length - 8) : ''));
-        setTimeout(function() { toast('ok', 'Готово: добавлено ' + added + ', обновлено ' + updated); refresh(); }, 1500);
+        setTimeout(function() {
+          if (failed) toast('warn', 'Готово: добавлено ' + added + ', обновлено ' + updated + ' · не удалось: ' + failed + ' (проверьте, что табельные номера не заняты другими работниками)');
+          else toast('ok', 'Готово: добавлено ' + added + ', обновлено ' + updated);
+          refresh();
+        }, 1500);
         } catch (err2) {
           console.error('Ошибка импорта Excel:', err2);
           toast('err', 'Ошибка импорта: ' + err2.message);

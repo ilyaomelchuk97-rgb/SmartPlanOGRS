@@ -239,6 +239,26 @@ window.SP_SYNC_POLL = (function () {
         if (idxU >= 0) curU.users[idxU] = data;
         else curU.users.push(data);
       }
+      // 22.09-258: убрать локальных «тестовых» пользователей (seed), чей логин занят другим
+      // (пришедшим с сервера) пользователем — иначе в списке было по 2 записи с одним логином
+      // (локальный «master» из посева + настоящий u_master с сервера). Удаляем только если на
+      // этого пользователя не ссылаются локальные задачи (иначе — оставляем как есть).
+      (function (list) {
+        if (!Array.isArray(list)) return;
+        var byLogin = {};
+        list.forEach(function (x) { if (x && x.login && !x.seed) byLogin[String(x.login).toLowerCase()] = 1; });
+        for (var i = list.length - 1; i >= 0; i--) {
+          var uu = list[i];
+          if (!uu || !uu.seed || !uu.login || !byLogin[String(uu.login).toLowerCase()]) continue;
+          var refs = 0;
+          try {
+            (window.SP_TASKS && SP_TASKS.getTasks() ? SP_TASKS.getTasks() : []).forEach(function (t) {
+              if (t && (String(t.m) === String(uu.id) || (Array.isArray(t.slesari) && t.slesari.indexOf(uu.id) !== -1))) refs++;
+            });
+          } catch (e) {}
+          if (!refs) list.splice(i, 1);
+        }
+      })(curU.users);
       curU.schema = 3;
       curU.updated_at = Date.now();
       lsWrite(lsKey, curU);

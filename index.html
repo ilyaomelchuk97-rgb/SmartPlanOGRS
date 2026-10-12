@@ -36,6 +36,94 @@
     --shadow-lg:0 10px 30px rgba(15,39,64,.12);
     --radius:12px;
   }
+
+  /* ============================================================
+     22.09-259 — ТЕМЫ И РЕЖИМЫ ДОСТУПНОСТИ (по навыку frontend-design)
+     Якорь тёмной темы — «дежурная ночь»: глубокий сине-сланцевый фон,
+     один светлый акцент, без неона. Тема = смена дизайн-токенов
+     (переменных) + точечные оверрайды тех светлых элементов, что
+     заданы «жёстко», не по токенам.
+     ============================================================ */
+  html.theme-dark{
+    --navy:#0a1526; --navy2:#101f38; --slate:#132038; --ink:#edf3fc;
+    --bg:#0d1626; --card:#152238; --line:#2b3d5c; --muted:#8ba0bf; --txt:#c9d6ea;
+    --panel-2:#1a2942; --panel-3:#20304d;
+    --blue:#5b96f7; --blue-d:#4a83ea; --green:#3ecf8e; --green-l:#143426;
+    --yellow:#e2b54b; --yellow-l:#372d11; --red:#ef7a72; --red-l:#3a1b1b;
+    --shadow:0 1px 3px rgba(0,0,0,.45),0 1px 2px rgba(0,0,0,.35);
+    --shadow-lg:0 12px 34px rgba(0,0,0,.55);
+  }
+  /* фиксированные светлые элементы (не по токенам) — тёмные варианты */
+  html.theme-dark .seg{background:var(--panel-3)}
+  html.theme-dark .chip,html.theme-dark .taskline .pill,html.theme-dark .tile{background:var(--panel-3)}
+  html.theme-dark .tile .tw{color:var(--ink)}
+  html.theme-dark .tile.t-green .tw{color:#9fe8c4}
+  html.theme-dark .tile.t-yellow .tw{color:#f0d9a0}
+  html.theme-dark .tile.t-red .tw{color:#f5b3ad}
+  html.theme-dark .tile.t-weather{background:#3a2f14!important;border-left-color:#b98a2e!important}
+  html.theme-dark .tile.t-weather .tw{color:#f0d48a!important}
+  html.theme-dark .tile.t-done{background:#22304a;border-left-color:#54688c}
+  html.theme-dark .tile.t-done .tw{color:#93a4bd}
+  html.theme-dark .mtask:hover{background:var(--panel-3)}
+  html.theme-dark .mtask-grip{color:#54688c}
+  html.theme-dark .fld input,html.theme-dark .fld select{background:var(--panel-3);color:var(--ink)}
+  html.theme-dark .fld input:hover,html.theme-dark .fld select:hover{background:var(--panel-3);border-color:var(--line)}
+  html.theme-dark .fld input::placeholder{color:#5b6f92}
+  html.theme-dark #sync-indicator{background:var(--panel-2)!important;color:var(--txt)!important;border-color:var(--line)!important}
+  html.theme-dark #map-stats{background:var(--panel-2)!important}
+  html.theme-dark .sp-dlg-f,html.theme-dark .sp-consent-f{background:var(--panel-2)}
+  html.theme-dark .li-consent{background:#33290f;border-color:#5c4d1d;color:#e3d08f}
+  html.theme-dark .storage-warn{background:var(--red-l);border-color:#5c2a2a;color:#f0b1ab}
+  html.theme-dark .li-hint{background:var(--panel-2);border-color:var(--line);color:var(--txt)}
+  html.theme-dark .li-hint code{background:var(--panel-3);color:var(--blue)}
+  html.theme-dark .login-brand{background:var(--panel-2)}
+  html.theme-dark .login-card div[style*="background:#f8fafc"]{background:var(--panel-2)!important;border-color:var(--line)!important;color:var(--txt)!important}
+  html.theme-dark .login-card div[style*="background:#f8fafc"] div,html.theme-dark .login-card div[style*="background:#f8fafc"] span{color:var(--muted)!important}
+  html.theme-dark .login-card button[style*="background:#fff"]{background:var(--card)!important;border-color:var(--line)!important;color:var(--txt)!important}
+  html.theme-dark .wr-item{background:var(--card)}
+  html.theme-dark .wr-f{color:var(--txt)}
+  html.theme-dark .wr-f s{color:#f0a09a}
+  html.theme-dark .wr-f b{color:#8ce3b4}
+  html.theme-dark .sh-code{background:var(--panel-3)}
+  html.theme-dark .sh-note{background:#33290f;border-color:#5c4d1d;color:#e3d08f}
+  html.theme-dark .gw-h{border-bottom-color:var(--line)}
+  html.theme-dark .base-sel select{background:var(--panel-3);color:var(--txt)}
+  html.theme-dark ::-webkit-scrollbar-thumb{background:#33456a}
+  html.theme-dark ::-webkit-scrollbar-thumb:hover{background:#41547c}
+  /* кнопки «тема» и «доступность» в шапке */
+  .tb-btns{display:inline-flex;gap:6px;align-items:center}
+  .tb-btn{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);background:var(--card);border-radius:8px;cursor:pointer;color:var(--muted);padding:0}
+  .tb-btn:hover{border-color:var(--blue);color:var(--blue);background:var(--panel-2)}
+  .tb-btn.on{border-color:var(--blue);color:var(--blue)}
+  .tb-btn svg{width:17px;height:17px;display:block}
+  #theme-toggle .ic-sun{display:none}
+  html.theme-dark #theme-toggle .ic-sun{display:block}
+  html.theme-dark #theme-toggle .ic-moon{display:none}
+  #a11y-dropdown{position:fixed;top:64px;right:76px;z-index:210;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-lg);min-width:300px;padding:6px 0}
+  #a11y-dropdown .ad-h{padding:10px 14px 8px;font-size:13px;font-weight:800;color:var(--ink);border-bottom:1px solid var(--line)}
+  #a11y-dropdown label{display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;font-size:13px;color:var(--txt)}
+  #a11y-dropdown label:hover{background:var(--panel-2)}
+  #a11y-dropdown label input{width:16px;height:16px;accent-color:var(--blue);flex:0 0 16px}
+  #a11y-dropdown .ad-sub{padding:7px 14px 9px;font-size:11.5px;color:var(--muted);line-height:1.45;border-top:1px solid var(--line);margin-top:4px}
+  /* ===== Режимы для слабовидящих. Порядок важен: a11y-contrast объявлен ПОСЛЕ
+     theme-dark — при включении обоих его токены побеждают ===== */
+  html.a11y-large{zoom:1.2}
+  html.a11y-mono body,html.a11y-mono input,html.a11y-mono select,html.a11y-mono textarea,html.a11y-mono button,html.a11y-mono .dt,html.a11y-mono .modal,html.a11y-mono .toast{font-family:'Courier New',Consolas,monospace}
+  html.a11y-calm *,html.a11y-calm *::before,html.a11y-calm *::after{animation:none!important;transition:none!important}
+  html.a11y-contrast{
+    --bg:#000; --card:#050505; --panel-2:#0a0a0a; --panel-3:#161616; --navy:#000; --navy2:#0d0d0d; --slate:#101010;
+    --line:#fff; --ink:#fff; --txt:#fff; --muted:#e6e6e6;
+    --blue:#ffd400; --blue-d:#ffe14d; --green:#00e676; --green-l:#00331a;
+    --yellow:#ffd400; --yellow-l:#332b00; --red:#ff6b6b; --red-l:#330000;
+    --shadow:0 0 0 1px rgba(255,255,255,.25); --shadow-lg:0 0 0 2px rgba(255,255,255,.35);
+  }
+  html.a11y-contrast .card,html.a11y-contrast .dt,html.a11y-contrast .modal,html.a11y-contrast .gt-btn,html.a11y-contrast .btn,html.a11y-contrast .seg,html.a11y-contrast .tb-btn{border-width:2px}
+  html.a11y-contrast a,html.a11y-contrast .cookie-link{color:var(--blue)!important;text-decoration:underline}
+  html.a11y-contrast .btn.primary,html.a11y-contrast .btn.ok,html.a11y-contrast .btn.danger{color:#000}
+  html.a11y-contrast .chip,html.a11y-contrast .tag,html.a11y-contrast .taskline .pill{color:#fff;outline:1px solid #fff}
+  html.a11y-contrast .tile{background:#1a1a1a}
+  html.a11y-contrast .tile .tw,html.a11y-contrast .tile.t-green .tw,html.a11y-contrast .tile.t-yellow .tw,html.a11y-contrast .tile.t-red .tw,html.a11y-contrast .tile.t-done .tw,html.a11y-contrast .tile.t-weather .tw{color:#fff!important}
+  html.a11y-contrast #sync-indicator{color:#fff!important;background:#000!important}
   *{box-sizing:border-box}
   /* ===== Оффлайн-баннер ===== */
   #net-banner{position:fixed;top:0;left:50%;transform:translate(-50%,-120%);z-index:999990;background:#b45309;color:#fff;font-size:12.5px;font-weight:700;padding:8px 18px;border-radius:0 0 12px 12px;transition:transform .3s ease;max-width:92vw;text-align:center}
@@ -1202,7 +1290,7 @@
           <div style="margin-top:6px;font-size:12px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-257 · три исправления после полного пересмотра кода (правки в первые секунды после входа, восстановление видов работ при повторном входе, даты задач на разных компьютерах)</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-259 · светлая/тёмная тема (кнопка в шапке) и режимы для слабовидящих: крупный шрифт, высокий контраст, моноширинный шрифт, без анимаций</div>
         <div style="margin-top:6px;text-align:center"><a href="#" id="li-cookie-link" class="cookie-link" title="Посмотреть или изменить разрешение">🍪 Cookie и хранилище браузера</a></div>
     </div>
   </div>
@@ -1270,6 +1358,23 @@
         <span id="sync-text">Сервер: подключение…</span>
         <span id="sync-caret" style="display:none;font-size:10.5px;color:#94a3b8;margin-left:2px">▾</span>
       </span>
+      <span class="tb-btns">
+        <button type="button" class="tb-btn" id="theme-toggle" title="Тема: переключить светлую ↔ тёмную" aria-label="Переключить тему (светлая/тёмная)">
+          <svg class="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          <svg class="ic-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+        </button>
+        <button type="button" class="tb-btn" id="a11y-toggle" title="Доступность: крупный шрифт, контраст, шрифт, анимации" aria-label="Настройки доступности для слабовидящих" aria-haspopup="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </span>
+      <div id="a11y-dropdown" style="display:none" role="menu" aria-label="Режимы доступности">
+        <div class="ad-h">Режимы для слабовидящих</div>
+        <label><input type="checkbox" data-pref="large"><span>Крупный шрифт (увеличение на 20%)</span></label>
+        <label><input type="checkbox" data-pref="contrast"><span>Высокий контраст (чёрный фон, белые буквы, жёлтые ссылки)</span></label>
+        <label><input type="checkbox" data-pref="mono"><span>Моноширинный шрифт (Courier)</span></label>
+        <label><input type="checkbox" data-pref="calm"><span>Выключить анимации</span></label>
+        <div class="ad-sub">Сохраняется в этом браузере. Сбросить — снять все отметки.</div>
+      </div>
       <div id="sync-dropdown" style="display:none;position:fixed;top:60px;right:18px;z-index:200;min-width:280px;max-width:340px;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(15,39,64,.18);font-size:12.5px;color:var(--ink);overflow:hidden">
         <div style="padding:10px 14px;background:linear-gradient(135deg,#0f2740,#1e3a5f);color:#fff;font-weight:700;display:flex;align-items:center;gap:8px">
           <span style="font-size:14px">🟢</span> Пользователи онлайн
@@ -1414,17 +1519,33 @@
   }
 })();
 </script>
-<script src="root_index/config.js?v=22.09-257"></script>
-<script src="root_index/data.js?v=22.09-257"></script>
-<script src="root_index/users_db.js?v=22.09-257"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-257"></script>
-<script src="root_index/areas_db.js?v=22.09-257"></script>
-<script src="root_index/professions_db.js?v=22.09-257"></script>
-<script src="root_index/work_db.js?v=22.09-257"></script>
-<script src="root_index/objects_db.js?v=22.09-257"></script>
-<script src="root_index/workers_db.js?v=22.09-257"></script>
-<script src="root_index/tasks_db.js?v=22.09-257"></script>
-<script src="root_index/db.js?v=22.09-257"></script>
+<script>
+/* 22.09-259: тема и режимы доступности применяются ДО отрисовки (чтобы экран входа
+   не «мигал» светлым), значения — из localStorage */
+(function () {
+  try {
+    var p = JSON.parse(localStorage.getItem('smartplan_ui_prefs') || '{}');
+    if (!p || typeof p !== 'object') p = {};
+    var h = document.documentElement;
+    if (p.theme === 'dark') h.classList.add('theme-dark');
+    if (p.large) h.classList.add('a11y-large');
+    if (p.contrast) h.classList.add('a11y-contrast');
+    if (p.mono) h.classList.add('a11y-mono');
+    if (p.calm) h.classList.add('a11y-calm');
+  } catch (e) {}
+})();
+</script>
+<script src="root_index/config.js?v=22.09-259"></script>
+<script src="root_index/data.js?v=22.09-259"></script>
+<script src="root_index/users_db.js?v=22.09-259"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-259"></script>
+<script src="root_index/areas_db.js?v=22.09-259"></script>
+<script src="root_index/professions_db.js?v=22.09-259"></script>
+<script src="root_index/work_db.js?v=22.09-259"></script>
+<script src="root_index/objects_db.js?v=22.09-259"></script>
+<script src="root_index/workers_db.js?v=22.09-259"></script>
+<script src="root_index/tasks_db.js?v=22.09-259"></script>
+<script src="root_index/db.js?v=22.09-259"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -1442,12 +1563,12 @@
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-257"></script>
-      <script src="root_index/error_log.js?v=22.09-257"></script>
-      <script src="root_index/api_client.js?v=22.09-257"></script>
-      <script src="root_index/sync_polling.js?v=22.09-257"></script>
-      <script src="root_index/zip_util.js?v=22.09-257"></script>
-      <script src="root_index/app.js?v=22.09-257"></script>
+<script src="root_index/object_attrs.js?v=22.09-259"></script>
+      <script src="root_index/error_log.js?v=22.09-259"></script>
+      <script src="root_index/api_client.js?v=22.09-259"></script>
+      <script src="root_index/sync_polling.js?v=22.09-259"></script>
+      <script src="root_index/zip_util.js?v=22.09-259"></script>
+      <script src="root_index/app.js?v=22.09-259"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {

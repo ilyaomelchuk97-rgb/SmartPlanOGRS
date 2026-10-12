@@ -70,9 +70,25 @@ module.exports = function (pool) {
     }
   });
 
+  // 22.09-258: табельный номер уникален — занять номер другого работника нельзя
+  // (даже если тот уволен: по номеру в будущем отслеживаются действия, дубли сломали бы учёт).
+  // Возвращает null, если номер свободен; иначе — текстовую ошибку.
+  async function tableNumberConflict(id, tnum) {
+    if (!tnum) return null;
+    const r = await pool.query(`SELECT full_name, deleted FROM users WHERE data->>'table_number' = $1 AND id <> $2 LIMIT 1`, [tnum, id]);
+    if (!r.rows.length) return null;
+    const row = r.rows[0];
+    return 'табельный номер ' + tnum + ' уже занят: ' + row.full_name + (row.deleted ? ' (уволен)' : '');
+  }
+
   // POST /api/users — создать/обновить пользователя
   router.post('/', async (req, res) => {
     try {
+      const tnum = String((req.body && (req.body.data || req.body)).table_number != null ? (req.body && (req.body.data || req.body)).table_number : '').replace(/\D/g, '');
+      if (tnum) {
+        const tconf = await tableNumberConflict(String((req.body && (req.body.data || req.body)).id || ''), tnum);
+        if (tconf) return res.status(409).json({ ok: false, conflict: true, err: tconf });
+      }
       const body = req.body || {};
       const data = body.data || body;
       const id = data.id || body.id;
@@ -189,6 +205,11 @@ module.exports = function (pool) {
   // PUT /api/users/:id — обновить (опционально с новым паролем)
   router.put('/:id', async (req, res) => {
     try {
+      const tnum2 = String((req.body && (req.body.data || req.body)).table_number != null ? (req.body && (req.body.data || req.body)).table_number : '').replace(/\D/g, '');
+      if (tnum2) {
+        const tconf2 = await tableNumberConflict(req.params.id, tnum2);
+        if (tconf2) return res.status(409).json({ ok: false, conflict: true, err: tconf2 });
+      }
       const id = req.params.id;
       const body = req.body || {};
       const data = body.data || body;

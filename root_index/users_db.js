@@ -93,8 +93,12 @@ window.SP_USERS_DB = (function () {
 
   function ensureSeed() {
     var db = init();
-    var have = {}; db.users.forEach(function (u) { have[u.id] = 1; });
-    function add(u) { if (!have[u.id]) { db.users.push(u); have[u.id] = 1; } }
+    var have = {}; var haveLogin = {};
+    db.users.forEach(function (u) { have[u.id] = 1; if (u && u.login) haveLogin[String(u.login).toLowerCase()] = 1; });
+    // 22.09-258: не создавать дубль, если пользователь с таким ЛОГИНОМ уже есть (например, пришёл
+    // с сервера). Раньше тестовый посев добавлял мастер/слесарь с логами master/slesar, даже когда
+    // с сервера уже пришли настоящие u_master/u_slesar с теми же логинами — в списке было по 2 записи.
+    function add(u) { if (!have[u.id] && !(u.login && haveLogin[String(u.login).toLowerCase()])) { db.users.push(u); have[u.id] = 1; if (u.login) haveLogin[String(u.login).toLowerCase()] = 1; } }
 
     return Promise.resolve()
       .then(function () { return hash('admin123'); }).then(function (h) {
@@ -110,6 +114,28 @@ window.SP_USERS_DB = (function () {
       })
       .then(function () { return hash('slesar123'); }).then(function (h) {
         add({ id: 'u_slesar_demo', login: 'slesar', password: h, full_name: 'Петров Андрей Николаевич', role: 'slesar', area: 'УБиРОГС', color: '#059669', active: true, seed: true });
+      })
+      .then(function () {
+        // 22.09-258: одноразовая уборка дублей в СУЩЕСТВУЮЩИХ браузерах: локальный тестовый
+        // пользователь (seed), у которого логин занят другим (пришедшим с сервера) пользователем.
+        // Удаляем только если на него не ссылаются локальные задачи (иначе оставляем как есть).
+        var byLogin = {};
+        db.users.forEach(function (u) { if (u && u.login) (byLogin[String(u.login).toLowerCase()] = byLogin[String(u.login).toLowerCase()] || []).push(u); });
+        var ref = function (uid) {
+          var n = 0;
+          try {
+            (window.SP_TASKS && SP_TASKS.getTasks() ? SP_TASKS.getTasks() : []).forEach(function (t) {
+              if (t && (String(t.m) === String(uid) || (Array.isArray(t.slesari) && t.slesari.indexOf(uid) !== -1))) n++;
+            });
+          } catch (e) {}
+          return n;
+        };
+        db.users = db.users.filter(function (u) {
+          if (!u || !u.seed || !u.login) return true;
+          var same = (byLogin[String(u.login).toLowerCase()] || []).filter(function (x) { return x.id !== u.id; });
+          return !same.length || ref(u.id) > 0;
+        });
+        return db;
       })
       .then(function () { save(db); return db; });
   }
@@ -145,6 +171,7 @@ window.SP_USERS_DB = (function () {
         id: newId(), login: data.login, password: h, // 22.09-241: открытый пароль в браузере не храним
         full_name: data.full_name, role: data.role, area: data.area || '',
         prof: data.prof || '',
+        table_number: String(data.table_number || '').replace(/\D/g, ''), // 22.09-258: табельный номер (только цифры)
         color: data.color || nextColor(), active: data.active !== false, created: Date.now()
       };
       db.users.push(u); save(db);
@@ -172,6 +199,7 @@ window.SP_USERS_DB = (function () {
     if (data.role !== undefined) u.role = data.role;
     if (data.area !== undefined) u.area = data.area;
     if (data.prof !== undefined) u.prof = data.prof;
+    if (data.table_number !== undefined) u.table_number = String(data.table_number).replace(/\D/g, ''); // 22.09-258: пустая строка — снять номер
     if (data.active !== undefined) u.active = data.active;
     if (data.color !== undefined) u.color = data.color;
     var op = data.password ? hash(data.password).then(function (h) { u.password = h; }) : Promise.resolve();
