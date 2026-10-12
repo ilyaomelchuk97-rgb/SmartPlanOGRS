@@ -188,6 +188,30 @@ async function initSchema(pool) {
     `);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_error_log_ts ON error_log(ts DESC)`);
 
+    // 3c. Копии графиков — общие для всех устройств (22.09-242). Номера итераций
+    // выдаёт сервер; graph_snap_counters — последний выданный номер по графику
+    // (не уменьшается при удалении копий — номера не повторяются).
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS graph_snaps (
+        id          TEXT PRIMARY KEY,
+        gid         TEXT NOT NULL,
+        iter        INTEGER NOT NULL,
+        ts          BIGINT NOT NULL,
+        via         TEXT,
+        meta        JSONB NOT NULL DEFAULT '{}'::jsonb,
+        graph       JSONB NOT NULL,
+        created_by  TEXT,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_graph_snaps_gid ON graph_snaps(gid, ts DESC)`);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS graph_snap_counters (
+        gid         TEXT PRIMARY KEY,
+        last_iter   INTEGER NOT NULL DEFAULT 0
+      )
+    `);
+
     // 4. Sessions — простая таблица токенов (без JWT, чтобы не возиться)
     await client.query(`
       CREATE TABLE IF NOT EXISTS sessions (
@@ -200,7 +224,7 @@ async function initSchema(pool) {
     `);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)`);
 
-    console.log(`✅ Схема БД: создано ${SECTIONS.length + 4} таблиц (в т.ч. error_log)`);
+    console.log(`✅ Схема БД: создано ${SECTIONS.length + 6} таблиц (в т.ч. error_log, graph_snaps)`);
   } finally {
     client.release();
   }

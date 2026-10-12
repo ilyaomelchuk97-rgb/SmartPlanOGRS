@@ -36,6 +36,12 @@ window.SP_USERS_DB = (function () {
       if (!db.users) db.users = [];
       memoryDB = db;
     }
+    // 22.09-241: открытые пароли в браузере больше НЕ храним — стираем оставшиеся от прежних сборок
+    try {
+      var _pp = false;
+      (memoryDB && memoryDB.users || []).forEach(function (u) { if (u && u.plain_password !== undefined) { delete u.plain_password; _pp = true; } });
+      if (_pp) save(memoryDB);
+    } catch (ePP) {}
     return memoryDB;
   }
   function reloadFromCloud(cloudData) {
@@ -91,18 +97,18 @@ window.SP_USERS_DB = (function () {
 
     return Promise.resolve()
       .then(function () { return hash('admin123'); }).then(function (h) {
-        add({ id: 'u_admin', login: 'admin', password: h, plain_password: 'admin123', full_name: 'Администратор системы', role: 'admin', area: 'Все участки', color: '#0f2740', active: true, seed: true });
+        add({ id: 'u_admin', login: 'admin', password: h, full_name: 'Администратор системы', role: 'admin', area: 'Все участки', color: '#0f2740', active: true, seed: true });
       })
       .then(function () { return hash('seogs123'); }).then(function (h) {
-        add({ id: 'u_seogs', login: 'seogs', password: h, plain_password: 'seogs123', full_name: 'Начальник СЭОГС', role: 'viewer', area: 'Все участки', color: '#64748b', active: true, seed: true });
+        add({ id: 'u_seogs', login: 'seogs', password: h, full_name: 'Начальник СЭОГС', role: 'viewer', area: 'Все участки', color: '#64748b', active: true, seed: true });
       })
       // Пока сайт в тесте: стандартный мастер и слесарь (добавляются и в существующую
       // базу при загрузке — id нет в списке, ensureSeed дозаполняет)
       .then(function () { return hash('master123'); }).then(function (h) {
-        add({ id: 'u_master_demo', login: 'master', password: h, plain_password: 'master123', full_name: 'Иванов Сергей Петрович', role: 'master', area: 'УБиРОГС', color: '#2563eb', active: true, seed: true });
+        add({ id: 'u_master_demo', login: 'master', password: h, full_name: 'Иванов Сергей Петрович', role: 'master', area: 'УБиРОГС', color: '#2563eb', active: true, seed: true });
       })
       .then(function () { return hash('slesar123'); }).then(function (h) {
-        add({ id: 'u_slesar_demo', login: 'slesar', password: h, plain_password: 'slesar123', full_name: 'Петров Андрей Николаевич', role: 'slesar', area: 'УБиРОГС', color: '#059669', active: true, seed: true });
+        add({ id: 'u_slesar_demo', login: 'slesar', password: h, full_name: 'Петров Андрей Николаевич', role: 'slesar', area: 'УБиРОГС', color: '#059669', active: true, seed: true });
       })
       .then(function () { save(db); return db; });
   }
@@ -135,7 +141,7 @@ window.SP_USERS_DB = (function () {
     if (getUserByLogin(data.login)) return Promise.reject(new Error('Логин «' + data.login + '» уже занят'));
     return hash(data.password).then(function (h) {
       var u = {
-        id: newId(), login: data.login, password: h, plain_password: data.password,
+        id: newId(), login: data.login, password: h, // 22.09-241: открытый пароль в браузере не храним
         full_name: data.full_name, role: data.role, area: data.area || '',
         prof: data.prof || '',
         color: data.color || nextColor(), active: data.active !== false, created: Date.now()
@@ -143,7 +149,9 @@ window.SP_USERS_DB = (function () {
       db.users.push(u); save(db);
       // Сборка 22.09-25: SP_API
       if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
-        var safeU = Object.assign({}, u, { password: undefined, plain_password: undefined });
+        // 22.09-241: пароль уходит на сервер (там шифруется bcrypt и в открытом виде не хранится) —
+        // раньше не отправлялся, и сервер ставил новым пользователям пароль по умолчанию «changeme»
+        var safeU = Object.assign({}, u, { password: undefined, plain_password: data.password });
         window.SP_API.upsert('users', safeU).catch(function (e) {
           try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log("warn", "sync", "sync failed", { err: String(e && e.err || e), where: "users_db.js" }); } catch(_){ }
         });
@@ -165,11 +173,12 @@ window.SP_USERS_DB = (function () {
     if (data.prof !== undefined) u.prof = data.prof;
     if (data.active !== undefined) u.active = data.active;
     if (data.color !== undefined) u.color = data.color;
-    if (data.password !== undefined) u.plain_password = data.password;
     var op = data.password ? hash(data.password).then(function (h) { u.password = h; }) : Promise.resolve();
     return op.then(function () { save(db);
       if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
-        var safeU = Object.assign({ id: id }, data, { password: undefined, plain_password: undefined });
+        // 22.09-241: на сервер — ПОЛНЫЙ профиль (раньше уходили только изменённые поля, сервер отвечал
+        // «нет login/full_name» и правка до него не доходила) + новый пароль, если его задали
+        var safeU = Object.assign({}, u, { password: undefined, plain_password: data.password ? data.password : undefined });
         window.SP_API.upsert('users', safeU).catch(function (e) {
           try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log("warn", "sync", "sync failed", { err: String(e && e.err || e), where: "users_db.js" }); } catch(_){ }
         });
@@ -206,11 +215,14 @@ window.SP_USERS_DB = (function () {
     u.fired = true;
     u.fired_date = firedDate;
     u.login = 'fired_' + id;
-    u.password = 'disabled_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
-    u.plain_password = '';
+    var _offPw = 'disabled_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    u.password = _offPw;
+    delete u.plain_password;
     save(db);
     if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
-      window.SP_API.upsert('users', { id: id, login: u.login, active: false, fired: true, fired_date: firedDate, password: undefined, plain_password: undefined }).catch(function (e) {
+      // 22.09-241: полный профиль (раньше без ФИО — сервер отклонял, увольнение до него не доходило);
+      // старый пароль на сервере заменяется случайным — войти по нему больше нельзя
+      window.SP_API.upsert('users', Object.assign({}, u, { password: undefined, plain_password: _offPw })).catch(function (e) {
         try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log("warn", "sync", "sync failed", { err: String(e && e.err || e), where: "users_db.js" }); } catch(_){ }
       });
     }
@@ -227,11 +239,12 @@ window.SP_USERS_DB = (function () {
     var taken = getUserByLogin(login);
     if (taken && taken.id !== id) return Promise.reject(new Error('Логин «' + login + '» уже занят'));
     return hash(password).then(function (h) {
-      u.login = login; u.password = h; u.plain_password = password;
+      u.login = login; u.password = h; delete u.plain_password;
       u.active = true; u.fired = false; delete u.fired_date;
       save(db);
       if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
-        var safeU = { id: id, login: login, active: true, fired: false, password: undefined, plain_password: undefined };
+        // 22.09-241: полный профиль + новый пароль (сервер шифрует bcrypt)
+        var safeU = Object.assign({}, u, { password: undefined, plain_password: password, fired_date: null });
         window.SP_API.upsert('users', safeU).catch(function (e) {
           try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log("warn", "sync", "sync failed", { err: String(e && e.err || e), where: "users_db.js" }); } catch(_){ }
         });
@@ -245,14 +258,11 @@ window.SP_USERS_DB = (function () {
     password = (password || '').trim();
     var u = getUserByLogin(login);
     if (!u || !u.active) return Promise.resolve(null);
-    if (password === 'admin123' || password === u.password || password === u.plain_password) {
-      return Promise.resolve(u);
-    }
+    // 22.09-241: убран «пароль для всех» admin123 и вход по логину вместо пароля — только свой пароль
+    if (!password) return Promise.resolve(null);
     return hash(password).then(function (h) {
-      return (h === u.password || password === u.password || password === u.plain_password) ? u : null;
-    }).catch(function() {
-      return (password === 'admin123' || password === u.login || password === u.password || password === u.plain_password) ? u : null;
-    });
+      return (h === u.password) ? u : null;
+    }).catch(function () { return null; });
   }
   function resetSeed() {
     localStorage.removeItem(KEY); memoryDB = null; return ensureSeed();

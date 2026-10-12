@@ -15,6 +15,8 @@
    · GET  /api/audit             — журнал действий (с пагинацией)
    · POST/GET/DELETE /api/errors — ОБЩИЙ лог ошибок со всех устройств
    · GET  /api/route/brouter     — прокси к BRouter (car-eco), расчёт маршрута через наш сервер
+   · GET/POST/DELETE /api/graph_snaps — копии графиков (общие для всех устройств)
+   · GET  /api/events?token=      — мгновенные уведомления об изменениях (SSE)
    · GET  /healthz               — health-check для Render
    ============================================================ */
 'use strict';
@@ -33,6 +35,9 @@ const syncRoutes = require('./routes/sync');
 const auditRoutes = require('./routes/audit');
 const errorsRoutes = require('./routes/errors');
 const routeRoutes = require('./routes/route'); // 22.09-234: прокси к BRouter
+const graphSnapsRoutes = require('./routes/graph_snaps'); // 22.09-242: копии графиков на сервере
+const eventsRoutes = require('./routes/events'); // 22.09-243: мгновенные уведомления (SSE)
+const eventsHub = require('./lib/events');
 const sectionRoutes = require('./routes/section');
 const adminRoutes = require('./routes/admin');
 const usersRoutes = require('./routes/users');
@@ -142,16 +147,30 @@ function initWithRetry() {
 initWithRetry();
 
 // Роуты
+const SECTIONS = ['objects', 'tasks', 'areas', 'workers', 'work_catalog', 'graphs', 'professions', 'holidays', 'telemetry']; // 22.09-111: + виды телеметрии
+// 22.09-243: после УСПЕШНОГО изменения данных раздела — мгновенное уведомление всем открытым сайтам
+// (они сразу забирают новое через /api/sync; by — id вкладки-автора, чтобы она не дёргалась сама на себя)
+const LIVE_SECTIONS = new Set(SECTIONS.concat(['users']));
+app.use('/api', (req, res, next) => {
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
+  const sec = String(req.path || '').split('/')[1] || '';
+  if (!LIVE_SECTIONS.has(sec)) return next();
+  res.on('finish', () => {
+    if (res.statusCode < 400) eventsHub.broadcast({ section: sec, by: String(req.headers['x-client-id'] || '').slice(0, 40), ts: Date.now() });
+  });
+  next();
+});
+app.use('/api/events', eventsRoutes(pool)); // 22.09-243: постоянное соединение (токен — в адресе)
 app.use('/api/auth', authRoutes(pool));
 app.use('/api/admin', adminRoutes(pool, initSchema));  // без авторизации — для первоначальной настройки
 app.use('/api/sync', requireAuth, syncRoutes(pool));
 app.use('/api/audit', requireAuth, auditRoutes(pool));
 app.use('/api/errors', requireAuth, errorsRoutes(pool)); // 22.09-232: общий лог ошибок со всех устройств
 app.use('/api/route', requireAuth, routeRoutes()); // 22.09-234: расчёт маршрута — через наш сервер
+app.use('/api/graph_snaps', requireAuth, graphSnapsRoutes(pool)); // 22.09-242: копии графиков — общие для всех устройств
 // Специальный роут для users (специальная таблица с фиксированными колонками)
 app.use('/api/users', requireAuth, usersRoutes(pool));
 // Универсальный роутинг для остальных разделов
-const SECTIONS = ['objects', 'tasks', 'areas', 'workers', 'work_catalog', 'graphs', 'professions', 'holidays', 'telemetry']; // 22.09-111: + виды телеметрии
 SECTIONS.forEach((s) => {
   app.use(`/api/${s}`, requireAuth, sectionRoutes(pool, s));
 });

@@ -77,6 +77,10 @@ module.exports = function (pool) {
       const data = body.data || body;
       const id = data.id || body.id;
       if (!id) return res.status(400).json({ ok: false, err: 'нет id' });
+      // 22.09-241: пароль может задать только администратор (или сам пользователь — себе)
+      if (data.plain_password && !(req.user && (req.user.role === 'admin' || req.user.id === id))) {
+        return res.status(403).json({ ok: false, err: 'менять пароль может только администратор' });
+      }
 
       const login = (data.login || '').trim();
       const full_name = (data.full_name || '').trim();
@@ -125,21 +129,25 @@ module.exports = function (pool) {
           [id, login, full_name, role, prof, active, password_hash, stripUnsafeData(data)]
         );
       } else {
+        // 22.09-241: запись уже есть, пароль не меняется — обычный UPDATE. Раньше здесь был
+        // INSERT … ON CONFLICT без password_hash: PostgreSQL проверяет NOT NULL ещё до конфликта,
+        // и ЛЮБАЯ правка пользователя без смены пароля (ФИО, роль, участок, фото, увольнение)
+        // отклонялась с ошибкой «null value in column password_hash» и до сервера не доходила.
         r = await pool.query(
-          `INSERT INTO users (id, login, full_name, role, prof, active, data)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)
-           ON CONFLICT (id) DO UPDATE SET
-             login = EXCLUDED.login,
-             full_name = EXCLUDED.full_name,
-             role = EXCLUDED.role,
-             prof = EXCLUDED.prof,
-             active = EXCLUDED.active,
-             data = EXCLUDED.data,
+          `UPDATE users SET
+             login = $2,
+             full_name = $3,
+             role = $4,
+             prof = $5,
+             active = $6,
+             data = $7,
              deleted = FALSE,
              updated_at = NOW()
+           WHERE id = $1
            RETURNING id, login, full_name, role, prof, active, updated_at`,
           [id, login, full_name, role, prof, active, stripUnsafeData(data)]
         );
+        if (!r.rows.length) return res.status(404).json({ ok: false, err: 'не найдено' });
       }
 
       await log(pool, { user: req.user, section: 'users', action: 'upsert', objectId: id, details: full_name + ' (' + login + ')' });
@@ -164,6 +172,10 @@ module.exports = function (pool) {
       const id = req.params.id;
       const body = req.body || {};
       const data = body.data || body;
+      // 22.09-241: пароль может задать только администратор (или сам пользователь — себе)
+      if (data.plain_password && !(req.user && (req.user.role === 'admin' || req.user.id === id))) {
+        return res.status(403).json({ ok: false, err: 'менять пароль может только администратор' });
+      }
       let r;
       if (data.plain_password) {
         const password_hash = await bcrypt.hash(String(data.plain_password), 10);

@@ -29,6 +29,9 @@ window.SP_API = (function () {
 
   var LS_TOKEN = 'smartplan_api_token';
   var LS_USER  = 'smartplan_api_user';
+  // 22.09-243: номер этой вкладки — сервер помечает им уведомления об изменениях,
+  // чтобы вкладка не перезагружала данные из-за собственных правок
+  var CLIENT_ID = 'c' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 
   // Базовый URL: same-origin если открыто на Render, иначе из SP_CONFIG
   function getBaseUrl() {
@@ -63,7 +66,7 @@ window.SP_API = (function () {
   function request(method, path, body, opts) {
     opts = opts || {};
     var url = getBaseUrl() + path;
-    var headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+    var headers = { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-Client-Id': CLIENT_ID };
     var token = getToken();
     if (token && !opts.noAuth) headers['Authorization'] = 'Bearer ' + token;
 
@@ -166,6 +169,19 @@ window.SP_API = (function () {
     return request('DELETE', '/errors');
   }
 
+  // 22.09-243: адрес постоянного соединения для мгновенных уведомлений (SSE)
+  function eventsUrl() {
+    var t = getToken();
+    return t ? getBaseUrl() + '/events?token=' + encodeURIComponent(t) + '&cid=' + encodeURIComponent(CLIENT_ID) : '';
+  }
+  function clientId() { return CLIENT_ID; }
+
+  // 22.09-242: копии графиков на сервере (общие для всех устройств)
+  function snapsList(gid) { return request('GET', '/graph_snaps?gid=' + encodeURIComponent(gid)); }
+  function snapGet(id) { return request('GET', '/graph_snaps/' + encodeURIComponent(id)); }
+  function snapPut(rec) { return request('POST', '/graph_snaps', rec); }
+  function snapDel(id) { return request('DELETE', '/graph_snaps/' + encodeURIComponent(id)); }
+
   return {
     baseUrl: getBaseUrl,
     health: health,
@@ -181,6 +197,12 @@ window.SP_API = (function () {
     errorsPush: errorsPush,
     errorsGet: errorsGet,
     errorsClear: errorsClear,
+    eventsUrl: eventsUrl,
+    clientId: clientId,
+    snapsList: snapsList,
+    snapGet: snapGet,
+    snapPut: snapPut,
+    snapDel: snapDel,
     getToken: getToken,
     setToken: setToken,
     getUser: getUser,

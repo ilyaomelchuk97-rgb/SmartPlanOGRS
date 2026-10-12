@@ -23,7 +23,8 @@
 window.SP_SYNC_POLL = (function () {
   'use strict';
 
-  var POLL_INTERVAL = 1000;     // 1 сек
+  var POLL_INTERVAL = 1000;     // 1 сек — если мгновенные уведомления недоступны (как раньше)
+  var POLL_SLOW = 30000;        // 22.09-243: 30 сек — запасная проверка, пока работают мгновенные уведомления
   var ERROR_RETRY = 3000;       // при ошибке — 3 сек
   var MAX_ERRORS_INDICATOR = 3; // после 3 ошибок — красный
 
@@ -50,8 +51,60 @@ window.SP_SYNC_POLL = (function () {
     lastPoll: 0,
     stopped: false,
     onChange: null,
-    online: []          // массив {id, full_name, role, login, last_seen}
+    online: [],         // массив {id, full_name, role, login, last_seen}
+    es: null,           // 22.09-243: постоянное соединение (EventSource)
+    sseUp: false,       // соединение открыто — изменения приходят мгновенно
+    kickTimer: null,
+    kickPending: false,
+    sseRetry: null
   };
+
+  /* 22.09-243: МГНОВЕННЫЕ ОБНОВЛЕНИЯ. Сервер сам сообщает «изменился раздел X» по постоянному
+     соединению (/api/events) — сайт сразу забирает новое (/api/sync). Пока соединение открыто,
+     опрос — раз в 30 сек (запасной); если соединение недоступно — как раньше, каждую секунду. */
+  function kick() {
+    if (state.stopped) return;
+    if (state.kickTimer) return;
+    state.kickTimer = setTimeout(function () {
+      state.kickTimer = null;
+      if (state.inFlight) { state.kickPending = true; return; }
+      if (state.timer) { clearTimeout(state.timer); state.timer = null; }
+      tick();
+    }, 150);
+  }
+  function startSSE() {
+    stopSSE();
+    if (state.stopped || typeof window.EventSource !== 'function') return;
+    if (!window.SP_API || !window.SP_API.eventsUrl) return;
+    var url = window.SP_API.eventsUrl();
+    if (!url) return;
+    var es;
+    try { es = new window.EventSource(url); } catch (e) { return; }
+    state.es = es;
+    es.onopen = function () {
+      state.sseUp = true;
+      kick(); // после (пере)подключения — сразу забрать всё, что изменилось за время обрыва
+    };
+    es.addEventListener('change', function (ev) {
+      var d = null;
+      try { d = JSON.parse(ev.data); } catch (e) {}
+      if (d && d.by && window.SP_API.clientId && d.by === window.SP_API.clientId()) return; // своя правка
+      kick();
+    });
+    es.onerror = function () {
+      state.sseUp = false; // пока нет соединения — частый опрос, как раньше
+      if (es.readyState === 2) { // закрыто окончательно (например, устарел токен) — новая попытка позже
+        stopSSE();
+        if (!state.stopped) state.sseRetry = setTimeout(startSSE, 30000);
+      }
+    };
+  }
+  function stopSSE() {
+    if (state.sseRetry) { clearTimeout(state.sseRetry); state.sseRetry = null; }
+    if (state.es) { try { state.es.close(); } catch (e) {} }
+    state.es = null;
+    state.sseUp = false;
+  }
 
   // Геттер для UI (дропдаун в топбаре)
   function getOnline() { return state.online.slice(); }
@@ -369,7 +422,8 @@ window.SP_SYNC_POLL = (function () {
       .then(function () {
         state.inFlight = false;
         if (!state.stopped) {
-          var delay = state.errors > 0 ? ERROR_RETRY : POLL_INTERVAL;
+          var delay = state.errors > 0 ? ERROR_RETRY : (state.sseUp ? POLL_SLOW : POLL_INTERVAL); // 22.09-243
+          if (state.kickPending) { state.kickPending = false; delay = 0; } // пришло уведомление во время запроса
           state.timer = setTimeout(tick, delay);
         }
       });
@@ -382,11 +436,14 @@ window.SP_SYNC_POLL = (function () {
     state.errors = 0;
     updateIndicator('connecting');
     setTimeout(tick, 500);
+    startSSE(); // 22.09-243
   }
 
   function stop() {
     state.stopped = true;
     if (state.timer) { clearTimeout(state.timer); state.timer = null; }
+    if (state.kickTimer) { clearTimeout(state.kickTimer); state.kickTimer = null; }
+    stopSSE(); // 22.09-243
     updateIndicator('offline');
   }
 
@@ -396,7 +453,8 @@ window.SP_SYNC_POLL = (function () {
       errors: state.errors,
       inFlight: state.inFlight,
       stopped: state.stopped,
-      online: state.online
+      online: state.online,
+      live: state.sseUp // 22.09-243: мгновенные уведомления работают
     };
   }
 
@@ -405,6 +463,8 @@ window.SP_SYNC_POLL = (function () {
     stop: stop,
     status: status,
     POLL_INTERVAL: POLL_INTERVAL,
+    POLL_SLOW: POLL_SLOW,
+    kick: kick,
     LS_KEYS: LS_KEYS,
     applyOne: applyOne,
     getOnline: getOnline,

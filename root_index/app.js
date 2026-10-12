@@ -8,8 +8,11 @@
    распространение и использование без его согласия запрещены.
    Отметка об авторстве размещена 09.10.2026 (сборка 22.09-228).
    ============================================================ */
+/* Файл root_index/app.js СОБИРАЕТСЯ из частей root_index/app/*.js командой
+   «node tools/build_app.js» (сборка 22.09-246) — правьте ЧАСТИ, а не этот файл. */
 (function () {
   'use strict';
+  /* ── часть 01 · app/01_core.js — ядро: общие данные, помощники, состояние, погода, заголовки, значки ── */
   var D = window.SP || {};
   var DB = window.SP_DB;
   var WORK = window.SP_WORK;
@@ -860,11 +863,11 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-237';
+  var SP_BUILD = '22.09-246';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
-  try { console.log('%cSmartPlan © 2026 Омельчук Илья Анатольевич · оператор ПЭВМ УП «МИНГАЗ» · все права защищены', 'color:#64748b;font-size:11px'); } catch (eC) {}
+  try { console.log('%cSmartPlan © 2026 Омельчук Илья Анатольевич · оператор ПЭВМ УП «МИНГАЗ» · все права защищены', 'color:#64748b;font-size:12px'); } catch (eC) {}
   var TITLES = {
     dashboard: 'Панель мониторинга',
     calendar: 'Планирование / Календарь',
@@ -902,6 +905,7 @@
     grip: '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><circle cx="9" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg>'
   };
 
+  /* ── часть 02 · app/02_dashboard.js — панель мониторинга: КПД, плитки, «Сегодня», гант-шкала дня ── */
   /* =====================================================================
      KPI ПОПАПЫ (Панель мониторинга)
      ===================================================================== */
@@ -2995,7 +2999,7 @@
     html += _wx.html;
     html += '<span style="font-size:28px;position:relative;z-index:1;text-shadow:0 1px 5px rgba(0,0,0,.35);">' + wIcon + '</span>';
     html += '<div style="position:relative;z-index:1;text-shadow:0 1px 5px rgba(0,0,0,.35);"><div style="font-size:15px;font-weight:700;">' + todayWeather.temp + '°C · ' + todayWeather.desc + '</div>';
-    html += '<div style="font-size:11px;color:#e2e8f0;">Погода: Минск · ' + fmt(TODAY) + snowExpected + '</div></div>';
+    html += '<div style="font-size:12px;color:#e2e8f0;">Погода: Минск · ' + fmt(TODAY) + snowExpected + '</div></div>';
     html += '<button class="wx-map-fab" data-action="open-wx-map" title="Открыть карту погоды Минска и Минской области">🗺 Карта погоды</button>';
     html += '</div>';
     // Выпадающий список при нажатии
@@ -3027,7 +3031,7 @@
       [0, 0.5, 1].forEach(function (f) {
         var gy = T + Math.round((H - T - B) * (1 - f));
         grid += '<line x1="' + L + '" y1="' + gy + '" x2="' + (W - 4) + '" y2="' + gy + '" stroke="#64748b" stroke-opacity=".35" stroke-width="1"/>';
-        nums += '<span style="position:absolute;left:0;width:' + (L - 4) + 'px;text-align:right;bottom:' + ((H - gy - 4) / H * 100).toFixed(2) + '%;font-size:10px;color:#94a3b8;line-height:1">' + Math.round(maxV * f) + '</span>';
+        nums += '<span style="position:absolute;left:0;width:' + (L - 4) + 'px;text-align:right;bottom:' + ((H - gy - 4) / H * 100).toFixed(2) + '%;font-size:11.5px;color:#94a3b8;line-height:1">' + Math.round(maxV * f) + '</span>';
       });
       for (var bi = 0; bi < dim; bi++) {
         var bx = L + bi * bw;
@@ -3038,8 +3042,8 @@
         bars += '<rect x="' + (bx + 1).toFixed(1) + '" y="' + (H - B - hP) + '" width="' + bwid + '" height="' + Math.max(hP, 0) + '" rx="2" fill="#bfdbfe"><title>' + (bi + 1) + ' ' + MON[cmy.m] + ': план ' + plan[bi] + ' задач</title></rect>';
         if (fact[bi] > 0) bars += '<rect x="' + (bx + 1).toFixed(1) + '" y="' + (H - B - hF) + '" width="' + bwid + '" height="' + Math.max(hF, 0) + '" rx="2" fill="#16a34a"><title>' + (bi + 1) + ' ' + MON[cmy.m] + ': выполнено ' + fact[bi] + '</title></rect>';
         // цифра количества задач дня — над столбиком (только дни с задачами); HTML — не растягивается
-        if (plan[bi] > 0) nums += '<span style="position:absolute;left:' + xC + '%;transform:translateX(-50%);bottom:' + ((B + hP + 5) / H * 100).toFixed(2) + '%;font-size:10.5px;font-weight:800;color:#1e40af;line-height:1;pointer-events:none">' + plan[bi] + '</span>';
-        if ((bi + 1) % 5 === 0 || bi === 0) nums += '<span style="position:absolute;left:' + xC + '%;transform:translateX(-50%);bottom:2px;font-size:10px;color:#64748b;line-height:1;pointer-events:none">' + (bi + 1) + '</span>';
+        if (plan[bi] > 0) nums += '<span style="position:absolute;left:' + xC + '%;transform:translateX(-50%);bottom:' + ((B + hP + 5) / H * 100).toFixed(2) + '%;font-size:12px;font-weight:800;color:#1e40af;line-height:1;pointer-events:none">' + plan[bi] + '</span>';
+        if ((bi + 1) % 5 === 0 || bi === 0) nums += '<span style="position:absolute;left:' + xC + '%;transform:translateX(-50%);bottom:2px;font-size:11.5px;color:#64748b;line-height:1;pointer-events:none">' + (bi + 1) + '</span>';
       }
       var svg1 = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" style="position:absolute;left:0;top:0;width:100%;height:100%;display:block" xmlns="http://www.w3.org/2000/svg">' + grid + bars + '</svg>';
       var chart1 = '<div style="position:relative;flex:1;min-height:190px">' + svg1 + nums + '</div>';
@@ -3070,13 +3074,13 @@
       var kpdBody =
         '<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">' +
           '<div style="text-align:center;min-width:96px"><div style="font-size:30px;font-weight:800;color:#1d4ed8;line-height:1.05">' + (kTotalH > 0 ? kDec(kPctObj) : '—') + '%</div>' +
-          '<div style="font-size:11px;font-weight:600;color:var(--muted);margin-top:2px">на объектах</div></div>' +
+          '<div style="font-size:12px;font-weight:600;color:var(--muted);margin-top:2px">на объектах</div></div>' +
           '<div style="flex:1;min-width:190px">' + kpdBar +
-            '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px;font-size:11px;font-weight:700">' +
+            '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px;font-size:12px;font-weight:700">' +
               '<span style="color:#1d4ed8">■ Работа на объектах: ' + fmtH(kWorkH) + ' ч</span>' +
               '<span style="color:#b45309">■ В пути: ' + fmtH(kTravelH) + ' ч</span>' +
             '</div></div></div>' +
-        '<div style="margin-top:10px;font-size:11.5px;color:var(--muted)">🚗 В пути за ' + esc(dashMonthLabel().toLowerCase()) + ': <b style="color:var(--ink)">' + (kTotalH > 0 ? kDec(kPctRoad) : '0') + '%</b> от всего времени (' + fmtH(kTotalH) + ' ч) · Среднее время переезда: <b style="color:var(--ink)">≈ ' + kAvgTravel + ' мин</b></div>';
+        '<div style="margin-top:10px;font-size:12.5px;color:var(--muted)">🚗 В пути за ' + esc(dashMonthLabel().toLowerCase()) + ': <b style="color:var(--ink)">' + (kTotalH > 0 ? kDec(kPctRoad) : '0') + '%</b> от всего времени (' + fmtH(kTotalH) + ' ч) · Среднее время переезда: <b style="color:var(--ink)">≈ ' + kAvgTravel + ' мин</b></div>';
 
       // 22.09-199: выбор мастера для просмотра КПД — прямо в заголовке этой карточки (блок справа внизу)
       // (тот же id dash-master: привязка события — в конце renderDashboard; выбор влияет на расчёт КПД ниже и весь дашборд)
@@ -3093,7 +3097,7 @@
       // «Выполнение по дням» — за тот же выбранный месяц; график занимает всю свободную высоту карточки
       _dashJoin = '<div class="card" style="display:flex;flex-direction:column;height:100%"><div class="card-h" style="flex:none"><h2>⚡ КПД мастеров</h2><div class="spacer"></div>' + kpdMasterSel + '<button type="button" data-action="dash-month-toggle" title="Выбрать месяц для расчёта КПД и графика по дням" style="display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-weight:700;font-family:inherit;border-radius:9px;padding:5px 12px;cursor:pointer;font-size:12.5px;white-space:nowrap">📅 ' + esc(dashMonthLabel()) + '</button></div><div class="card-b" style="flex:1;display:flex;flex-direction:column;min-height:0">' + kpdBody +
         '<div style="margin-top:14px;padding-top:11px;border-top:1px dashed var(--line);flex:1;display:flex;flex-direction:column;min-height:0">' +
-          '<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px;flex:none"><span style="font-size:13.5px;font-weight:800;color:var(--ink)">📈 Выполнение по дням</span><span style="font-size:11.5px;color:var(--muted);font-weight:600">' + MON_NOM[cmy.m] + ' ' + cmy.y + ' · <span style="color:#2563eb;font-weight:700">■ план</span> <span style="color:#16a34a;font-weight:700">■ выполнено</span></span></div>' +
+          '<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px;flex:none"><span style="font-size:13.5px;font-weight:800;color:var(--ink)">📈 Выполнение по дням</span><span style="font-size:12.5px;color:var(--muted);font-weight:600">' + MON_NOM[cmy.m] + ' ' + cmy.y + ' · <span style="color:#2563eb;font-weight:700">■ план</span> <span style="color:#16a34a;font-weight:700">■ выполнено</span></span></div>' +
           chart1 +
         '</div></div></div>';
     })();
@@ -3114,7 +3118,7 @@
       var inProg = mt.filter(function (t) { return t.started_at && !isDone(t); })[0]; // 22.09-190: сейчас работает на объекте
       var _mc = masterCapacity(m.id, dayOff);
       var over = load > _mc;
-      html += '<div class="today-mstr"><span class="dot" style="background:' + m.color + '"></span><div><div class="nm" data-action="wc-open" data-mid="' + esc(m.id) + '" style="cursor:pointer" title="Нажмите — откроются карточки всех работ на этот день">' + esc(m.name) + ' <span style="color:var(--muted);font-weight:600;font-size:11px">→</span></div><div class="ar">' + esc(m.area) + '</div></div><div class="meta"><div class="h" style="color:' + (over ? 'var(--red)' : 'var(--ink)') + '">' + fmtH(load) + ' ч / ' + fmtH(_mc) + ' ч</div><span class="tag ' + (over ? 'over' : 'ok') + '">' + (over ? '⚠ Перегрузка +' + fmtH(load - _mc) + ' ч' : mt.length + ' заданий') + '</span>' + (dayOff === 0 && inProg ? ' <span class="tag ok" style="background:#dcfce7;color:#166534" title="Работа начата в ' + fmtClock(inProg.started_at) + '">🔨 на объекте с ' + fmtClock(inProg.started_at) + '</span>' : '') + '</div></div>';
+      html += '<div class="today-mstr"><span class="dot" style="background:' + m.color + '"></span><div><div class="nm" data-action="wc-open" data-mid="' + esc(m.id) + '" style="cursor:pointer" title="Нажмите — откроются карточки всех работ на этот день">' + esc(m.name) + ' <span style="color:var(--muted);font-weight:600;font-size:12px">→</span></div><div class="ar">' + esc(m.area) + '</div></div><div class="meta"><div class="h" style="color:' + (over ? 'var(--red)' : 'var(--ink)') + '">' + fmtH(load) + ' ч / ' + fmtH(_mc) + ' ч</div><span class="tag ' + (over ? 'over' : 'ok') + '">' + (over ? '⚠ Перегрузка +' + fmtH(load - _mc) + ' ч' : mt.length + ' заданий') + '</span>' + (dayOff === 0 && inProg ? ' <span class="tag ok" style="background:#dcfce7;color:#166534" title="Работа начата в ' + fmtClock(inProg.started_at) + '">🔨 на объекте с ' + fmtClock(inProg.started_at) + '</span>' : '') + '</div></div>';
       // гант-шкала дня: 8:00–20:00, задачи и переезды
       html += ganttDayHtml(m, dayOff);
       mt.slice(0, 4).forEach(function (t) {
@@ -3238,7 +3242,7 @@
     });
     var s = '<div style="position:relative;height:18px;border-radius:6px;background:var(--panel-3);margin:7px 0 2px;overflow:hidden" title="Гант дня (выезд с базы в 8:30, как на карте местоположения): цветные — задачи, серые — переезды">';
     s += blocks;
-    if (end > T1) s += '<span style="position:absolute;right:3px;top:2px;font-size:9px;color:var(--red);font-weight:800">▸ ' + lmFmtTime(T1) + '+</span>';
+    if (end > T1) s += '<span style="position:absolute;right:3px;top:2px;font-size:10.5px;color:var(--red);font-weight:800">▸ ' + lmFmtTime(T1) + '+</span>';
     s += '</div>';
     return s;
   }
@@ -3261,7 +3265,7 @@
     });
     var s = '<div style="position:relative;height:18px;border-radius:6px;background:var(--panel-3);margin:7px 0 2px;overflow:hidden" title="Гант дня (оценка: координаты части задач неизвестны)">';
     s += blocks;
-    if (over) s += '<span style="position:absolute;right:3px;top:2px;font-size:9px;color:var(--red);font-weight:800">▸ ' + lmFmtTime(T1) + '+</span>';
+    if (over) s += '<span style="position:absolute;right:3px;top:2px;font-size:10.5px;color:var(--red);font-weight:800">▸ ' + lmFmtTime(T1) + '+</span>';
     s += '</div>';
     return s;
   }
@@ -3347,6 +3351,7 @@
     }
   }
 
+  /* ── часть 03 · app/03_calendar.js — планирование: выбор даты, корзина, календарь, окно графика работника, оптимизатор ── */
   /* =====================================================================
      ПОПАП-КАЛЕНДАРЬ (выбор даты в планировании)
      ===================================================================== */
@@ -3612,7 +3617,7 @@
           var deletedDate = parseLogDate(t._deletedAt);
           var delStr = deletedDate ? deletedDate.getDate() + ' ' + MON[deletedDate.getMonth()] : '—';
           var daysAgo = deletedDate ? Math.floor((Date.now() - deletedDate.getTime()) / 86400000) : -1;
-          html += '<div class="rz-item"><div class="rz-bar" style="background:var(--muted);"></div><div class="rz-main"><div class="rz-t">' + esc(w ? w.name : 'Задача') + ' — ' + esc(t.addr || addrOf(t)) + '</div><div class="rz-s">Удалено: ' + delStr + ' · ' + (daysAgo < 0 ? 'недавно' : daysAgo === 0 ? 'сегодня' : daysAgo + ' дн назад') + ' · Объём: ' + (t.volume || 1) + '</div></div>' + (canPlan() ? '<button class="btn sm" data-action="restore-task" data-trash-idx="' + idx + '" style="color:var(--green);white-space:nowrap;">↩ Восстановить</button>' : '<span style="font-size:11px;color:var(--muted)">только просмотр</span>') + '</div>';
+          html += '<div class="rz-item"><div class="rz-bar" style="background:var(--muted);"></div><div class="rz-main"><div class="rz-t">' + esc(w ? w.name : 'Задача') + ' — ' + esc(t.addr || addrOf(t)) + '</div><div class="rz-s">Удалено: ' + delStr + ' · ' + (daysAgo < 0 ? 'недавно' : daysAgo === 0 ? 'сегодня' : daysAgo + ' дн назад') + ' · Объём: ' + (t.volume || 1) + '</div></div>' + (canPlan() ? '<button class="btn sm" data-action="restore-task" data-trash-idx="' + idx + '" style="color:var(--green);white-space:nowrap;">↩ Восстановить</button>' : '<span style="font-size:12px;color:var(--muted)">только просмотр</span>') + '</div>';
         });
         if (canPlan()) html += '<div style="margin-top:16px;text-align:right;"><button class="btn sm" data-action="purge-trash" style="color:var(--red);">Очистить корзину полностью</button></div>';
       }
@@ -3796,7 +3801,7 @@
       var bd2 = st === 'work' ? '#16a34a' : (st === 'abs' ? '#dc2626' : '#cbd5e1');
       var isT = sameDay(dt, TODAY);
       var tip = ds + (st === 'work' ? ' · рабочий' : (st === 'abs' ? ' · отсутствие' + (wkd.abs[ds] ? ' (' + esc(wkd.abs[ds]) + ')' : '') : ' · выходной'));
-      cells += '<div title="' + esc(tip) + '" style="min-height:46px;border-radius:8px;background:' + bg2 + ';border:1px solid ' + bd2 + ';display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:var(--ink);padding:2px' + (isT ? ';box-shadow:inset 0 0 0 2px rgba(37,99,235,.55)' : '') + '">' + dd + '<span style="font-size:9.5px;font-weight:700;color:var(--muted);line-height:1.1">' + WD[dt.getDay()] + '</span></div>';
+      cells += '<div title="' + esc(tip) + '" style="min-height:46px;border-radius:8px;background:' + bg2 + ';border:1px solid ' + bd2 + ';display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:var(--ink);padding:2px' + (isT ? ';box-shadow:inset 0 0 0 2px rgba(37,99,235,.55)' : '') + '">' + dd + '<span style="font-size:11px;font-weight:700;color:var(--muted);line-height:1.1">' + WD[dt.getDay()] + '</span></div>';
     }
     var roles = ROLE_INFO[u.role] ? ROLE_INFO[u.role].label : (u.role || '');
     var h = '<div class="modal-h"><h3>📅 ' + esc(u.full_name) + ' — ' + MON_NOM[pM] + ' ' + pY + '</h3><button class="x" data-action="close-modal">×</button></div>';
@@ -3811,10 +3816,10 @@
       '</div>';
     h += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-bottom:6px">' +
       ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(function (wdName, i) {
-        return '<div style="text-align:center;font-size:11px;font-weight:800;color:' + (i >= 5 ? '#94a3b8' : 'var(--muted)') + '">' + wdName + '</div>';
+        return '<div style="text-align:center;font-size:12px;font-weight:800;color:' + (i >= 5 ? '#94a3b8' : 'var(--muted)') + '">' + wdName + '</div>';
       }).join('') + '</div>';
     h += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px">' + cells + '</div>';
-    h += '<div style="margin-top:14px;display:flex;gap:14px;align-items:center;font-size:11px;color:var(--muted);flex-wrap:wrap;font-weight:700">' +
+    h += '<div style="margin-top:14px;display:flex;gap:14px;align-items:center;font-size:12px;color:var(--muted);flex-wrap:wrap;font-weight:700">' +
       '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#dcfce7;border:1px solid #16a34a"></span>рабочий</span>' +
       '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#f1f5f9;border:1px solid #cbd5e1"></span>выходной</span>' +
       '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#fee2e2;border:1px solid #dc2626"></span>отсутствие</span>' +
@@ -3871,13 +3876,14 @@
     var t = findTask(id); if (!t) return;
     if (!canEditTask(t)) { toast('err', 'Нет прав на удаление этой задачи'); return; }
     var w = workOf(t);
-    if (!window.confirm('Удалить задачу «' + (w ? w.name : '?') + ' — ' + addrOf(t) + '»?')) return;
+    return spConfirm('Удалить задачу «' + (w ? w.name : '?') + ' — ' + addrOf(t) + '»?', { title: 'Удаление задачи', ok: 'Удалить', danger: true }, function () { // 22.09-244: оформленное окно
     addToTrash(JSON.parse(JSON.stringify(t)));
     if (TASKS_DB) { TASKS_DB.deleteTask(id); S.tasks = TASKS_DB.getTasks(); } else { S.tasks = S.tasks.filter(function (x) { return x.id !== id; }); }
     invalidateRouteCache(t.m, t.d);
     drawCalendarGrid();
     logAction('Удаление задачи', (w ? w.name : '?') + ' — ' + addrOf(t));
         toast('ok', '🗑️ Аналитика помощника : Задача удалена. Освободилось ' + fmtH(taskHours(t)) + ' ч у мастера ' + (masterById(t.m) ? masterById(t.m).name : '?') + '.');
+    });
   }
 
   function reorderMapCard(fromId, toId) {
@@ -4246,6 +4252,7 @@
   }
   function autoSchedule() { optimizeWorksCalendar(); }
 
+  /* ── часть 04 · app/04_route_map.js — карта маршрутов: Яндекс.Карты, оптимизация маршрутов, картографические сервисы ── */
   /* =====================================================================
      РЕНДЕР: КАРТА МАРШРУТОВ
      ===================================================================== */
@@ -4319,7 +4326,7 @@
     html += '<div class="map-wrap"><div><div class="card"><div class="card-h" style="display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center"><div style="display:flex;align-items:baseline;justify-content:center;gap:8px;width:100%"><span style="font-size:13px;font-weight:700;color:var(--ink);">Задания на</span><span style="font-size:12px;font-weight:700;color:var(--blue);">' + shortDateStr + '</span></div><div style="width:100%">' + masterSelHTML + '</div></div><div class="card-b mlist" id="mlist">';
     if (!pts.length) html += '<div class="empty">На этот день заданий нет</div>';
     pts.forEach(function (p, i) {
-      html += '<div class="mtask sel" data-mid="' + p.id + '" draggable="true"><div class="mtask-grip">' + IC.grip + '</div><div class="pin" style="background:' + p.mcol + '">' + (i + 1) + '</div><div style="flex:1;min-width:0"><div style="font-weight:700;color:var(--ink);font-size:12.5px;margin-bottom:3px">📍 ' + esc(p.addr) + '</div><div style="font-size:11.5px;color:var(--txt);margin-bottom:2px">🔧 ' + esc(p.work) + '</div><div style="font-size:11.5px;color:var(--muted);">⏱ Норма времени: <b>' + fmtH(p.norm) + ' ч</b></div></div></div>';
+      html += '<div class="mtask sel" data-mid="' + p.id + '" draggable="true"><div class="mtask-grip">' + IC.grip + '</div><div class="pin" style="background:' + p.mcol + '">' + (i + 1) + '</div><div style="flex:1;min-width:0"><div style="font-weight:700;color:var(--ink);font-size:12.5px;margin-bottom:3px">📍 ' + esc(p.addr) + '</div><div style="font-size:12.5px;color:var(--txt);margin-bottom:2px">🔧 ' + esc(p.work) + '</div><div style="font-size:12.5px;color:var(--muted);">⏱ Норма времени: <b>' + fmtH(p.norm) + ' ч</b></div></div></div>';
     });
     // 22.09-179: карточка 🏁 базы в конце списка — через общий генератор mapBaseCardHtml()
     // (ГЛАВНЫЙ ФИКС БАГА: refreshMapCards пересобирала список БЕЗ этой карточки,
@@ -4897,7 +4904,7 @@
         } else {
           span = document.createElement('span');
           span.className = 'tile-leg';
-          span.setAttribute('style', 'display:block;font-size:10px;color:#2563eb;font-weight:600;margin-top:2px;white-space:nowrap;');
+          span.setAttribute('style', 'display:block;font-size:11.5px;color:#2563eb;font-weight:600;margin-top:2px;white-space:nowrap;');
           span.textContent = txt;
           var chk = tile.querySelector('.tile-chk');
           if (chk) tile.insertBefore(span, chk); else tile.appendChild(span);
@@ -5651,8 +5658,8 @@
       '<div class="pin" style="background:var(--card);color:var(--navy);font-size:14px;">🏁</div>' +
       '<div style="flex:1;min-width:0">' +
         '<div style="font-weight:700;font-size:12.5px;margin-bottom:3px;color:#fff">📍 ' + esc(base.name) + '</div>' +
-        '<div style="font-size:11.5px;color:#93c5fd;margin-bottom:2px">🏠 База · точка возврата</div>' +
-        '<div style="font-size:11.5px;color:#cbd5e1;" id="base-return-info">' + (existRT && existRT.lastLegMin ? '🛣 От последнего задания: <b style="color:#fff">' + fmtDuration(existRT.lastLegMin) + '</b> · ' + (existRT.lastLegKm || 0).toFixed(1).replace('.', ',') + ' км' : 'Маршрут до базы рассчитается при оптимизации') + '</div>' +
+        '<div style="font-size:12.5px;color:#93c5fd;margin-bottom:2px">🏠 База · точка возврата</div>' +
+        '<div style="font-size:12.5px;color:#cbd5e1;" id="base-return-info">' + (existRT && existRT.lastLegMin ? '🛣 От последнего задания: <b style="color:#fff">' + fmtDuration(existRT.lastLegMin) + '</b> · ' + (existRT.lastLegKm || 0).toFixed(1).replace('.', ',') + ' км' : 'Маршрут до базы рассчитается при оптимизации') + '</div>' +
       '</div></div>';
   }
 
@@ -5799,9 +5806,9 @@
           "<div class='pin' style='background:" + p.mcol + "'>" + (i + 1) + "</div>" +
           "<div style='flex:1;min-width:0'>" +
             "<div style='font-weight:700;color:var(--ink);font-size:12.5px;margin-bottom:3px'>📍 " + esc(p.addr) + "</div>" +
-            "<div style='font-size:11.5px;color:var(--txt);margin-bottom:2px'>🔧 " + esc(p.work) + "</div>" +
-            "<div style='font-size:11.5px;color:var(--muted);margin-bottom:2px'>⏱ Норма: <b>" + fmtH(p.norm) + " ч</b></div>" +
-            "<div style='font-size:11.5px;color:var(--muted);margin-top:2px;'>" + routeInfoStr + "</div>" +
+            "<div style='font-size:12.5px;color:var(--txt);margin-bottom:2px'>🔧 " + esc(p.work) + "</div>" +
+            "<div style='font-size:12.5px;color:var(--muted);margin-bottom:2px'>⏱ Норма: <b>" + fmtH(p.norm) + " ч</b></div>" +
+            "<div style='font-size:12.5px;color:var(--muted);margin-top:2px;'>" + routeInfoStr + "</div>" +
           "</div></div>";
       });
     }
@@ -5812,8 +5819,8 @@
         "<div class='pin' style='background:#94a3b8;color:#fff'>○</div>" +
         "<div style='flex:1;min-width:0'>" +
           "<div style='font-weight:700;color:var(--muted);font-size:12.5px;margin-bottom:3px'>📍 " + esc(p.addr) + "</div>" +
-          "<div style='font-size:11.5px;color:var(--muted);margin-bottom:2px'>🔧 " + esc(p.work) + "</div>" +
-          "<div style='font-size:11.5px;color:var(--muted);'>⏸ Не в маршруте — нажмите, чтобы включить</div>" +
+          "<div style='font-size:12.5px;color:var(--muted);margin-bottom:2px'>🔧 " + esc(p.work) + "</div>" +
+          "<div style='font-size:12.5px;color:var(--muted);'>⏸ Не в маршруте — нажмите, чтобы включить</div>" +
         "</div></div>";
     });
     mlist.innerHTML = html + mapBaseCardHtml(); // 22.09-179: карточка базы — всегда в конце списка
@@ -6206,7 +6213,7 @@
     p.id = 'om-filter';
     // выбор слоя: в один ряд (flex-direction: row), левый верхний угол карты
     p.style.cssText = 'position:absolute;left:12px;top:12px;z-index:1000;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 6px 20px rgba(15,39,64,.18);padding:8px 12px;font-size:12px;display:flex;flex-direction:row;align-items:center;gap:12px;flex-wrap:wrap;max-width:calc(100% - 24px)';
-    var h = '<span style="font-weight:800;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;flex:0 0 auto">Слои:</span>';
+    var h = '<span style="font-weight:800;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;flex:0 0 auto">Слои:</span>';
     rows.forEach(function (r) {
       h += '<label style="display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none">' +
         '<input type="checkbox" data-f="' + r.k + '"' + (omFilter[r.k] ? ' checked' : '') + ' style="accent-color:#2563eb;width:14px;height:14px;cursor:pointer;margin:0;flex:0 0 auto">' +
@@ -6239,8 +6246,8 @@
     var html = '<div style="height:calc(100vh - 62px);display:flex;flex-direction:column;background:#e8eef3;position:relative;z-index:0">';
     html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--card);border-bottom:1px solid var(--line);flex-wrap:wrap;flex:0 0 auto">';
     html += '<div><div style="font-size:14px;font-weight:800;color:var(--ink)">Карта объектов</div>';
-    html += '<div class="sub" style="font-size:11.5px">Точки: ' + withCoords.length + ' · Области: ' + withPoly.length + (onlyPoly.length ? ' (только область: ' + onlyPoly.length + ')' : '') + ' · нажмите на точку или область · сборка 21.09-21</div></div>';
-    html += '<div style="margin-left:auto;display:flex;gap:12px;font-size:11px;color:var(--muted);flex-wrap:wrap">';
+    html += '<div class="sub" style="font-size:12.5px">Точки: ' + withCoords.length + ' · Области: ' + withPoly.length + (onlyPoly.length ? ' (только область: ' + onlyPoly.length + ')' : '') + ' · нажмите на точку или область · сборка 21.09-21</div></div>';
+    html += '<div style="margin-left:auto;display:flex;gap:12px;font-size:12px;color:var(--muted);flex-wrap:wrap">';
     html += '<span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#2563eb;margin-right:4px"></span>ГРП</span>';
     html += '<span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#7c3aed;margin-right:4px"></span>ШРП</span>';
     html += '<span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#64748b;margin-right:4px"></span>Прочие</span>';
@@ -6349,7 +6356,7 @@
             }
             if (best) { omShowTip('🏭 ' + (best.type || 'Объект') + (objNumOf(best) ? ' №' + objNumOf(best) : ''),
               esc(best.addr || 'адрес не указан') +
-              ((best.lat != null && best.lng != null) ? '<div style="font-size:11px;color:var(--muted);margin-top:2px">📍 ' + (+best.lat).toFixed(5) + ', ' + (+best.lng).toFixed(5) + '</div>' : ''), e);
+              ((best.lat != null && best.lng != null) ? '<div style="font-size:12px;color:var(--muted);margin-top:2px">📍 ' + (+best.lat).toFixed(5) + ', ' + (+best.lng).toFixed(5) + '</div>' : ''), e);
               return;
             }
             // точка внутри полигона? (алгоритм луча) → облачко: наименование + описание
@@ -6360,8 +6367,8 @@
                 var zname = po.addr || ((po.type || 'Область') + (objNumOf(po) ? ' №' + objNumOf(po) : '')) || 'Область';
                 var zbody = '';
                 if (po.descr) zbody += '<div style="margin-bottom:3px">' + esc(po.descr) + '</div>';
-                if (po.addr && po.addr !== zname) zbody += '<div style="font-size:11.5px;color:#334155;margin-bottom:3px">📍 ' + esc(po.addr) + '</div>';
-                zbody += '<div style="font-size:11px;color:var(--muted);margin-top:2px">◻ область, ' + po.poly.length + ' точек</div>';
+                if (po.addr && po.addr !== zname) zbody += '<div style="font-size:12.5px;color:#334155;margin-bottom:3px">📍 ' + esc(po.addr) + '</div>';
+                zbody += '<div style="font-size:12px;color:var(--muted);margin-top:2px">◻ область, ' + po.poly.length + ' точек</div>';
                 omShowTip('🗺 ' + esc(zname), zbody, e);
                 return;
               }
@@ -6473,10 +6480,10 @@
     var p = document.getElementById('om-basemap');
     if (!p) return;
     var cur = omBasemapCur();
-    var h = '<span style="font-weight:800;font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;flex:0 0 auto">Карта:</span>';
+    var h = '<span style="font-weight:800;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;flex:0 0 auto">Карта:</span>';
     OM_BASEMAPS.forEach(function (b) {
       var on = b.k === cur;
-      h += '<button type="button" data-om-bm="' + b.k + '" title="' + b.title + '" style="padding:5px 10px;border:1px solid ' + (on ? '#2563eb' : 'var(--line)') + ';border-radius:7px;background:' + (on ? '#2563eb' : 'var(--card)') + ';color:' + (on ? '#fff' : 'var(--ink)') + ';font-family:inherit;font-size:11.5px;font-weight:700;cursor:pointer">' + b.label + '</button>';
+      h += '<button type="button" data-om-bm="' + b.k + '" title="' + b.title + '" style="padding:5px 10px;border:1px solid ' + (on ? '#2563eb' : 'var(--line)') + ';border-radius:7px;background:' + (on ? '#2563eb' : 'var(--card)') + ';color:' + (on ? '#fff' : 'var(--ink)') + ';font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer">' + b.label + '</button>';
     });
     p.innerHTML = h;
   }
@@ -6531,6 +6538,7 @@
     omState.tipTimer = setTimeout(omHideTip, 15000); // автоскрытие
   }
 
+  /* ── часть 05 · app/05_live_map.js — карта местоположения ── */
   /* =====================================================================
      РЕНДЕР: КАРТА МЕСТОПОЛОЖЕНИЯ — все маршруты мастеров на сегодня
      Яндекс-карта + колонка мастеров справа. Для каждого мастера маршрут
@@ -6654,7 +6662,7 @@
       '<div style="width:1px;height:22px;background:var(--line);flex:0 0 auto"></div>' +
       '<input type="time" id="lm-time-inp" step="1" title="Выбор времени" style="border:none;background:none;font-family:inherit;font-size:17px;font-weight:700;color:var(--ink);outline:none;cursor:pointer;width:104px;text-align:center">' +
       '</div>' +
-      '<button type="button" id="lm-now-btn" title="Сегодняшняя дата и текущее время — с точностью до секунд" style="margin-top:6px;width:100%;border:1px solid var(--line);background:var(--panel-3);border-radius:8px;font-family:inherit;font-size:10.5px;font-weight:700;color:var(--blue);cursor:pointer;padding:3px 8px">Сейчас</button>' +
+      '<button type="button" id="lm-now-btn" title="Сегодняшняя дата и текущее время — с точностью до секунд" style="margin-top:6px;width:100%;border:1px solid var(--line);background:var(--panel-3);border-radius:8px;font-family:inherit;font-size:12px;font-weight:700;color:var(--blue);cursor:pointer;padding:3px 8px">Сейчас</button>' +
       '</div>';
     html += '<div id="lm-map" style="flex:1;min-width:0;position:relative">';
     // Скелетон-загрузка: карта и маршруты строятся — shimmer вместо пустоты
@@ -6678,9 +6686,9 @@
     html += '<aside id="lm-side" style="flex:0 0 330px;border-left:1px solid var(--line);background:var(--card);display:flex;flex-direction:column;min-height:0">';
     html += '<div style="padding:12px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px">' +
       '<div><div style="font-size:14px;font-weight:800;color:var(--ink)">🗺 Маршруты</div>' +
-      '<div class="sub" style="font-size:11.5px">' + lmDayLabel(dayOff) + ' · 🚩 ' + esc(base.name) + '</div></div>' +
+      '<div class="sub" style="font-size:12.5px">' + lmDayLabel(dayOff) + ' · 🚩 ' + esc(base.name) + '</div></div>' +
       '<div style="flex:1"></div><button class="btn sm" id="lm-refresh" title="Перестроить все маршруты">⟳ Обновить</button></div>';
-    html += '<div style="padding:8px 14px;border-bottom:1px solid var(--line);font-size:11.5px;color:var(--muted)" id="lm-summary">' +
+    html += '<div style="padding:8px 14px;border-bottom:1px solid var(--line);font-size:12.5px;color:var(--muted)" id="lm-summary">' +
       (active.length ? '👨‍🔧 ' + active.length + ' ' + (active.length === 1 ? 'мастер' : 'мастеров') + ' · 📋 ' + totalTasks + ' задач · ⏱ ' + fmtH(totalHours) + ' ч' : 'Нет активных маршрутов') + '</div>';
     html += '<div id="lm-list" style="flex:1;overflow:auto;padding:8px">';
     if (!active.length) {
@@ -6695,14 +6703,14 @@
         '<input type="checkbox" class="lm-vis" data-mid="' + esc(m.id) + '" checked style="width:15px;height:15px;cursor:pointer;flex:0 0 auto" title="Скрыть маршрут — всё мастера станет на 70% прозрачным">' +
         '<span style="width:12px;height:12px;border-radius:3px;flex:0 0 auto;background:' + color + '"></span>' +
         '<b style="font-size:12.5px;color:var(--ink)">' + esc(m.name) + '</b>' +
-        '<span style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(m.area || '') + '</span></div>' +
-        '<div style="font-size:11.5px;color:var(--muted);margin-top:4px">📋 ' + ts.length + ' ' + (ts.length === 1 ? 'задача' : 'задач') + ' · ⏱ ' + fmtH(hours) + ' ч</div>' +
-        '<div class="lm-status" data-mid="' + esc(m.id) + '" style="font-size:11.5px;color:#2563eb;margin-top:2px">⏳ Строю маршрут (оптимизация)…</div>' +
-        '<div class="lm-live" data-mid="' + esc(m.id) + '" style="font-size:11.5px;margin-top:2px;color:var(--ink)">⏳ Выезд в ' + lmFmtTime(LM_START_MIN) + '</div>' +
+        '<span style="font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(m.area || '') + '</span></div>' +
+        '<div style="font-size:12.5px;color:var(--muted);margin-top:4px">📋 ' + ts.length + ' ' + (ts.length === 1 ? 'задача' : 'задач') + ' · ⏱ ' + fmtH(hours) + ' ч</div>' +
+        '<div class="lm-status" data-mid="' + esc(m.id) + '" style="font-size:12.5px;color:#2563eb;margin-top:2px">⏳ Строю маршрут (оптимизация)…</div>' +
+        '<div class="lm-live" data-mid="' + esc(m.id) + '" style="font-size:12.5px;margin-top:2px;color:var(--ink)">⏳ Выезд в ' + lmFmtTime(LM_START_MIN) + '</div>' +
         '</div>';
     });
     html += '</div>';
-    html += '<div style="padding:9px 14px;border-top:1px solid var(--line);font-size:10.5px;color:var(--muted)">🚗 Выезд с базы в ' + lmFmtTime(LM_START_MIN) + ' · время поездки — по оптимизации маршрута · стоянка на объекте — человеко-часы задачи</div>';
+    html += '<div style="padding:9px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)">🚗 Выезд с базы в ' + lmFmtTime(LM_START_MIN) + ' · время поездки — по оптимизации маршрута · стоянка на объекте — человеко-часы задачи</div>';
     html += '</aside></div>';
     view.innerHTML = html;
 
@@ -7588,6 +7596,7 @@
     if (lmState.tick) { clearInterval(lmState.tick); lmState.tick = null; }
   }
 
+  /* ── часть 06 · app/06_workers.js — разрешения, работники, бригады, графики смен и их редактор ── */
   /* =====================================================================
      РЕНДЕР: РАЗРЕШЕНИЯ (встраиваемая страница на весь экран)
      ===================================================================== */
@@ -7721,9 +7730,9 @@
       ' onmouseover="this.style.boxShadow=\'0 6px 18px rgba(15,39,64,.15)\';this.style.transform=\'translateY(-2px)\'" onmouseout="this.style.boxShadow=\'none\';this.style.transform=\'\'">' +
       avaHtml(u, 36, 13.5) + // 22.09-219: фото-аватар, если загружен
       '<b style="font-size:12.5px;color:var(--ink);line-height:1.25">' + esc(u.full_name) + '</b>' +
-      '<span style="font-size:10.5px;color:var(--muted);font-weight:700">' + esc(wkProfLabel(u)) + '</span>' +
-      (absToday ? '<span style="font-size:9.5px;color:var(--red);font-weight:800">отсутствует сегодня</span>' : '') +
-      (draggable && !inBrigade ? '<span style="font-size:9.5px;color:#94a3b8">⠿ перетащить в бригаду</span>' : '') +
+      '<span style="font-size:12px;color:var(--muted);font-weight:700">' + esc(wkProfLabel(u)) + '</span>' +
+      (absToday ? '<span style="font-size:11px;color:var(--red);font-weight:800">отсутствует сегодня</span>' : '') +
+      (draggable && !inBrigade ? '<span style="font-size:11px;color:#94a3b8">⠿ перетащить в бригаду</span>' : '') +
       '</div>';
   }
 
@@ -7812,13 +7821,13 @@
     s += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">';
     s += '<span style="width:12px;height:12px;border-radius:50%;background:' + (u.color || '#94a3b8') + ';flex:0 0 auto"></span>';
     s += '<b style="font-size:14px;color:var(--ink)">' + esc(u.full_name) + '</b>';
-    s += '<span class="tag ok" style="font-size:10.5px">' + esc(wkProfLabel(u)) + '</span>';
-    if (brigadeName) s += '<span class="sub" style="font-size:10.5px">👷 ' + esc(brigadeName) + '</span>';
+    s += '<span class="tag ok" style="font-size:12px">' + esc(wkProfLabel(u)) + '</span>';
+    if (brigadeName) s += '<span class="sub" style="font-size:12px">👷 ' + esc(brigadeName) + '</span>';
     s += '<span style="margin-left:auto;font-size:12px;font-weight:800;color:var(--blue)">' + wd.hours + ' ч · ' + wd.sched + '</span>';
     s += '</div>';
     // Настройки — вертикально и ровно: название поля, под ним список на всю ширину карточки
     var wkFieldCss = 'display:block;width:100%;margin-top:3px;padding:6px 8px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:12px;background:var(--card);font-weight:700;box-sizing:border-box';
-    var wkLblCss = 'display:block;font-size:11px;color:var(--muted);font-weight:700';
+    var wkLblCss = 'display:block;font-size:12px;color:var(--muted);font-weight:700';
     s += '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px">';
     var curProf = (u.prof || wd.prof || '');
     s += '<label style="' + wkLblCss + '">Профессия<select data-wk="prof" data-uid="' + esc(u.id) + '"' + dis + ' style="' + wkFieldCss + '">' + wkProfOptionsHtml(curProf) + '</select></label>';
@@ -7826,7 +7835,7 @@
     s += '<label style="' + wkLblCss + '">График<select data-wk="sched" data-uid="' + esc(u.id) + '"' + dis + ' style="' + wkFieldCss + '"><option value="5/2"' + (wd.sched !== '2/2' ? ' selected' : '') + '>5/2</option><option value="2/2"' + (wd.sched === '2/2' ? ' selected' : '') + '>2/2</option></select></label>';
     // Цикл 2/2 — общий на бригаду, меняется в шапке бригады на странице «Работники».
     if (wd.sched === '2/2') {
-      s += '<div style="font-size:11px;color:var(--muted);font-weight:700;padding:4px 0;margin-top:-2px">Цикл 2/2 — общий на бригаду, меняется в шапке бригады</div>';
+      s += '<div style="font-size:12px;color:var(--muted);font-weight:700;padding:4px 0;margin-top:-2px">Цикл 2/2 — общий на бригаду, меняется в шапке бригады</div>';
     }
     if (isSlesar) {
       s += '<label style="' + wkLblCss + '">Бригада<select data-wk="brigade" data-uid="' + esc(u.id) + '"' + dis + ' style="' + wkFieldCss + '">';
@@ -7922,7 +7931,7 @@
 
     // Сверху — руководители: начальник участка и старший мастер
     if (leaders.length) {
-      html += '<div style="margin-bottom:18px"><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Руководство</div>';
+      html += '<div style="margin-bottom:18px"><div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Руководство</div>';
       html += '<div style="display:flex;flex-wrap:wrap;gap:10px">';
       leaders.forEach(function (u) { html += wkCardHtml(u, masters); });
       html += '</div></div>';
@@ -7932,23 +7941,23 @@
     masters.forEach(function (m) {
       var members = slesars.filter(function (s) { return wkData(s.id).brigade === m.id; });
       html += '<div data-wk-drop="' + esc(m.id) + '" style="margin-bottom:16px;border:1px dashed var(--line);border-radius:14px;padding:10px;transition:outline-color .15s">';
-      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap"><span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">👷 Бригада мастера ' + esc(m.full_name) + (members.length ? ' · ' + (members.length + 1) + ' чел.' : '') + '</span>';
+      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap"><span style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">👷 Бригада мастера ' + esc(m.full_name) + (members.length ? ' · ' + (members.length + 1) + ' чел.' : '') + '</span>';
       // Быстрая замена времени, графика и цикла ВСЕЙ бригаде (мастер + его работники)
       if (members.length) {
         var _wdm = wkData(m.id);
         var _bdis = wkCanEdit(m) ? '' : ' disabled';
         html += '<span style="margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap" title="Замена сразу всем работникам бригады">';
-        html += '<label style="font-size:10.5px;color:var(--muted);font-weight:700">Время: <select data-wkbrig="hours" data-uid="' + esc(m.id) + '"' + _bdis + ' style="padding:3px 6px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:11px;background:var(--card);font-weight:700"><option value="8"' + (_wdm.hours !== 12 ? ' selected' : '') + '>8 ч</option><option value="12"' + (_wdm.hours === 12 ? ' selected' : '') + '>12 ч</option></select></label>';
-        html += '<label style="font-size:10.5px;color:var(--muted);font-weight:700">График: <select data-wkbrig="sched" data-uid="' + esc(m.id) + '"' + _bdis + ' style="padding:3px 6px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:11px;background:var(--card);font-weight:700"><option value="5/2"' + (_wdm.sched !== '2/2' ? ' selected' : '') + '>5/2</option><option value="2/2"' + (_wdm.sched === '2/2' ? ' selected' : '') + '>2/2</option></select></label>';
+        html += '<label style="font-size:12px;color:var(--muted);font-weight:700">Время: <select data-wkbrig="hours" data-uid="' + esc(m.id) + '"' + _bdis + ' style="padding:3px 6px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:12px;background:var(--card);font-weight:700"><option value="8"' + (_wdm.hours !== 12 ? ' selected' : '') + '>8 ч</option><option value="12"' + (_wdm.hours === 12 ? ' selected' : '') + '>12 ч</option></select></label>';
+        html += '<label style="font-size:12px;color:var(--muted);font-weight:700">График: <select data-wkbrig="sched" data-uid="' + esc(m.id) + '"' + _bdis + ' style="padding:3px 6px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:12px;background:var(--card);font-weight:700"><option value="5/2"' + (_wdm.sched !== '2/2' ? ' selected' : '') + '>5/2</option><option value="2/2"' + (_wdm.sched === '2/2' ? ' selected' : '') + '>2/2</option></select></label>';
         // Цикл — показываем только при 2/2 (для 5/2 цикл не имеет смысла)
         if (_wdm.sched === '2/2') {
-          html += '<label style="font-size:10.5px;color:var(--muted);font-weight:700" title="Первый рабочий день цикла (2 раб / 2 вых)">Цикл с: <input type="date" data-wkbrig="cycle" data-uid="' + esc(m.id) + '" value="' + esc(_wdm.cycle || '2026-01-05') + '"' + _bdis + ' style="padding:3px 6px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:11px;background:var(--card);font-weight:700"></label>';
+          html += '<label style="font-size:12px;color:var(--muted);font-weight:700" title="Первый рабочий день цикла (2 раб / 2 вых)">Цикл с: <input type="date" data-wkbrig="cycle" data-uid="' + esc(m.id) + '" value="' + esc(_wdm.cycle || '2026-01-05') + '"' + _bdis + ' style="padding:3px 6px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:12px;background:var(--card);font-weight:700"></label>';
         }
         html += '</span>';
       }
       // Кнопка «Полный график» — доступна и для одиночного мастера (распечатать свой график)
       var _bdis2 = wkCanEdit(m) ? '' : ' disabled';
-      html += '<button type="button" class="btn sm" data-action="brig-full-schedule" data-uid="' + esc(m.id) + '" title="Открыть полный график бригады на месяц или год — можно распечатать или скачать в Excel"' + _bdis2 + ' style="margin-left:auto;padding:3px 8px;font-size:11px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;border-color:#0284c7">📆 Полный график</button>';
+      html += '<button type="button" class="btn sm" data-action="brig-full-schedule" data-uid="' + esc(m.id) + '" title="Открыть полный график бригады на месяц или год — можно распечатать или скачать в Excel"' + _bdis2 + ' style="margin-left:auto;padding:3px 8px;font-size:12px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;border-color:#0284c7">📆 Полный график</button>';
       html += '</div>';
       html += '<div style="display:flex;flex-wrap:wrap;gap:10px">';
       html += wkCardHtml(m, masters);
@@ -7963,10 +7972,10 @@
         return !b || !masters.some(function (m) { return m.id === b; });
       });
       html += '<div data-wk-drop="" style="border:1px dashed var(--line);border-radius:14px;padding:10px;transition:outline-color .15s">';
-      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap"><span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Слесари без бригады</span></div>';
+      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap"><span style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Слесари без бригады</span></div>';
       html += '<div style="display:flex;flex-wrap:wrap;gap:10px">';
       if (free.length) free.forEach(function (s) { html += wkCardHtml(s, masters); });
-      else html += '<span style="font-size:11.5px;color:var(--muted);padding:14px">— все слесари распределены по бригадам —</span>';
+      else html += '<span style="font-size:12.5px;color:var(--muted);padding:14px">— все слесари распределены по бригадам —</span>';
       html += '</div></div>';
     }
     if (!users.length) html += '<div class="empty" style="padding:30px">Нет работников</div>';
@@ -8026,7 +8035,7 @@
     var _wkO = _wko2 ? document.getElementById('overlay2') : overlay;
     var _wkM = _wko2 ? document.getElementById('modal2') : modal;
     _wkM.style.maxWidth = '560px'; // 22.09-172: окно — ровно по ширине карточки работника (как карточка задачи); базовая 80%-ширина прочих окон не меняется
-    _wkM.innerHTML = '<div class="modal-h"><h3>' + esc(u.full_name) + ' · ' + wkRoleLabel(u.role) + (isRO ? ' <span class="tag" style="background:#eff6ff;color:#1d4ed8;font-weight:800;font-size:10px;vertical-align:2px">просмотр</span>' : '') + '</h3><button class="x" data-action="close-modal' + (_wko2 ? '2' : '') + '">×</button></div>' +
+    _wkM.innerHTML = '<div class="modal-h"><h3>' + esc(u.full_name) + ' · ' + wkRoleLabel(u.role) + (isRO ? ' <span class="tag" style="background:#eff6ff;color:#1d4ed8;font-weight:800;font-size:11.5px;vertical-align:2px">просмотр</span>' : '') + '</h3><button class="x" data-action="close-modal' + (_wko2 ? '2' : '') + '">×</button></div>' +
       '<div class="modal-b">' + wkPanelHtml(u, masters) + '</div>';
     _wkO.classList.add('show');
     wireWkControls(_wkM);
@@ -8382,7 +8391,7 @@
     ];
     masters.forEach(function (m) { modes.push({ id: 'b:' + m.id, label: 'Бригада ' + m.full_name.split(' ')[0] }); });
     var curMode = S.schMode || 'all';
-    html += '<select data-action="sch-mode" style="padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:11.5px;font-weight:700;background:var(--card)">';
+    html += '<select data-action="sch-mode" style="padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:12.5px;font-weight:700;background:var(--card)">';
     modes.forEach(function (m) {
       html += '<option value="' + esc(m.id) + '"' + (m.id === curMode ? ' selected' : '') + '>' + esc(m.label) + '</option>';
     });
@@ -8436,10 +8445,10 @@
     // на стыке двух одинаковых рамок получается 2px (1px бордюр одной + 1px бордюр другой).
     // table-layout:fixed + width:100% — браузер распределяет ширину колонок пропорционально,
     // все 31 день гарантированно растягиваются на всю ширину контейнера без пустого хвоста.
-    html2 += '<table style="border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed;min-width:' + (nameColW + lead * colW + dim * colW + 2) + 'px;font-size:11px">';
+    html2 += '<table style="border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed;min-width:' + (nameColW + lead * colW + dim * colW + 2) + 'px;font-size:12px">';
     // Шапка: пустая ячейка + дни месяца (с подсветкой выходных)
     html2 += '<thead><tr style="background:var(--panel-2)">';
-    html2 += '<th style="position:sticky;left:0;background:var(--panel-2);z-index:2;padding:6px 8px;text-align:left;border-bottom:1px solid var(--line);border-right:1px solid var(--line);font-size:11px;color:var(--muted);font-weight:700;width:' + nameColW + 'px">Бригада / работник</th>';
+    html2 += '<th style="position:sticky;left:0;background:var(--panel-2);z-index:2;padding:6px 8px;text-align:left;border-bottom:1px solid var(--line);border-right:1px solid var(--line);font-size:12px;color:var(--muted);font-weight:700;width:' + nameColW + 'px">Бригада / работник</th>';
     // Сдвиг для первой недели
     for (var li = 0; li < lead; li++) html2 += '<th style="width:' + colW + 'px;border-bottom:1px solid var(--line);border-right:1px solid var(--line)"></th>';
     for (var dd = 1; dd <= dim; dd++) {
@@ -8449,7 +8458,7 @@
       var isTodayH = sameDay(dtH, TODAY);
       var dsH = wm.y + '-' + String(wm.m + 1).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
       var _holH = holidayOn(dsH); // 22.09-109
-      html2 += '<th title="' + dd + ' ' + MON_NOM[wm.m] + (_holH ? ' · 🎉 ' + esc(_holH) : '') + '" style="width:' + colW + 'px;padding:3px 0;font-size:10px;font-weight:700;color:' + (isWeH ? '#94a3b8' : 'var(--muted)') + ';border-bottom:1px solid var(--line);text-align:center;' + (isTodayH ? 'background:rgba(37,99,235,.1);' : (_holH ? 'background:#fef9c3;' : '')) + '">' + dd + '</th>';
+      html2 += '<th title="' + dd + ' ' + MON_NOM[wm.m] + (_holH ? ' · 🎉 ' + esc(_holH) : '') + '" style="width:' + colW + 'px;padding:3px 0;font-size:11.5px;font-weight:700;color:' + (isWeH ? '#94a3b8' : 'var(--muted)') + ';border-bottom:1px solid var(--line);text-align:center;' + (isTodayH ? 'background:rgba(37,99,235,.1);' : (_holH ? 'background:#fef9c3;' : '')) + '">' + dd + '</th>';
     }
     html2 += '</tr></thead><tbody>';
 
@@ -8475,7 +8484,7 @@
 
     html2 += '</tbody></table></div>';
     // Легенда
-    html2 += '<div style="margin-top:10px;display:flex;gap:14px;align-items:center;font-size:11px;color:var(--muted);flex-wrap:wrap;font-weight:700">' +
+    html2 += '<div style="margin-top:10px;display:flex;gap:14px;align-items:center;font-size:12px;color:var(--muted);flex-wrap:wrap;font-weight:700">' +
       '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#dcfce7;border:1px solid #16a34a"></span>рабочий по графику</span>' +
       '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#f1f5f9;border:1px solid #cbd5e1"></span>выходной по графику</span>' +
       '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#fee2e2;border:1px solid #dc2626"></span>отсутствие (отпуск/больничный)</span>' +
@@ -8501,7 +8510,7 @@
     var html = '<tr style="background:' + bg + '">';
     html += '<td data-uid="' + esc(master.id) + '" style="position:sticky;left:0;background:' + bg + ';z-index:1;padding:6px 8px;border-bottom:1px solid var(--line);border-right:1px solid var(--line);font-weight:800;color:var(--ink);white-space:nowrap;width:' + nameColW + 'px;overflow:hidden;text-overflow:ellipsis">' +
       '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + (master.color || '#94a3b8') + ';margin-right:6px"></span>' +
-      '👷 ' + esc(master.full_name) + ' <span style="color:var(--muted);font-weight:700;font-size:10px">· ' + wd.hours + ' ч · ' + wd.sched + (wd.sched === '2/2' ? ' (' + esc(wd.cycle) + ')' : '') + '</span>' +
+      '👷 ' + esc(master.full_name) + ' <span style="color:var(--muted);font-weight:700;font-size:11.5px">· ' + wd.hours + ' ч · ' + wd.sched + (wd.sched === '2/2' ? ' (' + esc(wd.cycle) + ')' : '') + '</span>' +
       '</td>';
     for (var li = 0; li < lead; li++) html += '<td style="border-bottom:1px solid var(--line);width:' + colW + 'px"></td>';
     var wOrAbs = 0, wOff = 0, wAbs = 0;
@@ -8621,7 +8630,7 @@
     var html = '';
     html += '<div class="card" style="margin-bottom:14px"><div class="card-h"><h2>📅 Графики смен — ' + y + ' год</h2>';
     html += '<span class="sub">' + masters.length + ' бригад · ' + slesars.length + ' слесарей · ' + users.length + ' чел.</span></div></div>';
-    html += '<div style="display:flex;gap:14px;align-items:center;font-size:11px;color:var(--muted);margin-bottom:10px;flex-wrap:wrap;font-weight:700">' +
+    html += '<div style="display:flex;gap:14px;align-items:center;font-size:12px;color:var(--muted);margin-bottom:10px;flex-wrap:wrap;font-weight:700">' +
       '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background-color:#dcfce7;border:1px solid #16a34a"></span>рабочий по графику</span>' +
       '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background-color:#f1f5f9;border:1px solid #cbd5e1"></span>выходной по графику</span>' +
       '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background-color:#fee2e2;border:1px solid #dc2626"></span>отсутствие</span>' +
@@ -8703,7 +8712,7 @@
       if (row.kind === 'brigade') {
         var m = row.master;
         html += '<div style="border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--card)">';
-        html += '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">👷 Бригада мастера ' + esc(m.full_name) + ' · ' + periodLabel + '</div>';
+        html += '<div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">👷 Бригада мастера ' + esc(m.full_name) + ' · ' + periodLabel + '</div>';
         html += '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start">';
         // Мастер и слесари рядом (на одной строке)
         html += schBrigadePersonCard(m, true, period);
@@ -8711,7 +8720,7 @@
         html += '</div></div>';
       } else {
         html += '<div style="border:1px dashed var(--line);border-radius:12px;padding:10px 12px;background:var(--card)">';
-        html += '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Слесари без бригады · ' + periodLabel + '</div>';
+        html += '<div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Слесари без бригады · ' + periodLabel + '</div>';
         html += '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start">';
         row.members.forEach(function (s) { html += schBrigadePersonCard(s, false, period); });
         html += '</div></div>';
@@ -8731,7 +8740,7 @@
     html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">';
     html += '<h3 style="margin:0;font-size:15px;color:var(--ink)">📊 График за год</h3>';
     html += '<span style="display:inline-flex;align-items:center;gap:6px;margin-left:8px">';
-    html += '<label style="font-size:11px;color:var(--muted);font-weight:700">Год:</label>';
+    html += '<label style="font-size:12px;color:var(--muted);font-weight:700">Год:</label>';
     var yearOpts = '';
     var yNow = (typeof TODAY === 'object' ? TODAY.getFullYear() : new Date().getFullYear());
     for (var yy = yNow - 3; yy <= yNow + 3; yy++) {
@@ -8739,14 +8748,14 @@
     }
     html += '<select data-action="sch-year" style="padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:12px;font-weight:700;background:var(--card)">' + yearOpts + '</select>';
     html += '</span>';
-    html += '<span class="sub" style="font-size:11px">' + y + ' год — ' + masters.length + ' бригад · ' + slesars.length + ' слесарей</span>';
+    html += '<span class="sub" style="font-size:12px">' + y + ' год — ' + masters.length + ' бригад · ' + slesars.length + ' слесарей</span>';
     html += '<span style="margin-left:auto;display:flex;gap:6px">';
     html += '<button type="button" class="btn sm" data-action="sch-year-print" title="Печать годового графика" style="background:#475569;color:#fff;border-color:#475569">🖨 Печать</button>';
     html += '<button type="button" class="btn sm" data-action="sch-year-excel" title="Скачать в Excel" style="background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border-color:#15803d">📥 Excel</button>';
     html += '</span>';
     html += '</div>';
     // Легенда
-    html += '<div style="display:flex;gap:14px;align-items:center;font-size:11px;color:var(--muted);margin-bottom:10px;flex-wrap:wrap;font-weight:700">' +
+    html += '<div style="display:flex;gap:14px;align-items:center;font-size:12px;color:var(--muted);margin-bottom:10px;flex-wrap:wrap;font-weight:700">' +
       '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background-color:#dcfce7;border:1px solid #16a34a"></span>рабочий по графику</span>' +
       '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background-color:#f1f5f9;border:1px solid #cbd5e1"></span>выходной</span>' +
       '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background-color:#fee2e2;border:1px solid #dc2626"></span>отсутствие</span>' +
@@ -9027,11 +9036,11 @@
       '<style>' +
         'body{font-family:Arial,sans-serif;color:#000;padding:6mm;margin:0}' +
         'h1{font-size:14px;margin:0 0 4px}' +
-        '.legend{display:flex;gap:10px;margin-bottom:6px;font-size:10px;flex-wrap:wrap}' +
+        '.legend{display:flex;gap:10px;margin-bottom:6px;font-size:11.5px;flex-wrap:wrap}' +
         '.legend span{display:inline-flex;gap:4px;align-items:center}' +
         '.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;border:1px solid #888}' +
         'table{border-collapse:collapse;table-layout:fixed;width:100%;margin-top:6px}' +
-        'th,td{border:1px solid #999;padding:0;text-align:center;font-size:9px;height:18px}' +
+        'th,td{border:1px solid #999;padding:0;text-align:center;font-size:10.5px;height:18px}' +
         'th{background:#e2e8f0;font-weight:700;padding:2px}' +
         'td.stick{background:#f8fafc;text-align:left;white-space:nowrap;font-weight:700;padding:2px 6px}' +
         '.work{background-color:#dcfce7}.off{background-color:#fff}.abs{background-color:#fee2e2}' +
@@ -9068,7 +9077,7 @@
       '<style>' +
         'body{font-family:Arial,sans-serif;color:#000;padding:6mm;margin:0}' +
         'h1{font-size:14px;margin:0 0 4px}' +
-        'table{border-collapse:collapse;table-layout:fixed;width:100%;margin-top:6px;font-size:10px}' +
+        'table{border-collapse:collapse;table-layout:fixed;width:100%;margin-top:6px;font-size:11.5px}' +
         'th,td{border:1px solid #999;padding:2px;text-align:center;height:18px}' +
         'th{background:#e2e8f0;font-weight:700}' +
         'td.stick{background:#f8fafc;text-align:left;white-space:nowrap;font-weight:700;padding:2px 6px}' +
@@ -9290,10 +9299,10 @@
         '<div id="brig-full-head" style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap">' +
           '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + (master.color || '#94a3b8') + '"></span>' +
           '<b style="font-size:14.5px;color:var(--ink)">Полный график — бригада ' + esc(master.full_name) + '</b>' +
-          '<span class="sub" style="font-size:11px">' + (members.length + 1) + ' чел.</span>' +
+          '<span class="sub" style="font-size:12px">' + (members.length + 1) + ' чел.</span>' +
           '<span style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap">' +
             '<button type="button" class="btn sm" data-action="bfs-prev" title="Назад">‹</button>' +
-            '<select data-action="bfs-mode" style="padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:11.5px;font-weight:700;background:var(--card)">' +
+            '<select data-action="bfs-mode" style="padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:12.5px;font-weight:700;background:var(--card)">' +
               '<option value="month"' + (initialRange === 'month' ? ' selected' : '') + '>Месяц</option>' +
               '<option value="year"' + (initialRange === 'year' ? ' selected' : '') + '>Год</option>' +
             '</select>' +
@@ -9518,7 +9527,7 @@
     if (!w) { toast('err', 'Разрешите всплывающие окна для печати'); return; }
     var title = 'График — бригада ' + master.full_name + ' (' + range.label + ')';
     var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(title) + '</title>' +
-      '<style>body{font-family:Arial,sans-serif;color:#000;padding:14px} h1{font-size:16px;margin:0 0 8px} .legend{display:flex;gap:14px;margin-bottom:10px;font-size:11px} .legend span{display:inline-flex;gap:5px;align-items:center} .legend i{display:inline-block;width:14px;height:14px;border-radius:3px;border:1px solid #888} table{border-collapse:collapse;width:100%} th,td{border:1px solid #999;padding:4px;text-align:center;font-size:10px} th{background:#e2e8f0} td.stick{background:#f8fafc;text-align:left;white-space:nowrap;font-weight:700} .work{background:#dcfce7}.off{background:#f1f5f9}.abs{background:#fee2e2;color:#7f1d1d} @media print{.no-print{display:none} body{padding:6mm}}</style>' +
+      '<style>body{font-family:Arial,sans-serif;color:#000;padding:14px} h1{font-size:16px;margin:0 0 8px} .legend{display:flex;gap:14px;margin-bottom:10px;font-size:12px} .legend span{display:inline-flex;gap:5px;align-items:center} .legend i{display:inline-block;width:14px;height:14px;border-radius:3px;border:1px solid #888} table{border-collapse:collapse;width:100%} th,td{border:1px solid #999;padding:4px;text-align:center;font-size:11.5px} th{background:#e2e8f0} td.stick{background:#f8fafc;text-align:left;white-space:nowrap;font-weight:700} .work{background:#dcfce7}.off{background:#f1f5f9}.abs{background:#fee2e2;color:#7f1d1d} @media print{.no-print{display:none} body{padding:6mm}}</style>' +
       '</head><body>';
     html += '<h1>' + esc(title) + '</h1>';
     html += '<div class="legend"><span><i style="background:#dcfce7"></i>рабочий</span><span><i style="background:#f1f5f9"></i>выходной</span><span><i style="background:#fee2e2"></i>отсутствие</span><span style="margin-left:auto">Печать: ' + esc(new Date().toLocaleString('ru-RU')) + '</span></div>';
@@ -9639,7 +9648,7 @@
     var _wd3 = !!S.workersModal;
     var _wdM = _wd3 ? document.getElementById('modal3') : modal;
     var _wdO = _wd3 ? document.getElementById('overlay3') : overlay;
-    _wdM.style.maxWidth = '';
+    _wdM.style.maxWidth = ''; _wdM.style.width = ''; // 22.09-238: ширина по умолчанию (не наследуем от широких окон)
     _wdM.innerHTML = '<div class="modal-h"><h3>Отсутствие — ' + esc(u.full_name) + '</h3><button class="x" data-action="close-modal' + (_wd3 ? '3' : '') + '">×</button></div>' +
       '<div class="modal-b">' +
       '<div style="font-size:12.5px;color:var(--muted);margin-bottom:10px">' + d.getDate() + ' ' + MON[d.getMonth()] + ' ' + d.getFullYear() + ' года</div>' +
@@ -9660,7 +9669,7 @@
     var _wc3 = !!S.workersModal;
     var _wcM = _wc3 ? document.getElementById('modal3') : modal;
     var _wcO = _wc3 ? document.getElementById('overlay3') : overlay;
-    _wcM.style.maxWidth = '';
+    _wcM.style.maxWidth = ''; _wcM.style.width = ''; // 22.09-238: ширина по умолчанию (не наследуем от широких окон)
     _wcM.innerHTML = '<div class="modal-h"><h3>Комментарий — ' + esc(u.full_name) + '</h3><button class="x" data-action="close-modal' + (_wc3 ? '3' : '') + '">×</button></div>' +
       '<div class="modal-b">' +
       '<textarea id="wk-card-comment" rows="4" style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13px;box-sizing:border-box" placeholder="Общий комментарий к работнику…">' + esc(wd.comment || '') + '</textarea>' +
@@ -9714,9 +9723,9 @@
       '<label class="cb" style="flex:1;display:flex;align-items:center;gap:6px;justify-content:center;padding:9px 8px;border:1px solid ' + (curState === 'off' ? '#64748b;background:#f1f5f9' : 'var(--line);background:#fff') + ';border-radius:8px;cursor:pointer;font-weight:700;font-size:13px"><input type="radio" name="sch-day-state" id="sch-day-off"' + (curState === 'off' ? ' checked' : '') + '> Выходной</label>' +
       '</div>' +
       '<div class="fld" style="max-width:200px"><label>Часов в этот день</label><input id="sch-day-hours" type="text" inputmode="decimal" value="' + String(curH).replace('.', ',') + '" placeholder="напр.: 8,25"></div>' +
-      '<div style="font-size:11px;color:var(--muted);margin:-4px 0 10px">Учитывается, если день рабочий: можно снизить или добавить часы.</div>' +
+      '<div style="font-size:12px;color:var(--muted);margin:-4px 0 10px">Учитывается, если день рабочий: можно снизить или добавить часы.</div>' +
       (brig.length > 1 ? '<label class="cb" style="display:flex;align-items:center;gap:7px;padding:8px 10px;border:1px dashed var(--line);border-radius:8px;font-size:12.5px;font-weight:700;color:var(--ink);cursor:pointer"><input type="checkbox" id="sch-day-brig"> Применить ко всей бригаде (' + brig.length + ' чел.)</label>' : '') +
-      (obr ? '<div style="margin-top:10px;font-size:11.5px;color:#1d4ed8;font-weight:600">✏ Для этого дня уже есть ручное изменение — кнопка «Вернуть стандарт» вернёт обычный график.</div>' : '') +
+      (obr ? '<div style="margin-top:10px;font-size:12.5px;color:#1d4ed8;font-weight:600">✏ Для этого дня уже есть ручное изменение — кнопка «Вернуть стандарт» вернёт обычный график.</div>' : '') +
       '</div>' +
       '<div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button>' +
       (obr ? '<button class="btn" data-action="sch-day-reset" style="color:var(--red);border-color:var(--red)">Вернуть стандарт</button>' : '') +
@@ -9869,7 +9878,7 @@
       '<label class="cb" style="flex:1;display:flex;align-items:center;gap:6px;justify-content:center;padding:9px 8px;border:1px solid ' + (ci.st === 'off' ? '#64748b;background:#f1f5f9' : 'var(--line);background:#fff') + ';border-radius:8px;cursor:' + (isPast ? 'default' : 'pointer') + ';font-weight:700;font-size:13px;' + (isPast ? 'opacity:.55;' : '') + '"' + (isPast ? ' title="В прошедшие дни рабочий/выходной не меняется — только часы"' : '') + '><input type="radio" name="scheday-st" id="scheday-off"' + (ci.st === 'off' ? ' checked' : '') + (isPast ? ' disabled' : '') + '> Выходной</label>' +
       '</div>' +
       '<div class="fld" style="max-width:200px"><label>Часов в этот день</label><input id="scheday-hours" type="text" inputmode="decimal" value="' + String(hrs).replace('.', ',') + '" placeholder="напр.: 8,25"></div>' +
-      '<div style="font-size:11px;color:var(--muted);margin:-4px 0 10px">' + (isPast ? 'Прошедший день: здесь можно поправить только количество часов (фактическая отработка). ' : 'Учитывается, если день рабочий. ') + 'Изменение уйдёт в черновик и применится по кнопке «Сохранить» в окне редактора.</div>' +
+      '<div style="font-size:12px;color:var(--muted);margin:-4px 0 10px">' + (isPast ? 'Прошедший день: здесь можно поправить только количество часов (фактическая отработка). ' : 'Учитывается, если день рабочий. ') + 'Изменение уйдёт в черновик и применится по кнопке «Сохранить» в окне редактора.</div>' +
       '</div>' +
       '<div class="modal-f"><button class="btn" data-action="close-modal2">Отмена</button>' +
       (changed ? '<button class="btn" data-action="scheday-reset" style="color:var(--red);border-color:var(--red)">Вернуть по графику</button>' : '') +
@@ -10128,7 +10137,7 @@
       '<div class="perms-wrapper" style="position:absolute;top:8px;right:12px;z-index:20;text-align:center;">' +
         
         // Сама кнопка (уменьшенная в 2 раза)
-        '<a href="' + permsUrl + '" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;padding:5px 10px;background:#dc2626;color:#fff;border-radius:6px;font-size:9px;font-weight:700;text-decoration:none;box-shadow:0 2px 8px rgba(220,38,38,0.4);cursor:pointer;transition:0.2s;">' +
+        '<a href="' + permsUrl + '" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;padding:5px 10px;background:#dc2626;color:#fff;border-radius:6px;font-size:10.5px;font-weight:700;text-decoration:none;box-shadow:0 2px 8px rgba(220,38,38,0.4);cursor:pointer;transition:0.2s;">' +
           '🔧 Исправить ошибку' +
         '</a>' +
         
@@ -10153,6 +10162,7 @@
     view.innerHTML = html;
   }
 
+  /* ── часть 07 · app/07_refs.js — справочники: импорт/экспорт Excel, группы, виды работ, групповое изменение, профессии ── */
   /* =====================================================================
      ЭКСПОРТ / ИМПОРТ СПРАВОЧНИКА ИЗ EXCEL (Виды работ и Нормы времени)
      ===================================================================== */
@@ -10724,7 +10734,7 @@
         var _tip = _isTel ? 'Группа помечена «Работы с ТМ»: работы подбираются только объектам с телеметрией' :
           (_isNoTm ? 'Группа помечена «Без телеметрии»: работы подбираются только объектам без телеметрии' :
           'Свойство группы (метка, на автоподбор не влияет)');
-        g += ' <span class="equipment-badge" style="font-size:10px" title="' + _tip + '">' + (_isTel ? '📡 ' : _isNoTm ? '🚫📡 ' : '🏷 ') + esc(_isTel ? 'Работы с ТМ' : _fx) + '</span>';
+        g += ' <span class="equipment-badge" style="font-size:11.5px" title="' + _tip + '">' + (_isTel ? '📡 ' : _isNoTm ? '🚫📡 ' : '🏷 ') + esc(_isTel ? 'Работы с ТМ' : _fx) + '</span>';
       });
       if (admin) g += '<span style="margin-left:auto;display:inline-flex;gap:4px;flex-shrink:0">' +
         (!isNorms ? '<button type="button" class="btn sm ghost" data-action="grp-selall" data-path="' + esc(ch.path) + '" title="22.09-229: отметить/снять все работы этой группы (вместе с подгруппами) для группового изменения" style="padding:2px 8px;font-size:12px;line-height:1.4">☑</button>' : '') +
@@ -10918,15 +10928,15 @@
     if (f.t === 'minopt') return '<div style="display:flex;gap:8px"><input id="wb-v-min_workers" type="number" min="1" style="flex:1" placeholder="мин"><input id="wb-v-opt_workers" type="number" min="1" style="flex:1" placeholder="опт"></div>';
     if (f.t === 'crewsize') {
       return '<input id="wm-crew-size" type="number" min="0" step="1" placeholder="напр.: 3" style="width:140px">' +
-        '<div style="font-size:10.5px;color:var(--muted);margin-top:3px">Если больше 0 — как в карточке: мин. и оптим. число исполнителей станут равны этому числу</div>';
+        '<div style="font-size:12px;color:var(--muted);margin-top:3px">Если больше 0 — как в карточке: мин. и оптим. число исполнителей станут равны этому числу</div>';
     }
     if (f.t === 'crew') {
       var profsCnt = 0;
       try { if (window.SP_PROFS && SP_PROFS.getAll) profsCnt = SP_PROFS.getAll().length; } catch (e) {}
       return '<div id="wm-crew-rows"></div>' +
-        (profsCnt ? '' : '<div style="font-size:11.5px;color:#92400e;background:#fef9c3;border:1px solid #fde68a;border-radius:6px;padding:6px 9px;margin:2px 0 6px">⚠️ Справочник «Профессии» пока пуст — сначала добавьте профессии: «Справочники» → «Профессии».</div>') +
-        '<div style="display:flex;gap:12px;align-items:center;margin-top:4px;flex-wrap:wrap"><button type="button" id="wm-crew-add" class="btn sm" style="border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;font-weight:600">＋ Добавить профессию</button><span id="wm-crew-hint" style="font-size:11.5px;font-weight:600"></span></div>' +
-        '<div style="font-size:10.5px;color:var(--muted);margin-top:3px">Указанный состав ЗАМЕНИТ состав бригады у всех выбранных работ</div>';
+        (profsCnt ? '' : '<div style="font-size:12.5px;color:#92400e;background:#fef9c3;border:1px solid #fde68a;border-radius:6px;padding:6px 9px;margin:2px 0 6px">⚠️ Справочник «Профессии» пока пуст — сначала добавьте профессии: «Справочники» → «Профессии».</div>') +
+        '<div style="display:flex;gap:12px;align-items:center;margin-top:4px;flex-wrap:wrap"><button type="button" id="wm-crew-add" class="btn sm" style="border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;font-weight:600">＋ Добавить профессию</button><span id="wm-crew-hint" style="font-size:12.5px;font-weight:600"></span></div>' +
+        '<div style="font-size:12px;color:var(--muted);margin-top:3px">Указанный состав ЗАМЕНИТ состав бригады у всех выбранных работ</div>';
     }
     return '';
   }
@@ -10955,7 +10965,7 @@
     h += '<div style="max-height:110px;overflow:auto;border:1px dashed var(--line);border-radius:8px;padding:6px 8px;margin-bottom:12px;font-size:12px;line-height:1.6">';
     works.forEach(function (w) { h += '<div>▪ <b style="color:var(--ink)">' + esc(w.name) + '</b> <span style="color:#94a3b8">(' + esc(w.group || 'Без группы') + ')</span></div>'; });
     h += '</div>';
-    h += '<div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;line-height:1.5">Отметьте галочками слева атрибуты, которые нужно изменить СРАЗУ У ВСЕХ выбранных работ, задайте новые значения и нажмите кнопку внизу. Неотмеченные атрибуты останутся у работ как были. Набор атрибутов — как в карточке вида работ участка «' + esc(area) + '».</div>';
+    h += '<div style="font-size:12.5px;color:var(--muted);margin-bottom:10px;line-height:1.5">Отметьте галочками слева атрибуты, которые нужно изменить СРАЗУ У ВСЕХ выбранных работ, задайте новые значения и нажмите кнопку внизу. Неотмеченные атрибуты останутся у работ как были. Набор атрибутов — как в карточке вида работ участка «' + esc(area) + '».</div>';
     // Структура — у всех участков (как верх карточки: надгруппа / группа / подгруппа)
     h += '<div style="background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:10px">';
     h += '<div style="font-size:12px;font-weight:700;margin-bottom:8px">🗂 Структура — переместить выбранные работы</div>';
@@ -10971,7 +10981,7 @@
       var firstSec = true;
       fields.forEach(function (f) {
         if (f.sec) {
-          h += '<div style="font-size:11.5px;font-weight:800;color:' + (isGrp ? '#1e3a8a' : 'var(--ink)') + ';margin:' + (firstSec ? '2px' : '12px') + ' 0 6px;' + (firstSec ? '' : 'padding-top:9px;border-top:1px dashed ' + (isGrp ? '#bfdbfe' : 'var(--line)') + ';') + '">' + f.sec + '</div>';
+          h += '<div style="font-size:12.5px;font-weight:800;color:' + (isGrp ? '#1e3a8a' : 'var(--ink)') + ';margin:' + (firstSec ? '2px' : '12px') + ' 0 6px;' + (firstSec ? '' : 'padding-top:9px;border-top:1px dashed ' + (isGrp ? '#bfdbfe' : 'var(--line)') + ';') + '">' + f.sec + '</div>';
           firstSec = false;
         }
         h += fldRow('wb-on-' + f.k, esc(f.lb) + (f.hint ? ' <span style="color:#94a3b8;font-weight:500">(' + esc(f.hint) + ')</span>' : ''), wbulkCtrlHtml(f));
@@ -10993,7 +11003,7 @@
         h += '<label class="cb" style="display:flex;align-items:center;gap:7px;padding:4px 6px;font-size:12.5px;cursor:pointer"><input type="checkbox" data-action="wbulk-jt" data-g="' + esc(g) + '"' + (on ? ' checked' : '') + '><span style="flex:1"><b style="color:var(--ink)">' + esc(g) + '</b><span style="color:#64748b"> · работ: ' + (gcnt[g] || 0) + '</span></span></label>';
       });
       h += '</div>';
-      h += '<div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">Связи применяются отдельными кнопками внизу: «Заменить» — у всех выбранных работ останутся ТОЛЬКО отмеченные здесь группы; «Добавить» — отмеченные группы добавятся к уже имеющимся связям каждой работы.</div>';
+      h += '<div style="font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5">Связи применяются отдельными кнопками внизу: «Заменить» — у всех выбранных работ останутся ТОЛЬКО отмеченные здесь группы; «Добавить» — отмеченные группы добавятся к уже имеющимся связям каждой работы.</div>';
       h += '</div>';
     }
     h += '</div>';
@@ -11078,16 +11088,18 @@
     var hasJoint = (area === 'ГРП');
     var doJoint = hasJoint && (jointMode === 'replace' || jointMode === 'add') && on('wb-on-joint');
     var jSel = (Array.isArray(S.wmBulkJoint) ? S.wmBulkJoint.slice() : []);
-    if (doJoint && jointMode === 'replace' && !jSel.length) {
-      if (!window.confirm('Группы не отмечены — связи «Проводится совместно» будут ОЧИЩЕНЫ у всех выбранных работ. Продолжить?')) return;
-    }
+    var _ask = []; // 22.09-244: вопросы — одним оформленным окном
+    if (doJoint && jointMode === 'replace' && !jSel.length) _ask.push('Группы не отмечены — связи «Проводится совместно» будут ОЧИЩЕНЫ у всех выбранных работ.');
     var clearing = [];
     ops.forEach(function (o) { if (o.mode === 'replace' && !o.items.length) clearing.push(o.sh); });
     if (set.crew && !set.crew.length) clearing.push('состав бригады');
-    if (clearing.length && !window.confirm('Значения не указаны — у всех выбранных работ будут ОЧИЩЕНЫ: ' + clearing.join(', ') + '. Продолжить?')) return;
+    if (clearing.length) _ask.push('Значения не указаны — у всех выбранных работ будут ОЧИЩЕНЫ: ' + clearing.join(', ') + '.');
     if (!doSuper && !doGroup && !doSub && !Object.keys(set).length && !ops.length && !doJoint) {
       toast('warn', 'Не отмечен ни один атрибут для изменения — поставьте галочки у нужных'); return;
     }
+    if (_ask.length) return spConfirm(_ask.join('\n\n') + '\n\nПродолжить?', { title: 'Групповое изменение работ', ok: 'Продолжить', danger: true }, wbApplyGo);
+    return wbApplyGo();
+    function wbApplyGo() { // 22.09-244: применение — после подтверждения (если оно нужно)
     var structLog = [];
     if (doSuper) structLog.push('надгруппа'); if (doGroup) structLog.push('группа'); if (doSub) structLog.push('подгруппа');
     fieldsLog = structLog.concat(fieldsLog);
@@ -11152,6 +11164,7 @@
       if (set.crew_size > 0 && crewSum !== set.crew_size) toast('warn', '⚠️ Состав исполнителей (' + crewSum + ') не совпадает с общим количеством (' + set.crew_size + ')');
     }
     renderRefs();
+    }
   }
 
   function tabBtn(t, label) { return '<button class="' + (S.refsTab === t ? 'on' : '') + '" data-action="refs-tab" data-tab="' + t + '">' + label + '</button>'; }
@@ -11241,13 +11254,14 @@
     } else {
       msg = 'Убрать название «' + name + '» из списка?';
     }
-    if (!window.confirm(msg)) return;
+    return spConfirm(msg, { title: 'Удаление из списка профессий', ok: 'Убрать', danger: true }, function () { // 22.09-244: оформленное окно
     SP_PROFS.deleteProfNameByName(name);
     entries.forEach(function (e2) { SP_PROFS.deleteProf(e2.id); });
     logAction('Удаление названия профессии из списка', name);
     toast('ok', entries.length ? 'Название и записи справочника удалены' : 'Название убрано из списка');
     // перерисовать сам выпадающий список (оставаясь в карточке)
     if (listEl) listEl.innerHTML = '<option value="">— выбрать из списка —</option>' + profNameListOptionsHtml();
+    });
   }
   function saveProf() {
     if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
@@ -11279,13 +11293,15 @@
     } catch (e) {}
     var msg = 'Удалить профессию «' + SP_PROFS.label(p) + '» из справочника?';
     if (used) msg += '\n\n⚠️ Она указана в составе исполнителей ' + used + (used === 1 ? ' работы' : ' работ') + ' ГРП — там останется пометка «⚠ нет в справочнике».';
-    if (!window.confirm(msg)) return;
+    return spConfirm(msg, { title: 'Удаление профессии', ok: 'Удалить', danger: true }, function () { // 22.09-244: оформленное окно
     SP_PROFS.deleteProf(pid);
     logAction('Удаление профессии', SP_PROFS.label(p));
     toast('ok', 'Профессия удалена');
     refresh();
+    });
   }
 
+  /* ── часть 08 · app/08_areas_objects.js — справочники: участки, зоны, объекты, карточка вида работ ── */
   /* =====================================================================
      СПРАВОЧНИК: УЧАСТКИ
      ===================================================================== */
@@ -11372,7 +11388,7 @@
     }
     var wc = 0;
     try { wc = WORK.getWorks(a.name).length; } catch (e) {}
-    if (!window.confirm('Удалить участок «' + a.name + '»?' + (wc ? '\n\nТакже будут удалены его виды работ: ' + wc + ' шт.' : ''))) return;
+    return spConfirm('Удалить участок «' + a.name + '»?' + (wc ? '\n\nТакже будут удалены его виды работ: ' + wc + ' шт.' : ''), { title: 'Удаление участка', ok: 'Удалить', danger: true }, function () { // 22.09-244: оформленное окно
     if (WORK.deleteArea) WORK.deleteArea(a.name);
     SP_AREAS.deleteArea(aid);
     if (S.workArea === a.name) S.workArea = null;
@@ -11380,6 +11396,7 @@
     logAction('Удаление участка', a.name);
     toast('ok', 'Участок «' + a.name + '» удалён');
     refresh();
+    });
   }
   // Экспорт участков в Excel
   function exportAreasExcel() {
@@ -11425,7 +11442,7 @@
     for (var i = 0; i < ZONE_COLORS.length; i++) {
       h += '<button type="button" class="zc-sw' + (ZONE_COLORS[i].toLowerCase() === s ? ' on' : '') + '" data-zc="' + ZONE_COLORS[i] + '" title="Цвет ' + ZONE_COLORS[i] + '" style="background:' + ZONE_COLORS[i] + '"></button>';
     }
-    h += '<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)">свой <input type="color" class="zc-custom" value="' + (/^#[0-9a-fA-F]{6}$/.test(s) ? s : '#0d9488') + '"></span>';
+    h += '<span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--muted)">свой <input type="color" class="zc-custom" value="' + (/^#[0-9a-fA-F]{6}$/.test(s) ? s : '#0d9488') + '"></span>';
     h += '</div>';
     return h;
   }
@@ -11546,27 +11563,27 @@
       '<div style="position:relative;width:100%;max-width:1200px;background:var(--card);border-radius:14px;box-shadow:0 20px 60px rgba(15,39,64,.4);display:flex;flex-direction:column;overflow:hidden">' +
         '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);flex:0 0 auto;flex-wrap:wrap">' +
           '<h3 style="margin:0;font-size:14.5px;color:var(--ink);white-space:nowrap">✏️ Рисование области</h3>' +
-          '<span style="font-size:11.5px;color:var(--muted)">клик по карте — вершина контура</span>' +
+          '<span style="font-size:12.5px;color:var(--muted)">клик по карте — вершина контура</span>' +
           '<span style="display:inline-flex;align-items:center;gap:6px;margin-left:auto">' + zonePaletteHtml(S.zoneColor) + '</span>' +
-          '<span style="font-size:11.5px;color:var(--muted);white-space:nowrap">точек: <b id="zm-cnt" style="color:var(--ink)">0</b></span>' +
+          '<span style="font-size:12.5px;color:var(--muted);white-space:nowrap">точек: <b id="zm-cnt" style="color:var(--ink)">0</b></span>' +
           '<button type="button" id="zm-undo" title="Убрать последнюю точку" style="white-space:nowrap;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">↩ Точка</button>' +
           '<button type="button" id="zm-clear" title="Убрать все точки" style="white-space:nowrap;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--red);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">🗑 Очистить</button>' +
           '<button type="button" id="zm-apply" title="Применить контур и вернуться к карточке области" style="white-space:nowrap;padding:6px 12px;border:1px solid #2563eb;border-radius:8px;background:#2563eb;color:#fff;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">✓ Готово (0)</button>' +
           '<button type="button" id="zm-close" title="Закрыть без сохранения" style="border:none;background:none;cursor:pointer;font-size:19px;color:#64748b;font-family:inherit;line-height:1;padding:2px 6px">×</button>' +
         '</div>' +
         '<div id="zm-canvas" style="flex:1 1 auto;min-height:0;background:var(--panel-2)"></div>' +
-        '<div style="padding:6px 14px;border-top:1px solid var(--line);font-size:11px;color:var(--muted);flex:0 0 auto">Клик по карте — добавить вершину · «↩ Точка» — убрать последнюю · «✓ Готово» — применить контур к карточке области. Цвет выбирается круглыми образцами слева.</div>' +
+        '<div style="padding:6px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);flex:0 0 auto">Клик по карте — добавить вершину · «↩ Точка» — убрать последнюю · «✓ Готово» — применить контур к карточке области. Цвет выбирается круглыми образцами слева.</div>' +
       '</div>';
     document.body.appendChild(ov);
     wireZoneColors(ov);
     ov.querySelector('#zm-close').addEventListener('click', function () {
-      if (zmState.pts.length && !window.confirm('Закрыть рисование? Несохранённый контур (' + zmState.pts.length + ' точек) будет потерян.')) return;
-      zmDestroy();
+      if (!zmState.pts.length) { zmDestroy(); return; }
+      spConfirm('Закрыть рисование? Несохранённый контур (' + zmState.pts.length + ' точек) будет потерян.', { title: 'Рисование зоны', ok: 'Закрыть', danger: true }, function () { zmDestroy(); }); // 22.09-244
     });
     ov.querySelector('#zm-undo').addEventListener('click', function () { zmUndo(); });
     ov.querySelector('#zm-clear').addEventListener('click', function () {
-      if (zmState.pts.length && !window.confirm('Убрать все точки контура?')) return;
-      zmClear();
+      if (!zmState.pts.length) { zmClear(); return; }
+      spConfirm('Убрать все точки контура?', { title: 'Рисование зоны', ok: 'Убрать', danger: true }, function () { zmClear(); }); // 22.09-244
     });
     ov.querySelector('#zm-apply').addEventListener('click', function () { zmApply(); });
     var canvas = ov.querySelector('#zm-canvas');
@@ -11673,12 +11690,12 @@
       '<div style="position:relative;width:100%;max-width:1200px;background:var(--card);border-radius:14px;box-shadow:0 20px 60px rgba(15,39,64,.4);display:flex;flex-direction:column;overflow:hidden">' +
         '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);flex:0 0 auto;flex-wrap:wrap">' +
           '<h3 style="margin:0;font-size:14.5px;color:var(--ink);white-space:nowrap">📍 Выбор точки на карте</h3>' +
-          '<span style="font-size:11.5px;color:var(--muted)">кликните по карте — координаты подставятся в карточку объекта</span>' +
+          '<span style="font-size:12.5px;color:var(--muted)">кликните по карте — координаты подставятся в карточку объекта</span>' +
           '<button type="button" id="pp-apply" disabled style="margin-left:auto;white-space:nowrap;padding:7px 14px;border:1px solid #2563eb;border-radius:8px;background:#2563eb;color:#fff;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer">✓ Готово (кликните по карте)</button>' +
           '<button type="button" id="pp-close" title="Закрыть без выбора" style="border:none;background:none;cursor:pointer;font-size:19px;color:#64748b;font-family:inherit;line-height:1;padding:2px 6px">×</button>' +
         '</div>' +
         '<div id="pp-canvas" style="flex:1 1 auto;min-height:0;background:var(--panel-2)"></div>' +
-        '<div style="padding:6px 14px;border-top:1px solid var(--line);font-size:11px;color:var(--muted);flex:0 0 auto">Клик по карте — выбрать точку (повторный клик переносит её). Существующие объекты показаны фоном.</div>' +
+        '<div style="padding:6px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);flex:0 0 auto">Клик по карте — выбрать точку (повторный клик переносит её). Существующие объекты показаны фоном.</div>' +
       '</div>';
     document.body.appendChild(ov);
     ov.querySelector('#pp-close').addEventListener('click', function () { ppDestroy(); });
@@ -11771,18 +11788,18 @@
     html += '<div class="fld"><label>Тип</label><select id="am-type">';
     OBJ_TYPES.forEach(function (t) { html += '<option value="' + t + '"' + (t === type ? ' selected' : '') + '>' + t + '</option>'; });
     html += '</select></div>';
-    html += '<div class="fld"><label>Номер / шифр <span style="font-weight:400;color:#64748b;font-size:11px">— необязательно</span></label><input id="am-num" value="' + esc(num) + '" placeholder="например, Г-101"></div>';
+    html += '<div class="fld"><label>Номер / шифр <span style="font-weight:400;color:#64748b;font-size:12px">— необязательно</span></label><input id="am-num" value="' + esc(num) + '" placeholder="например, Г-101"></div>';
     html += '</div>';
     html += '<div class="fld"><label>Наименование</label><input id="am-addr" value="' + esc(addr) + '" placeholder="Зона обслуживания, просека, трасса…"></div>';
     html += '<div class="fld"><label>Описание</label><textarea id="am-desc" rows="2" style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:12.5px;box-sizing:border-box;resize:vertical" placeholder="Показывается в карточке области при нажатии на карте">' + esc(descr) + '</textarea></div>';
     html += '<div class="fld"><label>Цвет области на карте</label>' + zonePaletteHtml(S.zoneColor) + '</div>';
     html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">';
-    html += '<div class="fld"><label>Широта центра <span style="font-weight:400;color:#64748b;font-size:11px">— необязательно</span></label><input id="am-lat" type="text" value="' + (lat === '' ? '' : lat) + '" placeholder="53.90228"></div>';
-    html += '<div class="fld"><label>Долгота центра <span style="font-weight:400;color:#64748b;font-size:11px">— необязательно</span></label><input id="am-lng" type="text" value="' + (lng === '' ? '' : lng) + '" placeholder="27.56190"></div>';
+    html += '<div class="fld"><label>Широта центра <span style="font-weight:400;color:#64748b;font-size:12px">— необязательно</span></label><input id="am-lat" type="text" value="' + (lat === '' ? '' : lat) + '" placeholder="53.90228"></div>';
+    html += '<div class="fld"><label>Долгота центра <span style="font-weight:400;color:#64748b;font-size:12px">— необязательно</span></label><input id="am-lng" type="text" value="' + (lng === '' ? '' : lng) + '" placeholder="27.56190"></div>';
     html += '</div>';
     html += '<div class="fld"><div style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><label style="margin:0;flex:1">Контур области (полигон) — <span id="am-poly-cnt" style="font-weight:800;color:var(--ink)">нет точек</span></label>';
     html += '<button type="button" class="btn primary" data-action="zone-draw" style="white-space:nowrap;padding:7px 12px;font-size:12.5px" title="Открыть карту и начертить контур кликами — точки подставятся в это поле">✏️ Нарисовать на карте</button></div>';
-    html += '<textarea id="am-poly" rows="6" style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-family:monospace;font-size:11.5px;box-sizing:border-box" placeholder="53.90228, 27.56190&#10;53.90431, 27.56512&#10;53.90011, 27.56788&#10;(минимум 3 точки)">' + esc(polyTxt) + '</textarea></div>';
+    html += '<textarea id="am-poly" rows="6" style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-family:monospace;font-size:12.5px;box-sizing:border-box" placeholder="53.90228, 27.56190&#10;53.90431, 27.56512&#10;53.90011, 27.56788&#10;(минимум 3 точки)">' + esc(polyTxt) + '</textarea></div>';
     html += '<div class="calc">🗺 Нажмите «✏️ Нарисовать на карте» и кликайте по карте — каждая точка станет вершиной контура. Можно ввести координаты вручную или импортировать готовые контуры из KML/KMZ на вкладке «Области».</div>';
     html += '</div><div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="save-zone">' + (mode === 'edit' ? 'Сохранить' : 'Добавить область') + '</button></div>';
     modal.style.width = '80%'; modal.style.maxWidth = '80%'; // 22.09-107: карточки справочников — 80% по центру
@@ -12040,12 +12057,12 @@
         areasL = areasL.filter(function (o) { var c = (znm(o).charAt(0) || '?').toUpperCase().replace('Ё', 'Е'); return c === zfActive; });
       }
       html += '<div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:10px;align-items:center">';
-      html += '<button type="button" data-action="zone-letter" data-l="" title="Показать все области" style="padding:4px 10px;border:1px solid ' + (!zfActive ? '#2563eb' : 'var(--line)') + ';border-radius:6px;background:' + (!zfActive ? '#2563eb' : 'var(--card)') + ';color:' + (!zfActive ? '#fff' : 'var(--ink)') + ';font-family:inherit;font-size:11.5px;font-weight:700;cursor:pointer">Все</button>';
+      html += '<button type="button" data-action="zone-letter" data-l="" title="Показать все области" style="padding:4px 10px;border:1px solid ' + (!zfActive ? '#2563eb' : 'var(--line)') + ';border-radius:6px;background:' + (!zfActive ? '#2563eb' : 'var(--card)') + ';color:' + (!zfActive ? '#fff' : 'var(--ink)') + ';font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer">Все</button>';
       for (var zi = 0; zi < zfLetters.length; zi++) {
         var zl = zfLetters.charAt(zi);
         var zc = zfCounts[zl] || 0;
         var zon = zfActive === zl;
-        html += '<button type="button" data-action="zone-letter" data-l="' + zl + '"' + (zc ? '' : ' disabled') + ' title="На «' + zl + '» — ' + zc + '" style="min-width:27px;padding:4px 2px;border:1px solid ' + (zon ? '#2563eb' : 'var(--line)') + ';border-radius:6px;background:' + (zon ? '#2563eb' : 'var(--card)') + ';color:' + (zon ? '#fff' : (zc ? 'var(--ink)' : 'var(--muted)')) + ';font-family:inherit;font-size:11.5px;font-weight:700;cursor:' + (zc ? 'pointer' : 'default') + ';opacity:' + (zc ? 1 : 0.35) + '">' + zl + '</button>';
+        html += '<button type="button" data-action="zone-letter" data-l="' + zl + '"' + (zc ? '' : ' disabled') + ' title="На «' + zl + '» — ' + zc + '" style="min-width:27px;padding:4px 2px;border:1px solid ' + (zon ? '#2563eb' : 'var(--line)') + ';border-radius:6px;background:' + (zon ? '#2563eb' : 'var(--card)') + ';color:' + (zon ? '#fff' : (zc ? 'var(--ink)' : 'var(--muted)')) + ';font-family:inherit;font-size:12.5px;font-weight:700;cursor:' + (zc ? 'pointer' : 'default') + ';opacity:' + (zc ? 1 : 0.35) + '">' + zl + '</button>';
       }
       html += '</div>';
       html += '<div class="card"><table class="dt"><thead><tr><th>Наименование</th><th>Описание</th><th>Точек</th><th>Центр</th>' + (admin ? '<th style="text-align:right">Действия</th>' : '') + '</tr></thead><tbody>';
@@ -12060,7 +12077,7 @@
         clat = (clat / o.poly.length).toFixed(5); clng = (clng / o.poly.length).toFixed(5);
         var zc = zoneColorOf(o);
         html += '<tr>';
-        html += '<td><span title="Цвет области на карте" style="display:inline-block;width:11px;height:11px;border-radius:3px;background:' + zc + ';box-shadow:inset 0 0 0 1px rgba(15,39,64,.25);margin-right:7px;vertical-align:baseline"></span><b>' + esc(nm) + '</b>' + (o.lat != null && o.lng != null ? ' <span style="font-size:10px;color:var(--muted)">+ точка</span>' : '') + '</td>';
+        html += '<td><span title="Цвет области на карте" style="display:inline-block;width:11px;height:11px;border-radius:3px;background:' + zc + ';box-shadow:inset 0 0 0 1px rgba(15,39,64,.25);margin-right:7px;vertical-align:baseline"></span><b>' + esc(nm) + '</b>' + (o.lat != null && o.lng != null ? ' <span style="font-size:11.5px;color:var(--muted)">+ точка</span>' : '') + '</td>';
         html += '<td style="max-width:320px">' + (o.descr ? esc(o.descr) : '<span style="color:var(--muted)">—</span>') + '</td>';
         html += '<td style="font-weight:700">' + o.poly.length + '</td>';
         html += '<td style="font-size:12px;color:var(--muted)">📍 ' + clat + ', ' + clng + '</td>';
@@ -12100,7 +12117,7 @@
     }
     list.forEach(function (o) {
       var n = objNumOf(o);
-      var areaBadge = (o.poly && o.poly.length >= 3) ? ' <span style="font-size:10px;color:#0d9488;font-weight:800" title="Область на карте: ' + o.poly.length + ' точек">◻ обл.</span>' : '';
+      var areaBadge = (o.poly && o.poly.length >= 3) ? ' <span style="font-size:11.5px;color:#0d9488;font-weight:800" title="Область на карте: ' + o.poly.length + ' точек">◻ обл.</span>' : '';
       html += '<tr>';
       if (typeLabel) html += '<td><b>' + typeLabel + (n ? ' №' + esc(n) : '') + '</b></td><td>' + esc(o.addr || '—') + '</td>';
       else html += '<td><b>' + esc(o.type || 'Объект') + '</b></td><td>' + esc(o.addr || '—') + '</td>';
@@ -12158,7 +12175,7 @@
     // сворачивания — пользователь должен видеть все свойства сразу.
     if (window.SP_OBJ_ATTRS && SP_OBJ_ATTRS.supportsAttrs(type)) {
       html += '<div id="oa-section" style="display:block;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">';
-      html += '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">📋 Атрибуты объекта</div>';
+      html += '<div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">📋 Атрибуты объекта</div>';
       html += SP_OBJ_ATTRS.renderForm(o, type, null);
       html += '</div>';
     }
@@ -12178,7 +12195,7 @@
     html += '<div id="om-area-sec">';
     html += '<div class="fld"><div style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><label style="margin:0;flex:1">Контур области — <span id="om-poly-cnt" style="font-weight:800;color:var(--ink)">нет точек</span></label>' +
       '<button type="button" class="btn primary" data-action="om-draw-area" style="white-space:nowrap;padding:7px 12px;font-size:12.5px" title="Открыть карту и начертить контур кликами">✏️ Нарисовать на карте</button></div>' +
-      '<textarea id="om-poly" rows="5" style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-family:monospace;font-size:11.5px;box-sizing:border-box" placeholder="53.90228, 27.56190&#10;53.90431, 27.56512&#10;53.90011, 27.56788&#10;(минимум 3 точки)">' + esc(polyTxt) + '</textarea></div>';
+      '<textarea id="om-poly" rows="5" style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-family:monospace;font-size:12.5px;box-sizing:border-box" placeholder="53.90228, 27.56190&#10;53.90431, 27.56512&#10;53.90011, 27.56788&#10;(минимум 3 точки)">' + esc(polyTxt) + '</textarea></div>';
     html += '</div>';
     html += '<div class="calc" id="om-hint">📍 Нажмите «Выбрать на карте» и кликните точку — координаты подставятся сами. Или введите их вручную. Для ГРП/ШРП и обычных объектов это точка на карте.</div>';
     html += '</div><div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="save-object">' + (mode === 'edit' ? 'Сохранить' : 'Добавить объект') + '</button></div>';
@@ -12226,7 +12243,7 @@
       // Атрибуты только для ГРП/ШРП/ПГРП — для остальных секцию скрываем
       if (SP_OBJ_ATTRS.supportsAttrs(cur)) {
         var html2 = SP_OBJ_ATTRS.renderForm(o, cur, null);
-        if (sec) { sec.innerHTML = '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">📋 Атрибуты объекта</div>' + html2; sec.style.display = 'block'; }
+        if (sec) { sec.innerHTML = '<div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">📋 Атрибуты объекта</div>' + html2; sec.style.display = 'block'; }
       } else {
         if (sec) { sec.innerHTML = ''; sec.style.display = 'none'; }
       }
@@ -12258,8 +12275,10 @@
     var lat = latS ? parseFloat(latS) : null, lng = lngS ? parseFloat(lngS) : null;
     if (isArea) { lat = null; lng = null; }
     if ((lat != null && (lat < 53 || lat > 54.5)) || (lng != null && (lng < 26.5 || lng > 28.5))) {
-      if (!window.confirm('⚠️ Координаты (' + lat + ', ' + lng + ') выходят за пределы Минска и окрестностей. Всё равно сохранить?')) return;
+      return spConfirm('Координаты (' + lat + ', ' + lng + ') выходят за пределы Минска и окрестностей. Всё равно сохранить?', { title: 'Координаты объекта', ok: 'Всё равно сохранить', danger: true }, saveObjectGo); // 22.09-244
     }
+    return saveObjectGo();
+    function saveObjectGo() { // 22.09-244: сохранение — после подтверждения (если оно нужно)
     var respId = val('om-resp');
     var respName = '';
     if (respId) { (DB.getUsers() || []).forEach(function (u) { if (u && u.id === respId) respName = u.full_name || ''; }); }
@@ -12355,16 +12374,18 @@
     else if (type === 'ПГРП') S.objTab = 'pgrp';
     else S.objTab = 'other';
     renderRefs();
+    }
   }
   function delObjectAction(oid) {
     var o = OBJ_MAP[oid]; if (!o) return;
     var linked = S.tasks.filter(function (t) { return t && t.o === oid; }).length;
-    if (!window.confirm('Удалить объект «' + objFullAddr(o) + '»?' + (linked ? '\n\nПривязанных задач: ' + linked + ' — в них останется только текст адреса (точка на карте будет строиться по геокодеру).' : ''))) return;
+    return spConfirm('Удалить объект «' + objFullAddr(o) + '»?' + (linked ? '\n\nПривязанных задач: ' + linked + ' — в них останется только текст адреса (точка на карте будет строиться по геокодеру).' : ''), { title: 'Удаление объекта', ok: 'Удалить', danger: true }, function () { // 22.09-244: оформленное окно
     OBJECTS_DB.deleteObject(oid);
     refreshObjects();
     logAction('Удаление объекта', objFullAddr(o));
     toast('ok', 'Объект «' + esc(objFullAddr(o)) + '» удалён');
     renderRefs();
+    });
   }
 
 
@@ -12519,7 +12540,7 @@
     S.grpPropsPath = p;
     var h = '<div class="modal-h"><h3>🏷 Свойства группы работ</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">';
     h += '<div style="font-size:14px;font-weight:700;margin-bottom:4px">' + esc(p) + '</div>';
-    h += '<div style="font-size:11.5px;color:var(--muted);margin-bottom:12px">Свойства применятся ко всем работам группы и её подгрупп (затронуто работ: <b>' + affected + '</b>).</div>';
+    h += '<div style="font-size:12.5px;color:var(--muted);margin-bottom:12px">Свойства применятся ко всем работам группы и её подгрупп (затронуто работ: <b>' + affected + '</b>).</div>';
     var tmOn = hasFlag('Работы с ТМ') || hasFlag('Телеметрия'), noTmOn = hasFlag('Без телеметрии');
     h += '<label class="cb" style="display:block;font-size:12.5px;line-height:1.5;margin-bottom:10px"><input type="checkbox" id="gp-tm"' + (tmOn ? ' checked' : '') + '> 📡 <b>Работы с ТМ</b> — работы группы подбираются только объектам С телеметрией</label>';
     h += '<label class="cb" style="display:block;font-size:12.5px;line-height:1.5;margin-bottom:12px"><input type="checkbox" id="gp-notm"' + (noTmOn ? ' checked' : '') + '> 🚫📡 <b>Без телеметрии</b> — работы группы подбираются только объектам БЕЗ телеметрии</label>';
@@ -12613,7 +12634,7 @@
     } catch (e) {}
     var sel = (S.wmJointSel || []).filter(function (x) { return x !== wid; });
     var h = '<div class="modal-h"><h3>Проводится совместно — выбор групп работ</h3><button class="x" data-action="close-modal2">×</button></div><div class="modal-b">';
-    h += '<div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;line-height:1.5">Отметьте галочками группы работ участка ГРП, которые проводятся совместно с этой работой (можно одну или несколько), затем нажмите «Сохранить» — выбранные появятся в списке «Проводится совместно».</div>';
+    h += '<div style="font-size:12.5px;color:var(--muted);margin-bottom:10px;line-height:1.5">Отметьте галочками группы работ участка ГРП, которые проводятся совместно с этой работой (можно одну или несколько), затем нажмите «Сохранить» — выбранные появятся в списке «Проводится совместно».</div>';
     h += '<div style="max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:6px;background:#fff">';
     if (!groups.length && !sel.length) {
       h += '<div style="color:#94a3b8;font-size:12.5px;padding:14px;text-align:center">На участке ГРП нет групп работ</div>';
@@ -12738,12 +12759,12 @@
 
     // 3. Периодичность (22.09-107: во всю ширину, реквизит отсчёта — отдельным блоком под ней)
     h += '<div class="fld"><label>Периодичность выполнения</label><div style="display:flex;gap:10px;max-width:520px">' +
-      '<label style="flex:1;font-size:11px;font-weight:700;color:var(--muted)">Периодичность, месяцев' +
+      '<label style="flex:1;font-size:12px;font-weight:700;color:var(--muted)">Периодичность, месяцев' +
       '<input id="wm-period-value" type="number" min="0" step="1" value="' + (w && w.periodicity_value ? w.periodicity_value : '') + '" placeholder="напр.: 12" style="margin-top:3px"></label>' +
-      '<label style="flex:1;font-size:11px;font-weight:700;color:var(--muted)">Отклонение, дней' +
+      '<label style="flex:1;font-size:12px;font-weight:700;color:var(--muted)">Отклонение, дней' +
       '<input id="wm-period-dev" type="number" min="0" step="1" value="' + ((w && w.periodicity_dev) || '') + '" placeholder="напр.: 2" style="margin-top:3px"></label>' +
       '</div>' +
-      '<div style="font-size:10.5px;color:var(--muted);margin-top:4px">Шаг серии = периодичность − отклонение (как в настройке периодичности в графике работ)</div></div>';
+      '<div style="font-size:12px;color:var(--muted);margin-top:4px">Шаг серии = периодичность − отклонение (как в настройке периодичности в графике работ)</div></div>';
     h += '<div class="fld" style="max-width:520px"><label>Реквизит отсчёта для выполнения работ</label><select id="wm-period-basis"><option value="prev_date"' + (w && w.periodicity_basis === 'prev_date' ? ' selected' : '') + '>Дата предыдущего выполнения</option><option value="commissioning_date"' + (w && w.periodicity_basis === 'commissioning_date' ? ' selected' : '') + '>Дата ввода в эксплуатацию</option><option value="service_life_end"' + (w && w.periodicity_basis === 'service_life_end' ? ' selected' : '') + '>Дата окончания срока службы оборудования</option></select></div>';
 
     // 22.09-206: блок «Виды работ, от которых отсчёт периодичности» удалён из
@@ -12800,16 +12821,16 @@
     // 8.5. Исполнители: общее количество + состав бригады по профессиям (Сборка 22.09-85)
     h += '<div class="fld" style="background:#fff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 12px">';
     h += '<label style="font-size:12px;font-weight:700;color:#1e3a8a;margin-bottom:8px;display:block">👷 Количество исполнителей и состав бригады</label>';
-    h += '<label style="font-size:11.5px;font-weight:600;color:#475569">Количество исполнителей (общее)</label>';
+    h += '<label style="font-size:12.5px;font-weight:600;color:#475569">Количество исполнителей (общее)</label>';
     h += '<input id="wm-crew-size" type="number" min="0" step="1" value="' + ((w && w.crew_size) || 0) + '" placeholder="напр.: 3" style="width:120px;margin:2px 0 8px">';
-    h += '<div style="font-size:11.5px;font-weight:600;color:#475569;margin-bottom:5px">Работники будут: <span style="color:#94a3b8;font-weight:500">(профессия из справочника «Профессии» — количество)</span></div>';
+    h += '<div style="font-size:12.5px;font-weight:600;color:#475569;margin-bottom:5px">Работники будут: <span style="color:#94a3b8;font-weight:500">(профессия из справочника «Профессии» — количество)</span></div>';
     h += '<div id="wm-crew-rows"></div>';
     var crewProfsCount = 0;
     try { if (window.SP_PROFS && SP_PROFS.getAll) crewProfsCount = SP_PROFS.getAll().length; } catch (e) {}
-    if (!crewProfsCount) h += '<div style="font-size:11.5px;color:#92400e;background:#fef9c3;border:1px solid #fde68a;border-radius:6px;padding:6px 9px;margin:2px 0 6px">⚠️ Справочник «Профессии» пока пуст — сначала добавьте профессии: «Справочники» → «Профессии».</div>';
+    if (!crewProfsCount) h += '<div style="font-size:12.5px;color:#92400e;background:#fef9c3;border:1px solid #fde68a;border-radius:6px;padding:6px 9px;margin:2px 0 6px">⚠️ Справочник «Профессии» пока пуст — сначала добавьте профессии: «Справочники» → «Профессии».</div>';
     h += '<div style="display:flex;gap:12px;align-items:center;margin-top:4px;flex-wrap:wrap">';
     h += '<button type="button" id="wm-crew-add" class="btn sm" style="border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;font-weight:600">＋ Добавить профессию</button>';
-    h += '<span id="wm-crew-hint" style="font-size:11.5px;font-weight:600"></span>';
+    h += '<span id="wm-crew-hint" style="font-size:12.5px;font-weight:600"></span>';
     h += '</div>';
     h += '</div>';
 
@@ -12966,10 +12987,12 @@
   function delWork(wid) {
     if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
     var w = WORK.getWork(S.workArea, wid); if (!w) return;
-    if (!window.confirm('Удалить работу «' + w.name + '» с участка ' + S.workArea + '?')) return;
+    return spConfirm('Удалить работу «' + w.name + '» с участка ' + S.workArea + '?', { title: 'Удаление вида работы', ok: 'Удалить', danger: true }, function () { // 22.09-244: оформленное окно
     WORK.deleteWork(S.workArea, wid); toast('ok', 'Работа удалена'); renderRefs();
+    });
   }
 
+  /* ── часть 09 · app/09_admin.js — администрирование: пользователи, бэкапы, журнал действий, логи ошибок ── */
   /* =====================================================================
      РЕНДЕР: ПОЛЬЗОВАТЕЛИ (только администратор)
      ===================================================================== */
@@ -13157,18 +13180,20 @@
       }
       html += '</div><div class="card-b">';
       if (users.length <= 1) {
-        html += '<div style="margin-bottom:14px;background:var(--yellow-l);border:1px solid #fde68a;border-left:4px solid var(--yellow);border-radius:10px;padding:13px 15px;display:flex;gap:12px;align-items:flex-start">' + IC.info + '<div style="flex:1;font-size:12.5px;color:#78350f;line-height:1.6"><b>Новый браузер или компьютер?</b><br>Каждый браузер хранит свою базу пользователей отдельно (в Chrome их не видно из Edge и наоборот). Если пользователи уже заведены в другом браузере — перенесите их файлом:<div style="margin-top:9px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm primary" data-action="import-db">' + IC.upload + ' Импорт из файла</button><a href="#" style="font-size:11px;color:var(--blue);align-self:center" data-action="how-transfer">Как это сделать?</a></div></div></div>';
+        html += '<div style="margin-bottom:14px;background:var(--yellow-l);border:1px solid #fde68a;border-left:4px solid var(--yellow);border-radius:10px;padding:13px 15px;display:flex;gap:12px;align-items:flex-start">' + IC.info + '<div style="flex:1;font-size:12.5px;color:#78350f;line-height:1.6"><b>Новый браузер или компьютер?</b><br>Каждый браузер хранит свою базу пользователей отдельно (в Chrome их не видно из Edge и наоборот). Если пользователи уже заведены в другом браузере — перенесите их файлом:<div style="margin-top:9px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm primary" data-action="import-db">' + IC.upload + ' Импорт из файла</button><a href="#" style="font-size:12px;color:var(--blue);align-self:center" data-action="how-transfer">Как это сделать?</a></div></div></div>';
       }
-      html += '<table class="dt"><thead><tr><th>ФИО</th><th>Логин</th><th>Пароль для входа</th><th>Роль</th><th>Участок</th><th>Статус</th><th style="text-align:right">Действия</th></tr></thead><tbody>';
+      html += '<table class="dt"><thead><tr><th>ФИО</th><th>Логин</th><th>Пароль</th><th>Роль</th><th>Участок</th><th>Статус</th><th style="text-align:right">Действия</th></tr></thead><tbody>';
       users.forEach(function (u) {
         if (!u) return;
-        var me = (S.user && u.id === S.user.id) ? ' <span style="color:var(--green);font-size:11px">(вы)</span>' : '';
+        var me = (S.user && u.id === S.user.id) ? ' <span style="color:var(--green);font-size:12px">(вы)</span>' : '';
         var delBtn = (u.id === 'u_seogs') ? '' : (u.role === 'admin' && DB.countAdmins() <= 1 ? '' : '<button class="btn sm" data-action="del-user" data-uid="' + u.id + '" style="color:var(--red)">Удалить</button>');
         var fireBtn = (u.id === 'u_seogs' || (u.role === 'admin' && DB.countAdmins() <= 1) || (S.user && u.id === S.user.id)) ? '' : '<button class="btn sm" data-action="fire-user" data-uid="' + u.id + '" style="color:#b45309" title="Уволить: вход закрывается, логин и пароль убираются, со страницы «Работники» исчезает; в выполненных задачах и истории ФИО сохраняется">Уволить</button> ';
-        var displayPass = u.plain_password || 'admin123';
-        var passLabel = '<span style="font-family:monospace;background:var(--panel-3);padding:2px 6px;border-radius:4px;color:var(--navy);font-weight:700;">' + esc(displayPass) + '</span>';
-        var actionsHtml = (S.role === 'admin') ? '<button class="btn sm" data-action="edit-user" data-uid="' + u.id + '">Изменить</button> ' + fireBtn + delBtn : '<span style="color:#94a3b8;font-size:11.5px;">Доступно админу</span>';
-        html += '<tr><td><div style="display:flex;align-items:center;gap:8px">' + avaHtml(u, 28, 10.5) + '<b>' + esc(u.full_name) + '</b>' + me + '</div></td><td style="font-family:monospace;font-weight:700;color:var(--blue);">' + esc(u.login) + '</td><td>' + passLabel + '</td><td>' + roleChip(u.role) + (u.prof ? '<div style="font-size:10.5px;color:var(--muted);margin-top:3px">' + esc(u.prof) + '</div>' : '') + '</td><td>' + esc(u.area || '—') + '</td><td>' + (u.active ? '<span class="chip" style="background:#dcfce7;color:#15803d">активен</span>' : '<span class="chip" style="background:#fee2e2;color:#b91c1c">отключён</span>') + '</td><td style="white-space:nowrap;text-align:right">' + actionsHtml + '</td></tr>';
+        // 22.09-241: пароль НЕ показываем (раньше — открытым текстом, а если неизвестен — ошибочно «admin123»);
+        // администратор задаёт новый кнопкой «🔑 Сменить пароль» — пароль уходит на сервер и действует для входа
+        var passLabel = '<span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="font-family:monospace;background:var(--panel-3);padding:2px 7px;border-radius:4px;color:var(--muted);font-weight:700;letter-spacing:1px" title="Пароль скрыт — он хранится на сервере в зашифрованном виде">🔒 ••••••</span>' +
+          (S.role === 'admin' ? '<button class="btn sm" data-action="pwd-user" data-uid="' + esc(u.id) + '" title="Задать пользователю новый пароль для входа">🔑 Сменить пароль</button>' : '') + '</span>';
+        var actionsHtml = (S.role === 'admin') ? '<button class="btn sm" data-action="edit-user" data-uid="' + u.id + '">Изменить</button> ' + fireBtn + delBtn : '<span style="color:#94a3b8;font-size:12.5px;">Доступно админу</span>';
+        html += '<tr><td><div style="display:flex;align-items:center;gap:8px">' + avaHtml(u, 28, 10.5) + '<b>' + esc(u.full_name) + '</b>' + me + '</div></td><td style="font-family:monospace;font-weight:700;color:var(--blue);">' + esc(u.login) + '</td><td>' + passLabel + '</td><td>' + roleChip(u.role) + (u.prof ? '<div style="font-size:12px;color:var(--muted);margin-top:3px">' + esc(u.prof) + '</div>' : '') + '</td><td>' + esc(u.area || '—') + '</td><td>' + (u.active ? '<span class="chip" style="background:#dcfce7;color:#15803d">активен</span>' : '<span class="chip" style="background:#fee2e2;color:#b91c1c">отключён</span>') + '</td><td style="white-space:nowrap;text-align:right">' + actionsHtml + '</td></tr>';
       });
       html += '</tbody></table></div></div>';
       // 22.09-161: уволенные — без логина/пароля, с восстановлением (для истории задач запись остаётся)
@@ -13417,8 +13442,8 @@
       var cur = dbReadLS(p.entry);
       var curCnt = cur == null ? 0 : p.entry.recs(cur).length;
       var dt = p.exportedAt ? String(p.exportedAt).replace('T', ' ').slice(0, 16) : '—';
-      h += '<tr><td>' + p.entry.icon + ' <b>' + esc(p.entry.title) + '</b><div style="font-size:10.5px;color:var(--muted)">' + esc(p.name) + '</div></td>' +
-        '<td style="text-align:right">' + p.count + '</td><td style="text-align:right">' + curCnt + '</td><td style="font-size:11px;color:var(--muted)">' + esc(dt) + '</td></tr>';
+      h += '<tr><td>' + p.entry.icon + ' <b>' + esc(p.entry.title) + '</b><div style="font-size:12px;color:var(--muted)">' + esc(p.name) + '</div></td>' +
+        '<td style="text-align:right">' + p.count + '</td><td style="text-align:right">' + curCnt + '</td><td style="font-size:12px;color:var(--muted)">' + esc(dt) + '</td></tr>';
     });
     h += '</tbody></table>';
     h += '<div style="background:#fefce8;border:1px solid #fde68a;border-radius:8px;padding:8px 10px;font-size:12px;color:#92400e;line-height:1.5">⚠ <b>Восстановление без потерь:</b> данные этих баз будут полностью заменены содержимым файлов — на устройстве и на сервере. Записей, которых нет в файлах, после восстановления не останется. Действие необратимо.</div>';
@@ -13493,14 +13518,14 @@
       html += '<tr>' +
         '<td><label class="cb" style="margin:0"><input type="checkbox" data-bk="' + entry.key + '"' + (d != null ? ' checked' : '') + '></label></td>' +
         '<td>' + entry.icon + ' <b>' + esc(entry.title) + '</b></td>' +
-        '<td style="color:var(--muted);font-size:11px">' + esc(entry.ls) + '</td>' +
+        '<td style="color:var(--muted);font-size:12px">' + esc(entry.ls) + '</td>' +
         '<td style="text-align:right">' + (d == null ? '—' : cnt) + '</td>' +
-        '<td style="text-align:right;color:var(--muted);font-size:11.5px">' + (d == null ? 'пусто' : dbFmtSize(sz)) + '</td>' +
+        '<td style="text-align:right;color:var(--muted);font-size:12.5px">' + (d == null ? 'пусто' : dbFmtSize(sz)) + '</td>' +
         '</tr>';
     });
     html += '</tbody></table>';
     html += '<input type="file" id="backup-file" multiple accept=".json,.zip,application/json,application/zip" style="display:none">';
-    html += '<div class="calc" style="margin-top:12px;font-size:11.5px;align-items:flex-start;line-height:1.55">Как это работает: каждая база выгружается отдельным JSON-файлом (внутри — служебный заголовок с типом базы, датой выгрузки и числом записей). Если баз 2 и больше — файлы упаковываются в один ZIP-архив, открывающийся любым архиватором. <b>Восстановление</b> принимает файлы .json, .zip или сразу несколько файлов: данные баз заменяются содержимым файлов на устройстве и на сервере — перенос происходит без потерь (при повреждённом архиве контрольная сумма не сойдётся и восстановление не выполнится).</div>';
+    html += '<div class="calc" style="margin-top:12px;font-size:12.5px;align-items:flex-start;line-height:1.55">Как это работает: каждая база выгружается отдельным JSON-файлом (внутри — служебный заголовок с типом базы, датой выгрузки и числом записей). Если баз 2 и больше — файлы упаковываются в один ZIP-архив, открывающийся любым архиватором. <b>Восстановление</b> принимает файлы .json, .zip или сразу несколько файлов: данные баз заменяются содержимым файлов на устройстве и на сервере — перенос происходит без потерь (при повреждённом архиве контрольная сумма не сойдётся и восстановление не выполнится).</div>';
     html += '</div></div>';
     view.innerHTML = html;
     var inp = document.getElementById('backup-file');
@@ -13599,24 +13624,24 @@
         var lvl = l.level || 'error';
         var lvlColor = lvl === 'error' ? '#dc2626' : (lvl === 'warn' ? '#f59e0b' : '#16a34a');
         var ts = (window.SP_ERRORS && SP_ERRORS.fmtTs) ? SP_ERRORS.fmtTs(l.ts) : new Date(l.ts).toISOString();
-        var extra = l.extra ? ('<div style="font-size:10.5px;color:var(--muted);margin-top:3px;font-family:monospace">' +
+        var extra = l.extra ? ('<div style="font-size:12px;color:var(--muted);margin-top:3px;font-family:monospace">' +
           esc((typeof l.extra === 'string' ? l.extra : JSON.stringify(l.extra)).substring(0, 200)) + '</div>') : '';
-        var stack = l.stack ? ('<details style="margin-top:5px"><summary style="cursor:pointer;color:var(--blue);font-size:11px">stack</summary>' +
-          '<pre style="font-size:10.5px;background:var(--panel-3);padding:6px 8px;border-radius:6px;overflow-x:auto;margin-top:5px;color:var(--muted)">' +
+        var stack = l.stack ? ('<details style="margin-top:5px"><summary style="cursor:pointer;color:var(--blue);font-size:12px">stack</summary>' +
+          '<pre style="font-size:12px;background:var(--panel-3);padding:6px 8px;border-radius:6px;overflow-x:auto;margin-top:5px;color:var(--muted)">' +
           esc((l.stack || '').substring(0, 1500)) + '</pre></details>') : '';
         var who = '';
         if (opts.shared) {
           var whoName = l.user_name || l.user_login || 'это устройство';
-          who = '<td style="font-size:11.5px;line-height:1.35"><div style="font-weight:600">' + esc(whoName) + '</div>' +
-            '<div style="color:var(--muted);font-size:10.5px">' + esc(l.device || 'устройство не указано') + '</div>' +
-            (l.build ? '<div style="color:var(--muted);font-size:10px;font-family:monospace">💻 ' + esc(l.build) + '</div>' : '') +
+          who = '<td style="font-size:12.5px;line-height:1.35"><div style="font-weight:600">' + esc(whoName) + '</div>' +
+            '<div style="color:var(--muted);font-size:12px">' + esc(l.device || 'устройство не указано') + '</div>' +
+            (l.build ? '<div style="color:var(--muted);font-size:11.5px;font-family:monospace">💻 ' + esc(l.build) + '</div>' : '') +
             '</td>';
         }
         html += '<tr class="err-row" data-level="' + esc(lvl) + '" data-search="' +
           esc(((l.where || '') + ' ' + (l.msg || '') + ' ' + (l.user_name || '') + ' ' + (l.user_login || '') + ' ' + (l.device || '')).toLowerCase()) + '">';
-        html += '<td style="white-space:nowrap;font-size:11.5px;color:var(--muted);font-family:monospace">' + esc(ts) + '</td>';
+        html += '<td style="white-space:nowrap;font-size:12.5px;color:var(--muted);font-family:monospace">' + esc(ts) + '</td>';
         html += who;
-        html += '<td><span style="display:inline-block;padding:1px 7px;background:' + lvlColor + ';color:#fff;border-radius:3px;font-size:10px;font-weight:700">' + esc(lvl.toUpperCase()) + '</span></td>';
+        html += '<td><span style="display:inline-block;padding:1px 7px;background:' + lvlColor + ';color:#fff;border-radius:3px;font-size:11.5px;font-weight:700">' + esc(lvl.toUpperCase()) + '</span></td>';
         html += '<td style="font-size:12px;font-family:monospace;word-break:break-all">' + esc(l.where || '?') + '</td>';
         html += '<td style="font-size:12.5px"><div>' + esc(l.msg || '') + '</div>' + extra + stack + '</td>';
         html += '</tr>';
@@ -13643,17 +13668,19 @@
     var btnClear = view.querySelector('[data-action="clear-errlogs"]');
     if (btnClear) btnClear.addEventListener('click', function () {
       if (opts.shared) {
-        if (!window.confirm('Очистить ОБЩИЙ лог ошибок на сервере? Он удалится у ВСЕХ устройств сразу.')) return;
+        return spConfirm('Очистить ОБЩИЙ лог ошибок на сервере? Он удалится у ВСЕХ устройств сразу.', { title: 'Общий лог ошибок', ok: 'Очистить', danger: true }, function () { // 22.09-244: оформленное окно
         Promise.resolve(SP_API.errorsClear()).then(function () {
           if (window.SP_ERRORS && SP_ERRORS.clear) SP_ERRORS.clear(); // и локальный резерв
           toast('ok', 'Общий лог ошибок очищен');
           renderErrLogs();
         });
+        });
       } else {
-        if (!window.confirm('Очистить весь локальный лог ошибок этого устройства?')) return;
+        return spConfirm('Очистить весь локальный лог ошибок этого устройства?', { title: 'Лог ошибок', ok: 'Очистить', danger: true }, function () { // 22.09-244: оформленное окно
         if (window.SP_ERRORS && SP_ERRORS.clear) SP_ERRORS.clear();
         toast('ok', 'Лог ошибок очищен');
         renderErrLogs();
+        });
       }
     });
     // Кнопка тестовой ошибки
@@ -13736,11 +13763,12 @@
     if (fs) fs.addEventListener('input', applyFilter);
     var clearBtn = document.getElementById('btn-clear-logs');
     if (clearBtn) clearBtn.addEventListener('click', function() {
-      if (!window.confirm('Очистить весь журнал действий?')) return;
+      return spConfirm('Очистить весь журнал действий?', { title: 'Журнал действий', ok: 'Очистить', danger: true }, function () { // 22.09-244: оформленное окно
       // Сборка 22.09-25: через SP_API
       if (window.SP_API && window.SP_API._request) {
         window.SP_API._request('DELETE', '/audit').then(function() { toast('ok', 'Журнал очищен'); renderLogs(); });
       }
+      });
     });
   }
 
@@ -13756,7 +13784,7 @@
     } else {
       h += '<div class="fld"><label>ФИО</label><input id="um-name" value="' + (u ? esc(u.full_name) : '') + '" placeholder="Иванов И.И."></div>';
       h += '<div class="fld"><label>Логин</label><input id="um-login" value="' + (u ? esc(u.login) : '') + '" placeholder="ivanov"></div>';
-      h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div class="fld"><label>Роль <span style="font-weight:400;color:#64748b;font-size:11px;">(должность из штатного списка)</span></label><select id="um-role">';
+      h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div class="fld"><label>Роль <span style="font-weight:400;color:#64748b;font-size:12px;">(должность из штатного списка)</span></label><select id="um-role">';
       // базовые роли системы + профессии штатного списка (без повторов)
       // старое название (до переименования) → новое
       var _uprof = (u && u.prof === 'Заместитель начальника службы') ? 'Заместитель начальника СЭОГС' : (u && u.prof);
@@ -13778,19 +13806,19 @@
       if (mode === 'new') {
         h += '<div class="fld"><label>Пароль (обязательно)</label><input id="um-pass" type="password" placeholder="••••••"></div>';
       } else {
-        h += '<div class="fld"><label>Новый пароль <span style="font-weight:400;color:#64748b;font-size:11px;">(оставьте пустым, если не меняется)</span></label><input id="um-pass" type="text" placeholder="Введите новый пароль (например, admin123)"></div>';
+        h += '<div class="fld"><label>Новый пароль <span style="font-weight:400;color:#64748b;font-size:12px;">(оставьте пустым, если не меняется)</span></label><input id="um-pass" type="text" placeholder="Введите новый пароль"></div>';
       }
       h += '<div class="fld"><label class="cb"><input type="checkbox" id="um-active" ' + (u ? (u.active ? 'checked' : '') : 'checked') + '> Учётная запись активна</label></div>';
       // 22.09-219: фото-аватар работника (загрузка админом; применяется сразу, без «Сохранить»)
       if (mode === 'edit' && u) {
-        h += '<div class="fld" style="margin-top:6px"><label>Фото работника <span style="font-weight:400;color:#64748b;font-size:11px">(кружок-аватар по всей системе)</span></label>' +
+        h += '<div class="fld" style="margin-top:6px"><label>Фото работника <span style="font-weight:400;color:#64748b;font-size:12px">(кружок-аватар по всей системе)</span></label>' +
           '<div style="display:flex;align-items:center;gap:12px">' +
           '<span id="um-ava-preview" style="width:64px;height:64px;border-radius:50%;background:' + ((u && u.color) || '#94a3b8') + ';color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;flex:0 0 auto;overflow:hidden">' + (u.avatar ? '<img src="' + u.avatar + '" style="width:100%;height:100%;object-fit:cover;display:block">' : esc(initials(u.full_name))) + '</span>' +
           '<div id="um-ava-actions" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn sm" data-action="um-ava-upload" title="Выбрать файл с фото (jpg/png); автоматически уменьшится до 128×128">📷 ' + (u.avatar ? 'Заменить фото' : 'Загрузить фото') + '</button>' +
           (u.avatar ? '<button class="btn sm" data-action="um-ava-remove" style="color:var(--red);border-color:var(--red)" title="Убрать фото — кружок снова покажет инициалы">Удалить фото</button>' : '') +
           '</div></div>' +
           '<input type="file" id="um-ava-file" accept="image/*" style="display:none">' +
-          '<div style="font-size:11px;color:var(--muted)">Фото уменьшится автоматически и сохранится сразу (кнопку «Сохранить» нажимать не нужно) — появится в карточках «Графиков смен», «Работников» и в шапке справа вверху.</div></div>';
+          '<div style="font-size:12px;color:var(--muted)">Фото уменьшится автоматически и сохранится сразу (кнопку «Сохранить» нажимать не нужно) — появится в карточках «Графиков смен», «Работников» и в шапке справа вверху.</div></div>';
       }
     }
     h += '</div><div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="save-user">Сохранить</button></div>';
@@ -13894,9 +13922,10 @@
   }
   function delUser(uid) {
     var u = DB.getUser(uid); if (!u) return;
-    if (!window.confirm('Удалить пользователя «' + u.full_name + '»?')) return;
+    return spConfirm('Удалить пользователя «' + u.full_name + '»?', { title: 'Удаление пользователя', ok: 'Удалить', danger: true }, function () { // 22.09-244: оформленное окно
     try { DB.deleteUser(uid); toast('ok', 'Пользователь удалён'); refresh(); }
     catch (e) { toast('err', e.message); }
+    });
   }
 
   /* ---------- 22.09-161: УВОЛЬНЕНИЕ / ВОССТАНОВЛЕНИЕ ---------- */
@@ -13992,12 +14021,13 @@
     if (!window.XLSX) { ensureXlsxRetry(exportDb); return; } // ленивая загрузка xlsx
     var users = DB.getUsers() || [];
     var data = [];
-    data.push(['ФИО', 'Логин', 'Пароль для входа', 'Роль', 'Участок', 'Статус', 'Действия']);
+    // 22.09-241: пароли не выгружаются — столбец пустой; заполните его, только если при загрузке нужно задать новый пароль
+    data.push(['ФИО', 'Логин', 'Новый пароль (заполнить только для смены)', 'Роль', 'Участок', 'Статус', 'Действия']);
     users.forEach(function (u) {
       if (!u) return;
       var roleName = (ROLE_INFO[u.role] || { label: u.role }).label;
       var status = u.active ? 'активен' : 'отключён';
-      data.push([u.full_name || '', u.login || '', u.plain_password || 'admin123', roleName, u.area || '—', status, '']);
+      data.push([u.full_name || '', u.login || '', '', roleName, u.area || '—', status, '']);
     });
     var wb = XLSX.utils.book_new();
     var ws = XLSX.utils.aoa_to_sheet(data);
@@ -14046,15 +14076,17 @@
         var roleMap = {};
         Object.keys(ROLE_INFO).forEach(function (r) { roleMap[ROLE_INFO[r].label.toLowerCase()] = r; });
 
-        var replace = window.confirm(
-          'Импорт пользователей из Excel?\n\n' +
-          '• ОК — ОБНОВИТЬ существующих и ДОБАВИТЬ новых\n' +
-          '• Отмена — только ДОБАВИТЬ новых (существующих не трогать)'
-        );
+        // 22.09-244: вопрос — оформленным окном с понятными кнопками (раньше «ОК / Отмена» с пояснением в тексте)
+        spChoice('Как загрузить пользователей из Excel?\n\n• «Обновить и добавить» — изменить существующих и добавить новых\n• «Только добавить новых» — существующих не трогать', {
+          title: 'Импорт пользователей из Excel', icon: '📥',
+          choices: [{ label: 'Обновить и добавить', value: true, cls: 'primary' }, { label: 'Только добавить новых', value: false, cls: 'ok' }]
+        }, function (replace) {
+        try {
 
         var existingUsers = DB.getUsers();
         var added = 0, updated = 0;
         var pending = 0;
+        var noPass = []; // 22.09-241: новые без пароля — не созданы
 
         for (var i = 1; i < rows.length; i++) {
           var row = rows[i];
@@ -14063,7 +14095,9 @@
           var login = String(row[idxLogin] != null ? row[idxLogin] : '').trim();
           if (!login) continue;
 
-          var password = String(row[idxPass] != null ? row[idxPass] : 'admin123').trim() || 'admin123';
+          // 22.09-241: пустой пароль — у существующих пароль НЕ меняется (раньше затирался на «admin123»),
+          // новый пользователь без пароля не создаётся (будет в отчёте)
+          var password = String(row[idxPass] != null ? row[idxPass] : '').trim();
           var roleName = String(row[idxRole] != null ? row[idxRole] : '').trim().toLowerCase();
           var role = roleMap[roleName] || 'master';
           var area = String(row[idxArea] != null ? row[idxArea] : '').trim();
@@ -14079,11 +14113,11 @@
 
           if (existing && replace) {
             pending++;
-            DB.updateUser(existing.id, {
-              full_name: fullName || existing.full_name, login: login, password: password,
-              role: role, area: area, active: active
-            }).then(function () { updated++; }).catch(function () {});
+            var _upd = { full_name: fullName || existing.full_name, login: login, role: role, area: area, active: active };
+            if (password) _upd.password = password;
+            DB.updateUser(existing.id, _upd).then(function () { updated++; }).catch(function () {});
           } else if (!existing) {
+            if (!password) { noPass.push(login); continue; } // 22.09-241
             pending++;
             DB.addUser({
               full_name: fullName || login, login: login, password: password,
@@ -14093,7 +14127,13 @@
         }
 
         toast('ok', '✓ Импорт запущен: добавляется ' + (pending) + ' записей');
+        if (noPass.length) toast('warn', '⚠ Не добавлены (не указан пароль в столбце «Новый пароль»): ' + noPass.slice(0, 8).join(', ') + (noPass.length > 8 ? ' и ещё ' + (noPass.length - 8) : ''));
         setTimeout(function() { toast('ok', 'Готово: добавлено ' + added + ', обновлено ' + updated); refresh(); }, 1500);
+        } catch (err2) {
+          console.error('Ошибка импорта Excel:', err2);
+          toast('err', 'Ошибка импорта: ' + err2.message);
+        }
+        });
       } catch (err) {
         console.error('Ошибка импорта Excel:', err);
         toast('err', 'Ошибка чтения Excel: ' + err.message);
@@ -14102,6 +14142,7 @@
     reader.readAsArrayBuffer(file);
   }
 
+  /* ── часть 10 · app/10_reports_tasks.js — отчёты, новая задача, импорт задач из Excel ── */
   /* =====================================================================
      РЕНДЕР: ОТЧЁТЫ (печать вместо Excel)
      ===================================================================== */
@@ -14672,9 +14713,9 @@
 
     // Информация о Солнце и Луне + кнопка "Погода в точке"
     html += '<div style="display:flex;justify-content:space-around;align-items:center;background:var(--panel-2);padding:14px;border-bottom:1px solid var(--line);text-align:center;font-size:12px;color:var(--txt);gap:10px;">';
-    html += '<div>☀️<br><span style="font-size:10px;color:#64748b">Восход</span><br><b>' + sunrise + '</b></div>';
-    html += '<div>🌇<br><span style="font-size:10px;color:#64748b">Закат</span><br><b>' + sunset + '</b></div>';
-    html += '<div>' + precipIcon + '<br><span style="font-size:10px;color:#64748b">Осадки</span><br><b style="font-size:12px">' + precipType + '</b><br><span style="font-size:10px;color:#64748b">' + precipAmount + '</span></div>';
+    html += '<div>☀️<br><span style="font-size:11.5px;color:#64748b">Восход</span><br><b>' + sunrise + '</b></div>';
+    html += '<div>🌇<br><span style="font-size:11.5px;color:#64748b">Закат</span><br><b>' + sunset + '</b></div>';
+    html += '<div>' + precipIcon + '<br><span style="font-size:11.5px;color:#64748b">Осадки</span><br><b style="font-size:12px">' + precipType + '</b><br><span style="font-size:11.5px;color:#64748b">' + precipAmount + '</span></div>';
     html += '<div style="margin-left:auto"><button type="button" class="btn sm" id="hly-point-btn" style="background:#0f2740;color:#fff;border:none;padding:7px 12px;font-weight:700;display:inline-flex;align-items:center;gap:6px" title="Запросить погоду в конкретной точке (Open-Meteo)">📍 Погода в точке</button></div>';
     html += '</div>';
 
@@ -14692,7 +14733,7 @@
     // Текущая температура и описание часа (поверх сцены)
     html += '<div id="hly-scene-info" style="position:absolute;left:18px;top:14px;z-index:5;color:#fff;font-weight:800;text-shadow:0 2px 8px rgba(0,0,0,.55);transition:opacity .35s ease">';
     html += '<div style="font-size:24px;line-height:1">' + (curH.temp > 0 ? '+' : '') + curH.temp + '°C</div>';
-    html += '<div style="font-size:11px;font-weight:700;opacity:.95">' + esc(curH.desc || '—') + '</div>';
+    html += '<div style="font-size:12px;font-weight:700;opacity:.95">' + esc(curH.desc || '—') + '</div>';
     html += '</div>';
     html += '<div id="hly-hour-label" style="position:absolute;right:18px;top:14px;z-index:5;color:#fff;font-weight:800;font-size:13px;background:rgba(15,39,64,.55);padding:6px 12px;border-radius:8px;text-shadow:0 1px 4px rgba(0,0,0,.45)">⏰ ' + (HOURLY.hour < 10 ? '0' + HOURLY.hour : HOURLY.hour) + ':00</div>';
     html += '</div>';
@@ -14703,7 +14744,7 @@
     html += '<span id="hly-bar-time" style="font-size:15px;font-weight:800;color:#0f2740;min-width:48px;text-align:center">' + (HOURLY.hour < 10 ? '0' + HOURLY.hour : HOURLY.hour) + ':00</span>';
     html += '<div style="flex:1;position:relative">';
     html += '<input type="range" id="hly-slider" min="0" max="23" step="1" value="' + HOURLY.hour + '" style="width:100%;accent-color:#2563eb;cursor:pointer" title="Ползунок времени: все 24 часа выбранного дня">';
-    html += '<div id="hly-ticks" style="position:relative;height:14px;font-size:10.5px;color:#64748b;margin-top:2px"></div>';
+    html += '<div id="hly-ticks" style="position:relative;height:14px;font-size:12px;color:#64748b;margin-top:2px"></div>';
     html += '</div></div>';
 
     // === Почасовой прогноз (клик по строке = прыжок на этот час) ===
@@ -14731,7 +14772,7 @@
     }
 
     html += '</div>';
-    html += '<div class="modal-f" style="justify-content:space-between"><div style="font-size:11px;color:var(--muted)">' + (nowH >= 0 ? 'Текущий час отмечен на ползунке · ' : '') + 'Источник: Open-Meteo</div><button class="btn" data-action="close-hourly">Закрыть</button></div>';
+    html += '<div class="modal-f" style="justify-content:space-between"><div style="font-size:12px;color:var(--muted)">' + (nowH >= 0 ? 'Текущий час отмечен на ползунке · ' : '') + 'Источник: Open-Meteo</div><button class="btn" data-action="close-hourly">Закрыть</button></div>';
 
     modal.style.maxWidth = '780px';
     modal.innerHTML = html;
@@ -14795,7 +14836,7 @@
         sceneHolder.style.opacity = '0';
         setTimeout(function () {
           if (sceneHolder) {
-            sceneHolder.innerHTML = '<div style="font-size:24px;line-height:1">' + (curH2.temp > 0 ? '+' : '') + curH2.temp + '°C</div><div style="font-size:11px;font-weight:700;opacity:.95">' + esc(curH2.desc || '—') + '</div>';
+            sceneHolder.innerHTML = '<div style="font-size:24px;line-height:1">' + (curH2.temp > 0 ? '+' : '') + curH2.temp + '°C</div><div style="font-size:12px;font-weight:700;opacity:.95">' + esc(curH2.desc || '—') + '</div>';
             sceneHolder.style.opacity = '1';
           }
         }, 180);
@@ -15168,7 +15209,7 @@
       h += '<button type="button" data-ewp="' + esc(w.id) + '"' +
         ' style="display:block;width:100%;text-align:left;padding:9px 12px;border:1.5px solid ' + (cur ? '#16a34a' : 'var(--line)') + ';border-radius:10px;background:' + (cur ? '#f0fdf4' : 'var(--card)') + ';cursor:pointer;font-family:inherit">' +
         '<div style="font-size:12.5px;font-weight:700;color:var(--ink)">' + (cur ? '✓ ' : '') + esc(w.name) + '</div>' +
-        '<div style="font-size:11px;color:var(--muted);margin-top:3px">' + fmtH(w.norm) + ' ч/' + esc(w.unit) + (b.length ? ' · ' + esc(b.join(' · ')) : '') + '</div>' +
+        '<div style="font-size:12px;color:var(--muted);margin-top:3px">' + fmtH(w.norm) + ' ч/' + esc(w.unit) + (b.length ? ' · ' + esc(b.join(' · ')) : '') + '</div>' +
         '</button>';
     });
     if (!total) h = '<div class="empty" style="padding:16px 12px;font-size:12.5px">Нет работ ' + (gp ? 'в этой группе' : 'на участке') + '.</div>';
@@ -15187,7 +15228,7 @@
     box.innerHTML = '<div style="display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)">' +
       '<h3 style="margin:0;font-size:15px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">🎯 Точный выбор работы' + (gp ? ' · <span style="color:var(--muted);font-weight:600">' + esc(gp) + '</span>' : '') + '</h3>' +
       '<button type="button" id="ewp-close" style="border:none;background:transparent;font-size:20px;cursor:pointer;color:var(--muted);line-height:1;flex:0 0 auto">×</button></div>' +
-      '<div style="padding:10px 16px 0;font-size:11.5px;color:var(--muted)">Выбранная здесь работа заменяет автовыбор по параметрам объекта' + (gp ? ' в этой группе' : '') + '.</div>' +
+      '<div style="padding:10px 16px 0;font-size:12.5px;color:var(--muted)">Выбранная здесь работа заменяет автовыбор по параметрам объекта' + (gp ? ' в этой группе' : '') + '.</div>' +
       '<div id="ewp-list" style="padding:12px 16px 16px;display:flex;flex-direction:column;gap:8px;overflow-y:auto">' + exactWorkPickHtml(area, gp, curWid) + '</div>';
     ov.appendChild(box);
     document.body.appendChild(ov);
@@ -15311,7 +15352,7 @@
     html += '<div class="fld"><label>Объект (адрес)</label><div style="display:flex;gap:6px;align-items:stretch">';
     html += '<input id="f-obj" value="' + esc(initAddr) + '" placeholder="ГРП-1, ул. Ленина, 5" style="flex:1">';
     html += '<button type="button" id="btn-pick-obj" style="flex:0 0 auto;white-space:nowrap;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:background .15s,border-color .15s" title="Выбрать ГРП/ШРП из справочника объектов — адрес и координаты подставятся автоматически">📍 Выбор объекта</button>';
-    html += '</div><div id="f-obj-hint" style="font-size:11.5px;margin-top:5px;color:var(--green);font-weight:600"></div></div>';
+    html += '</div><div id="f-obj-hint" style="font-size:12.5px;margin-top:5px;color:var(--green);font-weight:600"></div></div>';
     html += '<div class="attr-row"><div class="fld"><label>Плановая дата</label><input id="f-day" type="date" value="' + initDate + '"></div>';
     html += '<div class="fld"><label id="f-dl-label">Дедлайн</label><input id="f-dl-date" type="date" value="' + (isEdit && t && t.dl_date ? t.dl_date : '') + '" placeholder="Дата"></div></div>';
     html += '<div class="fld"><label>Мастер / Бригада</label><select id="f-master">';
@@ -15357,7 +15398,7 @@
         // пусто (новая задача или все виды удалены) — предлагаем добавить («+» работает и здесь)
         htmlStr += '<div style="border:1.5px dashed var(--line);border-radius:10px;padding:14px 10px;text-align:center;background:var(--panel-2)">' +
           '<button type="button" class="work-add-btn" data-idx="-1" style="margin:0 auto;" title="Добавить вид работ">+</button>' +
-          '<div style="font-size:11.5px;color:var(--muted);margin-top:6px">Вид работ не выбран — нажмите «+», чтобы добавить</div>' +
+          '<div style="font-size:12.5px;color:var(--muted);margin-top:6px">Вид работ не выбран — нажмите «+», чтобы добавить</div>' +
           '</div>';
       }
       S.taskModalWorks.forEach(function(selectedWid, idx) {
@@ -15610,7 +15651,7 @@
         // (тип № — цвет секции, ниже — адрес), чтобы читалось в узкой колонке
         function colHtml(title, arr, color, emptyText) {
           var list = arr.filter(match);
-          var s = '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin:0 0 6px">' + title + ' (' + list.length + ')</div>';
+          var s = '<div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin:0 0 6px">' + title + ' (' + list.length + ')</div>';
           if (!list.length) return s + '<div style="padding:6px 2px;color:var(--muted);font-size:12px">' + emptyText + '</div>';
           s += '<div style="max-height:44vh;overflow:auto;padding-right:2px">';
           list.forEach(function (o) {
@@ -15618,9 +15659,9 @@
             s += '<button type="button" class="obj-pick-item" data-oid="' + esc(o.id) + '" style="display:flex;flex-direction:column;align-items:stretch;gap:2px;width:100%;text-align:left;padding:8px 10px;margin-bottom:6px;border:1px solid ' + (sel ? 'var(--green)' : 'var(--line)') + ';background:' + (sel ? 'var(--green-l)' : '#fff') + ';border-radius:9px;cursor:pointer;font-family:inherit;font-size:13px' + (sel ? ';box-shadow:0 0 0 2px rgba(22,163,74,.15)' : '') + '">' +
               '<span style="display:flex;align-items:center;gap:6px;min-width:0">' +
               '<span style="font-weight:800;color:' + color + ';white-space:nowrap">' + esc(o.type || 'Объект') + ' №' + esc(objNumOf(o) || '—') + '</span>' +
-              (o.lat != null && o.lng != null ? '<span style="font-size:10px;color:var(--green);font-weight:700" title="Координаты заданы">📍</span>' : '') +
+              (o.lat != null && o.lng != null ? '<span style="font-size:11.5px;color:var(--green);font-weight:700" title="Координаты заданы">📍</span>' : '') +
               '</span>' +
-              '<span style="color:var(--muted);font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(o.addr || 'адрес не указан') + '</span>' +
+              '<span style="color:var(--muted);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(o.addr || 'адрес не указан') + '</span>' +
               '</button>';
           });
           return s + '</div>';
@@ -15746,8 +15787,8 @@
         objMapShowTip('🏭 ' + title,
           '<div style="margin-bottom:4px">' + esc(o.addr || 'адрес не указан') + '</div>' +
           ((o.lat != null && o.lng != null)
-            ? '<div style="font-size:11px;color:var(--muted)">📍 ' + (+o.lat).toFixed(5) + ', ' + (+o.lng).toFixed(5) + '</div>'
-            : '<div style="font-size:11px;color:var(--red)">координаты не заданы — будет геокодирование</div>'),
+            ? '<div style="font-size:12px;color:var(--muted)">📍 ' + (+o.lat).toFixed(5) + ', ' + (+o.lng).toFixed(5) + '</div>'
+            : '<div style="font-size:12px;color:var(--red)">координаты не заданы — будет геокодирование</div>'),
           evt, function () { objMapApplyObject(o); });
       }
       // Облачко «просто адрес»: обратное геокодирование точки + «Выбрать»
@@ -15755,7 +15796,7 @@
         var info = { addr: null };
         objMapShowTip('📍 Точка на карте',
           '<div id="obj-map-addr" style="margin-bottom:4px">⏳ Определяем адрес…</div>' +
-          '<div style="font-size:11px;color:var(--muted)">' + (+lat).toFixed(5) + ', ' + (+lng).toFixed(5) + '</div>',
+          '<div style="font-size:12px;color:var(--muted)">' + (+lat).toFixed(5) + ', ' + (+lng).toFixed(5) + '</div>',
           evt, function () {
             var a = info.addr || ((+lat).toFixed(5) + ', ' + (+lng).toFixed(5));
             objMapApplyPoint(a, lat, lng);
@@ -15779,8 +15820,8 @@
           '<div style="position:relative;width:100%;max-width:1200px;background:var(--card);border-radius:14px;box-shadow:0 20px 60px rgba(15,39,64,.4);display:flex;flex-direction:column;overflow:hidden">' +
             '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);flex:0 0 auto;flex-wrap:wrap">' +
               '<h3 style="margin:0;font-size:14.5px;color:var(--ink);white-space:nowrap">Выбор на карте</h3>' +
-              '<span style="font-size:11.5px;color:var(--muted)">Нажмите на метку объекта или на любую точку карты</span>' +
-              '<span style="display:flex;gap:10px;font-size:11px;color:var(--muted);margin-left:auto;white-space:nowrap">' +
+              '<span style="font-size:12.5px;color:var(--muted)">Нажмите на метку объекта или на любую точку карты</span>' +
+              '<span style="display:flex;gap:10px;font-size:12px;color:var(--muted);margin-left:auto;white-space:nowrap">' +
                 '<span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#2563eb;margin-right:4px"></span>ГРП</span>' +
                 '<span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#7c3aed;margin-right:4px"></span>ШРП</span>' +
                 '<span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#64748b;margin-right:4px"></span>Прочие</span>' +
@@ -15788,7 +15829,7 @@
               '<button type="button" id="obj-map-close" title="Закрыть карту (вернуться к списку)" style="border:none;background:none;cursor:pointer;font-size:19px;color:#64748b;font-family:inherit;line-height:1;padding:2px 6px">×</button>' +
             '</div>' +
             '<div id="obj-map-canvas" style="flex:1 1 auto;min-height:0;background:var(--panel-2)"></div>' +
-            '<div style="padding:6px 14px;border-top:1px solid var(--line);font-size:11px;color:var(--muted);flex:0 0 auto">Объектов с координатами на карте: ' + withCoords.length + ' из ' + OBJECTS.length + (withCoords.length < OBJECTS.length ? ' — без координат ищите в списке' : '') + '</div>' +
+            '<div style="padding:6px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);flex:0 0 auto">Объектов с координатами на карте: ' + withCoords.length + ' из ' + OBJECTS.length + (withCoords.length < OBJECTS.length ? ' — без координат ищите в списке' : '') + '</div>' +
           '</div>';
         document.body.appendChild(ov);
         // ВСЕ поиски внутри оверлея карты (ov.querySelector) — id не могут
@@ -15992,7 +16033,7 @@
       } else if (!S.taskModalSlesari.length) {
         h += '<div style="border:1.5px dashed var(--line);border-radius:10px;padding:10px;text-align:center;background:var(--panel-2)">' +
           '<button type="button" class="work-add-btn f-sl-add" data-idx="-1" style="margin:0 auto;" title="Добавить слесаря">+</button>' +
-          '<div style="font-size:11px;color:var(--muted);margin-top:5px">Слесарь не выбран — нажмите «+» или выберите «Вся бригада»</div></div>';
+          '<div style="font-size:12px;color:var(--muted);margin-top:5px">Слесарь не выбран — нажмите «+» или выберите «Вся бригада»</div></div>';
       } else {
         S.taskModalSlesari.forEach(function (uid, i) { h += slRowHtml(i, uid); });
       }
@@ -16264,7 +16305,7 @@
 
       html += '<tr style="background:' + bg + ';">';
       html += '<td><b>' + (idx + 1) + '</b></td>';
-      html += '<td><b>' + esc(r.addr) + '</b><br><span style="font-size:10.5px;color:#64748b;">' + esc(r.note) + '</span></td>';
+      html += '<td><b>' + esc(r.addr) + '</b><br><span style="font-size:12px;color:#64748b;">' + esc(r.note) + '</span></td>';
       html += '<td>' + esc(r.work) + '</td>';
       html += '<td>' + esc(r.dl) + '</td>';
       html += '<td><b>' + esc(r.master) + '</b></td>';
@@ -16305,6 +16346,63 @@
   }
 
   /* ---------- TOAST ---------- */
+  /* ── часть 11 · app/11_ui_auth.js — окна подтверждения, сообщения, вход в систему, запуск, переключение страниц ── */
+  /* =====================================================================
+     22.09-244: ОФОРМЛЕННЫЕ ОКНА ПОДТВЕРЖДЕНИЯ — вместо стандартных браузерных «ОК / Отмена».
+     spConfirm(текст, { title, ok, cancel, danger }, приДа, приНет)
+     spChoice(текст, { title, icon, choices: [{ label, value, cls }], cancel }, приВыборе(value), приОтмене)
+     Окно — поверх всех окон; Enter — основная кнопка, Esc или щелчок мимо окна — «Отмена».
+     ===================================================================== */
+  function spConfirm(message, opts, onYes, onNo) {
+    opts = opts || {};
+    return spDialog(message, {
+      title: opts.title || 'Подтверждение',
+      icon: opts.icon || (opts.danger ? '⚠️' : '❓'),
+      choices: [{ label: opts.ok || 'Да', value: true, cls: opts.danger ? 'danger' : 'primary' }],
+      cancel: opts.cancel || 'Отмена',
+      danger: !!opts.danger
+    }, function () { return onYes ? onYes() : undefined; }, onNo);
+  }
+  function spChoice(message, opts, onPick, onNo) { return spDialog(message, opts || {}, onPick, onNo); }
+  function spDialog(message, o, onPick, onNo) {
+    var choices = (o.choices && o.choices.length) ? o.choices : [{ label: 'Да', value: true, cls: 'primary' }];
+    // только для автотестов: ответ без окна (true — основная кнопка, false — «Отмена»)
+    if (window.__spConfirmAuto === true) return onPick ? onPick(choices[0].value) : undefined;
+    if (window.__spConfirmAuto === false) return onNo ? onNo() : undefined;
+    var prev = document.getElementById('sp-dlg');
+    if (prev && prev.parentNode) prev.parentNode.removeChild(prev);
+    var ov = document.createElement('div');
+    ov.id = 'sp-dlg';
+    ov.className = 'sp-dlg';
+    ov.innerHTML = '<div class="sp-dlg-box' + (o.danger ? ' danger' : '') + '" role="dialog" aria-modal="true">' +
+      '<div class="sp-dlg-h"><span class="sp-dlg-ic">' + esc(o.icon || '❓') + '</span><span>' + esc(o.title || 'Подтверждение') + '</span></div>' +
+      '<div class="sp-dlg-b">' + esc(String(message == null ? '' : message)).replace(/\n/g, '<br>') + '</div>' +
+      '<div class="sp-dlg-f">' +
+      (o.cancel === false ? '' : '<button type="button" class="btn" data-dlg="cancel">' + esc(o.cancel || 'Отмена') + '</button>') +
+      choices.map(function (c, i) { return '<button type="button" class="btn ' + esc(c.cls || 'primary') + '" data-dlg="' + i + '">' + esc(c.label) + '</button>'; }).join('') +
+      '</div></div>';
+    document.body.appendChild(ov);
+    var done = false;
+    function close() { done = true; document.removeEventListener('keydown', onKey, true); if (ov.parentNode) ov.parentNode.removeChild(ov); }
+    function pick(i) { if (done) return; close(); if (onPick) onPick(choices[i].value); }
+    function cancel() { if (done) return; close(); if (onNo) onNo(); }
+    function onKey(e) {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cancel(); }
+      else if (e.key === 'Enter') {
+        var ae = document.activeElement;
+        if (ae && ov.contains(ae) && ae.getAttribute('data-dlg') != null) return; // Enter на кнопке — сработает она сама
+        e.preventDefault(); e.stopPropagation(); pick(0);
+      }
+    }
+    document.addEventListener('keydown', onKey, true);
+    ov.addEventListener('click', function (e) {
+      var b = e.target && e.target.closest ? e.target.closest('[data-dlg]') : null;
+      if (b) { e.stopPropagation(); var v = b.getAttribute('data-dlg'); if (v === 'cancel') cancel(); else pick(+v); return; }
+      if (e.target === ov) cancel(); // щелчок мимо окна — «Отмена»
+    });
+    setTimeout(function () { var f = ov.querySelector('[data-dlg="0"]'); if (f && f.focus) f.focus(); }, 30);
+  }
+
   function toast(type, msg) {
     var box = document.getElementById('toasts');
     var el = document.createElement('div');
@@ -16393,7 +16491,7 @@
       }).catch(function (error) {
         btn.disabled = false; btn.textContent = 'Войти';
         console.error('Auth error:', error);
-        err.textContent = 'Ошибка входа: попробуйте логин admin и пароль admin123';
+        err.textContent = 'Ошибка входа — проверьте логин и пароль'; // 22.09-241: без подсказки чужого пароля
       });
     }
     if (window.SP_API && typeof window.SP_API.login === 'function') {
@@ -16548,6 +16646,7 @@
     document.getElementById('sidebar').classList.remove('open');
     refresh();
   }
+  /* ── часть 12 · app/12_writeoffs.js — списания, «Приступил/Закончил», карточки работ на день, факт работ, окно списания ── */
   /* =====================================================================
      РЕНДЕР: СПИСАНИЯ (закрытые в планировании задачи)
      22.09-181: страница в меню под «Справочниками» — список закрытых задач
@@ -16583,8 +16682,8 @@
   function taskFinish(id) {
     var t = findTask(id); if (!t || isDone(t)) return;
     if (!canEditTask(t)) { toast('err', 'Нет прав на изменение этой задачи'); return; }
-    if (!confirm('Завершить работу и отметить задачу выполненной?\n' + addrOf(t) +
-      (t.started_at ? '\nНачата в ' + fmtClock(t.started_at) + ', сейчас ' + fmtClock(Date.now()) : ''))) return;
+    return spConfirm('Завершить работу и отметить задачу выполненной?\n' + addrOf(t) +
+      (t.started_at ? '\nНачата в ' + fmtClock(t.started_at) + ', сейчас ' + fmtClock(Date.now()) : ''), { title: 'Завершение работы', ok: 'Завершить' }, function () { // 22.09-244
     t.finished_at = Date.now();
     t.s = 'done'; t.status = 'done';
     stampTaskDoneDate(t, true);
@@ -16595,6 +16694,7 @@
     logAction('Окончание работ на объекте', addrOf(t) + ' · ' + (_m ? _m.name : t.m) + ' · ' + fmtClock(t.finished_at) + (fh != null ? ' · факт ' + fmtH(fh) + ' ч' : ''));
     toast('ok', '✓ Работа завершена в ' + fmtClock(t.finished_at) + (fh != null ? ' · потрачено ' + fmtH(fh) + ' ч' : ''));
     refresh();
+    });
   }
   // Ячейка факта в строке задачи блока «Сегодня»: кнопки / пометка / итог
   function taskDayCtlHtml(t, dayOff) {
@@ -16602,9 +16702,9 @@
       if (!t.finished_at) return '';
       var span = (t.started_at ? fmtClock(t.started_at) + '–' : '') + fmtClock(t.finished_at);
       var fh0 = taskFactHours(t);
-      return '<span style="color:#16a34a;font-weight:700;font-size:11.5px;white-space:nowrap" title="Фактическое время работы на объекте">✓ ' + span + (fh0 != null ? ' (' + fmtH(fh0) + ' ч)' : '') + '</span>';
+      return '<span style="color:#16a34a;font-weight:700;font-size:12.5px;white-space:nowrap" title="Фактическое время работы на объекте">✓ ' + span + (fh0 != null ? ' (' + fmtH(fh0) + ' ч)' : '') + '</span>';
     }
-    var startedMark = t.started_at ? '<span style="color:#d97706;font-size:11px;font-weight:700;white-space:nowrap" title="Работа начата — ждём oкончания">⏳ с ' + fmtClock(t.started_at) + '</span>' : '';
+    var startedMark = t.started_at ? '<span style="color:#d97706;font-size:12px;font-weight:700;white-space:nowrap" title="Работа начата — ждём oкончания">⏳ с ' + fmtClock(t.started_at) + '</span>' : '';
     if (dayOff !== 0 || !canEditTask(t)) return startedMark; // не сегодня или нет прав — только пометка
     if (!t.started_at) return '<button type="button" class="btn sm" data-action="task-start" data-tid="' + esc(t.id) + '" title="Нажмите, когда приступили к работе на объекте — запишется время начала" style="background:#dcfce7;border-color:#86efac;color:#166534;font-weight:700;white-space:nowrap">▶ Приступил</button>';
     return startedMark + '<button type="button" class="btn sm" data-action="task-finish" data-tid="' + esc(t.id) + '" title="Нажмите по окончании работ — запишется время конца и задача закроется" style="background:#fee2e2;border-color:#fca5a5;color:#b91c1c;font-weight:700;white-space:nowrap">■ Закончил</button>';
@@ -16778,7 +16878,7 @@
           '<div style="font-size:12.5px;font-weight:800;color:var(--ink);white-space:nowrap;min-width:84px">' + esc(fmtDmyIso(dateIso)) + '</div>' +
           '<div style="flex:1;min-width:220px">' +
             '<div style="font-size:12.5px;color:var(--txt)">🔧 ' + esc((w && w.name) || writeoffWorkNames(t).join(', ') || '?') + '</div>' +
-            '<div style="font-size:11.5px;color:var(--muted)">👷 ' + esc(fmMasterName(t)) + '</div>' +
+            '<div style="font-size:12.5px;color:var(--muted)">👷 ' + esc(fmMasterName(t)) + '</div>' +
           '</div>' +
           '<div style="font-size:12px;font-weight:700;white-space:nowrap;text-align:right;line-height:1.5">' +
             ((t.started_at || t.finished_at)
@@ -16882,7 +16982,7 @@
         '<div style="flex:1;min-width:220px">' +
           '<div style="font-weight:700;color:var(--ink);font-size:13.5px;margin-bottom:3px">📍 ' + esc(addrOf(t)) + '</div>' +
           '<div style="font-size:12px;color:var(--txt);margin-bottom:2px">🔧 ' + esc(w ? w.name : '?') + '</div>' +
-          '<div style="font-size:11.5px;color:var(--muted)">👷 ' + esc(m ? m.name : '?') + ' · ' + esc(m ? m.area : '') + '</div>' +
+          '<div style="font-size:12.5px;color:var(--muted)">👷 ' + esc(m ? m.name : '?') + ' · ' + esc(m ? m.area : '') + '</div>' +
         '</div>' +
         '<div style="text-align:right;font-size:12px;line-height:1.6;white-space:nowrap">' +
           '<div style="color:var(--muted);font-weight:600">📅 План: <b style="color:var(--ink)">' + esc(fmtDmyIso(planIso)) + '</b></div>' +
@@ -16995,7 +17095,7 @@
       var on = wi === S.woWorkIdx;
       html += '<button type="button" data-action="wo-work-pick" data-idx="' + wi + '" title="Списывать материалы по этой работе" style="display:inline-flex;align-items:center;gap:5px;margin:0 6px 6px 0;padding:5px 11px;border:' + (on ? '2px solid #16a34a' : '1px solid var(--line)') + ';border-radius:999px;background:' + (on ? '#dcfce7' : 'var(--card)') + ';color:var(--ink);font-size:12px;font-weight:' + (on ? '800' : '600') + ';cursor:pointer;font-family:inherit">' +
         '🔧 ' + esc(name) +
-        '<span style="min-width:17px;text-align:center;background:' + (cnt ? '#16a34a' : '#e2e8f0') + ';color:' + (cnt ? '#fff' : 'var(--muted)') + ';border-radius:999px;padding:1px 5px;font-size:10px;font-weight:800">' + cnt + '</span>' +
+        '<span style="min-width:17px;text-align:center;background:' + (cnt ? '#16a34a' : '#e2e8f0') + ';color:' + (cnt ? '#fff' : 'var(--muted)') + ';border-radius:999px;padding:1px 5px;font-size:11.5px;font-weight:800">' + cnt + '</span>' +
       '</button>';
     });
     host.innerHTML = html;
@@ -17005,7 +17105,7 @@
   function woRenderMats() {
     var host = document.getElementById('wo-mats'); if (!host) return;
     var grid = 'display:grid;grid-template-columns:minmax(0,1fr) 78px 96px 32px;gap:6px;align-items:center';
-    var html = '<div style="' + grid + ';padding:6px 10px;background:#f1f5f9;border:1px solid var(--line);border-radius:8px 8px 0 0;font-size:10.5px;color:var(--muted);font-weight:800;letter-spacing:.4px">' +
+    var html = '<div style="' + grid + ';padding:6px 10px;background:#f1f5f9;border:1px solid var(--line);border-radius:8px 8px 0 0;font-size:12px;color:var(--muted);font-weight:800;letter-spacing:.4px">' +
       '<div>МАТЕРИАЛ (ИЗ 1С)</div><div style="text-align:right">КОЛ-ВО</div><div style="text-align:right">ЦЕНА</div><div></div></div>';
     var mats = wo1cMaterials();
     mats.forEach(function (mat, mi) {
@@ -17044,8 +17144,8 @@
         var mat = woMatById(it.id); if (!mat) return;
         html += '<div style="display:grid;grid-template-columns:minmax(0,1fr) 96px 92px 26px;gap:6px;align-items:center;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);margin-bottom:6px">' +
           '<div style="font-size:12.5px;color:var(--ink);font-weight:600;line-height:1.3">' + esc(mat.name) + '</div>' +
-          '<div style="display:flex;align-items:center;gap:4px"><input type="number" min="0" step="0.01" value="' + String(+it.qty || 0) + '" data-woqty="' + it.id + '" style="width:60px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;font-family:inherit;background:var(--card);color:var(--ink);text-align:right"><span style="font-size:11px;color:var(--muted);font-weight:700">' + esc(mat.unit) + '</span></div>' +
-          '<div id="wo-sum-' + it.id + '" style="font-size:11.5px;color:var(--ink);font-weight:700;text-align:right;white-space:nowrap">' + esc(woFmtMoney(mat.price * (+it.qty || 0))) + '</div>' +
+          '<div style="display:flex;align-items:center;gap:4px"><input type="number" min="0" step="0.01" value="' + String(+it.qty || 0) + '" data-woqty="' + it.id + '" style="width:60px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;font-family:inherit;background:var(--card);color:var(--ink);text-align:right"><span style="font-size:12px;color:var(--muted);font-weight:700">' + esc(mat.unit) + '</span></div>' +
+          '<div id="wo-sum-' + it.id + '" style="font-size:12.5px;color:var(--ink);font-weight:700;text-align:right;white-space:nowrap">' + esc(woFmtMoney(mat.price * (+it.qty || 0))) + '</div>' +
           '<button type="button" data-action="wo-mat-del" data-mid="' + it.id + '" title="Убрать из списания" style="width:24px;height:24px;border:none;border-radius:6px;background:transparent;color:#dc2626;font-size:15px;font-weight:800;cursor:pointer;line-height:1;padding:0">×</button>' +
         '</div>';
       });
@@ -17200,7 +17300,7 @@
     h += '<div style="flex:1.45;min-width:340px">';
     h += '<div style="margin:0 0 7px;font-size:12px;color:var(--muted);font-weight:700">Материалы из 1С (пока тестовые данные):</div>';
     h += '<div id="wo-mats"></div>';
-    h += '<div style="margin-top:7px;font-size:11px;color:var(--muted);line-height:1.45">Перенос: нажмите <b style="color:#16a34a">+</b> рядом с материалом или перетащите строку в блок слева — материал попадёт в работу, которая выбрана (подсвечена зелёным). Количество можно изменить в нижнем блоке.</div>';
+    h += '<div style="margin-top:7px;font-size:12px;color:var(--muted);line-height:1.45">Перенос: нажмите <b style="color:#16a34a">+</b> рядом с материалом или перетащите строку в блок слева — материал попадёт в работу, которая выбрана (подсвечена зелёным). Количество можно изменить в нижнем блоке.</div>';
     h += '</div>';
     h += '</div>';
     h += '</div>';
@@ -17214,6 +17314,7 @@
     overlay.classList.add('show');
   }
 
+  /* ── часть 13 · app/13_refresh_events.js — перерисовка, перехват ошибок, обработчик нажатий ── */
   function refresh() {
     window.reRenderCurrentScreen = refresh;
     try { rebaseTaskDaysToToday(); } catch (eRb2) {} // 22.09-224: задачи остаются на своих календарных датах
@@ -17472,7 +17573,7 @@
     else if (a === 'wo-work-pick') { woPickWork(parseInt(el.dataset.idx, 10) || 0); } // 22.09-185: выбор вида работ для списания
     else if (a === 'close-modal') { closeTaskObjectPickers(); overlay.classList.remove('show'); modal.style.maxWidth = ''; modal.style.width = ''; if (S.wkModalUid && S.screen === 'workers') renderWorkers(); S.wkModalUid = null; S.wmJointSel = null; /* 22.09-162 */ S.schEd = null; S.schEdAll = null; S.schEdDay = null; S.schEdMode = null; /* 22.09-211/213 */ S.workersModal = false; S.factModal = false; /* 22.09-220 */ }
     else if (a === 'close-modal2') { var ov2 = document.getElementById('overlay2'); if (ov2) ov2.classList.remove('show'); var md2 = document.getElementById('modal2'); if (md2) { md2.style.width = ''; md2.style.maxWidth = ''; } /* 22.09-235: ширина окна — снова по умолчанию */ if (S.wkModalUid && S.workersModal) { renderWorkers(); } S.wkModalUid = null; /* 22.09-220 */ } // 22.09-162
-    else if (a === 'close-modal3') { var ov3 = document.getElementById('overlay3'); if (ov3) ov3.classList.remove('show'); S.wkDay = null; } // 22.09-220
+    else if (a === 'close-modal3') { var ov3 = document.getElementById('overlay3'); if (ov3) ov3.classList.remove('show'); var md3 = document.getElementById('modal3'); if (md3) { md3.style.width = ''; md3.style.maxWidth = ''; } /* 22.09-238: ширина окна — снова по умолчанию */ S.wkDay = null; } // 22.09-220
     else if (a === 'wm-joint-pick') { openWmJointPickModal(); } // 22.09-162
     else if (a === 'save-joint-pick') { saveWmJointPick(); } // 22.09-162
     // ===== Страница «Графики» (Планирование / Графики) =====
@@ -17507,6 +17608,11 @@
     else if (a === 'graphs-print-view') { graphsPrintView(); }
     else if (a === 'graph-snap-preview') { openGraphSnapPreviewModal(el.dataset.sid); } // 22.09-226
     else if (a === 'graph-snap-apply') { graphSnapApply(el.dataset.sid); } // 22.09-226
+    else if (a === 'graph-snap-period') { openGraphSnapPeriodModal(el.dataset.sid); } // 22.09-238: периодичность копии — только просмотр
+    else if (a === 'graph-snap-del') { graphSnapDelete(el.dataset.sid); } // 22.09-239: удаление копии (ст. мастер, нач. участка, админ)
+    else if (a === 'graph-snap-print') { openGraphSnapPrintModal(el.dataset.sid); } // 22.09-240: печать копии — окно настроек
+    else if (a === 'graph-snap-print-go') { graphSnapFetch(el.dataset.sid, function (snP) { graphsPrintGo(snP.graph, snP); }); } // 22.09-240/242: без новой копии
+    else if (a === 'graph-snap-excel-go') { var _xo = graphPrintOpts(document.getElementById('modal3')); graphSnapFetch(el.dataset.sid, function (snX) { graphsExportExcel(_xo, snX.graph, snX); }); } // 22.09-240/242: без новой копии
     else if (a === 'graph-dup-hide') { S.graphDupWarnHidden = true; renderGraphs(); } // 22.09-227
     else if (a === 'graphs-filter-save') { graphsFilterSave(); }
     else if (a === 'graphs-winter-save') { graphsWinterSave(); }
@@ -17603,13 +17709,13 @@
     }
     else if (a === 'open-trash') { openTrashModal(); }
     else if (a === 'restore-task') { restoreFromTrash(parseInt(el.dataset.trashIdx, 10)); }
-    else if (a === 'purge-trash') { if (window.confirm('Удалить все задачи из корзины безвозвратно?')) { purgeTrash(); } }
+    else if (a === 'purge-trash') { spConfirm('Удалить все задачи из корзины безвозвратно?', { title: 'Очистка корзины', ok: 'Удалить все', danger: true }, purgeTrash); } // 22.09-244
     else if (a === 'new-user') { openUserModal('new'); }
     else if (a === 'edit-user') { openUserModal('edit', el.dataset.uid); }
     else if (a === 'pwd-user') { openUserModal('pwd', el.dataset.uid); }
     else if (a === 'save-user') { saveUser(); }
     else if (a === 'um-ava-upload') { var _avf = document.getElementById('um-ava-file'); if (_avf) { try { _avf.click(); } catch (e) {} } } // 22.09-219
-    else if (a === 'um-ava-remove') { if (window.confirm('Удалить фото работника?')) saveUserAvatar(S.userModalUid, null); } // 22.09-219
+    else if (a === 'um-ava-remove') { var _avU = S.userModalUid; spConfirm('Удалить фото работника?', { title: 'Фото работника', ok: 'Удалить', danger: true }, function () { saveUserAvatar(_avU, null); }); } // 22.09-219/244
     else if (a === 'del-user') { delUser(el.dataset.uid); }
     else if (a === 'fire-user') { openFireUserModal(el.dataset.uid); }
     else if (a === 'confirm-fire-user') { confirmFireUser(); }
@@ -17771,6 +17877,7 @@
     renderCalendar();
   }
 
+  /* ── часть 14 · app/14_graphs.js — график работ: страница, объекты, периодичность, автоподбор ── */
   /* =====================================================================
      СТРАНИЦА «ГРАФИКИ» (Планирование / Графики)
      =====================================================================
@@ -17880,6 +17987,7 @@
     html += graphsDupWarnHtml(); // 22.09-227: предупреждение «объект в нескольких графиках года» — справа внизу
     view.innerHTML = html;
     drawGraphsBody();
+    try { graphSnapsPush(); } catch (eSP) {} // 22.09-242: неотправленные копии (в т.ч. сохранённые до 242) — на сервер
   }
 
   /* Панель инструментов графика: слева служебные кнопки, справа — действия.
@@ -18281,7 +18389,7 @@
     h += '</div>';
     h += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:2px">' +
       '<button type="button" class="btn sm" id="gao-all" style="font-weight:700">Выбрать все</button>' +
-      '<span id="gao-count" style="font-size:11.5px;color:var(--muted);font-weight:700"></span>' +
+      '<span id="gao-count" style="font-size:12.5px;color:var(--muted);font-weight:700"></span>' +
       '</div>';
     h += '<div id="gao-list" style="display:flex;flex-direction:column;gap:6px;max-height:46vh;overflow-y:auto;padding:2px"></div>';
     h += '</div>';
@@ -18343,13 +18451,13 @@
         box.innerHTML = '<div class="empty" style="padding:26px 14px;font-size:12.5px">' +
           ((fType || respId) ? 'Нет объектов графика по выбранным фильтрам (тип объекта / ответственный).' : 'В этом графике пока нет объектов — сначала добавьте их на вкладке «Добавить объекты в график» выше.') + '</div>';
       } else {
-        var hd = '<div style="font-size:11.5px;color:var(--muted);padding:0 2px 2px">Снимите галочки у объектов, которые нужно убрать из графика:</div>';
+        var hd = '<div style="font-size:12.5px;color:var(--muted);padding:0 2px 2px">Снимите галочки у объектов, которые нужно убрать из графика:</div>';
         rows.forEach(function (r) {
           hd += '<label class="gao-row">' +
             '<input type="checkbox" data-gao-ri="' + r.ri + '" checked style="accent-color:#dc2626;width:15px;height:15px;cursor:pointer;flex:0 0 auto;margin:0">' +
             '<span class="chip ' + esc(r.type) + '">' + esc(r.type) + '</span>' +
             '<span style="min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(r.addr) + '">' + esc(r.addr) + '</span>' +
-            (r.respName ? '<span style="font-size:10.5px;color:var(--muted);flex:0 0 auto">' + esc(r.respName) + '</span>' : '') +
+            (r.respName ? '<span style="font-size:12px;color:var(--muted);flex:0 0 auto">' + esc(r.respName) + '</span>' : '') +
             '</label>';
         });
         box.innerHTML = hd;
@@ -18383,7 +18491,7 @@
           '<input type="checkbox" data-gao="' + esc(o.id) + '" style="accent-color:#16a34a;width:15px;height:15px;cursor:pointer;flex:0 0 auto;margin:0">' +
           '<span class="chip ' + esc(o.type) + '">' + esc(o.type) + '</span>' +
           '<span style="min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(objFullAddr(o)) + '">' + esc(objFullAddr(o)) + '</span>' +
-          (o.respName ? '<span style="font-size:10.5px;color:var(--muted);flex:0 0 auto">' + esc(o.respName) + '</span>' : '') +
+          (o.respName ? '<span style="font-size:12px;color:var(--muted);flex:0 0 auto">' + esc(o.respName) + '</span>' : '') +
           '</label>';
       });
       box.innerHTML = h;
@@ -19279,7 +19387,7 @@
       '</div>';
     h += '<div class="gpr-cols"><span>Вид работы</span><span></span><span>Период., мес</span><span>Откл., дн</span><span>Дата первого проведения</span><span></span></div>';
     h += '<div id="gpr-list" style="display:flex;flex-direction:column;gap:10px;padding:2px"></div>';
-    h += '<div class="calc" style="align-items:flex-start;font-size:11.5px;line-height:1.5"><b>В списке каждой строки — ОДНА строка на ГРУППУ работ (раскройте список — в скобках число видов работ в группе): конкретный вид работ внутри группы подбирается под объект автоматически по тем же правилам, что «⚡», ручной точный выбор — кнопкой 🎯; какой вид работ выбран — видно при наведении на строку.</b> Шаг серии = периодичность МИНУС отклонение (1 мес и отклонение 2 дн: работа 18 числа → следующая 16 числа следующего месяца). У каждого объекта может быть несколько работ — «+ работа». Работы появляются в «Планировании»; перемещение задачи там переносит её и последующие по шагу серии. <b>Даты, попавшие на день, когда мастер графика не работает (выходные 5/2 и 2/2, отсутствия — график смен на вкладке «Работники»), автоматически переносятся на ближайший предыдущий рабочий день; шаг серии считается от своих исходных дат.</b> <b>⚡ Автоподбор (кнопка сверху или «⚡» у объекта) добавляет объектам работы из справочника по их параметрам: тип объекта ↔ «Категория объекта обслуживания», линии редуцирования объекта ↔ «Кол-во линий редуцирования» в карточке работы. Периодичность и отклонение подставляются из справочника; дата первого проведения — из «Даты ввода в эксплуатацию» объекта, если у работы выбран реквизит отсчёта «Дата ввода в эксплуатацию». Критерии оборудования: телеметрия (работы «с ТМ» не попадут на объект без ТМ; выбран тип — совпадение по типу и наличию), приборная диагностика только при виде обслуживания «Region-gas», ТО отопительного оборудования только ГРП с отоплением. Если поля в карточке работы не заполнены, связь распознаётся по названию работы/группы («ИНДЕЛ», «оборудованных/не оборудованных системой телеметрии», «приборного диагностического оборудования», «отопительного»). Режимы: «📡 Только работы с ТМ» — одни телеметрические работы, «🚫📡 Только без ТМ» — одни работы без привязки к телеметрии. Зимние работы (сезон «Зима» в карточке работы) автоподбором не добавляются — назначьте их вручную кнопкой «+ работа». Пометки групп (кнопка 🏷 у группы в справочнике «Виды работ», участок ГРП): «Работы с ТМ» — только объектам с телеметрией; «Без телеметрии» — только объектам без телеметрии; остальные пометки — просто метки. Работа «Текущий ремонт оборудования шкафных газорегуляторных пунктов без опрессовки» автоподбором НЕ назначается. <b>Набор работ объекта — ОБЩИЙ для всех графиков: добавленный в другой график объект приходит со своими работами; правки набора видны во всех графиках. Уже рассчитанные даты других графиков при этом НЕ меняются — пересчёт только в сохраняемом графике; серии всегда продолжаются от даты первого проведения (без перезапуска в новом году).</b></b></div>';
+    h += '<div class="calc" style="align-items:flex-start;font-size:12.5px;line-height:1.5"><b>В списке каждой строки — ОДНА строка на ГРУППУ работ (раскройте список — в скобках число видов работ в группе): конкретный вид работ внутри группы подбирается под объект автоматически по тем же правилам, что «⚡», ручной точный выбор — кнопкой 🎯; какой вид работ выбран — видно при наведении на строку.</b> Шаг серии = периодичность МИНУС отклонение (1 мес и отклонение 2 дн: работа 18 числа → следующая 16 числа следующего месяца). У каждого объекта может быть несколько работ — «+ работа». Работы появляются в «Планировании»; перемещение задачи там переносит её и последующие по шагу серии. <b>Даты, попавшие на день, когда мастер графика не работает (выходные 5/2 и 2/2, отсутствия — график смен на вкладке «Работники»), автоматически переносятся на ближайший предыдущий рабочий день; шаг серии считается от своих исходных дат.</b> <b>⚡ Автоподбор (кнопка сверху или «⚡» у объекта) добавляет объектам работы из справочника по их параметрам: тип объекта ↔ «Категория объекта обслуживания», линии редуцирования объекта ↔ «Кол-во линий редуцирования» в карточке работы. Периодичность и отклонение подставляются из справочника; дата первого проведения — из «Даты ввода в эксплуатацию» объекта, если у работы выбран реквизит отсчёта «Дата ввода в эксплуатацию». Критерии оборудования: телеметрия (работы «с ТМ» не попадут на объект без ТМ; выбран тип — совпадение по типу и наличию), приборная диагностика только при виде обслуживания «Region-gas», ТО отопительного оборудования только ГРП с отоплением. Если поля в карточке работы не заполнены, связь распознаётся по названию работы/группы («ИНДЕЛ», «оборудованных/не оборудованных системой телеметрии», «приборного диагностического оборудования», «отопительного»). Режимы: «📡 Только работы с ТМ» — одни телеметрические работы, «🚫📡 Только без ТМ» — одни работы без привязки к телеметрии. Зимние работы (сезон «Зима» в карточке работы) автоподбором не добавляются — назначьте их вручную кнопкой «+ работа». Пометки групп (кнопка 🏷 у группы в справочнике «Виды работ», участок ГРП): «Работы с ТМ» — только объектам с телеметрией; «Без телеметрии» — только объектам без телеметрии; остальные пометки — просто метки. Работа «Текущий ремонт оборудования шкафных газорегуляторных пунктов без опрессовки» автоподбором НЕ назначается. <b>Набор работ объекта — ОБЩИЙ для всех графиков: добавленный в другой график объект приходит со своими работами; правки набора видны во всех графиках. Уже рассчитанные даты других графиков при этом НЕ меняются — пересчёт только в сохраняемом графике; серии всегда продолжаются от даты первого проведения (без перезапуска в новом году).</b></b></div>';
     h += '</div>';
     h += '<div class="modal-f"><button type="button" class="btn ok" data-action="graphs-period-save">Сохранить</button><button type="button" class="btn danger" data-action="close-modal">Отменить</button></div>';
     modal.innerHTML = h;
@@ -19848,8 +19956,8 @@
       h += '</table>';
       // 22.09-200: таблица «По объектам» внизу убрана — осталась только кнопка «📍 По объектам» внизу окна (отдельное окно, 22.09-196)
       h += '</table>';
-      if (st.noNorm) h += '<div style="font-size:11.5px;color:#92400e;margin-top:8px">⚠ У ' + st.noNorm + ' видов работ не задана норма (ч/ед.) в справочнике — они не учтены в часах (проведения посчитаны).</div>';
-      h += '<div style="font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5">Часы одного проведения = норма работы из справочника «Виды работ» (у задач графика объём — 1). Даты берутся из треугольников графика; проведения других лет не учитываются.</div>';
+      if (st.noNorm) h += '<div style="font-size:12.5px;color:#92400e;margin-top:8px">⚠ У ' + st.noNorm + ' видов работ не задана норма (ч/ед.) в справочнике — они не учтены в часах (проведения посчитаны).</div>';
+      h += '<div style="font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.5">Часы одного проведения = норма работы из справочника «Виды работ» (у задач графика объём — 1). Даты берутся из треугольников графика; проведения других лет не учитываются.</div>';
     }
     h += '</div>';
     h += '<div class="modal-f" style="display:flex;gap:10px;justify-content:flex-end"><button type="button" class="btn primary" data-action="graphs-labor-objs" title="Новое окно: трудоёмкость по каждому объекту за выбранный год, месяц или произвольный период; нажатие на объект — его карточка с работами, датами и часами за выбранный период">📍 По объектам</button><button type="button" class="btn" data-action="close-modal">Закрыть</button></div>';
@@ -19858,6 +19966,7 @@
     overlay.classList.add('show');
   }
 
+  /* ── часть 15 · app/15_graphs_more.js — график работ: трудоёмкость, сезоны, копии графика, печать, Excel ── */
   /* =====================================================================
      22.09-196: ТРУДОЁМКОСТЬ ПО ОБЪЕКТАМ
      Кнопка «📍 По объектам» в «Трудоёмкости графика» открывает
@@ -19983,7 +20092,7 @@
         stats.forEach(function (r) { oocc += r.dates.length; oh += r.norm * r.dates.length; });
         totOcc += oocc; totH += oh;
         rowsHtml += '<tr data-action="graphs-labor-obj" data-ri="' + ri + '" style="cursor:pointer">' +
-          '<td style="' + graphsLaborCellCss(false) + 'text-align:left;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="Нажмите — карточка объекта: трудоёмкость по работам за период «' + esc(gloPeriodLabel()) + '»"><span class="chip ' + esc(ob.type) + '" style="margin-right:6px">' + esc(ob.type) + '</span>' + esc(ob.name || '') + ' <span style="color:var(--muted);font-weight:600;font-size:11px">→</span></td>' +
+          '<td style="' + graphsLaborCellCss(false) + 'text-align:left;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="Нажмите — карточка объекта: трудоёмкость по работам за период «' + esc(gloPeriodLabel()) + '»"><span class="chip ' + esc(ob.type) + '" style="margin-right:6px">' + esc(ob.type) + '</span>' + esc(ob.name || '') + ' <span style="color:var(--muted);font-weight:600;font-size:12px">→</span></td>' +
           '<td style="' + graphsLaborCellCss(false) + '">' + stats.length + '</td>' +
           '<td style="' + graphsLaborCellCss(false) + '">' + oocc + '</td>' +
           '<td style="' + graphsLaborCellCss(false) + '"><b>' + fmtH3(oh) + '</b></td></tr>';
@@ -19998,7 +20107,7 @@
           '<td style="' + graphsLaborCellCss(false) + '"></td>' +
           '<td style="' + graphsLaborCellCss(false) + '">' + totOcc + '</td>' +
           '<td style="' + graphsLaborCellCss(false) + '">' + fmtH3(totH) + '</td></tr></table>';
-      h += '<div style="font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5">Проведения берутся из треугольников графика (и плановые, и отмеченные выполненными); часы одного проведения = норма работы из справочника «Виды работ».</div>';
+      h += '<div style="font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.5">Проведения берутся из треугольников графика (и плановые, и отмеченные выполненными); часы одного проведения = норма работы из справочника «Виды работ».</div>';
     } else {
       var ob = g.objs[S.gloRi];
       var stats2 = gloObjStats(ob, area, S.gloYear, rng.from, rng.to);
@@ -20022,10 +20131,10 @@
           '<th style="' + graphsLaborCellCss(true) + 'text-align:right">Чел/ч</th></tr>';
         stats2.forEach(function (r) {
           var dts = r.dates.map(fmtDmyIso).join(', ');
-          h += '<tr><td style="' + graphsLaborCellCss(false) + 'text-align:left;max-width:420px">' + esc(r.name) + (r.norm ? '' : ' <span style="color:#b45309;font-size:11px" title="Норма не задана в справочнике — часы не учтены">⚠ без нормы</span>') + '</td>' +
+          h += '<tr><td style="' + graphsLaborCellCss(false) + 'text-align:left;max-width:420px">' + esc(r.name) + (r.norm ? '' : ' <span style="color:#b45309;font-size:12px" title="Норма не задана в справочнике — часы не учтены">⚠ без нормы</span>') + '</td>' +
             '<td style="' + graphsLaborCellCss(false) + '">' + (r.norm ? fmtH3(r.norm) : '—') + '</td>' +
             '<td style="' + graphsLaborCellCss(false) + '">' + r.dates.length + '</td>' +
-            '<td style="' + graphsLaborCellCss(false) + 'text-align:left;font-size:11.5px;color:var(--muted)">' + esc(dts) + '</td>' +
+            '<td style="' + graphsLaborCellCss(false) + 'text-align:left;font-size:12.5px;color:var(--muted)">' + esc(dts) + '</td>' +
             '<td style="' + graphsLaborCellCss(false) + '"><b>' + fmtH3(r.norm * r.dates.length) + '</b></td></tr>';
         });
         h += '</table>';
@@ -20061,7 +20170,7 @@
     h += '</div>';
     h += '<div style="display:flex;gap:8px;margin-bottom:6px"><button type="button" class="btn sm" id="gf-all">Включить все</button><button type="button" class="btn sm" id="gf-none">Отключить найденные</button></div>';
     h += '<div id="gf-list" style="display:flex;flex-direction:column;gap:5px;max-height:46vh;overflow-y:auto;padding:2px"></div>';
-    h += '<div class="calc" style="font-size:11px">Фильтр скрывает объекты в таблицах графика. Запланированные работы и задачи в планировании не затрагиваются.</div>';
+    h += '<div class="calc" style="font-size:12px">Фильтр скрывает объекты в таблицах графика. Запланированные работы и задачи в планировании не затрагиваются.</div>';
     h += '</div>';
     h += '<div class="modal-f"><button type="button" class="btn ok" data-action="graphs-filter-save">Сохранить</button><button type="button" class="btn danger" data-action="close-modal">Отмена</button></div>';
     modal.innerHTML = h;
@@ -20146,7 +20255,7 @@
     h += '<div class="fld"><label>Дата по</label><input type="date" id="gw-winter-to"' + (wt ? ' value="' + wt + '"' : '') + '></div>';
     h += '</div>';
     h += '<label class="cb" style="font-size:12.5px;color:#0369a1;margin-top:4px;align-items:flex-start"><input type="checkbox" id="gw-season-sync" checked style="margin-top:2px"> Привести сезон работ графика к периоду: на зимние даты — зимние версии работ (то же название и сезон «Зима» в справочнике), на остальные даты — обычные версии. Уже выполненные работы не затрагиваются.</label>';
-    h += '<div class="calc" style="font-size:11px;align-items:flex-start">Учитываются только день и месяц — период повторяется каждый год. Допускается переход через Новый год: например, с 15.10 по 15.04 — это 15.10–31.12 и 01.01–15.04. Дни периода подсвечиваются голубым в таблице графика и в таблице по дням месяца. Зимние работы (сезон «Зима» в карточке работы) в автоподбор не попадают — их можно назначить вручную кнопкой «+ работа».</div>';
+    h += '<div class="calc" style="font-size:12px;align-items:flex-start">Учитываются только день и месяц — период повторяется каждый год. Допускается переход через Новый год: например, с 15.10 по 15.04 — это 15.10–31.12 и 01.01–15.04. Дни периода подсвечиваются голубым в таблице графика и в таблице по дням месяца. Зимние работы (сезон «Зима» в карточке работы) в автоподбор не попадают — их можно назначить вручную кнопкой «+ работа».</div>';
     h += '</div>';
     h += '<div class="modal-f"><button type="button" class="btn ok" data-action="graphs-winter-save">Сохранить</button><button type="button" class="btn" data-action="graphs-winter-clear">Очистить период</button><button type="button" class="btn danger" data-action="close-modal">Отмена</button></div>';
     modal.innerHTML = h;
@@ -20243,6 +20352,20 @@
      просмотр копии и кнопка «Применить» (восстановить текущий график из копии;
      задачи в планировании при этом НЕ пересоздаются). */
   var GRAPH_SNAPS_KEY = 'smartplan_graph_snaps_v1';
+  // 22.09-239: последний выданный номер итерации по каждому графику — при удалении копий НЕ уменьшается,
+  // поэтому номер удалённой копии повторно не выдаётся («Четвёртая итерация» после удалённой «Третьей»)
+  var GRAPH_SNAPS_ITER_KEY = 'smartplan_graph_snaps_iter_v1';
+  function graphSnapsIssuedGet(id) {
+    try { var m = JSON.parse(localStorage.getItem(GRAPH_SNAPS_ITER_KEY) || '{}'); return +m[id] || 0; } catch (e) { return 0; }
+  }
+  function graphSnapsIssuedSet(id, n) {
+    try {
+      var m = JSON.parse(localStorage.getItem(GRAPH_SNAPS_ITER_KEY) || '{}');
+      if (!(+m[id] >= n)) { m[id] = n; localStorage.setItem(GRAPH_SNAPS_ITER_KEY, JSON.stringify(m)); }
+    } catch (e) {}
+  }
+  /* 22.09-239: удалять копии графика могут старший мастер, начальник участка и администратор */
+  function canDeleteGraphSnaps() { return S.role === 'admin' || S.role === 'nach' || S.role === 'smaster'; }
   /* 22.09-236: подпись копии по порядку сохранения — «Первая итерация», «Вторая итерация», …,
      «Двадцать первая итерация», … «Сто двадцать третья итерация» (женский род; после 999 — «N-я итерация»). */
   function snapIterLabel(n) {
@@ -20311,7 +20434,7 @@
       var snap = {
         id: 'snap_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 5),
         ts: Date.now(), via: via || 'печать',
-        iter: graphSnapsMaxIter(arr) + 1, // 22.09-236: порядковый номер копии — «Первая итерация», «Вторая итерация», …
+        iter: Math.max(graphSnapsMaxIter(arr), graphSnapsIssuedGet(g.id)) + 1, // 22.09-236/239: порядковый номер копии — «Первая итерация», «Вторая итерация», … (номера удалённых копий не повторяются)
         name: g.name, year: g.year, respName: g.respName || '',
         objsCount: objs.length, worksCount: worksCnt,
         graph: JSON.parse(JSON.stringify(g))
@@ -20319,6 +20442,8 @@
       arr.unshift(snap);
       if (arr.length > 20) arr.length = 20;
       graphSnapsSaveList(g.id, arr);
+      graphSnapsIssuedSet(g.id, snap.iter); // 22.09-239
+      try { graphSnapsPush(); } catch (eP) {} // 22.09-242: сразу на сервер (без связи — позже, автоматически)
       return snap;
     } catch (e) { return null; }
   }
@@ -20328,26 +20453,127 @@
     for (var i = 0; i < arr.length; i++) if (arr[i] && arr[i].id === sid) return arr[i];
     return null;
   }
-  function openGraphSnapsModal() {
+  /* ===== 22.09-242: КОПИИ ГРАФИКОВ НА СЕРВЕРЕ (общие для всех устройств) =====
+     В браузере — только список копий (подписи); сам график копии после отправки на сервер
+     в браузере НЕ хранится (лимит памяти браузера ~5 МБ) — подгружается при открытии.
+     Копии без пометки remote (новые или сохранённые до сборки 242) отправляются на сервер
+     автоматически; номер итерации выдаёт сервер — общий для всех устройств. */
+  var GRAPH_SNAP_MEM = {};   // id копии → её график, загруженный с сервера (на время сеанса)
+  var _snapPushP = null; // идущая отправка (повторный вызов ждёт её и досылает новое)
+  function snapApiOk() { return !!(window.SP_API && SP_API.getToken && SP_API.getToken() && SP_API.snapPut); }
+  function graphSnapsAllIds() {
+    try { return Object.keys(JSON.parse(localStorage.getItem(GRAPH_SNAPS_KEY) || '{}')); } catch (e) { return []; }
+  }
+  /* отправить на сервер все неотправленные копии (всех графиков), по порядку — старые раньше */
+  function graphSnapsPush() {
+    if (!snapApiOk()) return Promise.resolve(0);
+    if (_snapPushP) return _snapPushP.then(function () { return graphSnapsPush(); }); // дождаться идущей и дослать новые
+    var jobs = [];
+    graphSnapsAllIds().forEach(function (gid) {
+      graphSnapsLoad(gid).forEach(function (sn) { if (sn && !sn.remote && sn.graph) jobs.push({ gid: gid, sn: sn }); });
+    });
+    if (!jobs.length) return Promise.resolve(0);
+    jobs.sort(function (a, b) { return (+a.sn.ts || 0) - (+b.sn.ts || 0); });
+    var sent = 0, chain = Promise.resolve();
+    jobs.forEach(function (j) {
+      chain = chain.then(function () {
+        var sn = j.sn;
+        return SP_API.snapPut({
+          id: sn.id, gid: j.gid, iter: sn.iter, ts: sn.ts, via: sn.via,
+          meta: { name: sn.name, year: sn.year, respName: sn.respName, objsCount: sn.objsCount, worksCount: sn.worksCount },
+          graph: sn.graph
+        }).then(function (r) {
+          if (!r || !r.ok) return;
+          var arr = graphSnapsLoad(j.gid); // список мог измениться, пока шла отправка
+          arr.forEach(function (x) {
+            if (x && x.id === sn.id) {
+              if (+r.iter > 0) x.iter = +r.iter; // номер, выданный сервером
+              x.remote = true;
+              if (x.graph) GRAPH_SNAP_MEM[x.id] = x.graph; // в этом сеансе — без повторной загрузки
+              delete x.graph;                               // в браузере — только подпись копии
+            }
+          });
+          graphSnapsSaveList(j.gid, arr);
+          if (+r.iter > 0) graphSnapsIssuedSet(j.gid, +r.iter);
+          sent++;
+        });
+      });
+    });
+    _snapPushP = chain.then(function () { _snapPushP = null; return sent; }, function () { _snapPushP = null; return sent; });
+    return _snapPushP;
+  }
+  /* подтянуть с сервера список копий графика: копии с других устройств, номера, удалённые */
+  function graphSnapsSync(gid) {
+    if (!gid || !snapApiOk() || !SP_API.snapsList) return Promise.resolve(false);
+    return graphSnapsPush().then(function () { return SP_API.snapsList(gid); }).then(function (r) {
+      if (!r || !r.ok || !Array.isArray(r.records)) return false;
+      var local = graphSnapsLoad(gid);
+      var byId = {};
+      local.forEach(function (x) { if (x && x.id) byId[x.id] = x; });
+      var onSrv = {}, out = [];
+      r.records.forEach(function (mt) {
+        onSrv[mt.id] = 1;
+        var x = byId[mt.id] || {};
+        if (x.graph) GRAPH_SNAP_MEM[mt.id] = x.graph;
+        out.push({ id: mt.id, ts: +mt.ts || x.ts, via: mt.via || x.via || '', iter: +mt.iter || x.iter,
+          name: mt.name, year: mt.year, respName: mt.respName, objsCount: mt.objsCount, worksCount: mt.worksCount, remote: true });
+      });
+      // ещё не отправленные — остаются; отправленные, но удалённые на сервере (или вытесненные) — убираем
+      local.forEach(function (x) { if (x && !x.remote && !onSrv[x.id]) out.push(x); });
+      out.sort(function (a, b) { return (+b.ts || 0) - (+a.ts || 0); });
+      graphSnapsSaveList(gid, out);
+      if (+r.last_iter > 0) graphSnapsIssuedSet(gid, +r.last_iter);
+      return true;
+    }, function () { return false; });
+  }
+  /* копия целиком (с графиком): из браузера, из памяти сеанса или с сервера */
+  function graphSnapFetch(sid, cb) {
+    var sn = graphSnapById(sid);
+    if (!sn) { toast('err', 'Копия не найдена'); return; }
+    if (sn.graph) { cb(sn); return; }
+    if (GRAPH_SNAP_MEM[sid]) { cb(Object.assign({}, sn, { graph: JSON.parse(JSON.stringify(GRAPH_SNAP_MEM[sid])) })); return; }
+    if (!snapApiOk() || !SP_API.snapGet) { toast('err', 'Копия хранится на сервере — сейчас нет связи с сервером'); return; }
+    toast('ok', '⏳ Загружаю копию с сервера…');
+    SP_API.snapGet(sid).then(function (r) {
+      if (!r || !r.ok || !r.record || !r.record.graph) { toast('err', 'Не удалось загрузить копию с сервера' + (r && r.err ? ': ' + r.err : '')); return; }
+      GRAPH_SNAP_MEM[sid] = r.record.graph;
+      cb(Object.assign({}, sn, { graph: JSON.parse(JSON.stringify(r.record.graph)) }));
+    });
+  }
+  function openGraphSnapsModal(noSync) {
     var g = graphsFind(GS.cur);
     if (!g) return;
     var arr = graphSnapsLoad(g.id);
-    var h = '<div class="modal-h"><h3>♻ Копии графика «' + esc(g.name) + '»</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">';
+    var h = '<div class="modal-h" data-snaps-gid="' + esc(g.id) + '"><h3>♻ Копии графика «' + esc(g.name) + '»</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">';
+    // 22.09-242: копии хранятся на сервере — общие для всех устройств
+    var _pend = arr.filter(function (x) { return x && !x.remote; }).length;
+    h += '<div style="font-size:12.5px;margin-bottom:10px;padding:7px 10px;border-radius:8px;background:' + (_pend ? '#fffbeb;border:1px solid #fde68a;color:#92400e' : '#f0fdf4;border:1px solid #bbf7d0;color:#166534') + '">' +
+      (_pend ? '⏳ Копий ещё не на сервере: ' + _pend + ' — ' + (snapApiOk() ? 'отправляются…' : 'отправятся автоматически, когда появится связь с сервером') : '☁ Копии хранятся на сервере — их видно на всех компьютерах') + '</div>';
     if (!arr.length) {
       h += '<div class="empty" style="padding:26px;text-align:center">Копий пока нет — они создаются автоматически при каждой печати графика (кнопка «Печать графика» на панели инструментов).</div>';
     } else {
-      h += '<div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">Каждая печать графика сохраняет его полную копию. Копии подписаны по порядку сохранения: самая первая — «Первая итерация», следующая — «Вторая итерация» и так далее. Выберите копию: можно <b>предосмотреть</b> и <b>применить</b> её к текущему графику (задания в планировании при этом выстраиваются заново по датам восстановленного графика: невыполненные пересоздаются, выполненные остаются в истории, дубли не создаются; действие можно отменить кнопкой «⟲ Отмена» в календаре).</div>';
+      h += '<div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">Каждая печать графика сохраняет его полную копию. Копии подписаны по порядку сохранения: самая первая — «Первая итерация», следующая — «Вторая итерация» и так далее. Выберите копию: можно <b>предосмотреть</b> и <b>применить</b> её к текущему графику (задания в планировании при этом выстраиваются заново по датам восстановленного графика: невыполненные пересоздаются, выполненные остаются в истории, дубли не создаются; действие можно отменить кнопкой «⟲ Отмена» в календаре). Удалять копии (кнопка 🗑) могут старший мастер, начальник участка и администратор.</div>';
+      var canDel = canDeleteGraphSnaps(); // 22.09-239
       arr.forEach(function (sn) {
         h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:var(--panel-2)">' +
           '<div style="flex:1;min-width:0"><div style="font-weight:800;font-size:12.5px;color:var(--ink)">' + esc(snapIterLabel(sn.iter)) + ' <span style="font-weight:600;color:var(--muted)">· ' + esc(_snapDT(sn.ts)) + '</span></div>' +
-          '<div style="font-size:11px;color:var(--muted)">' + (sn.objsCount || 0) + ' объектов · ' + (sn.worksCount || 0) + ' видов работ · ' + esc(String(sn.year || '')) + ' год' + (sn.respName ? ' · ' + esc(sn.respName) : '') + '</div></div>' +
+          '<div style="font-size:12px;color:var(--muted)">' + (sn.objsCount || 0) + ' объектов · ' + (sn.worksCount || 0) + ' видов работ · ' + esc(String(sn.year || '')) + ' год' + (sn.respName ? ' · ' + esc(sn.respName) : '') + '</div></div>' +
           '<button class="btn sm" data-action="graph-snap-preview" data-sid="' + esc(sn.id) + '" title="Открыть эту копию в виде графика (только просмотр)">👁 Просмотр</button>' +
           '<button class="btn sm primary" data-action="graph-snap-apply" data-sid="' + esc(sn.id) + '" title="Заменить текущий график этой копией (объекты, работы, периодичность, даты вхождений)">⤺ Применить</button>' +
+          (canDel ? '<button class="btn sm" data-action="graph-snap-del" data-sid="' + esc(sn.id) + '" style="color:var(--red)" title="Удалить эту копию графика (безвозвратно). Сам график и задания в планировании не изменятся">🗑</button>' : '') + // 22.09-239
           '</div>';
       });
     }
     h += '</div>';
     modal.style.maxWidth = '660px'; modal.innerHTML = h; overlay.classList.add('show');
+    // 22.09-242: подтянуть список с сервера (копии с других компьютеров) и перерисовать, если окно ещё открыто
+    if (!noSync) {
+      var _gid = g.id;
+      graphSnapsSync(_gid).then(function (changed) {
+        if (!changed) return;
+        if (overlay.classList.contains('show') && modal.querySelector('[data-snaps-gid="' + _gid + '"]')) openGraphSnapsModal(true);
+      });
+    }
   }
   /* 22.09-235: обозначения работ для окна просмотра копии — только группы (и работы
      без группы), которые есть в видимых объектах копии, в цветах этой копии */
@@ -20373,7 +20599,7 @@
     if (!items.length) return '';
     items.sort(function (a, b) { return String(a.label).localeCompare(String(b.label), 'ru'); });
     var h = '<div style="margin-top:12px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel-2)">' +
-      '<div style="font-size:11.5px;font-weight:800;color:var(--ink);margin-bottom:7px">Обозначения работ</div>' +
+      '<div style="font-size:12.5px;font-weight:800;color:var(--ink);margin-bottom:7px">Обозначения работ</div>' +
       '<div style="display:flex;flex-wrap:wrap;gap:7px 18px;align-items:center">';
     items.forEach(function (it) {
       h += '<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#4b5563;font-weight:600">' + gwTriangle(it.color, 13) + esc(it.label) + '</span>';
@@ -20387,8 +20613,8 @@
      та же шапка (год, ответственный, наименование) и та же таблица «объекты × месяцы»
      с треугольниками, что на странице «График работ», только для просмотра
      (подсказки при наведении работают); внизу — обозначения и «⤺ Применить эту копию». */
-  function openGraphSnapPreviewModal(sid) {
-    var sn = graphSnapById(sid); if (!sn) return;
+  function openGraphSnapPreviewModal(sid) { graphSnapFetch(sid, openGraphSnapPreviewModalRender); } // 22.09-242: копия может лежать на сервере
+  function openGraphSnapPreviewModalRender(sn) {
     var g = sn.graph || {};
     var overlay2 = document.getElementById('overlay2'), modal2 = document.getElementById('modal2');
     if (!overlay2 || !modal2) return;
@@ -20404,14 +20630,16 @@
       '<span class="gt-name" style="max-width:none" title="' + esc(g.name || '') + '">' + esc(g.name || '—') + '</span>' +
       '</div></div>';
     h += '<div class="modal-b">';
-    h += '<div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;line-height:1.5">📄 Сохранённая копия (' + esc(sn.via || 'печать') + ') — <b>только просмотр</b>: так график выглядел на момент копии. Наведите на треугольник — подсказка с работами и датами. Вернуть эту копию в график — кнопка «⤺ Применить эту копию» внизу.' +
+    h += '<div style="font-size:12.5px;color:var(--muted);margin-bottom:10px;line-height:1.5">📄 Сохранённая копия (' + esc(sn.via || 'печать') + ') — <b>только просмотр</b>: так график выглядел на момент копии. Наведите на треугольник — подсказка с работами и датами. Вернуть эту копию в график — кнопка «⤺ Применить эту копию» внизу.' +
       (hidden ? ' <b>Объектов скрыто фильтром графика: ' + hidden + '</b> — в копии они есть и вернутся при применении.' : '') +
       '</div>';
     if (!objs.length) h += '<div class="empty" style="padding:30px 20px">В этой копии нет объектов.</div>';
     else h += gwYearGridHtml(g, true);
     h += gwSnapLegendHtml(g);
     h += '</div>';
-    h += '<div class="modal-f">' +
+    h += '<div class="modal-f" style="flex-wrap:wrap">' + // 22.09-240: на узком экране кнопки переносятся
+      '<button type="button" class="btn" data-action="graph-snap-period" data-sid="' + esc(sn.id) + '" title="Открыть периодичность работ по объектам этой копии — только просмотр">🔁 Просмотр периодичности</button>' + // 22.09-238
+      '<button type="button" class="btn" data-action="graph-snap-print" data-sid="' + esc(sn.id) + '" style="margin-right:auto" title="Распечатать эту копию графика (или выгрузить в Excel) — новая копия при этом не создаётся">🖨 Печать копии</button>' + // 22.09-240
       '<button type="button" class="btn primary" data-action="graph-snap-apply" data-sid="' + esc(sn.id) + '" title="Заменить текущий график этой копией (объекты, работы, периодичность, даты)">⤺ Применить эту копию</button>' +
       '<button type="button" class="btn" data-action="close-modal2">Закрыть</button>' +
       '</div>';
@@ -20419,10 +20647,136 @@
     modal2.style.width = 'min(1500px,96vw)'; modal2.style.maxWidth = '96vw'; // график — широкое окно
     overlay2.classList.add('show');
   }
-  function graphSnapApply(sid) {
-    var sn = graphSnapById(sid); if (!sn) return;
+  /* 22.09-238: «🔁 Просмотр периодичности» из окна копии графика — окно ПОВЕРХ (третий слой):
+     периодичность этой копии по объектам, как в окне «Настроить периодичность» (объект → строки
+     работ: вид работы, периодичность, отклонение, дата первого проведения) + число проведений
+     в году графика. ТОЛЬКО ПРОСМОТР: полей ввода, списков и кнопок изменения нет. */
+  function openGraphSnapPeriodModal(sid) { graphSnapFetch(sid, openGraphSnapPeriodModalRender); } // 22.09-242: копия может лежать на сервере
+  function openGraphSnapPeriodModalRender(sn) {
+    var g = sn.graph || {};
+    var ov3 = document.getElementById('overlay3'), m3 = document.getElementById('modal3');
+    if (!ov3 || !m3) return;
+    var area = ''; try { area = graphAreaDefault(g); } catch (e) {}
+    var objs = g.objs || [];
+    var yr = String(g.year || '');
+    var h = '<div class="modal-h"><h3>🔁 Периодичность — ' + esc(snapIterLabel(sn.iter)) + '</h3><button class="x" data-action="close-modal3">×</button></div>';
+    h += '<div class="gtb" style="justify-content:center"><div class="gt-mid">' +
+      '<div class="gt-mid-top">' +
+      '<span class="chip" style="background:#eff6ff;color:#1d4ed8">' + esc(yr) + '</span>' +
+      (g.respName ? '<span class="chip" style="background:#f0fdf4;color:#15803d">' + esc(g.respName) + '</span>' : '') +
+      '</div>' +
+      '<span class="gt-name" style="max-width:none" title="' + esc(g.name || '') + '">' + esc(g.name || '—') + '</span>' +
+      '</div></div>';
+    h += '<div class="modal-b">';
+    h += '<div style="font-size:12.5px;color:var(--muted);margin-bottom:10px;line-height:1.5">📄 Копия графика от ' + esc(_snapDT(sn.ts)) + ' — <b>только просмотр</b>: так периодичность работ была настроена по объектам в этой копии. Участок (виды работ из справочника): <b>' + esc(area || '—') + '</b>. Шаг серии = периодичность МИНУС отклонение. Изменить периодичность можно в самом графике — кнопка «Настроить периодичность».</div>';
+    if (!objs.length) {
+      h += '<div class="empty" style="padding:26px 20px">В этой копии нет объектов.</div>';
+    } else {
+      h += '<div style="overflow-x:auto"><div style="min-width:660px">';
+      h += '<div class="gpr-ro-cols"><span>Вид работы</span><span>Период., мес</span><span>Откл., дн</span><span>Дата первого проведения</span><span>Проведений в ' + esc(yr) + ' г.</span></div>';
+      h += '<div style="display:flex;flex-direction:column;gap:10px;padding:2px">';
+      objs.forEach(function (ob) {
+        if (!ob) return;
+        var rows = gwObjWorks(ob).filter(function (wr) { return wr && wr.wid; });
+        h += '<div class="gpr-obj"><div class="gpr-obj-h">' +
+          '<span class="chip ' + esc(ob.type) + '">' + esc(ob.type) + '</span>' +
+          '<span class="gpr-obj-nm" title="' + esc(ob.name) + '">' + esc(ob.name) + '</span>' +
+          (ob.pastTasks ? '<span class="gpr-past" style="cursor:default" title="В копии у объекта было включено «Добавлять задачи на прошедшие дни»">⏮ задачи и на прошедшие дни</span>' : '') +
+          (ob.hide ? '<span class="gpr-past" style="cursor:default;color:#b45309" title="Объект был скрыт фильтром графика — в копии он есть">скрыт фильтром графика</span>' : '') +
+          '<span class="gpr-past" style="cursor:default">работ: ' + rows.length + '</span>' +
+          '</div><div class="gpr-works">';
+        if (!rows.length) h += '<div class="gpr-empty">Работ не назначено</div>';
+        rows.forEach(function (wrk) {
+          var w = null; try { w = area ? WORK.getWork(area, wrk.wid) : null; } catch (e) {}
+          var gp = gwWorkGroup(w);
+          var title = gp || (w && w.name) || ('вид работы ' + wrk.wid);
+          var sub = (gp && w && w.name && w.name !== gp) ? w.name : '';
+          var occN = (wrk.occs || []).filter(function (oc) { return oc && String(oc.date || '').slice(0, 4) === yr; }).length;
+          h += '<div class="gpr-ro-row">' +
+            '<div class="gpr-inp gpr-ro" style="display:flex;align-items:center;gap:7px" title="' + esc((w && w.name) || title) + '">' + gwTriangle(gwColorOf(g, wrk.wid), 11) +
+            '<div style="min-width:0"><div style="font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(title) + '</div>' +
+            (sub ? '<div style="font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(sub) + '</div>' : '') +
+            (!w ? '<div style="font-size:12px;color:#b45309">⚠ этого вида работы уже нет в справочнике участка</div>' : '') +
+            '</div></div>' +
+            '<div class="gpr-inp gpr-ro" style="text-align:center">' + (+wrk.period ? esc(String(wrk.period).replace('.', ',')) : '—') + '</div>' +
+            '<div class="gpr-inp gpr-ro" style="text-align:center">' + (+wrk.dev ? esc(String(+wrk.dev)) : '—') + '</div>' +
+            '<div class="gpr-inp gpr-ro" style="text-align:center">' + (wrk.first ? esc(fmtDmyIso(wrk.first)) : '—') + '</div>' +
+            '<div class="gpr-inp gpr-ro" style="text-align:center">' + occN + '</div>' +
+            '</div>';
+        });
+        h += '</div></div>';
+      });
+      h += '</div></div></div>';
+    }
+    h += '</div>';
+    h += '<div class="modal-f"><button type="button" class="btn" data-action="close-modal3">Закрыть</button></div>';
+    m3.innerHTML = h;
+    m3.style.width = 'min(1000px,94vw)'; m3.style.maxWidth = '94vw';
+    ov3.classList.add('show');
+  }
+  /* 22.09-239: удаление копии графика — старший мастер, начальник участка, администратор.
+     Удаляется только копия: сам график и задания в планировании не меняются; номера
+     остальных копий сохраняются, номер удалённой повторно не выдаётся. */
+  function graphSnapDelete(sid) {
+    if (!canDeleteGraphSnaps()) { toast('err', 'Удалять копии графика могут старший мастер, начальник участка и администратор'); return; }
     var g = graphsFind(GS.cur); if (!g) return;
-    if (!window.confirm('Применить копию «' + snapIterLabel(sn.iter) + '» от ' + _snapDT(sn.ts) + ' к графику «' + g.name + '»?\n\nТекущие объекты, работы, периодичность и даты вхождений будут заменены содержимым копии, и задания в планировании будут выстроены заново по датам этого графика (выполненные останутся в истории). Отменить действие можно кнопкой «⟲ Отмена» в календаре.')) return;
+    var arr = graphSnapsLoad(g.id);
+    var sn = null;
+    arr.forEach(function (x) { if (x && x.id === sid) sn = x; });
+    if (!sn) { toast('err', 'Копия не найдена'); return; }
+    var lbl = snapIterLabel(sn.iter);
+    return spConfirm('Удалить копию графика «' + lbl + '» от ' + _snapDT(sn.ts) + '?\n\nКопия удалится безвозвратно. Сам график и задания в планировании не изменятся, номера остальных копий сохранятся.', { title: 'Удаление копии графика', ok: 'Удалить', danger: true }, function () { // 22.09-244: оформленное окно
+    graphSnapsIssuedSet(g.id, graphSnapsMaxIter(arr)); // номер удалённой копии повторно не выдаётся
+    if (sn.remote) { // 22.09-242: копия на сервере — удаляем там (у всех устройств сразу)
+      if (!snapApiOk() || !SP_API.snapDel) { toast('err', 'Нет связи с сервером — копию удалить нельзя, попробуйте позже'); return; }
+      return SP_API.snapDel(sid).then(function (r) {
+        if (!r || !r.ok) { toast('err', 'Не удалось удалить копию на сервере' + (r && r.err ? ': ' + r.err : '')); return; }
+        graphSnapsSaveList(g.id, graphSnapsLoad(g.id).filter(function (x) { return x && x.id !== sid; }));
+        delete GRAPH_SNAP_MEM[sid];
+        graphSnapDeleteDone(g, sn, lbl);
+      });
+    }
+    graphSnapsSaveList(g.id, arr.filter(function (x) { return x && x.id !== sid; }));
+    graphSnapDeleteDone(g, sn, lbl);
+    });
+  }
+  function graphSnapDeleteDone(g, sn, lbl) {
+    var ovP = document.getElementById('overlay3'); if (ovP) ovP.classList.remove('show'); // окно периодичности копии (если открыто)
+    var ovV = document.getElementById('overlay2'); if (ovV) ovV.classList.remove('show'); // окно просмотра копии (если открыто)
+    try { logAction('График: удаление копии', g.name + ' · ' + lbl + ' · копия от ' + _snapDT(sn.ts)); } catch (e3) {}
+    toast('ok', '🗑 Копия «' + lbl + '» удалена');
+    openGraphSnapsModal();
+  }
+  /* 22.09-240: печать сохранённой копии графика — те же настройки, что у «Печать графика»
+     (треугольники, наименования, даты; печать или Excel), но НОВАЯ копия при этом НЕ создаётся:
+     печатается сама копия, в шапке и внизу листа — «копия «N-я итерация» от …». Окно — поверх окна копии. */
+  function openGraphSnapPrintModal(sid) { graphSnapFetch(sid, openGraphSnapPrintModalRender); } // 22.09-242: копия может лежать на сервере
+  function openGraphSnapPrintModalRender(sn) {
+    var g = sn.graph || {};
+    if (!g.objs || !g.objs.length) { toast('err', 'В этой копии нет объектов — печатать нечего'); return; }
+    var ov3 = document.getElementById('overlay3'), m3 = document.getElementById('modal3');
+    if (!ov3 || !m3) return;
+    var h = '<div class="modal-h"><h3>🖨 Печать копии — ' + esc(snapIterLabel(sn.iter)) + '</h3><button class="x" data-action="close-modal3">×</button></div>';
+    h += '<div class="modal-b">';
+    h += '<div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.5">График «<b style="color:var(--ink)">' + esc(g.name || '—') + '</b>» · ' + esc(String(g.year || '')) + ' год · копия от ' + esc(_snapDT(sn.ts)) + '. Печатается сама эта копия — <b>новая копия при печати не создаётся</b>.</div>';
+    h += '<label class="gpr-past" style="margin-bottom:10px;font-size:12.5px"><input type="checkbox" id="gp-tris" checked> Треугольники (выполненные — квадраты с крестиком)</label>';
+    h += '<label class="gpr-past" style="margin-bottom:10px;font-size:12.5px"><input type="checkbox" id="gp-names" checked> Наименования работ</label>';
+    h += '<label class="gpr-past" style="margin-bottom:10px;font-size:12.5px"><input type="checkbox" id="gp-dates" checked> Даты проведения работ</label>';
+    h += '<div class="calc" style="font-size:12px;align-items:flex-start">Сверху над месяцами печатается год графика (' + esc(String(g.year || '')) + '). Скрытые фильтром объекты не печатаются. В шапке и внизу листа указано, что это копия «' + esc(snapIterLabel(sn.iter)) + '». В Excel: работы построчно, треугольники — цветом работ, второй лист «Обозначения».</div>';
+    h += '</div>';
+    h += '<div class="modal-f">' +
+      '<button type="button" class="btn" data-action="graph-snap-excel-go" data-sid="' + esc(sn.id) + '" title="Выгрузить эту копию графика в Excel с теми же настройками">📥 Excel</button>' +
+      '<button type="button" class="btn ok" data-action="graph-snap-print-go" data-sid="' + esc(sn.id) + '">🖨 Печать</button>' +
+      '<button type="button" class="btn danger" data-action="close-modal3">Отменить</button>' +
+      '</div>';
+    m3.innerHTML = h;
+    m3.style.width = ''; m3.style.maxWidth = '480px';
+    ov3.classList.add('show');
+  }
+  function graphSnapApply(sid) { graphSnapFetch(sid, graphSnapApplyRun); } // 22.09-242
+  function graphSnapApplyRun(sn) {
+    var g = graphsFind(GS.cur); if (!g) return;
+    return spConfirm('Применить копию «' + snapIterLabel(sn.iter) + '» от ' + _snapDT(sn.ts) + ' к графику «' + g.name + '»?\n\nТекущие объекты, работы, периодичность и даты вхождений будут заменены содержимым копии, и задания в планировании будут выстроены заново по датам этого графика (выполненные останутся в истории). Отменить действие можно кнопкой «⟲ Отмена» в календаре.', { title: 'Применение копии графика', ok: 'Применить' }, function () { // 22.09-244: оформленное окно
     var list = graphsLoad();
     var restored = null;
     for (var i = 0; i < list.length; i++) {
@@ -20452,6 +20806,7 @@
     if (rs) toast('ok', '📅 Задания в планировании выстроены по графику: создано ' + (rs.created || 0) + ', убрано прежних ' + (rs.removed || 0) + ', сохранено выполненных ' + (rs.kept || 0) + (rs.dup ? ', уже существовали (без дублей): ' + rs.dup : '') + '. Отменить всё: «⟲ Отмена» в календаре.');
     if (S.screen === 'calendar') { try { refresh(); } catch (eC) {} }
     renderGraphs();
+    });
   }
 
   function openGraphPrintModal() {
@@ -20463,7 +20818,7 @@
     h += '<label class="gpr-past" style="margin-bottom:10px;font-size:12.5px"><input type="checkbox" id="gp-tris" checked> Треугольники (выполненные — квадраты с крестиком)</label>';
     h += '<label class="gpr-past" style="margin-bottom:10px;font-size:12.5px"><input type="checkbox" id="gp-names" checked> Наименования работ</label>';
     h += '<label class="gpr-past" style="margin-bottom:10px;font-size:12.5px"><input type="checkbox" id="gp-dates" checked> Даты проведения работ</label>';
-    h += '<div class="calc" style="font-size:11px;align-items:flex-start">Сверху над месяцами печатается год графика (' + esc(String(g.year)) + '). Скрытые фильтром объекты не печатаются. В Excel: работы построчно, треугольники — цветом работ, второй лист «Обозначения».</div>';
+    h += '<div class="calc" style="font-size:12px;align-items:flex-start">Сверху над месяцами печатается год графика (' + esc(String(g.year)) + '). Скрытые фильтром объекты не печатаются. В Excel: работы построчно, треугольники — цветом работ, второй лист «Обозначения».</div>';
     h += '</div>';
     h += '<div class="modal-f">' +
       '<button type="button" class="btn" data-action="graphs-excel-go" title="Выгрузить график в Excel с теми же настройками">📥 Excel</button>' +
@@ -20474,20 +20829,21 @@
     modal.style.maxWidth = '480px';
     overlay.classList.add('show');
   }
-  function graphPrintOpts() {
-    function chk(id) { var el = document.getElementById(id); return el ? el.checked : true; }
+  function graphPrintOpts(root) { // 22.09-240: root — окно, из которого читать галочки (печать копии — третье окно)
+    function chk(id) { var el = (root && root.querySelector) ? root.querySelector('#' + id) : document.getElementById(id); return el ? el.checked : true; }
     return { tris: chk('gp-tris'), names: chk('gp-names'), dates: chk('gp-dates') };
   }
 
   /* Печатная версия графика (окно печати, А4 альбомная): слева объекты,
      сверху год над месяцами, в ячейках — треугольники/квадраты, наименования
      и даты — по выбранным свойствам печати */
-  function graphsPrintGo() {
-    var list = graphsLoad();
-    var g = null;
-    list.forEach(function (x) { if (x.id === GS.cur) g = x; });
-    if (!g || !g.objs || !g.objs.length) { overlay.classList.remove('show'); return; }
-    var o = graphPrintOpts();
+  function graphsPrintGo(gArg, snap) {
+    // 22.09-240: gArg/snap — печать сохранённой КОПИИ графика (новая копия при этом НЕ создаётся)
+    var g = gArg || null;
+    if (!g) graphsLoad().forEach(function (x) { if (x.id === GS.cur) g = x; });
+    if (!g || !g.objs || !g.objs.length) { if (gArg) toast('err', 'В копии нет объектов — печатать нечего'); else overlay.classList.remove('show'); return; }
+    var snapTxt = snap ? 'копия «' + snapIterLabel(snap.iter) + '» от ' + _snapDT(snap.ts) : '';
+    var o = graphPrintOpts(gArg ? document.getElementById('modal3') : null);
     var area = g.area || graphAreaDefault(g);
     var rows = [];
     g.objs.forEach(function (ob) {
@@ -20523,7 +20879,7 @@
     var w = window.open('', '_blank', 'width=1100,height=800');
     if (!w) { toast('err', 'Разрешите всплывающие окна для печати'); return; }
     w.document.write(
-      '<html><head><meta charset="UTF-8"><title>График ' + esc(g.name) + ' ' + g.year + '</title>' +
+      '<html><head><meta charset="UTF-8"><title>График ' + esc(g.name) + ' ' + g.year + (snap ? ' — ' + esc(snapIterLabel(snap.iter)) : '') + '</title>' +
       '<style>' +
       '@page{size:A4 landscape;margin:1cm}' +
       'body{font-family:"Segoe UI",Arial,sans-serif;font-size:9pt;color:#000;margin:0}' +
@@ -20545,13 +20901,14 @@
       '.footer{margin-top:8pt;font-size:7.5pt;color:#888;text-align:center;border-top:.5pt solid #aaa;padding-top:4pt}' +
       '@media print{.noprint{display:none}}' +
       '</style></head><body>' +
-      '<div class="hdr"><div class="org">УП «МИНГАЗ» · УБиРОГС</div><h1>График «' + esc(g.name) + '»</h1><div class="sub">Ответственный: ' + esc(g.respName || '—') + ' · объектов: ' + rows.length + '</div></div>' +
+      '<div class="hdr"><div class="org">УП «МИНГАЗ» · УБиРОГС</div><h1>График «' + esc(g.name) + '»</h1><div class="sub">Ответственный: ' + esc(g.respName || '—') + ' · объектов: ' + rows.length + (snapTxt ? ' · ' + esc(snapTxt) : '') + '</div></div>' +
       '<table><thead><tr><th class="obj" rowspan="2">Объект</th><th class="year" colspan="12">' + g.year + ' год</th></tr>' +
       '<tr>' + monthHeads + '</tr></thead><tbody>' + rows.join('') + '</tbody></table>' +
-      '<div class="footer">SmartPlan · график «' + esc(g.name) + '» · ' + g.year + ' · сформирован ' + fmt(TODAY) + '</div>' +
+      '<div class="footer">SmartPlan · график «' + esc(g.name) + '» · ' + g.year + (snapTxt ? ' · ' + esc(snapTxt) : '') + ' · сформирован ' + fmt(TODAY) + '</div>' +
       '<div class="noprint" style="text-align:center;margin-top:10pt"><button onclick="window.print()" style="padding:7pt 22pt;font-size:10.5pt;cursor:pointer;background:#ca8a04;color:#fff;border:none;border-radius:6pt">🖨 Печать</button></div>' +
       '</body></html>');
     w.document.close();
+    if (snap) { try { logAction('Печать копии графика', g.name + ' · ' + snapTxt); } catch (eL) {} } // 22.09-240
     setTimeout(function () { w.focus(); w.print(); }, 400);
   }
 
@@ -20562,15 +20919,14 @@
      цветом работы из «Обозначений работ» графика — как на экране.
      Лист «Обозначения» — легенда цветов. Если стилевая библиотека не
      загрузилась — выгрузка всё равно проходит, но без цветов. */
-  function graphsExportExcel(opts) {
+  function graphsExportExcel(opts, gArg, snap) { // 22.09-240: gArg/snap — выгрузка сохранённой КОПИИ (без новой копии)
     opts = opts || { tris: true, names: true, dates: true };
     ensureXlsxStyle().then(function (okStyle) {
       var XL = okStyle ? window.XLSX_STYLE : window.XLSX;
-      if (!XL) { ensureXlsxRetry(function () { graphsExportExcel(opts); }); return; }
-      var list = graphsLoad();
-      var g = null;
-      list.forEach(function (x) { if (x.id === GS.cur) g = x; });
-      if (!g || !g.objs || !g.objs.length) { toast('err', 'Добавьте объекты в график'); return; }
+      if (!XL) { ensureXlsxRetry(function () { graphsExportExcel(opts, gArg, snap); }); return; }
+      var g = gArg || null;
+      if (!g) graphsLoad().forEach(function (x) { if (x.id === GS.cur) g = x; });
+      if (!g || !g.objs || !g.objs.length) { toast('err', gArg ? 'В копии нет объектов — выгружать нечего' : 'Добавьте объекты в график'); return; }
       var area = g.area || graphAreaDefault(g);
       var BN = 'FFB9C4CE';
       function bd() { return { top: { style: 'thin', color: { rgb: BN } }, bottom: { style: 'thin', color: { rgb: BN } }, left: { style: 'thin', color: { rgb: BN } }, right: { style: 'thin', color: { rgb: BN } } }; }
@@ -20658,7 +21014,7 @@
       try {
         XL.utils.book_append_sheet(wb, ws, 'График ' + g.year);
         XL.utils.book_append_sheet(wb, wsL, 'Обозначения');
-        var fn = 'График_' + g.name.replace(/[\\/:*?"<>|]/g, '_') + '_' + g.year + '.xlsx';
+        var fn = 'График_' + g.name.replace(/[\\/:*?"<>|]/g, '_') + '_' + g.year + (snap ? '_' + snapIterLabel(snap.iter).replace(/\s+/g, '_') : '') + '.xlsx'; // 22.09-240: копия — с номером итерации
         // скачивание вручную (стилевой бандл не проставляет имя файла в a.download)
         var out = XL.write(wb, { bookType: 'xlsx', type: 'array' });
         var blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -20669,7 +21025,7 @@
         document.body.appendChild(a);
         a.click();
         setTimeout(function () { try { URL.revokeObjectURL(url); a.remove(); } catch (e) {} }, 4000);
-        logAction('Печать графика в Excel', g.name + ' (' + rows + ' объектов, ' + (okStyle ? 'цветные обозначения' : 'без цветов') + ')');
+        logAction(snap ? 'Печать копии графика в Excel' : 'Печать графика в Excel', g.name + (snap ? ' · копия «' + snapIterLabel(snap.iter) + '» от ' + _snapDT(snap.ts) : '') + ' (' + rows + ' объектов, ' + (okStyle ? 'цветные обозначения' : 'без цветов') + ')');
         toast('ok', '📥 График выгружен в Excel: ' + fn + ' · треугольники цветом работ' + (okStyle ? '' : ' · библиотека цветов не загрузилась, выгружено без цветов'));
       } catch (err) {
         console.error('Ошибка выгрузки Excel:', err);
@@ -20914,14 +21270,14 @@
     // Легенда подсветки: чей график смен и сколько рабочих дней в месяце
     if (g.respId) {
       var mName = g.respName || '';
-      h += '<div style="display:flex;gap:8px;align-items:center;margin-top:10px;font-size:11.5px;color:var(--muted);font-weight:700;flex-wrap:wrap">' +
+      h += '<div style="display:flex;gap:8px;align-items:center;margin-top:10px;font-size:12.5px;color:var(--muted);font-weight:700;flex-wrap:wrap">' +
         '<span style="width:14px;height:14px;border-radius:3px;background:#dcfce7;border:1px solid #16a34a;flex:0 0 auto"></span>' +
         'мастер ' + (mName ? '«' + esc(mName) + '» ' : '') + 'на работе (график смен, вкладка «Работники») — ' + workCnt + ' дн. в этом месяце' +
         '</div>';
     }
     // 22.09-121: легенда зимнего периода
     if (g.winter && g.winter.from && g.winter.to) {
-      h += '<div style="display:flex;gap:8px;align-items:center;margin-top:8px;font-size:11.5px;color:var(--muted);font-weight:700;flex-wrap:wrap">' +
+      h += '<div style="display:flex;gap:8px;align-items:center;margin-top:8px;font-size:12.5px;color:var(--muted);font-weight:700;flex-wrap:wrap">' +
         '<span style="width:14px;height:14px;border-radius:3px;background:#e0f0fb;border:1px solid #0284c7;flex:0 0 auto"></span>' +
         '❄️ Зимний период: с ' + gwMdRu(g.winter.from) + ' по ' + gwMdRu(g.winter.to) + ' (ежегодно)' +
         '</div>';
@@ -21077,7 +21433,7 @@
         h += '<div class="gl-row' + (GS.cur === g.id ? ' cur' : '') + '" data-action="graphs-pick" data-gid="' + esc(g.id) + '">' +
           '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" style="flex:0 0 18px;color:var(--blue)"><path d="M3 21h18"/><path d="M7 17v-6"/><path d="M12 17V6"/><path d="M17 17v-10"/></svg>' +
           '<div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(g.name) + '</div>' +
-          '<div style="font-size:11.5px;color:var(--muted)">' + esc(String(g.year)) + (g.respName ? ' · ' + esc(g.respName) : '') + '</div></div>' +
+          '<div style="font-size:12.5px;color:var(--muted)">' + esc(String(g.year)) + (g.respName ? ' · ' + esc(g.respName) : '') + '</div></div>' +
           (GS.cur === g.id ? '<span class="chip" style="background:#dbeafe;color:#1d4ed8">выбран</span>' : '') +
           '<button type="button" class="gt-btn gt-blue" data-action="graphs-edit" data-gid="' + esc(g.id) + '" data-tip="Редактировать график">' + GT_ICONS.pencil + '</button>' +
           '<button type="button" class="gt-btn gt-green" data-action="graphs-copy" data-gid="' + esc(g.id) + '" data-tip="Копировать график">' + GT_ICONS.copy + '</button>' +
@@ -21133,6 +21489,7 @@
     if (S.screen === 'graphs') renderGraphs(); else setScreen('graphs');
   }
 
+  /* ── часть 16 · app/16_test_polygon.js — полигон «Тест» (тест проезда) ── */
   /* =====================================================================
      СТРАНИЦА «ТЕСТ» — полигон (полная копия «Карта маршрутов»)
      =====================================================================
@@ -21292,7 +21649,7 @@
     html += '<div class="map-wrap"><div><div class="card"><div class="card-h"><div style="display:flex;flex-direction:column;line-height:1.15;gap:2px;"><span style="font-size:13px;font-weight:700;color:var(--ink);">Задания на</span><span style="font-size:12px;font-weight:700;color:var(--blue);">' + shortDateStr + '</span></div><div class="spacer"></div>' + masterSelHTML + '</div><div class="card-b mlist" id="t-mlist">';
     if (!pts.length) html += '<div class="empty">На этот день заданий нет</div>';
     pts.forEach(function (p, i) {
-      html += '<div class="mtask sel" data-mid="' + p.id + '" draggable="true"><div class="mtask-grip">' + IC.grip + '</div><div class="pin" style="background:' + p.mcol + '">' + (i + 1) + '</div><div style="flex:1;min-width:0"><div style="font-weight:700;color:var(--ink);font-size:12.5px;margin-bottom:3px">📍 ' + esc(p.addr) + '</div><div style="font-size:11.5px;color:var(--txt);margin-bottom:2px">🔧 ' + esc(p.work) + '</div><div style="font-size:11.5px;color:var(--muted);">⏱ Норма времени: <b>' + fmtH(p.norm) + ' ч</b></div></div></div>';
+      html += '<div class="mtask sel" data-mid="' + p.id + '" draggable="true"><div class="mtask-grip">' + IC.grip + '</div><div class="pin" style="background:' + p.mcol + '">' + (i + 1) + '</div><div style="flex:1;min-width:0"><div style="font-weight:700;color:var(--ink);font-size:12.5px;margin-bottom:3px">📍 ' + esc(p.addr) + '</div><div style="font-size:12.5px;color:var(--txt);margin-bottom:2px">🔧 ' + esc(p.work) + '</div><div style="font-size:12.5px;color:var(--muted);">⏱ Норма времени: <b>' + fmtH(p.norm) + ' ч</b></div></div></div>';
     });
     // Блок базы — как задание, в конце списка
     var existRT = getRouteTime(TS.master !== 'all' ? TS.master : null, off);
@@ -21301,8 +21658,8 @@
       '<div class="pin" style="background:var(--card);color:var(--navy);font-size:14px;">🏁</div>' +
       '<div style="flex:1;min-width:0">' +
         '<div style="font-weight:700;font-size:12.5px;margin-bottom:3px;color:#fff">📍 ' + esc(base.name) + '</div>' +
-        '<div style="font-size:11.5px;color:#93c5fd;margin-bottom:2px">🏠 База · точка возврата</div>' +
-        '<div style="font-size:11.5px;color:#cbd5e1;" id="t-base-return-info">' + (existRT && existRT.lastLegMin ? '🛣 От последнего задания: <b style="color:#fff">' + fmtDuration(existRT.lastLegMin) + '</b> · ' + (existRT.lastLegKm || 0).toFixed(1).replace('.', ',') + ' км' : 'Маршрут до базы рассчитается при оптимизации') + '</div>' +
+        '<div style="font-size:12.5px;color:#93c5fd;margin-bottom:2px">🏠 База · точка возврата</div>' +
+        '<div style="font-size:12.5px;color:#cbd5e1;" id="t-base-return-info">' + (existRT && existRT.lastLegMin ? '🛣 От последнего задания: <b style="color:#fff">' + fmtDuration(existRT.lastLegMin) + '</b> · ' + (existRT.lastLegKm || 0).toFixed(1).replace('.', ',') + ' км' : 'Маршрут до базы рассчитается при оптимизации') + '</div>' +
       '</div></div>';
     html += '</div></div></div>';
 
@@ -21733,7 +22090,7 @@
 
     // Блок 1: открытие формы задачи
     html += '<div style="margin-bottom:14px;padding:14px;background:var(--panel-2);border:1px solid var(--line);border-radius:10px">';
-    html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><div style="font-size:13px;font-weight:800;color:var(--ink)">📋 Задача</div><span style="font-size:11px;color:var(--muted)">— полная форма как в планировании</span></div>';
+    html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><div style="font-size:13px;font-weight:800;color:var(--ink)">📋 Задача</div><span style="font-size:12px;color:var(--muted)">— полная форма как в планировании</span></div>';
     html += '<button type="button" id="td-open-form" class="btn primary" style="background:#2563eb;color:#fff;border:none;padding:9px 18px;font-weight:700;display:inline-flex;align-items:center;gap:6px">＋ Открыть форму задачи</button>';
     html += '</div>';
 
@@ -21786,7 +22143,7 @@
     html += '<input type="number" id="td-hours" step="0.1" min="0" placeholder="2.5" value="' + (data.hours != null ? data.hours : '') + '" style="width:200px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:var(--bg);color:var(--ink)">';
     html += '<span style="font-size:12px;color:var(--muted)">чел·ч</span>';
     html += '</div>';
-    html += '<div style="font-size:11px;color:var(--muted);margin-top:4px">Рассчитывается автоматически из выбранной задачи (norm × объём). Можно править руками для проверки формулы.</div>';
+    html += '<div style="font-size:12px;color:var(--muted);margin-top:4px">Рассчитывается автоматически из выбранной задачи (norm × объём). Можно править руками для проверки формулы.</div>';
     html += '</div>';
 
     // Кнопки
@@ -21866,20 +22223,20 @@
     workHours = taskWorksTotal; // перезаписываем — теперь трудоёмкость из задачи
 
     html += '<div class="card" style="padding:14px 16px;background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #86efac;border-radius:12px">';
-    html += '<div style="font-size:11px;font-weight:800;color:#166534;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🔧 Трудоёмкость работы</div>';
+    html += '<div style="font-size:12px;font-weight:800;color:#166534;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🔧 Трудоёмкость работы</div>';
     if (taskWorksList.length) {
       taskWorksList.forEach(function (it, i) {
         html += '<div style="border-bottom:' + (i < taskWorksList.length - 1 ? '1px dashed #86efac' : 'none') + ';padding:6px 0">';
         html += '<div style="font-size:12.5px;font-weight:700;color:var(--ink);margin-bottom:2px">' + esc(it.w.name) + '</div>';
-        if (it.w.group) html += '<div style="font-size:10.5px;color:var(--muted);margin-bottom:3px">📂 ' + esc(it.w.group) + '</div>';
-        html += '<div style="font-size:11px;color:var(--txt);display:flex;justify-content:space-between;align-items:baseline"><span>норма ' + (it.w.norm || 0) + ' × объём ' + it.vol + '</span><b style="color:#15803d">' + (it.h ? it.h.toFixed(2).replace('.', ',') + ' ч' : '—') + '</b></div>';
+        if (it.w.group) html += '<div style="font-size:12px;color:var(--muted);margin-bottom:3px">📂 ' + esc(it.w.group) + '</div>';
+        html += '<div style="font-size:12px;color:var(--txt);display:flex;justify-content:space-between;align-items:baseline"><span>норма ' + (it.w.norm || 0) + ' × объём ' + it.vol + '</span><b style="color:#15803d">' + (it.h ? it.h.toFixed(2).replace('.', ',') + ' ч' : '—') + '</b></div>';
         html += '</div>';
       });
       html += '<div style="border-top:2px solid #86efac;margin-top:8px;padding-top:8px;display:flex;justify-content:space-between;align-items:baseline">';
-      html += '<span style="font-size:11px;font-weight:800;color:#166534">ВСЕГО</span>';
+      html += '<span style="font-size:12px;font-weight:800;color:#166534">ВСЕГО</span>';
       html += '<b style="font-size:18px;font-weight:900;color:#15803d">' + (taskWorksTotal ? taskWorksTotal.toFixed(2).replace('.', ',') + ' ч' : '—') + '</b>';
       html += '</div>';
-      html += '<div style="font-size:10.5px;color:var(--muted);margin-top:6px">из выбранной задачи</div>';
+      html += '<div style="font-size:12px;color:var(--muted);margin-top:6px">из выбранной задачи</div>';
     } else if (selectedTask) {
       html += '<div style="font-size:12px;color:var(--muted);padding:14px 0;text-align:center">У задачи не указан вид работ</div>';
     } else {
@@ -21889,13 +22246,13 @@
 
     // Карточка «Дорога от базы»
     html += '<div class="card" style="padding:14px 16px;background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1px solid #93c5fd;border-radius:12px">';
-    html += '<div style="font-size:11px;font-weight:800;color:#1e40af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🚗 От базы до объекта</div>';
+    html += '<div style="font-size:12px;font-weight:800;color:#1e40af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🚗 От базы до объекта</div>';
     if (objCoords && base) {
-      html += '<div style="font-size:10.5px;color:var(--muted);margin-bottom:8px">🏠 База: <b style="color:var(--ink)">' + esc(base.name) + '</b></div>';
-      html += '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px"><span style="font-size:11px;color:var(--muted)">Расстояние</span><b style="font-size:14px;color:var(--ink)">' + (roadKm > 0 ? roadKm.toFixed(1).replace('.', ',') + ' км' : '—') + '</b></div>';
-      html += '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px"><span style="font-size:11px;color:var(--muted)">Без пробок</span><b style="font-size:13px;color:#16a34a">' + (freeMin ? fmtDuration(freeMin) : '—') + '</b></div>';
-      html += '<div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:11px;color:var(--muted)">С пробками</span><b style="font-size:13px;color:#dc2626">' + (jamMin ? fmtDuration(jamMin) : '—') + '</b></div>';
-      html += '<div style="font-size:10px;color:var(--muted);margin-top:6px;line-height:1.4">📏 по прямой × 1.4 (извилистость)<br>🚦 средняя Минск ~30 / ~22 км/ч</div>';
+      html += '<div style="font-size:12px;color:var(--muted);margin-bottom:8px">🏠 База: <b style="color:var(--ink)">' + esc(base.name) + '</b></div>';
+      html += '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px"><span style="font-size:12px;color:var(--muted)">Расстояние</span><b style="font-size:14px;color:var(--ink)">' + (roadKm > 0 ? roadKm.toFixed(1).replace('.', ',') + ' км' : '—') + '</b></div>';
+      html += '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px"><span style="font-size:12px;color:var(--muted)">Без пробок</span><b style="font-size:13px;color:#16a34a">' + (freeMin ? fmtDuration(freeMin) : '—') + '</b></div>';
+      html += '<div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:12px;color:var(--muted)">С пробками</span><b style="font-size:13px;color:#dc2626">' + (jamMin ? fmtDuration(jamMin) : '—') + '</b></div>';
+      html += '<div style="font-size:11.5px;color:var(--muted);margin-top:6px;line-height:1.4">📏 по прямой × 1.4 (извилистость)<br>🚦 средняя Минск ~30 / ~22 км/ч</div>';
     } else {
       html += '<div style="font-size:12px;color:var(--muted);padding:14px 0;text-align:center">' + (selectedTask ? 'У объекта нет координат' : 'Выберите или создайте задачу') + '</div>';
     }
@@ -21903,12 +22260,12 @@
 
     // Карточка «Итого»
     html += '<div class="card" style="padding:14px 16px;background:linear-gradient(135deg,#1e3a5f,#2563eb);color:#fff;border-radius:12px;box-shadow:0 4px 14px rgba(37,99,235,.25)">';
-    html += '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;opacity:.85">📊 ИТОГО</div>';
-    html += '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><span style="font-size:11.5px;opacity:.85">🔧 Работа</span><b style="font-size:14px">' + (workHours ? fmtH(workHours).replace(' ч','') + ' ч' : '—') + '</b></div>';
-    html += '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><span style="font-size:11.5px;opacity:.85">🚗 Дорога (с пробками)</span><b style="font-size:14px">' + (jamMin ? fmtDuration(jamMin) : '—') + '</b></div>';
+    html += '<div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;opacity:.85">📊 ИТОГО</div>';
+    html += '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><span style="font-size:12.5px;opacity:.85">🔧 Работа</span><b style="font-size:14px">' + (workHours ? fmtH(workHours).replace(' ч','') + ' ч' : '—') + '</b></div>';
+    html += '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><span style="font-size:12.5px;opacity:.85">🚗 Дорога (с пробками)</span><b style="font-size:14px">' + (jamMin ? fmtDuration(jamMin) : '—') + '</b></div>';
     html += '<div style="border-top:1px solid rgba(255,255,255,.2);margin:8px 0 6px"></div>';
     html += '<div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:12px;font-weight:700">⏱ Всё вместе</span><b style="font-size:20px;font-weight:900">' + (totalHours > 0 ? fmtH(totalHours).replace(' ч','') + ' ч' : '—') + '</b></div>';
-    html += '<div style="font-size:10px;opacity:.75;margin-top:4px">' + (jamMin ? '(работа ' + workHours + ' ч + дорога ' + (jamMin/60).toFixed(2) + ' ч)' : 'для расчёта нужна работа + задача') + '</div>';
+    html += '<div style="font-size:11.5px;opacity:.75;margin-top:4px">' + (jamMin ? '(работа ' + workHours + ' ч + дорога ' + (jamMin/60).toFixed(2) + ' ч)' : 'для расчёта нужна работа + задача') + '</div>';
     html += '</div>';
 
     html += '</div>'; // /right column
@@ -22085,9 +22442,9 @@
           "<div class='pin' style='background:" + p.mcol + "'>" + (i + 1) + "</div>" +
           "<div style='flex:1;min-width:0'>" +
             "<div style='font-weight:700;color:var(--ink);font-size:12.5px;margin-bottom:3px'>📍 " + esc(p.addr) + "</div>" +
-            "<div style='font-size:11.5px;color:var(--txt);margin-bottom:2px'>🔧 " + esc(p.work) + "</div>" +
-            "<div style='font-size:11.5px;color:var(--muted);margin-bottom:2px'>⏱ Норма: <b>" + fmtH(p.norm) + " ч</b></div>" +
-            "<div style='font-size:11.5px;color:var(--muted);margin-top:2px;'>" + routeInfoStr + "</div>" +
+            "<div style='font-size:12.5px;color:var(--txt);margin-bottom:2px'>🔧 " + esc(p.work) + "</div>" +
+            "<div style='font-size:12.5px;color:var(--muted);margin-bottom:2px'>⏱ Норма: <b>" + fmtH(p.norm) + " ч</b></div>" +
+            "<div style='font-size:12.5px;color:var(--muted);margin-top:2px;'>" + routeInfoStr + "</div>" +
           "</div></div>";
       });
     }
@@ -22104,8 +22461,8 @@
         "<div class='pin' style='background:#94a3b8;color:#fff'>○</div>" +
         "<div style='flex:1;min-width:0'>" +
           "<div style='font-weight:700;color:var(--muted);font-size:12.5px;margin-bottom:3px'>📍 " + esc(p.addr) + "</div>" +
-          "<div style='font-size:11.5px;color:var(--muted);margin-bottom:2px'>🔧 " + esc(p.work) + "</div>" +
-          "<div style='font-size:11.5px;color:var(--muted);'>⏸ Не в маршруте — нажмите, чтобы включить</div>" +
+          "<div style='font-size:12.5px;color:var(--muted);margin-bottom:2px'>🔧 " + esc(p.work) + "</div>" +
+          "<div style='font-size:12.5px;color:var(--muted);'>⏸ Не в маршруте — нажмите, чтобы включить</div>" +
         "</div></div>";
     });
     mlist.innerHTML = html;
@@ -22145,7 +22502,7 @@
           + '<span style="color:var(--muted);font-weight:600;">/</span> '
           + '<b style="color:#16a34a;">' + fmtDuration(info.freeMin) + ' (без пробок)</b>'
           + (Math.abs(info.jamsMin - estJamsMin) > 5
-             ? ' <span style="color:#94a3b8;font-size:10.5px;font-weight:600;" title="Оценка по часу суток ' + currentHourForJam() + ':00 — коэффициент ×' + jamK.toFixed(2) + '">· оценка Яндекс ~' + fmtDuration(estJamsMin) + '</span>'
+             ? ' <span style="color:#94a3b8;font-size:12px;font-weight:600;" title="Оценка по часу суток ' + currentHourForJam() + ':00 — коэффициент ×' + jamK.toFixed(2) + '">· оценка Яндекс ~' + fmtDuration(estJamsMin) + '</span>'
              : '');
       } else if (info.jamsMin || info.freeMin) {
         // Пробок нет (роутер без OSRM Trip) — показываем честную калибровку
@@ -22153,7 +22510,7 @@
           + '<b style="color:#2563eb;">' + fmtDuration(freeMin) + ' (без пробок)</b>'
           + ' <span style="color:var(--muted);font-weight:600;">/</span> '
           + '<b style="color:#dc2626;" title="Оценка по часу суток ' + currentHourForJam() + ':00 (Минск, будни)">~' + fmtDuration(estJamsMin) + ' (с пробками)</b>'
-          + ' <span style="color:#94a3b8;font-size:10.5px;font-weight:600;">· OSRM × 1.39, часовой ×' + jamK.toFixed(2) + '</span>';
+          + ' <span style="color:#94a3b8;font-size:12px;font-weight:600;">· OSRM × 1.39, часовой ×' + jamK.toFixed(2) + '</span>';
       } else {
         str = '<b style="color:var(--ink);font-size:13.5px;">' + kmStr + '</b> (напрямую из карты)';
       }
@@ -22217,6 +22574,7 @@
     } catch (e) { console.error('Подложка тест-карты не переключилась:', e); }
   }
 
+  /* ── часть 17 · app/17_weather.js — погода и карта погоды, выпадающее меню синхронизации ── */
   /* ============ 22.09-173: «GOOGLE EARTH 3D» — ОБЪЁМНЫЕ ДОМА ============
      Отдельная технология: MapLibre GL (грузится с CDN только при выборе этого
      режима). Подложка — спутник+схема города Google (vt lyrs=y), здания —
@@ -23000,7 +23358,7 @@
         snw.p = snw.c ? snw.p / snw.c : 0;
       }
       hi.innerHTML = '<div style="font-weight:800;font-size:13px">' + (String(h).padStart(2, '0')) + ':00</div>' +
-        '<div style="color:#64748b;font-size:11px">' +
+        '<div style="color:#64748b;font-size:12px">' +
         (snw.p > 0.05 ? '❄️ ' + (snw.p).toFixed(2) + ' см/ч' :
          avg.p > 0.05 ? '🌧 ' + (avg.p).toFixed(2) + ' мм/ч' : '☀️ без осадков') + '</div>';
     }
@@ -23630,21 +23988,21 @@
             '<div style="font-size:12px;opacity:.92;margin-top:2px">' + ptsCount + ' задани' + (ptsCount===1?'е':ptsCount<5?'я':'й') + ' · база «' + esc(base.name) + '» · ⭐ рекомендация (самый короткий) или выберите роутер радио-кнопкой</div>' +
           '</div>' +
           '<div style="display:flex;align-items:center;gap:8px">' +
-            '<span id="t-compare-progress" style="background:rgba(255,255,255,.18);padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.3px">⏳ 0 / 7</span>' +
+            '<span id="t-compare-progress" style="background:rgba(255,255,255,.18);padding:4px 10px;border-radius:20px;font-size:12px;font-weight:700;letter-spacing:.3px">⏳ 0 / 7</span>' +
             '<button id="t-compare-close" type="button" aria-label="Закрыть" title="Закрыть (Esc)"' +
             ' style="background:rgba(255,255,255,.18);border:none;color:#fff;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:20px;line-height:1;display:flex;align-items:center;justify-content:center;transition:background .2s"' +
             ' onmouseover="this.style.background=\'rgba(255,255,255,.32)\'" onmouseout="this.style.background=\'rgba(255,255,255,.18)\'">×</button>' +
           '</div>' +
         '</div>' +
         '<div id="t-compare-body" style="padding:18px 22px;overflow-y:auto;flex:1;background:var(--card)">' +
-          '<div style="display:grid;grid-template-columns:42px minmax(140px,2fr) 1fr 1fr 1fr 36px;gap:10px;padding:8px 12px;background:var(--panel-2);border-radius:8px;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;align-items:center">' +
+          '<div style="display:grid;grid-template-columns:42px minmax(140px,2fr) 1fr 1fr 1fr 36px;gap:10px;padding:8px 12px;background:var(--panel-2);border-radius:8px;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;align-items:center">' +
             '<div></div><div>Роутер / движок</div><div style="text-align:right">Дистанция</div><div style="text-align:right">Время</div><div style="text-align:center">Статус</div><div style="text-align:center">Взять</div>' +
           '</div>' +
           '<div id="t-compare-list" style="display:flex;flex-direction:column;gap:8px"></div>' +
           '<div id="t-compare-foot" style="margin-top:14px"></div>' +
         '</div>' +
         '<div style="padding:10px 22px;background:var(--panel-2);border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-shrink:0">' +
-          '<div style="font-size:10.5px;color:var(--muted);line-height:1.5">' +
+          '<div style="font-size:12px;color:var(--muted);line-height:1.5">' +
             '<b>Цветной кружок</b> слева = движок (O=OSRM, F=FOSSGIS car, V=Valhalla, C=osm.ch, A=BRouter car, 0=прямая).<br>' +
             '<b>⭐</b> слева вверху — рекомендация системы (минимальная дистанция). Справа в строке — радио-кнопка для вашего выбора.' +
           '</div>' +
@@ -23752,16 +24110,16 @@
               '<div style="display:flex;align-items:center;gap:6px;overflow:hidden">' +
                 '<span style="font-size:14px;flex-shrink:0">' + icon + '</span>' +
                 '<b style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + name + '</b>' +
-                (url ? '<a href="' + url + '" target="_blank" rel="noopener" style="font-size:10px;color:#94a3b8;text-decoration:none;flex-shrink:0" title="Открыть сервис">↗</a>' : '') +
+                (url ? '<a href="' + url + '" target="_blank" rel="noopener" style="font-size:11.5px;color:#94a3b8;text-decoration:none;flex-shrink:0" title="Открыть сервис">↗</a>' : '') +
               '</div>' +
-              '<div style="font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + badge.title + '</div>' +
+              '<div style="font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + badge.title + '</div>' +
             '</div>' +
             // Дистанция
             '<div style="text-align:right;font-variant-numeric:tabular-nums"><b style="font-size:14px">' + kmStr + '</b></div>' +
             // Время
             '<div style="text-align:right;font-variant-numeric:tabular-nums"><b style="font-size:14px">' + minStr + '</b></div>' +
             // Статус
-            '<div style="text-align:center;font-size:11.5px;font-weight:600;' + (r.ok ? 'color:#15803d' : 'color:#dc2626') + '">' + statusText + '</div>' +
+            '<div style="text-align:center;font-size:12.5px;font-weight:600;' + (r.ok ? 'color:#15803d' : 'color:#dc2626') + '">' + statusText + '</div>' +
             // Радио-кнопка
             '<div style="display:flex;justify-content:center">' + radio + '</div>' +
           '</div>'
@@ -23824,7 +24182,7 @@
               '<div style="font-weight:800;color:#14532d;font-size:14px">Рекомендация — ' + bestName + '</div>' +
               '<div style="font-size:12px;color:#166534;margin-top:2px">' + best.km.toFixed(1).replace('.', ',') + ' км · ' + fmtDuration(best.min) + (saving > 0 ? ' · на ' + saving.toFixed(1).replace('.', ',') + ' км короче самого длинного' : '') + '</div>' +
             '</div>' +
-            '<label style="display:flex;align-items:center;gap:5px;background:#fff;border:1px solid #16a34a;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:11.5px;font-weight:700;color:#15803d;white-space:nowrap" title="Принять рекомендацию">' +
+            '<label style="display:flex;align-items:center;gap:5px;background:#fff;border:1px solid #16a34a;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:12.5px;font-weight:700;color:#15803d;white-space:nowrap" title="Принять рекомендацию">' +
               '<input type="radio" name="t-compare-pick-quick" style="accent-color:#16a34a;cursor:pointer"> ' +
               '<span>Взять</span>' +
             '</label>' +
@@ -24625,16 +24983,16 @@
       list.innerHTML = arr.map(function (u) {
         var you = meId && u.id === meId;
         var name = esc(u.full_name || u.login || '—');
-        var login = u.login && u.full_name ? '<span style="color:var(--muted);font-weight:500;font-size:11px;margin-left:4px">@' + esc(u.login) + '</span>' : '';
+        var login = u.login && u.full_name ? '<span style="color:var(--muted);font-weight:500;font-size:12px;margin-left:4px">@' + esc(u.login) + '</span>' : '';
         var last = fmtAgo(u.last_seen);
         var role = esc(roleLabel(u.role));
         var bg = you ? 'background:#fef9c3' : 'background:transparent';
-        var youBadge = you ? ' <span style="background:#16a34a;color:#fff;font-size:9.5px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">ВЫ</span>' : '';
+        var youBadge = you ? ' <span style="background:#16a34a;color:#fff;font-size:11px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">ВЫ</span>' : '';
         return '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);' + bg + ';transition:background .2s" onmouseover="this.style.background=\'' + (you ? '#fef3c7' : '#f1f5f9') + '\'" onmouseout="this.style.background=\'' + (you ? '#fef9c3' : 'transparent') + '\'">' +
           '<div style="flex:0 0 auto"><div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#0f2740,#1e3a5f);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800">' + esc((u.full_name || u.login || '?').trim().charAt(0).toUpperCase()) + '</div></div>' +
           '<div style="flex:1;min-width:0">' +
             '<div style="font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + name + youBadge + login + '</div>' +
-            '<div style="font-size:11px;color:var(--muted);margin-top:1px">' + role + ' · ' + last + '</div>' +
+            '<div style="font-size:12px;color:var(--muted);margin-top:1px">' + role + ' · ' + last + '</div>' +
           '</div>' +
           '<span style="width:8px;height:8px;border-radius:50%;background:#16a34a;box-shadow:0 0 0 2px #dcfce7"></span>' +
         '</div>';
