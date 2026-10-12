@@ -230,8 +230,10 @@
       if (_purged) setTimeout(function () { toast('warn', '🧹 Автоочистка базы: удалено «битых» задач с ошибочной датой далеко в будущем: ' + _purged + '. Они остались от опечатки в дате графика — теперь такие даты блокируются автоматически.'); }, 1800);
       if (_purged) { try { refresh(); } catch (eRf) {} }
     });
-    // 22.09-224: привязка дат задач к календарю (новый день — одно перебазирование)
-    try { rebaseTaskDaysToToday(); } catch (eRb) { try { console.error('rebaseTaskDaysToToday:', eRb); } catch (_e) {} }
+    // 22.09-224: привязка дат задач к календарю (новый день — одно перебазирование).
+    // 22.09-257: при живой связи с сервером — только после получения данных (rebaseAllowed),
+    // иначе локальный якорь затёр бы серверный ДО синхронизации
+    try { if (rebaseAllowed()) rebaseTaskDaysToToday(); } catch (eRb) { try { console.error('rebaseTaskDaysToToday:', eRb); } catch (_e) {} }
     document.body.classList.add('logged-in');
     var bs = document.getElementById('base-select'); if (bs) bs.value = S.baseId;
     applyUser();
@@ -418,6 +420,7 @@
   function doLogout() {
     try { if (window.SP_SYNC_POLL && SP_SYNC_POLL.stop) SP_SYNC_POLL.stop(); } catch (e) {}
     try { if (window.SP_API && SP_API.logout) SP_API.logout(); } catch (e) {}
+    try { if (typeof S !== 'undefined') S.wrAsked = false; } catch (eW) {} // 22.09-257: при повторном входе снова предложить восстановление видов работ
     DB.clearSession();
     showLoginScreen();
   }

@@ -83,6 +83,7 @@
     html += '<div><div class="map-box" id="mapbox"><div class="map-stats" id="map-stats" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;"><span>Объектов: <b>' + pts.length + '</b></span><span style="display:flex;align-items:center;gap:6px;border-left:1px solid var(--line);padding-left:12px;margin-left:4px;"><span style="color:var(--txt);font-weight:600;">Общее время и километраж:</span> <span id="route-info" style="color:var(--muted);font-weight:700;">нажмите «Оптимизировать маршрут» для расчета</span></span><span style="margin-left:auto;color:var(--muted)">🚩 ' + esc(currentBase().name) + '</span><button class="btn sm" id="btn-open-route-yandex" data-action="open-route-yandex" title="Открыть маршрут в Яндекс.Картах (новая вкладка): с базы → все включённые задания списка в их текущем порядке → обратно на базу" style="background:#fc3f1d;border-color:#fc3f1d;color:#fff;font-weight:700;white-space:nowrap">↗ Открыть в Яндекс карте</button></div><div id="map-canvas" style="width:100%;height:calc(100vh - 210px);min-height:400px"></div></div></div></div>';
 
     view.innerHTML = html;
+    rmFitLayout(); // 22.09-256: список и карта — до низа окна (карта создаётся уже под этот размер)
     S.mapSel = {}; pts.forEach(function (p) { S.mapSel[p.id] = true; });
     if (ymState.returnTrip) pts.returnTrip = ymState.returnTrip;
     ymState.manualOrder = false;
@@ -412,6 +413,47 @@
 
   }
 
+  /* 22.09-256: «Карта маршрутов» — список заданий и карта по высоте ровно до низа окна при любом
+     экране и масштабе. Раньше высоты были заданы «на глаз» (calc(100vh − 210/260px)): на одних
+     экранах блоки не доставали до низа, на других (где строка кнопок или строка «Объектов…» в две
+     строки) уходили за край; а карта, созданная при одном размере окна, после изменения размера
+     не заполняла свой блок. Теперь высота считается от фактического места на странице, карта
+     подгоняется под блок. В одну колонку (телефон/планшет) — как раньше. */
+  function rmFitLayout() {
+    try { rmFitLayoutRun(); } catch (e) { /* подгонка высоты не может ломать страницу */ }
+  }
+  function rmFitLayoutRun() {
+    if (S.screen !== 'map' || typeof window.getComputedStyle !== 'function') return;
+    var v = document.getElementById('view');
+    var wrap = v && v.querySelector('.map-wrap');
+    if (!wrap) return;
+    var cols = String(window.getComputedStyle(wrap).gridTemplateColumns || '').trim().split(/\s+/).filter(Boolean).length;
+    if (cols < 2) { wrap.classList.remove('rm-fit'); wrap.style.height = ''; v.style.paddingBottom = ''; ymFitMap(); return; }
+    v.style.paddingBottom = '12px'; // снизу — небольшой отступ, блоки почти до края окна (на других страницах — как было)
+    // где начинается блок внутри страницы — по раскладке (offsetTop), а не по экрану: в момент
+    // отрисовки идёт анимация появления (сдвиг вниз), и экранные координаты занижали высоту
+    function absTop(el) { var y = 0; while (el) { y += el.offsetTop || 0; el = el.offsetParent; } return y; }
+    var topIn = absTop(wrap) - absTop(v);
+    var pb = parseFloat(window.getComputedStyle(v).paddingBottom) || 0; // нижний отступ страницы
+    var h = Math.floor(v.clientHeight - topIn - pb);
+    wrap.classList.add('rm-fit');
+    wrap.style.height = Math.max(420, h) + 'px';                     // очень низкое окно — не меньше 420 px (тогда прокрутка)
+    ymFitMap();
+  }
+  function ymFitMap() {
+    try { if (ymState.ymap && ymState.ymap.container && ymState.ymap.container.fitToViewport) ymState.ymap.container.fitToViewport(); } catch (e) {}
+  }
+  (function () {
+    var raf = 0;
+    try {
+      window.addEventListener('resize', function () {
+        if (S.screen !== 'map') return;
+        if (raf) cancelAnimationFrame(raf);
+        raf = requestAnimationFrame(function () { raf = 0; rmFitLayout(); });
+      });
+    } catch (e) {}
+  })();
+
   // 3. Главная функция оптимизации при клике на кнопку «Оптимизация маршрутов» (для всех 4 карт: Яндекс, Google, OSM, 2ГИС)
   // === Загрузка Leaflet ===
   // 22.09-182: Leaflet-подложка и её загрузчик удалены (вызовов не осталось)
@@ -435,7 +477,8 @@
           mapDiv.style.cssText = 'position:absolute;inset:0';
           canvas.appendChild(mapDiv);
           // подложка всегда Яндекс (стандартная схема)
-          ymState.ymap = new ymaps.Map(mapDiv, { center: [53.9023, 27.5619], zoom: 11, controls: ['zoomControl'] }, { suppressMapOpenBlock: true });
+          // 22.09-256: autoFitToViewport — карта всегда по размеру своего блока (окно развернули/свернули, меню, масштаб)
+          ymState.ymap = new ymaps.Map(mapDiv, { center: [53.9023, 27.5619], zoom: 11, controls: ['zoomControl'] }, { suppressMapOpenBlock: true, autoFitToViewport: 'always' });
           // слой Яндекс.Пробок (включается кнопкой «🚦 Пробки»)
           try {
             ymState.traffic = new ymaps.traffic.provider.Actual({}, { infoLayerShown: true });

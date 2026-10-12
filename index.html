@@ -264,6 +264,13 @@
   .mtask .mt-t{font-weight:700;color:var(--ink);font-size:12.5px}
   .mtask .mt-s{font-size:12px;color:var(--muted)}
   .map-box{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:#dbe4ec;position:relative;display:flex;flex-direction:column}
+  /* 22.09-256: «Карта маршрутов» — список заданий и карта по высоте до низа окна (высоту ставит rmFitLayout) */
+  .map-wrap.rm-fit{align-items:stretch}
+  .map-wrap.rm-fit > div{min-height:0;display:flex;flex-direction:column}
+  .map-wrap.rm-fit > div > .card{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;margin:0}
+  .map-wrap.rm-fit .mlist{flex:1 1 auto;min-height:0;max-height:none}
+  .map-wrap.rm-fit .map-box{flex:1 1 auto;min-height:0}
+  .map-wrap.rm-fit #map-canvas{flex:1 1 auto;height:auto!important;min-height:0!important}
     .map-stats{display:flex;gap:8px;padding:10px 12px;background:#f1f5f9;border-bottom:1px solid var(--line);font-size:12px;flex-wrap:wrap}
   .map-stats b{color:var(--ink)}
 
@@ -1195,7 +1202,7 @@
           <div style="margin-top:6px;font-size:12px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-255 · восстановление затёртых видов работ из копии браузера (окно после входа и «Бэкапы баз данных»)</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-257 · три исправления после полного пересмотра кода (правки в первые секунды после входа, восстановление видов работ при повторном входе, даты задач на разных компьютерах)</div>
         <div style="margin-top:6px;text-align:center"><a href="#" id="li-cookie-link" class="cookie-link" title="Посмотреть или изменить разрешение">🍪 Cookie и хранилище браузера</a></div>
     </div>
   </div>
@@ -1407,17 +1414,17 @@
   }
 })();
 </script>
-<script src="root_index/config.js?v=22.09-255"></script>
-<script src="root_index/data.js?v=22.09-255"></script>
-<script src="root_index/users_db.js?v=22.09-255"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-255"></script>
-<script src="root_index/areas_db.js?v=22.09-255"></script>
-<script src="root_index/professions_db.js?v=22.09-255"></script>
-<script src="root_index/work_db.js?v=22.09-255"></script>
-<script src="root_index/objects_db.js?v=22.09-255"></script>
-<script src="root_index/workers_db.js?v=22.09-255"></script>
-<script src="root_index/tasks_db.js?v=22.09-255"></script>
-<script src="root_index/db.js?v=22.09-255"></script>
+<script src="root_index/config.js?v=22.09-257"></script>
+<script src="root_index/data.js?v=22.09-257"></script>
+<script src="root_index/users_db.js?v=22.09-257"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-257"></script>
+<script src="root_index/areas_db.js?v=22.09-257"></script>
+<script src="root_index/professions_db.js?v=22.09-257"></script>
+<script src="root_index/work_db.js?v=22.09-257"></script>
+<script src="root_index/objects_db.js?v=22.09-257"></script>
+<script src="root_index/workers_db.js?v=22.09-257"></script>
+<script src="root_index/tasks_db.js?v=22.09-257"></script>
+<script src="root_index/db.js?v=22.09-257"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -1435,12 +1442,12 @@
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-255"></script>
-      <script src="root_index/error_log.js?v=22.09-255"></script>
-      <script src="root_index/api_client.js?v=22.09-255"></script>
-      <script src="root_index/sync_polling.js?v=22.09-255"></script>
-      <script src="root_index/zip_util.js?v=22.09-255"></script>
-      <script src="root_index/app.js?v=22.09-255"></script>
+<script src="root_index/object_attrs.js?v=22.09-257"></script>
+      <script src="root_index/error_log.js?v=22.09-257"></script>
+      <script src="root_index/api_client.js?v=22.09-257"></script>
+      <script src="root_index/sync_polling.js?v=22.09-257"></script>
+      <script src="root_index/zip_util.js?v=22.09-257"></script>
+      <script src="root_index/app.js?v=22.09-257"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {

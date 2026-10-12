@@ -28,6 +28,23 @@
      на сегодня. Запись-якорь синхронизируется с сервером, как обычная запись,
      поэтому перебазирование выполняется один раз на всех устройствах. */
   var ANCHOR_TASK_ID = 't_day_anchor';
+  // 22.09-257: доступ из sync_polling.js — повторное перебазирование после получения данных с сервера
+  try { window.rebaseTaskDays = rebaseTaskDaysToToday; } catch (eExp) {}
+  /* 22.09-257: когда разрешено перебазирование дат задач. Раньше оно работало при входе ДО
+     получения данных с сервера: на пустом/новом браузере оно создавало якорь «сегодня» и ПИСАЛО
+     его на сервер, затирая настоящий якорь (от него отсчитываются даты ВСЕХ задач) — после
+     синхронизации сдвиг уже не производился и задачи уходили не на свои календарные даты.
+     Теперь: без связи с сервером (локальный режим / сервер недоступен) — как раньше, сразу;
+     при живой связи — только после первой синхронизации (её вызывает sync_polling.js). */
+  function rebaseAllowed() {
+    try {
+      if (!window.SP_API || !SP_API.getToken || !SP_API.getToken()) return true;
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) return true;
+      var st = (window.SP_SYNC_POLL && SP_SYNC_POLL.status) ? SP_SYNC_POLL.status() : null;
+      if (st && (st.errors || 0) >= 3) return true; // сервер недоступен — работаем по локальной копии
+      return !!(st && st.ready);
+    } catch (e) { return false; }
+  }
   function rebaseTaskDaysToToday() {
     if (!TASKS_DB || !TASKS_DB.getTask || !TASKS_DB.getTasks || !TASKS_DB.updateTask) return 0;
     var todayK = key(TODAY);
@@ -863,7 +880,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-255';
+  var SP_BUILD = '22.09-257';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -4341,6 +4358,7 @@
     html += '<div><div class="map-box" id="mapbox"><div class="map-stats" id="map-stats" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;"><span>Объектов: <b>' + pts.length + '</b></span><span style="display:flex;align-items:center;gap:6px;border-left:1px solid var(--line);padding-left:12px;margin-left:4px;"><span style="color:var(--txt);font-weight:600;">Общее время и километраж:</span> <span id="route-info" style="color:var(--muted);font-weight:700;">нажмите «Оптимизировать маршрут» для расчета</span></span><span style="margin-left:auto;color:var(--muted)">🚩 ' + esc(currentBase().name) + '</span><button class="btn sm" id="btn-open-route-yandex" data-action="open-route-yandex" title="Открыть маршрут в Яндекс.Картах (новая вкладка): с базы → все включённые задания списка в их текущем порядке → обратно на базу" style="background:#fc3f1d;border-color:#fc3f1d;color:#fff;font-weight:700;white-space:nowrap">↗ Открыть в Яндекс карте</button></div><div id="map-canvas" style="width:100%;height:calc(100vh - 210px);min-height:400px"></div></div></div></div>';
 
     view.innerHTML = html;
+    rmFitLayout(); // 22.09-256: список и карта — до низа окна (карта создаётся уже под этот размер)
     S.mapSel = {}; pts.forEach(function (p) { S.mapSel[p.id] = true; });
     if (ymState.returnTrip) pts.returnTrip = ymState.returnTrip;
     ymState.manualOrder = false;
@@ -4670,6 +4688,47 @@
 
   }
 
+  /* 22.09-256: «Карта маршрутов» — список заданий и карта по высоте ровно до низа окна при любом
+     экране и масштабе. Раньше высоты были заданы «на глаз» (calc(100vh − 210/260px)): на одних
+     экранах блоки не доставали до низа, на других (где строка кнопок или строка «Объектов…» в две
+     строки) уходили за край; а карта, созданная при одном размере окна, после изменения размера
+     не заполняла свой блок. Теперь высота считается от фактического места на странице, карта
+     подгоняется под блок. В одну колонку (телефон/планшет) — как раньше. */
+  function rmFitLayout() {
+    try { rmFitLayoutRun(); } catch (e) { /* подгонка высоты не может ломать страницу */ }
+  }
+  function rmFitLayoutRun() {
+    if (S.screen !== 'map' || typeof window.getComputedStyle !== 'function') return;
+    var v = document.getElementById('view');
+    var wrap = v && v.querySelector('.map-wrap');
+    if (!wrap) return;
+    var cols = String(window.getComputedStyle(wrap).gridTemplateColumns || '').trim().split(/\s+/).filter(Boolean).length;
+    if (cols < 2) { wrap.classList.remove('rm-fit'); wrap.style.height = ''; v.style.paddingBottom = ''; ymFitMap(); return; }
+    v.style.paddingBottom = '12px'; // снизу — небольшой отступ, блоки почти до края окна (на других страницах — как было)
+    // где начинается блок внутри страницы — по раскладке (offsetTop), а не по экрану: в момент
+    // отрисовки идёт анимация появления (сдвиг вниз), и экранные координаты занижали высоту
+    function absTop(el) { var y = 0; while (el) { y += el.offsetTop || 0; el = el.offsetParent; } return y; }
+    var topIn = absTop(wrap) - absTop(v);
+    var pb = parseFloat(window.getComputedStyle(v).paddingBottom) || 0; // нижний отступ страницы
+    var h = Math.floor(v.clientHeight - topIn - pb);
+    wrap.classList.add('rm-fit');
+    wrap.style.height = Math.max(420, h) + 'px';                     // очень низкое окно — не меньше 420 px (тогда прокрутка)
+    ymFitMap();
+  }
+  function ymFitMap() {
+    try { if (ymState.ymap && ymState.ymap.container && ymState.ymap.container.fitToViewport) ymState.ymap.container.fitToViewport(); } catch (e) {}
+  }
+  (function () {
+    var raf = 0;
+    try {
+      window.addEventListener('resize', function () {
+        if (S.screen !== 'map') return;
+        if (raf) cancelAnimationFrame(raf);
+        raf = requestAnimationFrame(function () { raf = 0; rmFitLayout(); });
+      });
+    } catch (e) {}
+  })();
+
   // 3. Главная функция оптимизации при клике на кнопку «Оптимизация маршрутов» (для всех 4 карт: Яндекс, Google, OSM, 2ГИС)
   // === Загрузка Leaflet ===
   // 22.09-182: Leaflet-подложка и её загрузчик удалены (вызовов не осталось)
@@ -4693,7 +4752,8 @@
           mapDiv.style.cssText = 'position:absolute;inset:0';
           canvas.appendChild(mapDiv);
           // подложка всегда Яндекс (стандартная схема)
-          ymState.ymap = new ymaps.Map(mapDiv, { center: [53.9023, 27.5619], zoom: 11, controls: ['zoomControl'] }, { suppressMapOpenBlock: true });
+          // 22.09-256: autoFitToViewport — карта всегда по размеру своего блока (окно развернули/свернули, меню, масштаб)
+          ymState.ymap = new ymaps.Map(mapDiv, { center: [53.9023, 27.5619], zoom: 11, controls: ['zoomControl'] }, { suppressMapOpenBlock: true, autoFitToViewport: 'always' });
           // слой Яндекс.Пробок (включается кнопкой «🚦 Пробки»)
           try {
             ymState.traffic = new ymaps.traffic.provider.Actual({}, { infoLayerShown: true });
@@ -16756,8 +16816,10 @@
       if (_purged) setTimeout(function () { toast('warn', '🧹 Автоочистка базы: удалено «битых» задач с ошибочной датой далеко в будущем: ' + _purged + '. Они остались от опечатки в дате графика — теперь такие даты блокируются автоматически.'); }, 1800);
       if (_purged) { try { refresh(); } catch (eRf) {} }
     });
-    // 22.09-224: привязка дат задач к календарю (новый день — одно перебазирование)
-    try { rebaseTaskDaysToToday(); } catch (eRb) { try { console.error('rebaseTaskDaysToToday:', eRb); } catch (_e) {} }
+    // 22.09-224: привязка дат задач к календарю (новый день — одно перебазирование).
+    // 22.09-257: при живой связи с сервером — только после получения данных (rebaseAllowed),
+    // иначе локальный якорь затёр бы серверный ДО синхронизации
+    try { if (rebaseAllowed()) rebaseTaskDaysToToday(); } catch (eRb) { try { console.error('rebaseTaskDaysToToday:', eRb); } catch (_e) {} }
     document.body.classList.add('logged-in');
     var bs = document.getElementById('base-select'); if (bs) bs.value = S.baseId;
     applyUser();
@@ -16944,6 +17006,7 @@
   function doLogout() {
     try { if (window.SP_SYNC_POLL && SP_SYNC_POLL.stop) SP_SYNC_POLL.stop(); } catch (e) {}
     try { if (window.SP_API && SP_API.logout) SP_API.logout(); } catch (e) {}
+    try { if (typeof S !== 'undefined') S.wrAsked = false; } catch (eW) {} // 22.09-257: при повторном входе снова предложить восстановление видов работ
     DB.clearSession();
     showLoginScreen();
   }
@@ -17749,7 +17812,7 @@
   /* ── часть 13 · app/13_refresh_events.js — перерисовка, перехват ошибок, обработчик нажатий ── */
   function refresh() {
     window.reRenderCurrentScreen = refresh;
-    try { rebaseTaskDaysToToday(); } catch (eRb2) {} // 22.09-224: задачи остаются на своих календарных датах
+    try { if (rebaseAllowed()) rebaseTaskDaysToToday(); } catch (eRb2) {} // 22.09-224: задачи остаются на своих календарных датах (22.09-257: при связи — после синхронизации)
     reconcileFiredResponsibles(); // 22.09-161: уволенных мастеров снять с объектов по дате увольнения
     // Мягкое обновление при синхронизации — только данные, без мигания экрана
     window.onSyncUpdate = function() {

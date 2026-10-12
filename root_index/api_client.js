@@ -186,7 +186,11 @@ window.SP_API = (function () {
   }
   function sendOne(section, record, json) {
     var k = keyOf(section, record.id);
-    return request('POST', '/' + section, { id: record.id, data: record, base: VER[k] || 0 }).then(function (r) {
+    // base — версия, которую этот браузер знает; если он её ещё не получал от сервера
+    // (до первой синхронизации), пишем как раньше (без проверки) — иначе правка, сделанная
+    // в первые секунды после входа, терялась (409 + подмена на серверную версию)
+    var base = (typeof VER[k] === 'number' && isFinite(VER[k])) ? VER[k] : null;
+    return request('POST', '/' + section, { id: record.id, data: record, base: base }).then(function (r) {
       if (r && r.ok) {
         var rr = r.record || r.user;
         if (rr && typeof rr._updated_at === 'number' && isFinite(rr._updated_at)) VER[k] = rr._updated_at;

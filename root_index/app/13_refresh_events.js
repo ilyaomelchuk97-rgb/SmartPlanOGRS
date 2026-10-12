@@ -1,7 +1,7 @@
   /* ── часть 13 · app/13_refresh_events.js — перерисовка, перехват ошибок, обработчик нажатий ── */
   function refresh() {
     window.reRenderCurrentScreen = refresh;
-    try { rebaseTaskDaysToToday(); } catch (eRb2) {} // 22.09-224: задачи остаются на своих календарных датах
+    try { if (rebaseAllowed()) rebaseTaskDaysToToday(); } catch (eRb2) {} // 22.09-224: задачи остаются на своих календарных датах (22.09-257: при связи — после синхронизации)
     reconcileFiredResponsibles(); // 22.09-161: уволенных мастеров снять с объектов по дате увольнения
     // Мягкое обновление при синхронизации — только данные, без мигания экрана
     window.onSyncUpdate = function() {

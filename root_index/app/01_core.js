@@ -14,6 +14,23 @@
      на сегодня. Запись-якорь синхронизируется с сервером, как обычная запись,
      поэтому перебазирование выполняется один раз на всех устройствах. */
   var ANCHOR_TASK_ID = 't_day_anchor';
+  // 22.09-257: доступ из sync_polling.js — повторное перебазирование после получения данных с сервера
+  try { window.rebaseTaskDays = rebaseTaskDaysToToday; } catch (eExp) {}
+  /* 22.09-257: когда разрешено перебазирование дат задач. Раньше оно работало при входе ДО
+     получения данных с сервера: на пустом/новом браузере оно создавало якорь «сегодня» и ПИСАЛО
+     его на сервер, затирая настоящий якорь (от него отсчитываются даты ВСЕХ задач) — после
+     синхронизации сдвиг уже не производился и задачи уходили не на свои календарные даты.
+     Теперь: без связи с сервером (локальный режим / сервер недоступен) — как раньше, сразу;
+     при живой связи — только после первой синхронизации (её вызывает sync_polling.js). */
+  function rebaseAllowed() {
+    try {
+      if (!window.SP_API || !SP_API.getToken || !SP_API.getToken()) return true;
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) return true;
+      var st = (window.SP_SYNC_POLL && SP_SYNC_POLL.status) ? SP_SYNC_POLL.status() : null;
+      if (st && (st.errors || 0) >= 3) return true; // сервер недоступен — работаем по локальной копии
+      return !!(st && st.ready);
+    } catch (e) { return false; }
+  }
   function rebaseTaskDaysToToday() {
     if (!TASKS_DB || !TASKS_DB.getTask || !TASKS_DB.getTasks || !TASKS_DB.updateTask) return 0;
     var todayK = key(TODAY);
@@ -849,7 +866,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-255';
+  var SP_BUILD = '22.09-257';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
