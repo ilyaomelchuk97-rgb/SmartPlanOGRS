@@ -17,13 +17,14 @@
      мимо service worker'а.
    Данные приложения живут в localStorage — доступны офлайн.
    ============================================================ */
-var CACHE = 'smartplan-v5-root'; // 22.09-156: сброс устаревших кэшей (плюс ?v= у скриптов в index.html)
+var CACHE = 'smartplan-v6-root'; // 22.09-263: сброс устаревших кэшей (плюс ?v= у скриптов в index.html)
 
 // Файлы, которые всегда пытаются загрузиться с сети (обновляемые)
 var FRESH = [
   './', './index.html', './root_index/app.js', './root_index/config.js', './root_index/data.js',
   './root_index/users_db.js', './root_index/areas_db.js', './root_index/work_db.js', './root_index/objects_db.js',
-  './root_index/workers_db.js', './root_index/tasks_db.js', './root_index/db.js'
+  './root_index/workers_db.js', './root_index/tasks_db.js', './root_index/db.js',
+  './root_index/version.txt' // 22.09-263: версия сборки — всегда с сети (уведомление о новой версии)
 ];
 // Предзагрузка при установке (чтобы офлайн-режим работал сразу)
 var PRECACHE = FRESH.concat(['./root_index/logo.png', './root_index/fon.webp', './root_index/icon-192.png', './root_index/manifest.json']);

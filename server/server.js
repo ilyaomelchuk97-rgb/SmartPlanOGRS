@@ -195,7 +195,7 @@ const FRONTEND_DIR = process.env.NODE_ENV === 'production' ? '/app' : require('p
 // JS-файлы не кэшируем (cache-bust через ETag/304), чтобы после каждого
 // деплоя клиент сразу получал новый код без Ctrl+Shift+R.
 app.use((req, res, next) => {
-  if (/\/root_index\/.*\.js$/.test(req.path) || /\/index\.html$/.test(req.path) || req.path === '/') { // 22.09-254: и главная «/» — новая версия сразу после деплоя
+  if (/\/root_index\/version\.txt$/.test(req.path) || /\/root_index\/.*\.js$/.test(req.path) || /\/index\.html$/.test(req.path) || req.path === '/') { // 22.09-254: и главная «/» — новая версия сразу после деплоя; 22.09-263: version.txt — без кэша (уведомление о новой версии)
     res.setHeader('Cache-Control', 'no-cache, must-revalidate');
   }
   next();
