@@ -18,7 +18,8 @@ const SECTIONS = [
   { name: 'graphs',       schema: 1, label: 'графики' },
   { name: 'professions',  schema: 1, label: 'профессии' },
   { name: 'holidays',     schema: 1, label: 'праздники' },
-  { name: 'telemetry',    schema: 1, label: 'виды телеметрии' }
+  { name: 'telemetry',    schema: 1, label: 'виды телеметрии' },
+  { name: 'messages',     schema: 1, label: 'объявления' } // 22.09-264
 ];
 
 // Нерабочие праздничные дни Республики Беларусь (БЕЗ ГОДА — месяц-день, 22.09-110):

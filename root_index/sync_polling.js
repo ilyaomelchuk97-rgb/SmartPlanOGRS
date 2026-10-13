@@ -40,7 +40,8 @@ window.SP_SYNC_POLL = (function () {
     work_catalog: 'smartplan_work_catalog',
     graphs: 'smartplan_graphs',
     holidays: 'smartplan_holidays', // 22.09-109
-    telemetry: 'smartplan_telemetry' // 22.09-111: виды телеметрии
+    telemetry: 'smartplan_telemetry', // 22.09-111: виды телеметрии
+    messages: 'smartplan_messages' // 22.09-264: объявления администратора
   };
 
   var state = {
@@ -175,7 +176,7 @@ window.SP_SYNC_POLL = (function () {
     delete data._deleted;
     delete data._updated_at;
 
-    if (sec === 'graphs' || sec === 'holidays' || sec === 'telemetry') {
+    if (sec === 'graphs' || sec === 'holidays' || sec === 'telemetry' || sec === 'messages') { // 22.09-264: + messages
       // graphs / holidays / telemetry — массив записей в localStorage
       var list = lsRead(lsKey);
       if (!Array.isArray(list)) list = [];
@@ -437,6 +438,8 @@ window.SP_SYNC_POLL = (function () {
         // Если открыт дропдаун — обновим его (без перезакрытия)
         try { if (typeof window.__syncRefreshDropdown === 'function') window.__syncRefreshDropdown(); } catch (e) {}
         var changed = applyChanges(r.sections);
+        // 22.09-264: объявления администратора — всплывающее окно и список у админа
+        try { if (window.SP_ANN && SP_ANN.afterSync) SP_ANN.afterSync(); } catch (eAnn) {}
         // 22.09-254: актуальные данные с сервера получены — с этого момента разрешено отправлять
         // изменения разделов (до этого браузер мог держать устаревшую копию и затереть ею сервер)
         if (wasInitial) state.ready = true; // 22.09-254

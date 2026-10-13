@@ -1412,7 +1412,7 @@
           <div style="margin-top:6px;font-size:12px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-263 · если вышла новая версия сайта, вы увидите плашку сверху — нажмите «Обновить»</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-264 · Администрирование → «Управление администрированием»: объявления работникам</div>
         <div style="margin-top:6px;text-align:center"><a href="#" id="li-cookie-link" class="cookie-link" title="Посмотреть или изменить разрешение">🍪 Cookie и хранилище браузера</a></div>
     </div>
   </div>
@@ -1455,6 +1455,7 @@
       <a data-screen="refs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20V3H6.5A2.5 2.5 0 004 5.5z"/><path d="M4 19.5V21h12"/></svg>Справочники</a>
       <a data-screen="writeoffs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>Списания</a>
       <div class="grp">Администрирование</div>
+      <a data-screen="adminctl" title="Объявления работникам и другие функции управления"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 11-5.8-1.6"/></svg>Управление администрированием</a>
       <a data-screen="users"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>Пользователи</a>
       <a data-screen="backup" title="Резервное копирование и восстановление всех баз данных (каждая — отдельным файлом)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>Бэкапы БД</a>
       <a data-screen="logs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/><path d="M3 12h2M19 12h2M12 3v2M12 19v2"/></svg>Журнал действий</a>
@@ -1661,17 +1662,17 @@
      Сайт остаётся на Render, а API (сервер + данные) — на воркере Cloudflare.
      Чтобы вернуться к базе Render — удалить следующую строку. -->
 <script>window.SP_CONFIG_OVERRIDE = 'https://smartplanogrsdb.ilya-omelchuk97.workers.dev/api';</script>
-<script src="root_index/config.js?v=22.09-263"></script>
-<script src="root_index/data.js?v=22.09-263"></script>
-<script src="root_index/users_db.js?v=22.09-263"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-263"></script>
-<script src="root_index/areas_db.js?v=22.09-263"></script>
-<script src="root_index/professions_db.js?v=22.09-263"></script>
-<script src="root_index/work_db.js?v=22.09-263"></script>
-<script src="root_index/objects_db.js?v=22.09-263"></script>
-<script src="root_index/workers_db.js?v=22.09-263"></script>
-<script src="root_index/tasks_db.js?v=22.09-263"></script>
-<script src="root_index/db.js?v=22.09-263"></script>
+<script src="root_index/config.js?v=22.09-264"></script>
+<script src="root_index/data.js?v=22.09-264"></script>
+<script src="root_index/users_db.js?v=22.09-264"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-264"></script>
+<script src="root_index/areas_db.js?v=22.09-264"></script>
+<script src="root_index/professions_db.js?v=22.09-264"></script>
+<script src="root_index/work_db.js?v=22.09-264"></script>
+<script src="root_index/objects_db.js?v=22.09-264"></script>
+<script src="root_index/workers_db.js?v=22.09-264"></script>
+<script src="root_index/tasks_db.js?v=22.09-264"></script>
+<script src="root_index/db.js?v=22.09-264"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -1689,12 +1690,12 @@
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-263"></script>
-      <script src="root_index/error_log.js?v=22.09-263"></script>
-      <script src="root_index/api_client.js?v=22.09-263"></script>
-      <script src="root_index/sync_polling.js?v=22.09-263"></script>
-      <script src="root_index/zip_util.js?v=22.09-263"></script>
-      <script src="root_index/app.js?v=22.09-263"></script>
+<script src="root_index/object_attrs.js?v=22.09-264"></script>
+      <script src="root_index/error_log.js?v=22.09-264"></script>
+      <script src="root_index/api_client.js?v=22.09-264"></script>
+      <script src="root_index/sync_polling.js?v=22.09-264"></script>
+      <script src="root_index/zip_util.js?v=22.09-264"></script>
+      <script src="root_index/app.js?v=22.09-264"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {
