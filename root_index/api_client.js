@@ -99,7 +99,7 @@ window.SP_API = (function () {
 
   /* ---------- ПУБЛИЧНЫЕ МЕТОДЫ ---------- */
   function health() {
-    var base = window.location.origin;
+    var base = getBaseUrl().replace(/\/api$/, ''); // 22.09-262: база на Cloudflare — проверяем её, а не Render
     return fetch(base + '/healthz', { cache: 'no-store' })
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, data: j }; }); })
       .catch(function (e) { return { ok: false, err: e.message }; });
