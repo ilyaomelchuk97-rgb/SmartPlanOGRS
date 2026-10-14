@@ -499,6 +499,63 @@
   .tabs button.on{color:var(--blue);border-bottom-color:var(--blue)}
   table.dt{width:100%;border-collapse:collapse;font-size:12.5px}
   table.dt th{text-align:left;background:#f8fafc;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.4px;padding:9px 11px;border-bottom:1px solid var(--line);font-weight:700}
+  /* 22.09-266: улучшения интерфейса */
+  table.dt th.ui-th{cursor:pointer;user-select:none}
+  table.dt th.ui-th:hover{color:var(--blue)}
+  table.dt th.ui-sorted{color:var(--blue)}
+  table.dt thead th{position:sticky;top:61px;z-index:3}
+  .ui-search{display:flex;align-items:center;gap:9px;margin:0 0 10px}
+  .ui-search input{flex:1;max-width:340px;padding:8px 11px;border:1px solid var(--line);border-radius:9px;font-size:13px;font-family:inherit;color:var(--txt);background:var(--card)}
+  .ui-search input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+  .ui-search-n{font-size:12px;color:var(--muted)}
+  .ui-empty{text-align:center;padding:26px 14px;color:var(--muted)}
+  .ui-empty-ic{font-size:34px;line-height:1;margin-bottom:8px}
+  .ui-empty-t{font-size:15px;font-weight:700;color:var(--txt);margin-bottom:5px}
+  .ui-empty-h{font-size:13px;line-height:1.55;max-width:520px;margin:0 auto 12px}
+  .sk-wrap{max-width:1100px}
+  .sk-note{font-size:13px;color:var(--muted);margin:2px 0 12px;animation:skPulse 1.4s ease-in-out infinite}
+  .sk-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-bottom:12px}
+  .sk-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .sk{background:linear-gradient(90deg,var(--panel-3) 25%,var(--panel-2) 37%,var(--panel-3) 63%);background-size:400% 100%;animation:skShine 1.3s ease-in-out infinite;border-radius:6px}
+  .sk-t{height:12px;width:52%;margin-bottom:12px}
+  .sk-l{height:9px;margin-bottom:8px}
+  .sk-l.sk-short{width:64%}
+  .sk-r{height:9px;margin-bottom:9px}
+  @keyframes skShine{0%{background-position:100% 50%}100%{background-position:0 50%}}
+  @keyframes skPulse{0%,100%{opacity:1}50%{opacity:.6}}
+  .md-head{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:12px}
+  .md-h-t{font-size:18px;font-weight:800;color:var(--txt)}
+  .md-h-s{font-size:13px;color:var(--muted);margin-top:3px}
+  .md-list{display:flex;flex-direction:column;gap:12px;max-width:760px}
+  .md-card{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:12px;padding:14px 16px}
+  .md-top{display:flex;align-items:flex-start;gap:10px;justify-content:space-between;flex-wrap:wrap}
+  .md-addr{font-size:17px;font-weight:800;color:var(--txt);line-height:1.3}
+  .md-work{font-size:15px;color:var(--txt);margin:7px 0 12px;line-height:1.45}
+  .md-st{font-size:12px;font-weight:700;border-radius:999px;padding:3px 10px;white-space:nowrap}
+  .md-st-pl{background:var(--panel-3);color:var(--muted)}
+  .md-st-p{background:var(--blue);color:#fff}
+  .md-acts{display:flex;gap:9px;flex-wrap:wrap}
+  .md-btn{border:1px solid var(--line);background:var(--card);color:var(--txt);border-radius:11px;padding:13px 16px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;min-height:48px}
+  .md-btn:active{transform:scale(.98)}
+  .md-btn-p{border-color:var(--blue);color:var(--blue)}
+  .md-btn-ok{background:var(--green);border-color:var(--green);color:#fff;flex:1;min-width:150px}
+  .md-btn-m{min-width:48px;padding:13px 12px}
+  @media(max-width:640px){ .md-addr{font-size:16px} .md-btn{font-size:15px;padding:14px 14px} }
+  .print-only{display:none}
+  @media print{
+    #sidebar,.topbar,.fab,#burger,.ui-search,.no-print,.sb-foot{display:none!important}
+    .main{margin-left:0!important}
+    #view{padding:0!important;max-width:100%!important}
+    body{background:#fff!important}
+    .card,.md-card{box-shadow:none!important;border:1px solid #cbd5e1!important;break-inside:avoid;page-break-inside:avoid}
+    table.dt thead th{position:static!important;background:#f1f5f9!important;color:#334155!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    table.dt td,table.dt th{border-bottom:1px solid #e2e8f0!important}
+    .print-only{display:block!important}
+    .print-head{margin:0 0 12px;padding-bottom:8px;border-bottom:2px solid #334155}
+    .ph-t{font-size:16px;font-weight:800;color:#0f172a}
+    .ph-s{font-size:11.5px;color:#475569;margin-top:2px}
+    @page{margin:12mm}
+  }
   table.dt td{padding:9px 11px;border-bottom:1px solid var(--line);color:var(--txt)}
   table.dt tr:hover td{background:#f8fafc}
   .chip{font-size:12px;font-weight:700;padding:2px 8px;border-radius:20px;background:#eef2f6;color:var(--muted)}
@@ -1412,7 +1469,7 @@
           <div style="margin-top:6px;font-size:12px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-264 · Администрирование → «Управление администрированием»: объявления работникам</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-268 · настраиваемая панель мониторинга и общие права доступа (по ролям)</div>
         <div style="margin-top:6px;text-align:center"><a href="#" id="li-cookie-link" class="cookie-link" title="Посмотреть или изменить разрешение">🍪 Cookie и хранилище браузера</a></div>
     </div>
   </div>
@@ -1439,6 +1496,7 @@
     </div>
     <nav class="nav" id="nav">
       <div class="grp">Оперативная работа</div>
+      <a data-screen="myday" title="Задачи на сегодня крупными карточками — для телефона: отметить «В работе» или «Выполнено»"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h11"/></svg>Мои задания</a>
       <a data-screen="dashboard" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>Панель мониторинга <span class="badge" id="rz-badge">0</span></a>
       <div class="nav-acc" id="nav-plan">
         <a data-screen="calendar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg>Планирование / Календарь</a>
@@ -1482,6 +1540,7 @@
         <span id="sync-caret" style="display:none;font-size:10.5px;color:#94a3b8;margin-left:2px">▾</span>
       </span>
       <span class="tb-btns">
+        <button type="button" class="tb-btn" id="print-btn" data-action="ui-print" title="Печать текущей страницы" aria-label="Печать">🖨</button>
         <button type="button" class="tb-btn" id="theme-toggle" title="Тема: переключить светлую ↔ тёмную" aria-label="Переключить тему (светлая/тёмная)">
           <svg class="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
           <svg class="ic-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
@@ -1515,6 +1574,7 @@
         </div></div>
       </div>
     </header>
+    <div class="print-only print-head" id="print-head"></div>
     <main id="view"></main>
   </div>
 </div>
@@ -1651,6 +1711,7 @@
     if (!p || typeof p !== 'object') p = {};
     var h = document.documentElement;
     if (p.theme === 'dark') h.classList.add('theme-dark');
+    else if (p.theme !== 'light') { var _hh = new Date().getHours(); if (_hh >= 19 || _hh < 7) h.classList.add('theme-dark'); } // 22.09-266: авто-тема вечером/ночью, пока пользователь не выбрал тему сам
     if (p.large) h.classList.add('a11y-large');
     if (p.contrast) h.classList.add('a11y-contrast');
     if (p.mono) h.classList.add('a11y-mono');
@@ -1662,17 +1723,17 @@
      Сайт остаётся на Render, а API (сервер + данные) — на воркере Cloudflare.
      Чтобы вернуться к базе Render — удалить следующую строку. -->
 <script>window.SP_CONFIG_OVERRIDE = 'https://smartplanogrsdb.ilya-omelchuk97.workers.dev/api';</script>
-<script src="root_index/config.js?v=22.09-264"></script>
-<script src="root_index/data.js?v=22.09-264"></script>
-<script src="root_index/users_db.js?v=22.09-264"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-264"></script>
-<script src="root_index/areas_db.js?v=22.09-264"></script>
-<script src="root_index/professions_db.js?v=22.09-264"></script>
-<script src="root_index/work_db.js?v=22.09-264"></script>
-<script src="root_index/objects_db.js?v=22.09-264"></script>
-<script src="root_index/workers_db.js?v=22.09-264"></script>
-<script src="root_index/tasks_db.js?v=22.09-264"></script>
-<script src="root_index/db.js?v=22.09-264"></script>
+<script src="root_index/config.js?v=22.09-268"></script>
+<script src="root_index/data.js?v=22.09-268"></script>
+<script src="root_index/users_db.js?v=22.09-268"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-268"></script>
+<script src="root_index/areas_db.js?v=22.09-268"></script>
+<script src="root_index/professions_db.js?v=22.09-268"></script>
+<script src="root_index/work_db.js?v=22.09-268"></script>
+<script src="root_index/objects_db.js?v=22.09-268"></script>
+<script src="root_index/workers_db.js?v=22.09-268"></script>
+<script src="root_index/tasks_db.js?v=22.09-268"></script>
+<script src="root_index/db.js?v=22.09-268"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -1690,12 +1751,12 @@
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-264"></script>
-      <script src="root_index/error_log.js?v=22.09-264"></script>
-      <script src="root_index/api_client.js?v=22.09-264"></script>
-      <script src="root_index/sync_polling.js?v=22.09-264"></script>
-      <script src="root_index/zip_util.js?v=22.09-264"></script>
-      <script src="root_index/app.js?v=22.09-264"></script>
+<script src="root_index/object_attrs.js?v=22.09-268"></script>
+      <script src="root_index/error_log.js?v=22.09-268"></script>
+      <script src="root_index/api_client.js?v=22.09-268"></script>
+      <script src="root_index/sync_polling.js?v=22.09-268"></script>
+      <script src="root_index/zip_util.js?v=22.09-268"></script>
+      <script src="root_index/app.js?v=22.09-268"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {

@@ -132,7 +132,7 @@
 
   // Роль «Слесарь»: доступ только к трём картам (просмотр)
   function isSlesar() { return S.role === 'slesar'; }
-  var SLESAR_SCREENS = { map: 1, livemap: 1, objmap: 1 };
+  var SLESAR_SCREENS = { myday: 1, map: 1, livemap: 1, objmap: 1 }; // 22.09-266: + «Мои задания»
   // Список участков — из справочника (areas_db.js); fallback — каталог работ
   function areasList() {
     try {
@@ -880,12 +880,13 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-264';
+  var SP_BUILD = '22.09-268';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
   try { console.log('%cSmartPlan © 2026 Омельчук Илья Анатольевич · оператор ПЭВМ УП «МИНГАЗ» · все права защищены', 'color:#64748b;font-size:12px'); } catch (eC) {}
   var TITLES = {
+    myday: 'Мои задания', // 22.09-266: мобильный экран работника
     dashboard: 'Панель мониторинга',
     calendar: 'Планирование / Календарь',
     graphs: 'Планирование / График работ',
@@ -3174,6 +3175,8 @@
     });
     // Запуск случайных вспышек молний, если сегодня гроза (сцена содержит #wx-bolts)
     setupLightning();
+    // 22.09-268: кнопка «Настроить панель» и порядок/видимость блоков — при КАЖДОЙ отрисовке
+    try { dashboardDecorate(); } catch (eDash) {}
   }
 
   function kpi(val, lab, hint, color, action) {
@@ -3592,6 +3595,11 @@
   }
 
   function purgeTrash() {
+    // 22.09-268: очистка корзины — по правам
+    if (S.role !== 'admin' && (typeof permCan !== 'function' || !permCan('delTasks'))) {
+      try { toast('err', 'Чистить корзину можно только с разрешения (Права доступа)'); } catch (e) {}
+      return;
+    }
     var oldTrash = getTrash();
     saveTrash([]);
     var API = (window.SP_CONFIG && SP_CONFIG.serverUrl) || '';
@@ -3895,6 +3903,11 @@
   }
 
   function deleteTaskToTrash(id) {
+    // 22.09-268: удаление задач — по правам доступа (админ всегда может)
+    if (S.role !== 'admin' && (typeof permCan !== 'function' || !permCan('delTasks'))) {
+      try { toast('err', 'Удалять задачи можно только с разрешения (Права доступа)'); } catch (e) {}
+      return;
+    }
     var t = findTask(id); if (!t) return;
     if (!canEditTask(t)) { toast('err', 'Нет прав на удаление этой задачи'); return; }
     var w = workOf(t);
@@ -13248,7 +13261,7 @@
       // 22.09-161: уволенные — отдельным блоком внизу (без логина/пароля)
       var firedUsers = allUsers.filter(function (u) { return u && u.fired === true; });
       var users = allUsers.filter(function (u) { return u && u.fired !== true; });
-      var html = '<div class="card"><div class="card-h"><h2>Пользователи системы</h2><span class="sub">' + users.length + ' учётных записей</span><div class="spacer"></div>' + (S.role === 'admin' ? '<button class="btn sm" data-action="demo-seed" title="Заполнить локальную базу демо-данными для тестов: объекты ГРП/ШРП Минска, бригада слесарей, задачи на сегодня/завтра, график работ. Данные живут в localStorage и НЕ теряются при замене файлов сайта">🧪 Демо-данные</button>' : '') + (S.role === 'admin' ? '<button class="btn sm" data-action="download-backup" title="Скачать полную резервную копию локальной базы (JSON) — работает без сервера">' + IC.download + ' 💾 Бэкап базы</button>' : '') + (S.role === 'admin' ? '<button class="btn sm" data-action="restore-backup" title="Восстановить базу из файла бэкапа (JSON)">♻ Восстановить</button>' : '') + '<button class="btn sm" data-action="export-db" title="Сохранить базу в Excel">' + IC.download + ' Экспорт в Excel</button>' + (S.role === 'admin' ? '<button class="btn sm" data-action="import-db" title="Загрузить базу из Excel">' + IC.upload + ' Импорт из Excel</button>' : '') + '<input type="file" id="import-file" accept=".xlsx,.xls,.csv" style="display:none"><input type="file" id="restore-file" accept=".json,application/json" style="display:none">';
+      var html = '<div class="card"><div class="card-h"><h2>Пользователи системы</h2><span class="sub">' + users.length + ' учётных записей</span><div class="spacer"></div>' + (S.role === 'admin' ? '<button class="btn sm" data-action="demo-seed" title="Заполнить локальную базу демо-данными для тестов: объекты ГРП/ШРП Минска, бригада слесарей, задачи на сегодня/завтра, график работ. Данные живут в localStorage и НЕ теряются при замене файлов сайта">🧪 Демо-данные</button>' : '') + ((typeof permCan === 'function' ? permCan('exportData') : S.role === 'admin') ? '<button class="btn sm" data-action="download-backup" title="Скачать полную резервную копию локальной базы (JSON) — работает без сервера">' + IC.download + ' 💾 Бэкап базы</button>' : '') + (S.role === 'admin' ? '<button class="btn sm" data-action="restore-backup" title="Восстановить базу из файла бэкапа (JSON)">♻ Восстановить</button>' : '') + '<button class="btn sm" data-action="export-db" title="Сохранить базу в Excel">' + IC.download + ' Экспорт в Excel</button>' + (S.role === 'admin' ? '<button class="btn sm" data-action="import-db" title="Загрузить базу из Excel">' + IC.upload + ' Импорт из Excel</button>' : '') + '<input type="file" id="import-file" accept=".xlsx,.xls,.csv" style="display:none"><input type="file" id="restore-file" accept=".json,application/json" style="display:none">';
       if (S.role === 'admin') {
         html += '<button class="btn primary" data-action="new-user">' + IC.plus + ' Добавить пользователя</button>';
       }
@@ -13256,7 +13269,18 @@
       if (users.length <= 1) {
         html += '<div style="margin-bottom:14px;background:var(--yellow-l);border:1px solid #fde68a;border-left:4px solid var(--yellow);border-radius:10px;padding:13px 15px;display:flex;gap:12px;align-items:flex-start">' + IC.info + '<div style="flex:1;font-size:12.5px;color:#78350f;line-height:1.6"><b>Новый браузер или компьютер?</b><br>Каждый браузер хранит свою базу пользователей отдельно (в Chrome их не видно из Edge и наоборот). Если пользователи уже заведены в другом браузере — перенесите их файлом:<div style="margin-top:9px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm primary" data-action="import-db">' + IC.upload + ' Импорт из файла</button><a href="#" style="font-size:12px;color:var(--blue);align-self:center" data-action="how-transfer">Как это сделать?</a></div></div></div>';
       }
-      html += '<table class="dt"><thead><tr><th>ФИО</th><th>Логин</th><th>Таб. №</th><th>Пароль</th><th>Роль</th><th>Участок</th><th>Статус</th><th style="text-align:right">Действия</th></tr></thead><tbody>';
+      // 22.09-267: массовые операции — галочки + панель действий
+      if (S.role === 'admin') {
+        html += '<div id="bulk-bar" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;padding:9px 12px;border:1px solid var(--line);border-radius:9px;background:var(--panel-2)">' +
+          '<b id="bulk-count" style="font-size:12.5px;color:var(--muted)">Выбрано: 0</b>' +
+          '<button class="btn sm" data-action="bulk-all">Отметить всех</button>' +
+          '<button class="btn sm" data-action="bulk-none">Снять</button>' +
+          '<button class="btn sm" data-action="bulk-off" title="Отключить вход (удобно на время отпуска)">⏸ Отключить</button>' +
+          '<button class="btn sm" data-action="bulk-on">▶ Включить</button>' +
+          '<button class="btn sm" data-action="bulk-pass" title="Задать один новый пароль выбранным">🔑 Пароль выбранным</button>' +
+          '</div>';
+      }
+      html += '<table class="dt"><thead><tr>' + (S.role === 'admin' ? '<th style="width:28px" data-nosort="1"><input type="checkbox" data-action="bulk-none" title="Снять все отметки"></th>' : '') + '<th>ФИО</th><th>Логин</th><th>Таб. №</th><th>Пароль</th><th>Роль</th><th>Участок</th><th>Статус</th><th style="text-align:right">Действия</th></tr></thead><tbody>';
       users.forEach(function (u) {
         if (!u) return;
         var me = (S.user && u.id === S.user.id) ? ' <span style="color:var(--green);font-size:12px">(вы)</span>' : '';
@@ -13267,7 +13291,8 @@
         var passLabel = '<span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="font-family:monospace;background:var(--panel-3);padding:2px 7px;border-radius:4px;color:var(--muted);font-weight:700;letter-spacing:1px" title="Пароль скрыт — он хранится на сервере в зашифрованном виде">🔒 ••••••</span>' +
           (S.role === 'admin' ? '<button class="btn sm" data-action="pwd-user" data-uid="' + esc(u.id) + '" title="Задать пользователю новый пароль для входа">🔑 Сменить пароль</button>' : '') + '</span>';
         var actionsHtml = (S.role === 'admin') ? '<button class="btn sm" data-action="edit-user" data-uid="' + u.id + '">Изменить</button> ' + fireBtn + delBtn : '<span style="color:#94a3b8;font-size:12.5px;">Доступно админу</span>';
-        html += '<tr><td><div style="display:flex;align-items:center;gap:8px">' + avaHtml(u, 28, 10.5) + '<b>' + esc(u.full_name) + '</b>' + me + '</div></td><td style="font-family:monospace;font-weight:700;color:var(--blue);">' + esc(u.login) + '</td><td>' + (u.table_number ? '<span style="font-family:monospace;font-weight:700;">' + esc(u.table_number) + '</span>' : '<span style="color:#cbd5e1">—</span>') + '</td><td>' + passLabel + '</td><td>' + roleChip(u.role) + (u.prof ? '<div style="font-size:12px;color:var(--muted);margin-top:3px">' + esc(u.prof) + '</div>' : '') + '</td><td>' + esc(u.area || '—') + '</td><td>' + (u.active ? '<span class="chip" style="background:#dcfce7;color:#15803d">активен</span>' : '<span class="chip" style="background:#fee2e2;color:#b91c1c">отключён</span>') + '</td><td style="white-space:nowrap;text-align:right">' + actionsHtml + '</td></tr>';
+        var bulkCell = (S.role === 'admin') ? '<td><input type="checkbox" data-bulk-user="' + esc(u.id) + '" data-action="bulk-check" title="Отметить для массовой операции"></td>' : '';
+        html += '<tr>' + bulkCell + '<td><div style="display:flex;align-items:center;gap:8px">' + avaHtml(u, 28, 10.5) + '<b>' + esc(u.full_name) + '</b>' + me + '</div></td><td style="font-family:monospace;font-weight:700;color:var(--blue);">' + esc(u.login) + '</td><td>' + (u.table_number ? '<span style="font-family:monospace;font-weight:700;">' + esc(u.table_number) + '</span>' : '<span style="color:#cbd5e1">—</span>') + '</td><td>' + passLabel + '</td><td>' + roleChip(u.role) + (u.prof ? '<div style="font-size:12px;color:var(--muted);margin-top:3px">' + esc(u.prof) + '</div>' : '') + '</td><td>' + esc(u.area || '—') + '</td><td>' + (u.active ? '<span class="chip" style="background:#dcfce7;color:#15803d">активен</span>' : '<span class="chip" style="background:#fee2e2;color:#b91c1c">отключён</span>') + '</td><td style="white-space:nowrap;text-align:right">' + actionsHtml + '</td></tr>';
       });
       html += '</tbody></table></div></div>';
       // 22.09-161: уволенные — без логина/пароля, с восстановлением (для истории задач запись остаётся)
@@ -13956,12 +13981,17 @@
     actionList.forEach(function(a) { html += '<option value="' + esc(a) + '">' + esc(a) + '</option>'; });
     html += '</select>';
     html += '<input type="text" id="log-search" placeholder="Поиск..." style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;flex:1;min-width:150px">';
+    // 22.09-267: период + выгрузка в Excel
+    var _logInp = 'padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:var(--card)';
+    html += '<label style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)">с <input type="date" id="log-date-from" style="' + _logInp + '"></label>';
+    html += '<label style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)">по <input type="date" id="log-date-to" style="' + _logInp + '"></label>';
+    html += '<button class="btn sm" data-action="logs-export">' + IC.download + ' В Excel</button>';
     html += '</div>';
     html += '<table class="dt"><thead><tr><th>Время</th><th>Пользователь</th><th>Действие</th><th>Детали</th></tr></thead><tbody>';
     logs.forEach(function(l) {
       var d = parseLogDate(l.ts || l.created_at);
       var dStr = d ? d.getDate() + ' ' + MON[d.getMonth()] + ' ' + d.getFullYear() + ' ' + d.toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'}) : '\u2014';
-      html += '<tr class="log-row" data-user="' + esc(l.user_name || '') + '" data-action="' + esc(l.action || '') + '" data-details="' + esc(l.details || '') + '">';
+      html += '<tr class="log-row" data-user="' + esc(l.user_name || '') + '" data-action="' + esc(l.action || '') + '" data-details="' + esc(l.details || '') + '" data-ts="' + (d ? d.getTime() : 0) + '">'; // 22.09-267: время для фильтра по периоду
       html += '<td style="white-space:nowrap;font-size:12px;color:var(--muted)">' + dStr + '</td>';
       html += '<td style="font-weight:600">' + esc(l.user_name || '\u2014') + '</td>';
       html += '<td>' + esc(l.action || '\u2014') + '</td>';
@@ -13981,8 +14011,15 @@
       var av = fa ? fa.value.toLowerCase() : '';
       var sv = fs ? fs.value.toLowerCase() : '';
       document.querySelectorAll('.log-row').forEach(function(row) {
+        var dFromEl = document.getElementById('log-date-from');
+        var dToEl = document.getElementById('log-date-to');
+        var ts = parseInt(row.dataset.ts || '0', 10) || 0;
+        var okFrom = true, okTo = true;
+        if (dFromEl && dFromEl.value) { var t0 = new Date(dFromEl.value + 'T00:00:00').getTime(); if (isFinite(t0)) okFrom = ts >= t0; }
+        if (dToEl && dToEl.value) { var t1 = new Date(dToEl.value + 'T23:59:59').getTime(); if (isFinite(t1)) okTo = ts <= t1; }
         var match = (!uv || (row.dataset.user || '').toLowerCase().indexOf(uv) !== -1) &&
                     (!av || (row.dataset.action || '').toLowerCase().indexOf(av) !== -1) &&
+                    okFrom && okTo &&
                     (!sv || (row.dataset.user + ' ' + row.dataset.action + ' ' + row.dataset.details).toLowerCase().indexOf(sv) !== -1);
         row.style.display = match ? '' : 'none';
       });
@@ -13990,6 +14027,8 @@
     if (fu) fu.addEventListener('change', applyFilter);
     if (fa) fa.addEventListener('change', applyFilter);
     if (fs) fs.addEventListener('input', applyFilter);
+    var _df = document.getElementById('log-date-from'); if (_df) _df.addEventListener('change', applyFilter); // 22.09-267
+    var _dt = document.getElementById('log-date-to'); if (_dt) _dt.addEventListener('change', applyFilter);
     var clearBtn = document.getElementById('btn-clear-logs');
     if (clearBtn) clearBtn.addEventListener('click', function() {
       return spConfirm('Очистить весь журнал действий?', { title: 'Журнал действий', ok: 'Очистить', danger: true }, function () { // 22.09-244: оформленное окно
@@ -13999,6 +14038,32 @@
       }
       });
     });
+  }
+
+  // 22.09-267: выгрузка журнала действий в Excel (учитывает фильтры: кто, что, период, поиск)
+  function logsExportExcel() {
+    try {
+      if (!window.XLSX) { ensureXlsxRetry(logsExportExcel); return; }
+      var rows = [['Время', 'Пользователь', 'Действие', 'Подробности']];
+      var n = 0;
+      document.querySelectorAll('#view .log-row').forEach(function (r) {
+        if (r.style.display === 'none') return;
+        var c = r.querySelectorAll('td');
+        var ts = parseInt(r.dataset.ts || '0', 10) || 0;
+        rows.push([ts ? new Date(ts).toLocaleString('ru-RU') : '', (c[1] || {}).textContent || '', (c[2] || {}).textContent || '', (c[3] || {}).textContent || '']);
+        n++;
+      });
+      if (!n) { toast('warn', 'Нет записей для выгрузки (проверьте фильтры)'); return; }
+      var wb = XLSX.utils.book_new();
+      var ws = XLSX.utils.aoa_to_sheet(rows);
+      ws['!cols'] = [{ wch: 20 }, { wch: 24 }, { wch: 30 }, { wch: 60 }];
+      XLSX.utils.book_append_sheet(wb, ws, 'Журнал');
+      var d = new Date();
+      var pad = function (x) { return String(x).padStart(2, '0'); };
+      XLSX.writeFile(wb, 'Журнал_действий_' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '_' + pad(d.getHours()) + pad(d.getMinutes()) + '.xlsx');
+      logAction('Выгрузка журнала действий в Excel', n + ' записей');
+      toast('ok', '✓ Выгружено записей: ' + n);
+    } catch (e) { toast('err', 'Не удалось выгрузить: ' + String(e && e.message || e)); }
   }
 
   function openUserModal(mode, uid) {
@@ -15632,7 +15697,9 @@
     html += '<div class="fld"><label>Виды работ на адресе (можно выбрать несколько)</label><div id="f-work-list" style="display:flex;flex-direction:column;gap:8px;max-height:200px;overflow:auto;padding:2px;"></div></div>'; // 22.09-154: padding-right:75px удалён — строки работ во всю ширину окна
     html += '<div id="f-attr-panel"></div>';
     html += '<div class="calc" id="f-calc">Выберите объект и работы — система рассчитает трудозатраты автоматически.</div>';
-    html += '</div><div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="save-task">' + btnText + '</button></div>';
+    html += '</div><div class="modal-f">' +
+      ((S.role === 'admin' || S.role === 'nach' || S.role === 'smaster') && tid ? '<button class="btn" data-action="task-history" data-tid="' + esc(tid) + '" title="Кто и когда менял эту задачу (журнал действий)">🕓 История</button>' : '') +
+      '<button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="save-task">' + btnText + '</button></div>'; // 22.09-267: + «История»
     modal.style.maxWidth = ''; // сброс инлайн-ширины (напр. 60% у Excel-модалки); ширину задаёт CSS max-width:fit-content
     modal.innerHTML = html;
     overlay.classList.add('show');
@@ -16711,6 +16778,14 @@
           next.style.display = isAdmin ? '' : 'none';
           next = next.nextElementSibling;
         }
+        // 22.09-268: роли с правом viewLogs видят журналы (даже не будучи админом)
+        if (!isAdmin && typeof permCan === 'function' && permCan('viewLogs')) {
+          g.style.display = '';
+          ['logs', 'errlogs'].forEach(function (sc) {
+            var a = document.querySelector('#nav a[data-screen="' + sc + '"]');
+            if (a) a.style.display = '';
+          });
+        }
       }
     });
     // Слесарь: в меню — только Карта маршрутов, Карта местоположения, Карта объектов
@@ -16853,7 +16928,7 @@
     document.body.classList.add('logged-in');
     var bs = document.getElementById('base-select'); if (bs) bs.value = S.baseId;
     applyUser();
-    setScreen(S.role === 'slesar' ? 'map' : 'dashboard');
+    setScreen(S.role === 'slesar' ? 'myday' : 'dashboard'); // 22.09-266: слесарь сразу видит свои задания
     // Дропдаун онлайн-пользователей (после входа — знаем роль и ID юзера)
     try { setupSyncDropdown(); } catch (e) { console.error('setupSyncDropdown:', e); }
     // 22.09-136: миграция видов телеметрии (идемпотентная): сразу после входа
@@ -17135,7 +17210,12 @@
     if (name === 'wxtest' && S.role !== 'admin') { toast('err', 'Страница «Тест погодный» — только для администратора'); return; }
     if (name === 'testdep' && S.role !== 'admin') { toast('err', 'Страница «Тест зависимости» — только для администратора'); return; }
     // Защита: страницы администрирования — только админу
-    if ((name === 'users' || name === 'logs' || name === 'changelog' || name === 'adminctl') && S.role !== 'admin') { // 22.09-264: + «Управление администрированием»
+    // 22.09-268: «Журнал действий» и «Логи ошибок» — можно разрешить другим ролям (таблица прав)
+    if ((name === 'logs' || name === 'errlogs') && S.role !== 'admin' && (typeof permCan !== 'function' || !permCan('viewLogs'))) {
+      toast('err', 'Доступ к журналам закрыт (настраивается в «Правах доступа»)');
+      return;
+    }
+    if ((name === 'users' || name === 'changelog' || name === 'adminctl') && S.role !== 'admin') { // 22.09-264: + «Управление администрированием»
       toast('err', 'Доступ только для администратора');
       return;
     }
@@ -17848,6 +17928,8 @@
     reconcileFiredResponsibles(); // 22.09-161: уволенных мастеров снять с объектов по дате увольнения
     // Мягкое обновление при синхронизации — только данные, без мигания экрана
     window.onSyncUpdate = function() {
+      // 22.09-268: могли прийти права доступа с сервера — обновить меню/видимость страниц
+      try { if (S.user && typeof applyUser === 'function') applyUser(); } catch (ePU) {}
       if (window.SP_TASKS) S.tasks = window.SP_TASKS.getTasks();
       refreshObjects(); // объекты могли прийти с сервера (добавлены другими пользователями)
       // Карта местоположения: данные изменились → плавно перестраиваем маршруты (сигнатура отсеивает пустые обновления)
@@ -17865,10 +17947,19 @@
         var redzone = visibleTasks().filter(function (t) { return !isDone(t) && (t.dl <= 2 || t.d < 0); });
         rzBadge.textContent = redzone.length;
       }
-      // Дашборд: обновляем KPI числа без перерисовки всей страницы
-      if (S.screen === 'dashboard') {
-        softUpdateDashboard();
+      // 22.09-268: если панель успела показать «скелетон» — перерисовать её целиком,
+      // когда данные пришли (иначе на экране так и останутся серые блоки)
+      if (S.screen === 'dashboard' && document.querySelector('#view .sk-wrap')) {
+        try { renderDashboard(); dashboardDecorate(); } catch (eSk) {}
       }
+      // Дашборд: обновляем KPI числа без перерисовки всей страницы
+      if (S.screen === 'dashboard' && !document.querySelector('#view .sk-wrap')) {
+        softUpdateDashboard();
+        if (!document.getElementById('dash-widgets-bar')) { try { dashboardDecorate(); } catch (eDec2) {} }
+      }
+      // 22.09-266: «Мои задания» — перерисовываем при каждом изменении данных
+      // (мастер назначил/снял задачу — работник видит это сразу)
+      if (S.screen === 'myday') { try { renderMyDay(); } catch (eMd) {} }
       // Календарь: обновляем только сетку задач, не трогая шапку
       if (S.screen === 'calendar') {
         var _h = S.tasks.map(function(t){return t.id+':'+t.m+':'+t.d+':'+(t.s||t.status);}).sort().join('|');
@@ -17907,7 +17998,8 @@
         S.user = freshUser; // обновляем данные пользователя, но НЕ меняем сессию
       }
     }
-    if (S.screen === 'dashboard') renderDashboard();
+    if (S.screen === 'myday') renderMyDay(); // 22.09-266: «Мои задания»
+    else if (S.screen === 'dashboard') { if (!uiSkeletonMaybe()) { renderDashboard(); dashboardDecorate(); } } // 22.09-268: + настройка панели
     else if (S.screen === 'calendar') renderCalendar();
     else if (S.screen === 'map') renderMap();
     else if (S.screen === 'testmap') renderTestMap();
@@ -17932,6 +18024,12 @@
     // 22.09-220: открытые рабочие окна («Настройки бригад», «Факт работ…») — со страницей под ними
     if (S.workersModal && S.screen !== 'workers') renderWorkers();
     if (S.factModal && S.screen !== 'factmonth') renderFactMonth();
+    uiEnhance();   // 22.09-266: поиск/сортировка таблиц текущей страницы
+    uiObserve();   // 22.09-266: следить за перерисовками #view
+    // 22.09-268: страховка — на панели мониторинга всегда есть кнопка «Настроить панель»
+    if (S.screen === 'dashboard' && !document.getElementById('dash-widgets-bar')) {
+      try { dashboardDecorate(); } catch (eDec) {}
+    }
   }
 
   /* ===== ГЛОБАЛЬНЫЙ ПЕРЕХВАТ ОШИБОК: приложение не «белеет» молча =====
@@ -18243,8 +18341,31 @@
     else if (a === 'open-trash') { openTrashModal(); }
     else if (a === 'restore-task') { restoreFromTrash(parseInt(el.dataset.trashIdx, 10)); }
     else if (a === 'purge-trash') { spConfirm('Удалить все задачи из корзины безвозвратно?', { title: 'Очистка корзины', ok: 'Удалить все', danger: true }, purgeTrash); } // 22.09-244
+    else if (a === 'myday-done') { myDaySet(el.dataset.tid, 'done'); } // 22.09-266: «Мои задания»
+    else if (a === 'myday-progress') { myDaySet(el.dataset.tid, 'progress'); }
+    else if (a === 'myday-map') { setScreen('map'); }
+    else if (a === 'ui-print') { uiPrint(); } // 22.09-266: печать страницы
+    else if (a === 'logs-export') { logsExportExcel(); }          // 22.09-267
+    else if (a === 'dash-setup') { openDashSetup(); }             // 22.09-268: настройка панели
+    else if (a === 'dw-up') { dwMove(el.dataset.dw, -1); }
+    else if (a === 'dw-down') { dwMove(el.dataset.dw, 1); }
+    else if (a === 'dash-setup-save') { dashSetupSave(); }
+    else if (a === 'dash-setup-reset') { dashSetupReset(); }
+    else if (a === 'perm-save-matrix') { permSaveMatrix(); }
+    else if (a === 'sys-refresh') { sysStatusLoad(true); }        // 22.09-267
+    else if (a === 'sys-backup') { sysBackupNow(); }
+    else if (a === 'bulk-check') { bulkPanelSync(); bulkPassCount(); }
+    else if (a === 'bulk-all') { bulkToggleAll(true); }
+    else if (a === 'bulk-none') { bulkToggleAll(false); }
+    else if (a === 'bulk-off') { bulkSetActive(false); }
+    else if (a === 'bulk-on') { bulkSetActive(true); }
+    else if (a === 'bulk-pass') { bulkSetPassword(); }
+    else if (a === 'bulk-pass-go') { bulkSetPasswordGo(); }
+    else if (a === 'task-history') { taskHistoryAction(el); }
     else if (a === 'ann-send') { annSend(); } // 22.09-264: отправить объявление
     else if (a === 'ann-del') { annDel(el.dataset.mid); } // 22.09-264: удалить объявление
+    else if (a === 'ann-remind') { annRemind(el.dataset.mid); } // 22.09-267: напомнить непрочитавшим
+    else if (a === 'ann-tpl-apply') { annApplyTemplate(); }
     else if (a === 'new-user') { openUserModal('new'); }
     else if (a === 'edit-user') { openUserModal('edit', el.dataset.uid); }
     else if (a === 'pwd-user') { openUserModal('pwd', el.dataset.uid); }
@@ -25715,7 +25836,7 @@
    (Администрирование → первая). Сейчас на ней — блок
    «Объявления и сообщения»: администратор отправляет сообщение
    одному работнику или всем сразу; работник видит объявление
-   всплывающим окном и нажимает «Ознакомлен»; администратор
+   всплывающим окном и нажимает «ОК»; администратор
    видит, сколько человек ознакомилось.
    Страница сделана «с запасом»: ниже по разметке будут
    добавляться другие функции управления (текущий блок занимает
@@ -25784,13 +25905,16 @@
     _annShowing = true;
     var m = _annQueue[0];
     var meta = (m.from ? 'От: ' + m.from : 'Администратор') + (m.ts ? ' · ' + annFmtTs(m.ts) : '') + (m.to === 'all' ? ' · всем работникам' : '');
+    var high = (m.prio === 'high');
     spDialog('', {
-      title: 'Объявление от администратора',
-      icon: '📢',
+      title: high ? 'ВАЖНОЕ объявление' : 'Объявление от администратора',
+      icon: high ? '⚠️' : '📢',
+      danger: high,
       cancel: false,
       html: '<div style="font-size:12px;color:#64748b;margin-bottom:8px">' + esc(meta) + '</div>' +
-        '<div style="font-size:15px;line-height:1.55;white-space:pre-wrap">' + esc(m.text || '') + '</div>',
-      choices: [{ label: 'Ознакомлен', value: true, cls: 'primary' }]
+        '<div style="font-size:' + (high ? '16.5' : '15') + 'px;font-weight:' + (high ? '700' : '400') + ';line-height:1.55;white-space:pre-wrap">' + esc(m.text || '') + '</div>' +
+        (high ? '<div style="margin-top:10px;font-size:12px;color:#b91c1c">Прочитайте внимательно и нажмите «ОК» — автор увидит, что вы ознакомились.</div>' : ''),
+      choices: [{ label: 'ОК', value: true, cls: 'primary' }] // 22.09-265: работник просто нажимает «ОК»
     }, function () {
       _annQueue.shift();
       _annShowing = false;
@@ -25846,12 +25970,16 @@
           ? '<span style="color:var(--green);font-weight:700">' + names.length + (nTo ? ' из ' + nTo : '') + '</span>'
           : '<span style="color:var(--muted)">0' + (nTo ? ' из ' + nTo : '') + '</span>';
         var mineMark = annToMe(m) ? ' <span class="chip" style="background:var(--blue);color:#fff" title="Это объявление адресовано и вам">вам</span>' : '';
+        var prioMark = (m.prio === 'high') ? ' <span class="chip" style="background:var(--red);color:#fff" title="Важное объявление">важное</span>' : '';
         h += '<tr>' +
           '<td style="color:var(--muted);font-size:12px">' + esc(annFmtTs(m.ts)) + '</td>' +
-          '<td>' + (m.to === 'all' ? '<b>📢 Всем работникам</b>' : ('<b>' + esc(m.to_name || m.to) + '</b>')) + mineMark + '</td>' +
+          '<td>' + (m.to === 'all' ? '<b>📢 Всем работникам</b>' : ('<b>' + esc(m.to_name || m.to) + '</b>')) + prioMark + mineMark + '</td>' +
           '<td style="white-space:pre-wrap;max-width:520px">' + esc(m.text || '') + '</td>' +
           '<td title="' + esc(names.length ? names.join(', ') : 'пока никто') + '">' + ackTxt + '</td>' +
-          '<td style="text-align:right"><button class="btn sm" data-action="ann-del" data-mid="' + esc(m.id) + '" style="color:var(--red)" title="Удалить объявление (у всех)">Удалить</button></td>' +
+          '<td style="text-align:right;white-space:nowrap">' +
+            (names.length < nTo ? '<button class="btn sm" data-action="ann-remind" data-mid="' + esc(m.id) + '" title="Отправить напоминание тем, кто ещё не нажал «ОК»">🔔 Напомнить</button> ' : '') +
+            '<button class="btn sm" data-action="ann-del" data-mid="' + esc(m.id) + '" style="color:var(--red)" title="Удалить объявление (у всех)">Удалить</button>' +
+          '</td>' +
           '</tr>';
       });
       h += '</tbody></table>';
@@ -25879,13 +26007,27 @@
           return '<option value="' + esc(u.id) + '">' + esc(u.full_name || u.login) + (u.area ? ' · ' + esc(u.area) : '') + '</option>';
         }).join('');
       var inputCss = 'padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;color:var(--txt);background:var(--card)';
-      var html = '<div class="card">' +
-        '<div class="card-h"><h2>📢 Объявления и сообщения</h2><span class="sub">Сообщение одному работнику или всем сразу · получатель видит его на экране и нажимает «Ознакомлен»</span></div>' +
+      var html =
+        // 22.09-267: «Состояние системы» — бэкапы, ошибки, кто онлайн, кто на старой версии
+        '<div class="card"><div class="card-h"><h2>🩺 Состояние системы</h2><span class="sub">Бэкапы на Google Диск · ошибки · кто сейчас на сайте · у кого старая версия сайта</span></div>' +
+        '<div class="card-b"><div id="sys-status-box"><div style="color:var(--muted);font-size:13px">Нажмите «Обновить состояние», чтобы проверить систему.</div></div></div></div>' +
+        '<div class="card" style="margin-top:14px">' +
+        '<div class="card-h"><h2>📢 Объявления и сообщения</h2><span class="sub">Сообщение одному работнику или всем сразу · получатель видит его на экране и нажимает «ОК»</span></div>' +
         '<div class="card-b">' +
           '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start;margin-bottom:6px">' +
             '<select id="ann-to" title="Кому отправить объявление" style="' + inputCss + ';min-width:250px">' + options + '</select>' +
+            '<select id="ann-tpl" title="Готовый текст" style="' + inputCss + ';max-width:220px">' +
+              '<option value="">— шаблон текста —</option>' +
+              '<option value="Планёрка в 15:00 у диспетчера. Явка обязательна.">Планёрка 15:00</option>' +
+              '<option value="Завтра субботник: приходить к 9:00, инвентарь на складе.">Субботник</option>' +
+              '<option value="Внимание: отключение воды (газа) на участке с 10:00 до 14:00. Работы не начинать.">Отключение</option>' +
+              '<option value="Пройдите инструктаж по охране труда до конца недели (кабинет 12).">Инструктаж</option>' +
+              '<option value="Сдать отчёты по выполненным работам за неделю до пятницы.">Отчёты за неделю</option>' +
+            '</select>' +
             '<textarea id="ann-text" rows="3" maxlength="500" placeholder="Текст объявления (до 500 символов)" style="' + inputCss + ';flex:1;min-width:260px;resize:vertical"></textarea>' +
             '<button class="btn primary" data-action="ann-send" title="Отправить объявление">Отправить</button>' +
+            '<label style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);padding:8px 2px" title="Важное объявление: показывается крупнее, с пометкой «ВАЖНОЕ»">' +
+              '<input type="checkbox" id="ann-high"> важное</label>' +
           '</div>' +
           '<div style="font-size:12px;color:var(--muted);margin:2px 0 14px">Получатель увидит объявление сразу (в течение нескольких секунд), даже если сейчас находится на другой странице сайта.</div>' +
           '<div id="ann-list"></div>' +
@@ -25895,13 +26037,28 @@
       '<div class="card" style="margin-top:14px;border-style:dashed"><div class="card-b" style="color:var(--muted);font-size:13px">Этот раздел будет пополняться: здесь появятся другие функции управления.</div></div>';
       view.innerHTML = html;
       annRenderList();
+      try { sysStatusLoad(true); } catch (eSys) {}   // 22.09-267: состояние системы сразу
+      try { var _tpl = document.getElementById('ann-tpl'); if (_tpl) _tpl.addEventListener('change', annApplyTemplate); } catch (eTpl) {}
+      try { permRenderMatrix(); } catch (ePerm) {}   // 22.09-268: общая таблица прав
     } catch (e) {
       try { toast('err', 'Ошибка страницы «Управление администрированием»: ' + String(e && e.message || e)); } catch (e2) {}
     }
   }
+  // Выбор шаблона — подставить текст в поле
+  function annApplyTemplate() {
+    try {
+      var sel = document.getElementById('ann-tpl');
+      var ta = document.getElementById('ann-text');
+      if (!sel || !ta) return;
+      if (!sel.value) return;
+      ta.value = sel.value;
+      sel.value = '';
+      ta.focus();
+    } catch (e) {}
+  }
   function annSend() {
     try {
-      if (!S.user || S.role !== 'admin') { toast('err', 'Отправлять объявления может только администратор'); return; }
+      if (!S.user || !canSendAnn()) { toast('err', 'Отправлять объявления может только администратор (или роли, которым это разрешено)'); return; }
       var sel = document.getElementById('ann-to');
       var ta = document.getElementById('ann-text');
       var to = sel ? String(sel.value || 'all') : 'all';
@@ -25915,14 +26072,17 @@
         if (!u) { toast('err', 'Получатель не найден — обновите страницу (Ctrl+Shift+R)'); return; }
         toName = u.full_name || u.login || to; nTo = 1;
       }
+      var highEl = document.getElementById('ann-high');
       var rec = {
         id: 'msg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
         kind: 'ann', to: to, to_name: toName, n_to: nTo, text: text,
+        prio: (highEl && highEl.checked) ? 'high' : '', // 22.09-267: важное объявление
         from: S.user.full_name || '', from_id: S.user.id, ts: Date.now()
       };
       var after = function () {
-        toast('ok', '✓ Объявление отправлено: ' + toName);
+        toast('ok', '✓ ' + (rec.prio === 'high' ? 'Важное объявление' : 'Объявление') + ' отправлено: ' + toName);
         if (ta) ta.value = '';
+        if (highEl) highEl.checked = false;
         try { if (window.SP_SYNC_POLL && SP_SYNC_POLL.applyRemote) SP_SYNC_POLL.applyRemote('messages', [rec]); } catch (eA) {}
         _annListSig = '';
         annRenderList();
@@ -25939,6 +26099,48 @@
       }
     } catch (e) { try { toast('err', 'Ошибка отправки: ' + String(e && e.message || e)); } catch (e2) {} }
   }
+  // 22.09-268: права — из ОБЩЕЙ таблицы «действие × роль» (раздел settings на сервере)
+  function annPerms() { try { return (typeof permLoad === 'function') ? permLoad() : {}; } catch (e) { return {}; } }
+  function canSendAnn() { try { return (typeof permCan === 'function') ? permCan('sendAnn') : (S.role === 'admin'); } catch (e) { return S.role === 'admin'; } }
+  // Напоминание тем, кто ещё НЕ нажал «ОК» — отдельное объявление каждому
+  function annRemind(id) {
+    if (!S.user || !canSendAnn()) { toast('err', 'Нет прав на отправку объявлений'); return; }
+    var m = annAnnouncements().filter(function (x) { return x.id === id; })[0];
+    if (!m) return;
+    var acks = annAcksMap()[id] || [];
+    var users = annActiveUsers();
+    var targets;
+    if (m.to === 'all') {
+      targets = users.filter(function (u) { return acks.indexOf(u.full_name) < 0 && String(u.id) !== String(m.from_id || ''); });
+    } else {
+      var u = users.filter(function (x) { return String(x.id) === String(m.to); })[0];
+      targets = (u && acks.indexOf(u.full_name) < 0) ? [u] : [];
+    }
+    if (!targets.length) { toast('ok', 'Все уже ознакомились — напоминать некому'); return; }
+    spConfirm('Отправить напоминание ' + targets.length + ' чел., кто ещё не нажал «ОК»?', { title: 'Напоминание об объявлении', ok: 'Отправить' }, function () {
+      var done = 0, chain = Promise.resolve();
+      targets.forEach(function (u) {
+        chain = chain.then(function () {
+          var rec = {
+            id: 'msg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6) + u.id.slice(-3),
+            kind: 'ann', to: u.id, to_name: u.full_name, n_to: 1,
+            prio: m.prio || '', remind_of: m.id,
+            text: 'Напоминание: ' + String(m.text || ''),
+            from: S.user.full_name || '', from_id: S.user.id, ts: Date.now()
+          };
+          return SP_API.syncPush('messages', rec).then(function (r) {
+            if (r && r.ok) { done++; try { SP_SYNC_POLL.applyRemote('messages', [rec]); } catch (eA) {} }
+          })['catch'](function () {});
+        });
+      });
+      chain.then(function () {
+        logAction('Напоминание об объявлении', done + ' чел.');
+        toast(done ? 'ok' : 'err', (done ? '✓ Напоминание отправлено: ' : 'Не удалось отправить: ') + done + ' чел.');
+        _annListSig = ''; annRenderList();
+      });
+    });
+  }
+
   function annDel(id) {
     if (!id) return;
     if (!S.user || S.role !== 'admin') { toast('err', 'Удалять объявления может только администратор'); return; }
@@ -25971,7 +26173,775 @@
     try { if (S.screen === 'adminctl') annRenderList(); } catch (e2) {}
   }
   window.SP_ANN = {
-    check: annCheck, render: renderAdminCtl, pageRefresh: annPageRefresh, list: annAnnouncements,
+    check: annCheck, remind: annRemind, canSend: canSendAnn, perms: annPerms, render: renderAdminCtl, pageRefresh: annPageRefresh, list: annAnnouncements,
     send: annSend, reshow: annShowNext, seen: annSeenLoad, start: annStart, stopLoop: annStopLoop, afterSync: annAfterSync
+  };
+  /* ── часть 20 · app/20_ui_enhance.js — улучшения интерфейса: поиск и сортировка таблиц, липкие шапки, пустые состояния, скелетон загрузки, печать (22.09-266) ── */
+/* ============================================================
+   22.09-266: улучшения интерфейса
+   · Поиск и сортировка — во ВСЕХ таблицах страниц (клик по
+     заголовку сортирует, над длинной таблицей появляется поиск).
+   · Липкие заголовки таблиц (не уезжают при прокрутке) — CSS.
+   · Пустые состояния: вместо «нет данных» — понятная подсказка.
+   · Скелетон: пока после входа идут данные с сервера, вместо
+     пустой панели показываются серые блоки-заготовки.
+   · Печать (кнопка 🖨 в шапке): чистый документ с шапкой
+     «SmartPlan · УП «МИНГАЗ» · дата · сборка».
+   ============================================================ */
+
+  // ---------- Поиск и сортировка таблиц ----------
+  function uiSortRows(table, idx, dir) {
+    var tb = table.tBodies[0];
+    if (!tb) return;
+    var rows = Array.prototype.slice.call(tb.rows).filter(function (r) { return r.cells && r.cells.length > idx; });
+    var valOf = function (r) {
+      var c = r.cells[idx];
+      if (!c) return { t: '', n: null };
+      var v = String(c.getAttribute('data-sort') || c.textContent || '').trim();
+      var n = parseFloat(v.replace(/\s+/g, '').replace(',', '.'));
+      return { t: v.toLowerCase(), n: (v !== '' && isFinite(n) && /\d/.test(v)) ? n : null };
+    };
+    rows.sort(function (a, b) {
+      var va = valOf(a), vb = valOf(b);
+      var r;
+      if (va.n !== null && vb.n !== null) r = va.n - vb.n;
+      else r = va.t.localeCompare(vb.t, 'ru');
+      return dir === 'asc' ? r : -r;
+    });
+    rows.forEach(function (r) { tb.appendChild(r); });
+  }
+  function uiSortHeader(th) {
+    if (th.dataset.nosort === '1') return;
+    var table = th.closest('table');
+    if (!table) return;
+    var heads = Array.prototype.slice.call(table.querySelectorAll('thead th'));
+    var idx = heads.indexOf(th);
+    if (idx < 0) return;
+    var dir = (th.dataset.sortDir === 'asc') ? 'desc' : 'asc';
+    heads.forEach(function (h) {
+      delete h.dataset.sortDir;
+      h.classList.remove('ui-sorted');
+      var a = h.querySelector('.ui-ar'); if (a) a.parentNode.removeChild(a);
+    });
+    th.dataset.sortDir = dir;
+    th.classList.add('ui-sorted');
+    var ar = document.createElement('span');
+    ar.className = 'ui-ar';
+    ar.textContent = dir === 'asc' ? ' ▲' : ' ▼';
+    th.appendChild(ar);
+    uiSortRows(table, idx, dir);
+  }
+  function uiSearchAdd(table) {
+    if (table.dataset.uiSearch === '1') return;
+    var tb = table.tBodies[0];
+    if (!tb || tb.rows.length < 8) return; // короткие таблицы не засоряем
+    table.dataset.uiSearch = '1';
+    var box = document.createElement('div');
+    box.className = 'ui-search no-print';
+    box.innerHTML = '<input type="search" placeholder="Поиск по таблице…" aria-label="Поиск по таблице"><span class="ui-search-n"></span>';
+    table.parentNode.insertBefore(box, table);
+    var inp = box.querySelector('input'), cnt = box.querySelector('.ui-search-n');
+    inp.addEventListener('input', function () {
+      var words = String(inp.value || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
+      var shown = 0, total = 0;
+      Array.prototype.forEach.call(table.tBodies[0].rows, function (r) {
+        total++;
+        var txt = String(r.textContent || '').toLowerCase();
+        var ok = words.every(function (w) { return txt.indexOf(w) >= 0; });
+        r.style.display = ok ? '' : 'none';
+        if (ok) shown++;
+      });
+      cnt.textContent = words.length ? ('показано ' + shown + ' из ' + total) : '';
+    });
+  }
+  function uiEnhance() {
+    try {
+      var view = document.getElementById('view');
+      if (!view) return;
+      Array.prototype.forEach.call(view.querySelectorAll('table.dt'), function (table) {
+        if (table.dataset.uiPrep !== '1') {
+          table.dataset.uiPrep = '1';
+          Array.prototype.forEach.call(table.querySelectorAll('thead th'), function (th) {
+            th.classList.add('ui-th');
+            th.title = (th.title ? th.title + ' · ' : '') + 'клик — сортировка';
+            th.addEventListener('click', function (e) {
+              if (e && e.target && e.target.tagName === 'INPUT') return;
+              uiSortHeader(th);
+            });
+          });
+        }
+        uiSearchAdd(table);
+      });
+    } catch (e) {}
+  }
+  // Наблюдаем за содержимым страницы: таблица появилась/перерисовалась — дооснащаем
+  var _uiObs = null, _uiObsT = null;
+  function uiObserve() {
+    try {
+      var view = document.getElementById('view');
+      if (!view || _uiObs) return;
+      _uiObs = new MutationObserver(function () {
+        if (_uiObsT) clearTimeout(_uiObsT);
+        _uiObsT = setTimeout(uiEnhance, 120);
+      });
+      _uiObs.observe(view, { childList: true, subtree: true });
+    } catch (e) {}
+  }
+
+  // ---------- Пустые состояния ----------
+  function uiEmpty(icon, title, hint, actionLabel, action) {
+    return '<div class="ui-empty">' +
+      '<div class="ui-empty-ic">' + icon + '</div>' +
+      '<div class="ui-empty-t">' + esc(title) + '</div>' +
+      (hint ? '<div class="ui-empty-h">' + esc(hint) + '</div>' : '') +
+      (actionLabel ? '<button class="btn primary" data-action="' + esc(action || '') + '">' + esc(actionLabel) + '</button>' : '') +
+      '</div>';
+  }
+
+  // ---------- Скелетон при первой загрузке ----------
+  function uiDataReady() {
+    try {
+      if (!(window.SP_API && SP_API.getToken && SP_API.getToken())) return true;  // локальный режим — данные уже есть
+      if (!(window.SP_SYNC_POLL && SP_SYNC_POLL.isReady)) return true;
+      return !!SP_SYNC_POLL.isReady();
+    } catch (e) { return true; }
+  }
+  function uiSkeletonMaybe() {
+    try {
+      if (uiDataReady()) return false;
+      var view = document.getElementById('view');
+      if (!view) return false;
+      var card = '<div class="sk-card"><div class="sk sk-t"></div><div class="sk sk-l"></div><div class="sk sk-l"></div><div class="sk sk-l sk-short"></div></div>';
+      view.innerHTML = '<div class="sk-wrap">' +
+        '<div class="sk-note">Загружаем данные с сервера…</div>' +
+        '<div class="sk-cards">' + card + card + card + card + '</div>' +
+        '<div class="sk-card"><div class="sk sk-t"></div><div class="sk sk-r"></div><div class="sk sk-r"></div><div class="sk sk-r"></div><div class="sk sk-r"></div></div>' +
+        '</div>';
+      return true;
+    } catch (e) { return false; }
+  }
+
+  // ---------- Печать ----------
+  function uiPrintFill() {
+    try {
+      var h = document.getElementById('print-head');
+      if (!h) return;
+      var who = (S.user && S.user.full_name) ? (' · ' + S.user.full_name) : '';
+      var scr = (document.getElementById('screen-title') || {}).textContent || '';
+      h.innerHTML = '<div class="ph-t">SmartPlan · УП «МИНГАЗ»</div>' +
+        '<div class="ph-s">' + esc(scr) + who + ' · ' + new Date().toLocaleString('ru-RU') + ' · сборка ' + SP_BUILD + '</div>';
+    } catch (e) {}
+  }
+  function uiPrint() {
+    try { uiPrintFill(); } catch (e) {}
+    setTimeout(function () { try { window.print(); } catch (e) {} }, 60);
+  }
+  window.addEventListener('beforeprint', uiPrintFill);
+  // доступ из других частей и автотестов
+  window.SP_UI = { enhance: uiEnhance, print: uiPrint, printFill: uiPrintFill, skeleton: uiSkeletonMaybe, empty: uiEmpty, ready: uiDataReady };
+  /* ── часть 21 · app/21_myday.js — «Мои задания»: мобильный экран работника — задачи на сегодня крупными карточками, кнопки «В работе» / «Выполнено» (22.09-266) ── */
+/* ============================================================
+   22.09-266: страница «Мои задания» — для телефона.
+   · Слесарю: задачи на сегодня, где он в списке исполнителей (t.slesari).
+   · Мастеру и остальным: задачи на сегодня, где он ответственный (t.m).
+   · Крупные карточки: объект, вид работы, объём, статус.
+   · Кнопки: «▶ В работе» и «✓ Выполнено» — отметка уходит на сервер
+     (её сразу видят мастер и диспетчер) и пишется в журнал действий.
+   · У слесаря это экран по умолчанию (открывается сразу после входа).
+   ============================================================ */
+  function myDayTasks() {
+    var my = (S.user && S.user.id) ? String(S.user.id) : '';
+    if (!my) return [];
+    var all = (window.SP_TASKS ? SP_TASKS.getTasks() : (S.tasks || [])) || [];
+    var mine = all.filter(function (t) {
+      if (!t || !t.id || t.id === 't_day_anchor' || isDone(t)) return false;
+      if (typeof t.d !== 'number' || t.d !== 0) return false;      // только сегодня
+      if (S.role === 'slesar') {
+        return Array.isArray(t.slesari) && t.slesari.some(function (id) { return String(id) === my; });
+      }
+      return String(t.m) === my;                                   // мастер видит свои задачи дня
+    });
+    return mine.sort(function (a, b) {
+      var sa = (typeof a.seq === 'number') ? a.seq : 999, sb = (typeof b.seq === 'number') ? b.seq : 999;
+      if (sa !== sb) return sa - sb;
+      return String(a.o || '').localeCompare(String(b.o || ''));
+    });
+  }
+  function myDayObject(t) {
+    try {
+      var o = (window.SP_OBJECTS && SP_OBJECTS.getObject) ? SP_OBJECTS.getObject(t.o) : null;
+      if (!o && OBJ_MAP) o = OBJ_MAP[t.o];
+      return o || null;
+    } catch (e) { return null; }
+  }
+  function myDayWorkName(t) {
+    try {
+      if (WORK_MAP && WORK_MAP[t.w]) return WORK_MAP[t.w].name || t.w;
+    } catch (e) {}
+    return t.w || '—';
+  }
+  function myDayCard(t) {
+    var o = myDayObject(t);
+    var addr = o ? objFullAddr(o) : (t.addr || 'Объект ?');
+    var wname = myDayWorkName(t);
+    var vol = (t.volume && t.volume !== 1) ? (' · объём ' + t.volume) : '';
+    var st = (t.s || t.status || 'plan');
+    var chip = st === 'progress'
+      ? '<span class="md-st md-st-p">▶ в работе</span>'
+      : '<span class="md-st md-st-pl">в плане</span>';
+    var btnProg = (st === 'progress') ? '' : '<button class="md-btn md-btn-p" data-action="myday-progress" data-tid="' + esc(t.id) + '">▶ В работе</button>';
+    return '<div class="md-card">' +
+      '<div class="md-top"><div class="md-addr">' + esc(addr) + '</div>' + chip + '</div>' +
+      '<div class="md-work">' + esc(wname) + vol + '</div>' +
+      '<div class="md-acts">' + btnProg +
+        '<button class="md-btn md-btn-ok" data-action="myday-done" data-tid="' + esc(t.id) + '">✓ Выполнено</button>' +
+        '<button class="md-btn md-btn-m" data-action="myday-map" title="Открыть карту маршрутов">📍</button>' +
+      '</div></div>';
+  }
+  function renderMyDay() {
+    try {
+      var view = document.getElementById('view');
+      if (!view) return;
+      var list = myDayTasks();
+      var all = (window.SP_TASKS ? SP_TASKS.getTasks() : (S.tasks || [])) || [];
+      var my = (S.user && S.user.id) ? String(S.user.id) : '';
+      var doneToday = all.filter(function (t) {
+        if (!t || isDone(t) !== true) return false;
+        if (typeof t.d !== 'number' || t.d !== 0) return false;
+        if (S.role === 'slesar') return Array.isArray(t.slesari) && t.slesari.some(function (id) { return String(id) === my; });
+        return String(t.m) === my;
+      }).length;
+      var head = '<div class="md-head"><div class="md-h-t">Мои задания на сегодня</div>' +
+        '<div class="md-h-s">' + (list.length ? ('осталось: ' + list.length) : 'всё выполнено') +
+        (doneToday ? (' · выполнено сегодня: ' + doneToday) : '') + '</div></div>';
+      if (!list.length) {
+        view.innerHTML = head + uiEmpty('🎉', 'На сегодня заданий нет', 'Все работы на сегодня выполнены или ещё не назначены. Загляните позже или откройте «Карту маршрутов».', 'Открыть карту', 'myday-map');
+        return;
+      }
+      view.innerHTML = head + '<div class="md-list">' + list.map(myDayCard).join('') + '</div>';
+    } catch (e) {
+      try { toast('err', 'Ошибка страницы «Мои задания»: ' + String(e && e.message || e)); } catch (e2) {}
+    }
+  }
+  // доступ из других частей и автотестов
+  window.SP_MYDAY = { tasks: myDayTasks, render: renderMyDay, set: myDaySet };
+  function myDaySet(tid, st) {
+    try {
+      if (!tid) return;
+      var t = (window.SP_TASKS ? SP_TASKS.getTasks() : []).filter(function (x) { return x.id === tid; })[0];
+      if (!t) return;
+      if (st === 'done') {
+        TASKS_DB.updateTask(tid, { s: 'done', status: 'done', done_at: Date.now(), done_by: (S.user && S.user.full_name) || '' });
+        logAction('Отметка «выполнено» (Мои задания)', myDayWorkName(t) + ' · ' + (myDayObject(t) ? objFullAddr(myDayObject(t)) : t.o));
+        toast('ok', '✓ Работа отмечена выполненной — мастер увидит отметку');
+      } else {
+        TASKS_DB.updateTask(tid, { s: 'progress', status: 'progress', started_at: Date.now() });
+        logAction('Отметка «в работе» (Мои задания)', myDayWorkName(t));
+        toast('ok', '▶ Отмечено «в работе»');
+      }
+      renderMyDay();
+    } catch (e) { try { toast('err', 'Не удалось отметить: ' + String(e && e.message || e)); } catch (e2) {} }
+  }
+  /* ── часть 22 · app/22_admin_tools.js — админ-инструменты: «Состояние системы», бэкап по кнопке + список копий, история по задаче, массовые операции с пользователями (22.09-267) ── */
+/* ============================================================
+   22.09-267: инструменты администратора
+   · «Состояние системы» — бэкапы (когда был последний и список
+     последних копий), ошибки за сутки, кто сейчас онлайн и —
+     главное — кто из сотрудников работает на СТАРОЙ версии сайта.
+   · Кнопка «Сделать бэкап сейчас» — резервная копия на Google Диск
+     по требованию (не дожидаясь расписания).
+   · История по задаче — кто и когда её менял (из журнала действий).
+   · Массовые операции в «Пользователях»: отметить несколько
+     галочками и разом отключить/включить или задать общий пароль.
+   ============================================================ */
+
+  // ---------- «Состояние системы» ----------
+  var _sysState = { loading: false, data: null, err: '' };
+  function sysStatusLoad(force) {
+    if (_sysState.loading) return;
+    if (_sysState.data && !force) return;
+    _sysState.loading = true;
+    var box = document.getElementById('sys-status-box');
+    if (box) box.innerHTML = '<div style="color:var(--muted);font-size:13px">Запрашиваю состояние системы…</div>';
+    if (window.SP_API && SP_API.status) {
+      SP_API.status().then(function (r) {
+        _sysState.loading = false;
+        if (r && r.ok) { _sysState.data = r; _sysState.err = ''; }
+        else { _sysState.err = (r && r.err) || 'нет связи с сервером'; }
+        sysStatusRender();
+      })['catch'](function (e) {
+        _sysState.loading = false;
+        _sysState.err = String((e && e.message) || e);
+        sysStatusRender();
+      });
+    } else { _sysState.loading = false; _sysState.err = 'нет связи с сервером'; sysStatusRender(); }
+  }
+  function sysFmtAgo(ts) {
+    if (!ts) return '—';
+    var s = Math.round((Date.now() - ts) / 1000);
+    if (s < 90) return 'только что';
+    var m = Math.round(s / 60); if (m < 90) return m + ' мин назад';
+    var h = Math.round(m / 60); if (h < 36) return h + ' ч назад';
+    return Math.round(h / 24) + ' дн назад';
+  }
+  function sysStatusRender() {
+    var box = document.getElementById('sys-status-box');
+    if (!box) return;
+    if (_sysState.err) { box.innerHTML = '<div style="color:var(--red);font-size:13px">Не удалось получить состояние: ' + esc(_sysState.err) + ' <button class="btn sm" data-action="sys-refresh">Повторить</button></div>'; return; }
+    var d = _sysState.data;
+    if (!d) { box.innerHTML = '<div style="color:var(--muted);font-size:13px">Нет данных.</div>'; return; }
+    var lb = d.last_backup;
+    var bkLine = lb
+      ? ('<b>' + esc(sysFmtAgo(lb.ts)) + '</b> (' + esc(new Date(lb.ts).toLocaleString('ru-RU')) + ') · файл ' + esc(lb.file) + ' · ' + lb.size_kb + ' КБ')
+      : '<span style="color:var(--yellow)">пока не было — проверьте cron-триггер и скрипт Google</span>';
+    var errCol = (d.errors_24h > 0) ? 'var(--yellow)' : 'var(--green)';
+    var onl = (d.online || []).map(function (o) { return esc(o.name) + (o.build ? ' <span style="color:var(--muted);font-size:11px">' + esc(o.build) + '</span>' : ''); }).join(' · ');
+    var outdated = d.outdated || [];
+    var outdatedHtml = outdated.length
+      ? '<div style="background:var(--yellow-l);border:1px solid #fde68a;border-left:4px solid var(--yellow);border-radius:9px;padding:10px 12px;font-size:12.5px;color:#78350f;margin-top:10px">' +
+          '<b>⚠ Работают на старой версии сайта (' + outdated.length + '):</b> ' +
+          outdated.map(function (x) { return esc(x.name) + ' <span style="opacity:.8">(' + esc(x.build) + ')</span>'; }).join(', ') +
+          '<div style="margin-top:5px">Попросите их обновить страницу (F5) — на старой версии часть кнопок может работать иначе.</div></div>'
+      : '<div style="color:var(--green);font-size:12.5px;margin-top:10px">✅ Все открытые сессии — на свежей версии сайта (' + esc(d.newest_build || '—') + ')</div>';
+    var bks = (d.backups || []).filter(function (b) { return !b.skipped && b.file; });
+    var bkRows = bks.map(function (b) {
+      return '<tr><td style="white-space:nowrap">' + esc(new Date(b.ts).toLocaleString('ru-RU')) + '</td><td style="font-family:monospace;font-size:12px">' + esc(b.file) + '</td><td style="text-align:right">' + b.size_kb + ' КБ</td><td style="text-align:right">' + b.records + '</td></tr>';
+    }).join('');
+    box.innerHTML =
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">' +
+        '<div class="sys-tile"><div class="sys-t">Последняя копия на Диске</div><div class="sys-v">' + bkLine + '</div></div>' +
+        '<div class="sys-tile"><div class="sys-t">Ошибки (за сутки / всего)</div><div class="sys-v" style="color:' + errCol + '">' + d.errors_24h + ' / ' + d.errors_all + '</div></div>' +
+        '<div class="sys-tile"><div class="sys-t">Сейчас на сайте</div><div class="sys-v">' + ((d.online || []).length ? ((d.online || []).length + ' чел.') : 'никого') + (onl ? '<div style="font-size:11.5px;color:var(--muted);margin-top:3px">' + onl + '</div>' : '') + '</div></div>' +
+        '<div class="sys-tile"><div class="sys-t">Активных сотрудников</div><div class="sys-v">' + d.active_users + '</div></div>' +
+      '</div>' + outdatedHtml +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 10px">' +
+        '<button class="btn primary" data-action="sys-backup">💾 Сделать бэкап сейчас</button>' +
+        '<button class="btn" data-action="sys-refresh">↻ Обновить состояние</button>' +
+        '<a class="btn" href="https://drive.google.com/drive/search?q=SmartPlan%20backups" target="_blank" rel="noopener">Открыть папку на Диске</a>' +
+      '</div>' +
+      (bkRows ? ('<div style="font-size:12.5px;color:var(--muted);margin-bottom:4px">Последние копии (журнал):</div>' +
+        '<table class="dt" data-nosort="0"><thead><tr><th>Когда</th><th>Файл</th><th style="text-align:right">Размер</th><th style="text-align:right">Записей</th></tr></thead><tbody>' + bkRows + '</tbody></table>')
+        : '<div style="font-size:12.5px;color:var(--muted)">Копий пока нет.</div>');
+  }
+  function sysBackupNow() {
+    if (!S.user || S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
+    toast('ok', '💾 Делаю резервную копию на Google Диск…');
+    SP_API.backupNow().then(function (r) {
+      if (r && r.ok && !r.skipped) { toast('ok', '✓ Копия создана: ' + r.file + ' (' + r.size_kb + ' КБ)'); logAction('Ручной бэкап на Google Диск', r.file || ''); }
+      else if (r && r.ok) toast('ok', 'Копия уже актуальна (ничего не менялось)');
+      else toast('err', 'Не удалось: ' + ((r && r.err) || 'нет связи'));
+      _sysState.data = null; sysStatusLoad(true);
+    })['catch'](function (e) { toast('err', 'Не удалось: ' + String((e && e.message) || e)); });
+  }
+
+  // ---------- История по задаче ----------
+  function taskHistoryShow(taskId, taskName) {
+    if (!taskId) return;
+    try {
+      var modal = document.getElementById('modal');
+      overlay.classList.add('show');
+      modal.style.maxWidth = '900px';
+      modal.innerHTML = '<div class="modal-h"><h3>🕓 История по задаче</h3><button class="x" data-action="close-modal">×</button></div>' +
+        '<div class="modal-b" id="hist-body"><div style="color:var(--muted);font-size:13px">Загружаю…</div></div>' +
+        '<div class="modal-f"><button class="btn" data-action="close-modal">Закрыть</button></div>';
+    } catch (e) {}
+    if (!SP_API.auditByObject) { toast('err', 'Сервер не поддерживает историю'); return; }
+    SP_API.auditByObject(taskId, 50).then(function (r) {
+      var body = document.getElementById('hist-body');
+      if (!body) return;
+      var recs = (r && r.records) || [];
+      if (!r || !r.ok) { body.innerHTML = '<div style="color:var(--red);font-size:13px">Ошибка: ' + esc((r && r.err) || 'нет связи') + '</div>'; return; }
+      if (!recs.length) { body.innerHTML = '<div style="color:var(--muted);font-size:13px">Изменений по этой задаче в журнале нет.</div>'; return; }
+      var h = '<div style="font-size:12.5px;color:var(--muted);margin-bottom:8px">' + esc(taskName || taskId) + '</div>';
+      h += '<table class="dt"><thead><tr><th style="width:150px">Когда</th><th style="width:170px">Кто</th><th style="width:110px">Действие</th><th>Подробности</th></tr></thead><tbody>';
+      recs.forEach(function (x) {
+        var act = ({ upsert: 'изменение', update: 'изменение', delete: 'удаление', conflict: 'конфликт', 'restore': 'восстановление' })[x.action] || x.action || '';
+        h += '<tr><td style="white-space:nowrap">' + esc(sysFmtAgo(x.ts)) + '<div style="font-size:11px;color:var(--muted)">' + esc(new Date(x.ts).toLocaleString('ru-RU')) + '</div></td>' +
+          '<td>' + esc(x.user_name || x.user_login || '—') + '</td><td>' + esc(act) + '</td><td style="font-size:12px;color:var(--muted)">' + esc(x.details || '') + '</td></tr>';
+      });
+      h += '</tbody></table>';
+      body.innerHTML = h;
+    })['catch'](function (e) {
+      var body = document.getElementById('hist-body');
+      if (body) body.innerHTML = '<div style="color:var(--red);font-size:13px">Ошибка: ' + esc(String((e && e.message) || e)) + '</div>';
+    });
+  }
+  function taskHistoryAction(el) {
+    var id = el && el.dataset ? el.dataset.tid : '';
+    if (!id) return;
+    var t = (window.SP_TASKS ? SP_TASKS.getTasks() : []).filter(function (x) { return x.id === id; })[0];
+    var nm = '';
+    try { nm = t ? (myDayWorkName(t) + ' · ' + (myDayObject(t) ? objFullAddr(myDayObject(t)) : t.o)) : id; } catch (e) { nm = id; }
+    taskHistoryShow(id, nm);
+  }
+
+  // ---------- Массовые операции с пользователями ----------
+  function bulkSelected() {
+    var ids = [];
+    document.querySelectorAll('#view [data-bulk-user]').forEach(function (c) { if (c.checked) ids.push(c.getAttribute('data-bulk-user')); });
+    return ids;
+  }
+  function bulkToggleAll(on) {
+    document.querySelectorAll('#view [data-bulk-user]').forEach(function (c) { c.checked = !!on; });
+    bulkPanelSync();
+  }
+  function bulkPanelSync() {
+    var n = bulkSelected().length;
+    var bar = document.getElementById('bulk-bar');
+    if (bar) bar.style.display = n ? 'flex' : 'none';
+    var cnt = document.getElementById('bulk-count');
+    if (cnt) cnt.textContent = 'Выбрано: ' + n;
+  }
+  function bulkSetActive(on) {
+    if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
+    var ids = bulkSelected();
+    if (!ids.length) { toast('warn', 'Отметьте сотрудников галочками'); return; }
+    var what = on ? 'включить' : 'отключить';
+    spConfirm('Выбранных (' + ids.length + ') ' + what + '? ' + (on ? '' : 'Отключённый не сможет войти (удобно на время отпуска) — данные и история сохраняются.'), { title: 'Массовая операция', ok: on ? 'Включить' : 'Отключить', danger: !on }, function () {
+      var done = 0, chain = Promise.resolve();
+      ids.forEach(function (id) {
+        chain = chain.then(function () {
+          var u = DB.getUser(id); if (!u) return;
+          return SP_API.update('users', id, Object.assign({}, u, { active: !!on })).then(function (r) {
+            if (r && r.ok) {
+              var loc = DB.getUser(id); if (loc) { loc.active = !!on; }
+              done++;
+            }
+          })['catch'](function () {});
+        });
+      });
+      chain.then(function () {
+        logAction(on ? 'Массовое включение пользователей' : 'Массовое отключение пользователей', done + ' чел.');
+        toast(done === ids.length ? 'ok' : 'warn', (on ? 'Включено: ' : 'Отключено: ') + done + ' из ' + ids.length);
+        try { if (SP_SYNC_POLL && SP_SYNC_POLL.kick) SP_SYNC_POLL.kick(); } catch (e) {}
+        renderUsers();
+        bulkPanelSync();
+      });
+    });
+  }
+  function bulkSetPassword() {
+    if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
+    var ids = bulkSelected();
+    if (!ids.length) { toast('warn', 'Отметьте сотрудников галочками'); return; }
+    // поля пароля — прямо в панели массовых операций (просто и надёжно)
+    var bar = document.getElementById('bulk-bar');
+    if (!bar) return;
+    var pan = document.getElementById('bulk-pass-panel');
+    if (pan) { pan.style.display = (pan.style.display === 'none') ? 'block' : 'none'; return; }
+    pan = document.createElement('div');
+    pan.id = 'bulk-pass-panel';
+    pan.style.cssText = 'margin-top:8px;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--panel-2)';
+    pan.innerHTML = '<div style="font-size:12.5px;color:var(--muted);margin-bottom:6px">Один новый пароль для выбранных (' +
+      '<span id="bulk-pass-n"></span>). Передайте его каждому лично — в журнал пароль не пишется.</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
+      '<input id="bulk-pass" type="text" placeholder="Новый пароль" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:var(--card);color:var(--txt)">' +
+      '<input id="bulk-pass2" type="text" placeholder="Повторите" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:var(--card);color:var(--txt)">' +
+      '<button class="btn primary" data-action="bulk-pass-go">Задать пароль</button></div>';
+    bar.appendChild(pan);
+  }
+  function bulkSetPasswordGo() {
+    if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
+    var ids = bulkSelected();
+    if (!ids.length) { toast('warn', 'Отметьте сотрудников галочками'); return; }
+    var p1 = (document.getElementById('bulk-pass') || {}).value || '';
+    var p2 = (document.getElementById('bulk-pass2') || {}).value || '';
+    if (String(p1).length < 4) { toast('err', 'Пароль слишком короткий (минимум 4 символа)'); return; }
+    if (p1 !== p2) { toast('err', 'Пароли не совпадают'); return; }
+    var done = 0, chain = Promise.resolve();
+    ids.forEach(function (id) {
+      chain = chain.then(function () {
+        return SP_API.update('users', id, { plain_password: p1 }).then(function (r) { if (r && r.ok) done++; })['catch'](function () {});
+      });
+    });
+    chain.then(function () {
+      logAction('Массовая смена пароля', done + ' чел. (пароль в журнал не пишется)');
+      toast(done === ids.length ? 'ok' : 'warn', 'Пароль задан: ' + done + ' из ' + ids.length + '. Передайте его сотрудникам лично.');
+      var pan = document.getElementById('bulk-pass-panel'); if (pan) pan.parentNode.removeChild(pan);
+      bulkToggleAll(false);
+    });
+  }
+  // счётчик выбранных в панели пароля
+  function bulkPassCount() {
+    var n = document.getElementById('bulk-pass-n');
+    if (n) n.textContent = bulkSelected().length + ' чел.';
+  }
+  window.SP_ADMINX = { status: sysStatusLoad, backupNow: sysBackupNow, history: taskHistoryShow, bulkToggleAll: bulkToggleAll, bulkPanelSync: bulkPanelSync, bulkPassCount: bulkPassCount };
+  /* ── часть 23 · app/23_dash_perm.js — настройка панели мониторинга (виджеты) и права доступа (общие, на сервере) (22.09-268) ── */
+/* ============================================================
+   22.09-268
+   1) НАСТРОЙКА ПАНЕЛИ (виджеты): кнопка «⚙ Настроить» на панели
+      мониторинга — какие блоки показывать и в каком порядке
+      (списком со стрелками ↑/↓). Настройка личная (в этом браузере).
+   2) ПРАВА ДОСТУПА (общие для всех устройств): таблица
+      «действие × роль» хранится на сервере (раздел settings,
+      запись id='perm'). Что реально управляется:
+        · sendAnn   — рассылать объявления работникам
+        · viewLogs  — видеть «Журнал действий» и «Логи ошибок»
+        · delTasks  — удалять задачи и чистить корзину
+        · exportData— выгружать данные (бэкап базы, Excel пользователей)
+      Администратор может всё всегда.
+   ============================================================ */
+
+  // ================= 1. Настройка панели =================
+  var DW_KEY = 'smartplan_dash_widgets_v1';
+  var DW_LIST = [
+    { key: 'filter',  label: 'Фильтр по участку' },
+    { key: 'kpi',     label: 'Показатели (плитки КPI)' },
+    { key: 'warn',    label: 'Предупреждения (ордера, погода)' },
+    { key: 'weather', label: 'Погода' },
+    { key: 'today',   label: 'Сегодня (работы и шкала дня)' },
+    { key: 'charts',  label: 'КПД мастеров и выполнение по дням' }
+  ];
+  function dwLoad() {
+    try {
+      var a = JSON.parse(localStorage.getItem(DW_KEY) || '[]');
+      if (!Array.isArray(a)) a = [];
+      var out = [];
+      // сначала сохранённый порядок (только известные виджеты), затем новые — в конец
+      a.forEach(function (k) { if (typeof k === 'string' && DW_LIST.some(function (w) { return w.key === k; }) && out.indexOf(k) < 0) out.push(k); });
+      DW_LIST.forEach(function (w) { if (out.indexOf(w.key) < 0) out.push(w.key); });
+      return out;
+    } catch (e) { return DW_LIST.map(function (w) { return w.key; }); }
+  }
+  function dwHidden() {
+    try { var h = JSON.parse(localStorage.getItem(DW_KEY + '_hidden') || '[]'); return Array.isArray(h) ? h : []; } catch (e) { return []; }
+  }
+  function dwSave(order, hidden) {
+    try { localStorage.setItem(DW_KEY, JSON.stringify(order)); localStorage.setItem(DW_KEY + '_hidden', JSON.stringify(hidden)); } catch (e) {}
+  }
+  // Собрать блоки панели: ключ → узел (учитываем блоки внутри .dash-grid)
+  function dwCollect() {
+    var view = document.getElementById('view');
+    if (!view) return {};
+    var map = {};
+    Array.prototype.forEach.call(view.children, function (n) {
+      if (!(n.className && String(n.className).indexOf('dash-widgets-bar') >= 0)) {
+        try {
+          if (n.querySelector && n.querySelector('#dash-area')) { map.filter = n; return; }
+          if (n.classList && n.classList.contains('kpi-row')) { map.kpi = n; return; }
+          if (n.classList && (n.classList.contains('permit-warn') || n.classList.contains('weather-warn'))) { map.warn = n; return; }
+          if (n.getAttribute && n.getAttribute('data-action') === 'open-weather') { map.weather = n; if (n.nextElementSibling && n.nextElementSibling.id === 'weather-dropdown') map.weather_dd = n.nextElementSibling; return; }
+          if (n.classList && n.classList.contains('dash-grid')) {
+            Array.prototype.forEach.call(n.children, function (c) {
+              var t = String(c.textContent || '');
+              if (t.indexOf('КПД мастеров') >= 0) map.charts = c; else map.today = c;
+            });
+          }
+        } catch (e) {}
+      }
+    });
+    return map;
+  }
+  function dwApply() {
+    try {
+      if (S.screen !== 'dashboard') return;
+      var map = dwCollect();
+      if (!Object.keys(map).length) return;
+      var order = dwLoad(), hidden = dwHidden();
+      // прячем/показываем
+      DW_LIST.forEach(function (w) {
+        var n = map[w.key];
+        if (n) n.style.display = (hidden.indexOf(w.key) >= 0) ? 'none' : '';
+      });
+      if (map.weather_dd) map.weather_dd.style.display = (hidden.indexOf('weather') >= 0) ? 'none' : '';
+      // порядок верхних блоков
+      var view = document.getElementById('view');
+      var bar = document.getElementById('dash-widgets-bar');
+      order.forEach(function (k) {
+        var n = map[k];
+        if (!n || !view) return;
+        if (n.parentNode === view) view.appendChild(n); // в конец — итоговый порядок задаётся порядком массива
+      });
+      if (bar && view) view.insertBefore(bar, view.firstChild);
+      // порядок внутри .dash-grid (Сегодня / графики)
+      var grid = null;
+      var g = map.today && map.today.parentNode;
+      if (g && g.classList && g.classList.contains('dash-grid')) grid = g;
+      if (grid) {
+        [map.today, map.charts].forEach(function (n) { if (n && n.parentNode === grid) grid.appendChild(n); });
+      }
+    } catch (e) {}
+  }
+  function dwBarEnsure() {
+    try {
+      if (S.screen !== 'dashboard') return;
+      var view = document.getElementById('view');
+      if (!view || document.getElementById('dash-widgets-bar')) return;
+      var bar = document.createElement('div');
+      bar.id = 'dash-widgets-bar';
+      bar.className = 'dash-widgets-bar no-print';
+      bar.style.cssText = 'display:flex;justify-content:flex-end;margin:-4px 0 10px';
+      bar.innerHTML = '<button class="btn sm" data-action="dash-setup" title="Какие блоки показывать на панели и в каком порядке">⚙ Настроить панель</button>';
+      view.insertBefore(bar, view.firstChild);
+    } catch (e) {}
+  }
+  function dashboardDecorate() {
+    try {
+      if (S.screen !== 'dashboard') return;
+      dwBarEnsure();
+      dwApply();
+    } catch (e) {}
+  }
+  var _dwTmpHidden = null; // состояние галочек в открытом окне (не сбрасывать при перестановке)
+  function openDashSetup() {
+    var hidden = _dwTmpHidden || dwHidden(), order = dwLoad();
+    var rows = order.map(function (k) {
+      var w = DW_LIST.filter(function (x) { return x.key === k; })[0] || { key: k, label: k };
+      return '<div style="display:flex;align-items:center;gap:10px;padding:7px 2px;border-bottom:1px solid var(--line)">' +
+        '<label style="display:inline-flex;align-items:center;gap:8px;flex:1;font-size:13.5px"><input type="checkbox" data-dw-on="' + w.key + '"' + (hidden.indexOf(w.key) < 0 ? ' checked' : '') + '> ' + esc(w.label) + '</label>' +
+        '<button class="btn sm" data-action="dw-up" data-dw="' + w.key + '" title="Выше">↑</button>' +
+        '<button class="btn sm" data-action="dw-down" data-dw="' + w.key + '" title="Ниже">↓</button>' +
+        '</div>';
+    }).join('');
+    var modal = document.getElementById('modal');
+    overlay.classList.add('show');
+    modal.style.maxWidth = '560px';
+    modal.innerHTML = '<div class="modal-h"><h3>⚙ Настройка панели мониторинга</h3><button class="x" data-action="close-modal">×</button></div>' +
+      '<div class="modal-b"><div style="font-size:12.5px;color:var(--muted);margin-bottom:10px">Отметьте, какие блоки показывать, и расставьте порядок стрелками. Настройка — для этого браузера.</div>' + rows + '</div>' +
+      '<div class="modal-f"><button class="btn" data-action="dash-setup-reset">Вернуть как было</button><button class="btn primary" data-action="dash-setup-save">Сохранить</button></div>';
+  }
+  function dwMove(key, dir) {
+    try {
+      var order = dwLoad();
+      var i = order.indexOf(key);
+      if (i < 0) return;
+      if (dir < 0 && i > 0) { order[i] = order[i - 1]; order[i - 1] = key; }
+      if (dir > 0 && i < order.length - 1) { order[i] = order[i + 1]; order[i + 1] = key; }
+      // 22.09-268: не потерять отмеченные галочки при перестановке
+      var cur = [];
+      document.querySelectorAll('[data-dw-on]').forEach(function (c) { if (!c.checked) cur.push(c.getAttribute('data-dw-on')); });
+      _dwTmpHidden = cur;
+      dwSave(order, dwHidden());
+      openDashSetup();               // перерисовать список (с учётом отмеченного)
+      dwApply();
+    } catch (e) {}
+  }
+  function dashSetupSave() {
+    try {
+      var hidden = [];
+      document.querySelectorAll('[data-dw-on]').forEach(function (c) { if (!c.checked) hidden.push(c.getAttribute('data-dw-on')); });
+      dwSave(dwLoad(), hidden);
+      _dwTmpHidden = null;
+      try { document.getElementById('overlay').classList.remove('show'); } catch (e) {}
+      toast('ok', '✓ Панель настроена');
+      dwApply();
+    } catch (e) {}
+  }
+  function dashSetupReset() {
+    try { localStorage.removeItem(DW_KEY); localStorage.removeItem(DW_KEY + '_hidden'); _dwTmpHidden = null; } catch (e) {}
+    try { document.getElementById('overlay').classList.remove('show'); } catch (e) {}
+    toast('ok', 'Панель — как было');
+    if (typeof renderDashboard === 'function') { renderDashboard(); dashboardDecorate(); }
+  }
+
+  // Карточка «Права доступа» — таблица «действие × роль»
+  function permRenderMatrix() {
+    var view = document.getElementById('view');
+    if (!view) return;
+    var box = document.getElementById('perm-matrix');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'perm-matrix';
+      box.className = 'card';
+      box.style.marginTop = '14px';
+      view.appendChild(box);
+    }
+    var p = permLoad();
+    var h = '<div class="card-h"><h2>🔐 Права доступа</h2><span class="sub">Общие для всех устройств · администратор может всё всегда</span></div><div class="card-b">';
+    h += '<table class="dt"><thead><tr><th>Действие</th>';
+    PERM_ROLES.forEach(function (r) { h += '<th style="text-align:center">' + esc(r.label) + '</th>'; });
+    h += '</tr></thead><tbody>';
+    PERM_ACTIONS.forEach(function (a) {
+      h += '<tr><td>' + esc(a.label) + '</td>';
+      PERM_ROLES.forEach(function (r) {
+        var on = !!(p[a.key] && p[a.key][r.key]);
+        h += '<td style="text-align:center"><input type="checkbox" data-perm="' + a.key + '" data-role="' + r.key + '"' + (on ? ' checked' : '') + '></td>';
+      });
+      h += '</tr>';
+    });
+    h += '</tbody></table>';
+    h += '<div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
+      '<button class="btn primary" data-action="perm-save-matrix">Сохранить права</button>' +
+      '<span style="font-size:12.5px;color:var(--muted)">Изменения применяются у всех, кто откроет сайт заново или обновит страницу.</span></div>';
+    h += '</div>';
+    box.innerHTML = h;
+  }
+  function permSaveMatrix() {
+    if (S.role !== 'admin') { toast('err', 'Менять права может только администратор'); return; }
+    var perms = {};
+    document.querySelectorAll('[data-perm]').forEach(function (c) {
+      var a = c.getAttribute('data-perm'), r = c.getAttribute('data-role');
+      if (!perms[a]) perms[a] = {};
+      perms[a][r] = !!c.checked;
+    });
+    var summary = PERM_ACTIONS.map(function (a) {
+      var roles = PERM_ROLES.filter(function (r) { return perms[a.key] && perms[a.key][r.key]; }).map(function (r) { return r.label; });
+      return a.label + ': ' + (roles.length ? roles.join(', ') : 'только админ');
+    }).join(' · ');
+    permSaveAll(perms);
+    logAction('Изменение прав доступа', summary.slice(0, 300));
+  }
+
+  // ================= 2. Права доступа (общие) =================
+  var PERM_ACTIONS = [
+    { key: 'sendAnn',    label: 'Рассылать объявления работникам' },
+    { key: 'viewLogs',   label: 'Видеть «Журнал действий» и «Логи ошибок»' },
+    { key: 'delTasks',   label: 'Удалять задачи и чистить корзину' },
+    { key: 'exportData', label: 'Выгружать данные (бэкап базы, Excel)' }
+  ];
+  var PERM_ROLES = [
+    { key: 'nach', label: 'Начальник участка' },
+    { key: 'smaster', label: 'Ст. мастер' },
+    { key: 'engineer', label: 'Инженер' },
+    { key: 'master', label: 'Мастер' }
+  ];
+  // Чтение: сначала общие настройки с сервера (раздел settings, запись 'perm'),
+  // затем — прежняя локальная настройка (22.09-267), чтобы ничего не потерялось
+  function permLoad() {
+    var out = {};
+    try {
+      var lsKey = (window.SP_SYNC_POLL && SP_SYNC_POLL.LS_KEYS && SP_SYNC_POLL.LS_KEYS.settings) || 'smartplan_settings';
+      var arr = JSON.parse(localStorage.getItem(lsKey) || '[]');
+      if (Array.isArray(arr)) {
+        var rec = arr.filter(function (x) { return x && x.id === 'perm'; })[0];
+        if (rec && rec.perms && typeof rec.perms === 'object') out = rec.perms;
+      }
+    } catch (e) {}
+    try {
+      var legacy = JSON.parse(localStorage.getItem('smartplan_perm_ann') || '{}');
+      if (!out.sendAnn && (legacy.sendNach || legacy.sendSmaster)) {
+        out.sendAnn = { nach: !!legacy.sendNach, smaster: !!legacy.sendSmaster, engineer: false, master: false };
+      }
+    } catch (e2) {}
+    return out;
+  }
+  function permCan(action) {
+    if (!S.user) return false;
+    if (S.role === 'admin') return true;
+    try { var p = permLoad(); var a = p && p[action]; return !!(a && a[S.role]); } catch (e) { return false; }
+  }
+  function permSaveAll(perms) {
+    if (S.role !== 'admin') { toast('err', 'Менять права может только администратор'); return; }
+    var rec = { id: 'perm', perms: perms, updated_at: Date.now() };
+    var done = function (src) {
+      try { if (window.SP_SYNC_POLL && SP_SYNC_POLL.applyRemote) SP_SYNC_POLL.applyRemote('settings', [rec]); } catch (e) {}
+      logAction('Изменение прав доступа', src || 'сохранено');
+      toast('ok', '✓ Права сохранены — действуют на всех устройствах');
+      try { applyUser(); } catch (e2) {}   // пересчитать видимость меню
+      annPageRefresh();
+    };
+    if (window.SP_API && SP_API.syncPush) {
+      SP_API.syncPush('settings', rec).then(function (r) {
+        if (r && r.ok) done();
+        else if (r && (r.conflict || r.stale_client)) toast('err', 'Обновите страницу (Ctrl+Shift+R) и повторите');
+        else toast('err', 'Не удалось сохранить права: ' + ((r && r.err) || 'нет связи'));
+      })['catch'](function () { toast('err', 'Не удалось сохранить — нет связи с сервером'); });
+    } else done('локально');
+  }
+
+  window.SP_DASHPERM = {
+    decorate: dashboardDecorate, apply: dwApply, setup: openDashSetup, move: dwMove,
+    save: dashSetupSave, reset: dashSetupReset,
+    permLoad: permLoad, permCan: permCan, permMatrix: permRenderMatrix, permSaveMatrix: permSaveMatrix
   };
 })();

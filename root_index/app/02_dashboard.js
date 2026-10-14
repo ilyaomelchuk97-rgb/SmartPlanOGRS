@@ -2249,6 +2249,8 @@
     });
     // Запуск случайных вспышек молний, если сегодня гроза (сцена содержит #wx-bolts)
     setupLightning();
+    // 22.09-268: кнопка «Настроить панель» и порядок/видимость блоков — при КАЖДОЙ отрисовке
+    try { dashboardDecorate(); } catch (eDash) {}
   }
 
   function kpi(val, lab, hint, color, action) {

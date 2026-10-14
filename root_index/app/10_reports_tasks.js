@@ -1230,7 +1230,9 @@
     html += '<div class="fld"><label>Виды работ на адресе (можно выбрать несколько)</label><div id="f-work-list" style="display:flex;flex-direction:column;gap:8px;max-height:200px;overflow:auto;padding:2px;"></div></div>'; // 22.09-154: padding-right:75px удалён — строки работ во всю ширину окна
     html += '<div id="f-attr-panel"></div>';
     html += '<div class="calc" id="f-calc">Выберите объект и работы — система рассчитает трудозатраты автоматически.</div>';
-    html += '</div><div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="save-task">' + btnText + '</button></div>';
+    html += '</div><div class="modal-f">' +
+      ((S.role === 'admin' || S.role === 'nach' || S.role === 'smaster') && tid ? '<button class="btn" data-action="task-history" data-tid="' + esc(tid) + '" title="Кто и когда менял эту задачу (журнал действий)">🕓 История</button>' : '') +
+      '<button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="save-task">' + btnText + '</button></div>'; // 22.09-267: + «История»
     modal.style.maxWidth = ''; // сброс инлайн-ширины (напр. 60% у Excel-модалки); ширину задаёт CSS max-width:fit-content
     modal.innerHTML = html;
     overlay.classList.add('show');

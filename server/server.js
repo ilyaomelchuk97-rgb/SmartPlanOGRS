@@ -147,7 +147,7 @@ function initWithRetry() {
 initWithRetry();
 
 // Роуты
-const SECTIONS = ['objects', 'tasks', 'areas', 'workers', 'work_catalog', 'graphs', 'professions', 'holidays', 'telemetry', 'messages']; // 22.09-111: + виды телеметрии; 22.09-264: + объявления администратора
+const SECTIONS = ['objects', 'tasks', 'areas', 'workers', 'work_catalog', 'graphs', 'professions', 'holidays', 'telemetry', 'messages', 'settings']; // 22.09-111: телеметрия; 22.09-264: объявления; 22.09-268: настройки (права)
 // 22.09-243: после УСПЕШНОГО изменения данных раздела — мгновенное уведомление всем открытым сайтам
 // (они сразу забирают новое через /api/sync; by — id вкладки-автора, чтобы она не дёргалась сама на себя)
 const LIVE_SECTIONS = new Set(SECTIONS.concat(['users']));

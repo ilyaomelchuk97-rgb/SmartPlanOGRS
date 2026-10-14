@@ -187,7 +187,7 @@
       // 22.09-161: уволенные — отдельным блоком внизу (без логина/пароля)
       var firedUsers = allUsers.filter(function (u) { return u && u.fired === true; });
       var users = allUsers.filter(function (u) { return u && u.fired !== true; });
-      var html = '<div class="card"><div class="card-h"><h2>Пользователи системы</h2><span class="sub">' + users.length + ' учётных записей</span><div class="spacer"></div>' + (S.role === 'admin' ? '<button class="btn sm" data-action="demo-seed" title="Заполнить локальную базу демо-данными для тестов: объекты ГРП/ШРП Минска, бригада слесарей, задачи на сегодня/завтра, график работ. Данные живут в localStorage и НЕ теряются при замене файлов сайта">🧪 Демо-данные</button>' : '') + (S.role === 'admin' ? '<button class="btn sm" data-action="download-backup" title="Скачать полную резервную копию локальной базы (JSON) — работает без сервера">' + IC.download + ' 💾 Бэкап базы</button>' : '') + (S.role === 'admin' ? '<button class="btn sm" data-action="restore-backup" title="Восстановить базу из файла бэкапа (JSON)">♻ Восстановить</button>' : '') + '<button class="btn sm" data-action="export-db" title="Сохранить базу в Excel">' + IC.download + ' Экспорт в Excel</button>' + (S.role === 'admin' ? '<button class="btn sm" data-action="import-db" title="Загрузить базу из Excel">' + IC.upload + ' Импорт из Excel</button>' : '') + '<input type="file" id="import-file" accept=".xlsx,.xls,.csv" style="display:none"><input type="file" id="restore-file" accept=".json,application/json" style="display:none">';
+      var html = '<div class="card"><div class="card-h"><h2>Пользователи системы</h2><span class="sub">' + users.length + ' учётных записей</span><div class="spacer"></div>' + (S.role === 'admin' ? '<button class="btn sm" data-action="demo-seed" title="Заполнить локальную базу демо-данными для тестов: объекты ГРП/ШРП Минска, бригада слесарей, задачи на сегодня/завтра, график работ. Данные живут в localStorage и НЕ теряются при замене файлов сайта">🧪 Демо-данные</button>' : '') + ((typeof permCan === 'function' ? permCan('exportData') : S.role === 'admin') ? '<button class="btn sm" data-action="download-backup" title="Скачать полную резервную копию локальной базы (JSON) — работает без сервера">' + IC.download + ' 💾 Бэкап базы</button>' : '') + (S.role === 'admin' ? '<button class="btn sm" data-action="restore-backup" title="Восстановить базу из файла бэкапа (JSON)">♻ Восстановить</button>' : '') + '<button class="btn sm" data-action="export-db" title="Сохранить базу в Excel">' + IC.download + ' Экспорт в Excel</button>' + (S.role === 'admin' ? '<button class="btn sm" data-action="import-db" title="Загрузить базу из Excel">' + IC.upload + ' Импорт из Excel</button>' : '') + '<input type="file" id="import-file" accept=".xlsx,.xls,.csv" style="display:none"><input type="file" id="restore-file" accept=".json,application/json" style="display:none">';
       if (S.role === 'admin') {
         html += '<button class="btn primary" data-action="new-user">' + IC.plus + ' Добавить пользователя</button>';
       }
@@ -195,7 +195,18 @@
       if (users.length <= 1) {
         html += '<div style="margin-bottom:14px;background:var(--yellow-l);border:1px solid #fde68a;border-left:4px solid var(--yellow);border-radius:10px;padding:13px 15px;display:flex;gap:12px;align-items:flex-start">' + IC.info + '<div style="flex:1;font-size:12.5px;color:#78350f;line-height:1.6"><b>Новый браузер или компьютер?</b><br>Каждый браузер хранит свою базу пользователей отдельно (в Chrome их не видно из Edge и наоборот). Если пользователи уже заведены в другом браузере — перенесите их файлом:<div style="margin-top:9px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm primary" data-action="import-db">' + IC.upload + ' Импорт из файла</button><a href="#" style="font-size:12px;color:var(--blue);align-self:center" data-action="how-transfer">Как это сделать?</a></div></div></div>';
       }
-      html += '<table class="dt"><thead><tr><th>ФИО</th><th>Логин</th><th>Таб. №</th><th>Пароль</th><th>Роль</th><th>Участок</th><th>Статус</th><th style="text-align:right">Действия</th></tr></thead><tbody>';
+      // 22.09-267: массовые операции — галочки + панель действий
+      if (S.role === 'admin') {
+        html += '<div id="bulk-bar" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;padding:9px 12px;border:1px solid var(--line);border-radius:9px;background:var(--panel-2)">' +
+          '<b id="bulk-count" style="font-size:12.5px;color:var(--muted)">Выбрано: 0</b>' +
+          '<button class="btn sm" data-action="bulk-all">Отметить всех</button>' +
+          '<button class="btn sm" data-action="bulk-none">Снять</button>' +
+          '<button class="btn sm" data-action="bulk-off" title="Отключить вход (удобно на время отпуска)">⏸ Отключить</button>' +
+          '<button class="btn sm" data-action="bulk-on">▶ Включить</button>' +
+          '<button class="btn sm" data-action="bulk-pass" title="Задать один новый пароль выбранным">🔑 Пароль выбранным</button>' +
+          '</div>';
+      }
+      html += '<table class="dt"><thead><tr>' + (S.role === 'admin' ? '<th style="width:28px" data-nosort="1"><input type="checkbox" data-action="bulk-none" title="Снять все отметки"></th>' : '') + '<th>ФИО</th><th>Логин</th><th>Таб. №</th><th>Пароль</th><th>Роль</th><th>Участок</th><th>Статус</th><th style="text-align:right">Действия</th></tr></thead><tbody>';
       users.forEach(function (u) {
         if (!u) return;
         var me = (S.user && u.id === S.user.id) ? ' <span style="color:var(--green);font-size:12px">(вы)</span>' : '';
@@ -206,7 +217,8 @@
         var passLabel = '<span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="font-family:monospace;background:var(--panel-3);padding:2px 7px;border-radius:4px;color:var(--muted);font-weight:700;letter-spacing:1px" title="Пароль скрыт — он хранится на сервере в зашифрованном виде">🔒 ••••••</span>' +
           (S.role === 'admin' ? '<button class="btn sm" data-action="pwd-user" data-uid="' + esc(u.id) + '" title="Задать пользователю новый пароль для входа">🔑 Сменить пароль</button>' : '') + '</span>';
         var actionsHtml = (S.role === 'admin') ? '<button class="btn sm" data-action="edit-user" data-uid="' + u.id + '">Изменить</button> ' + fireBtn + delBtn : '<span style="color:#94a3b8;font-size:12.5px;">Доступно админу</span>';
-        html += '<tr><td><div style="display:flex;align-items:center;gap:8px">' + avaHtml(u, 28, 10.5) + '<b>' + esc(u.full_name) + '</b>' + me + '</div></td><td style="font-family:monospace;font-weight:700;color:var(--blue);">' + esc(u.login) + '</td><td>' + (u.table_number ? '<span style="font-family:monospace;font-weight:700;">' + esc(u.table_number) + '</span>' : '<span style="color:#cbd5e1">—</span>') + '</td><td>' + passLabel + '</td><td>' + roleChip(u.role) + (u.prof ? '<div style="font-size:12px;color:var(--muted);margin-top:3px">' + esc(u.prof) + '</div>' : '') + '</td><td>' + esc(u.area || '—') + '</td><td>' + (u.active ? '<span class="chip" style="background:#dcfce7;color:#15803d">активен</span>' : '<span class="chip" style="background:#fee2e2;color:#b91c1c">отключён</span>') + '</td><td style="white-space:nowrap;text-align:right">' + actionsHtml + '</td></tr>';
+        var bulkCell = (S.role === 'admin') ? '<td><input type="checkbox" data-bulk-user="' + esc(u.id) + '" data-action="bulk-check" title="Отметить для массовой операции"></td>' : '';
+        html += '<tr>' + bulkCell + '<td><div style="display:flex;align-items:center;gap:8px">' + avaHtml(u, 28, 10.5) + '<b>' + esc(u.full_name) + '</b>' + me + '</div></td><td style="font-family:monospace;font-weight:700;color:var(--blue);">' + esc(u.login) + '</td><td>' + (u.table_number ? '<span style="font-family:monospace;font-weight:700;">' + esc(u.table_number) + '</span>' : '<span style="color:#cbd5e1">—</span>') + '</td><td>' + passLabel + '</td><td>' + roleChip(u.role) + (u.prof ? '<div style="font-size:12px;color:var(--muted);margin-top:3px">' + esc(u.prof) + '</div>' : '') + '</td><td>' + esc(u.area || '—') + '</td><td>' + (u.active ? '<span class="chip" style="background:#dcfce7;color:#15803d">активен</span>' : '<span class="chip" style="background:#fee2e2;color:#b91c1c">отключён</span>') + '</td><td style="white-space:nowrap;text-align:right">' + actionsHtml + '</td></tr>';
       });
       html += '</tbody></table></div></div>';
       // 22.09-161: уволенные — без логина/пароля, с восстановлением (для истории задач запись остаётся)
@@ -895,12 +907,17 @@
     actionList.forEach(function(a) { html += '<option value="' + esc(a) + '">' + esc(a) + '</option>'; });
     html += '</select>';
     html += '<input type="text" id="log-search" placeholder="Поиск..." style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;flex:1;min-width:150px">';
+    // 22.09-267: период + выгрузка в Excel
+    var _logInp = 'padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:var(--card)';
+    html += '<label style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)">с <input type="date" id="log-date-from" style="' + _logInp + '"></label>';
+    html += '<label style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)">по <input type="date" id="log-date-to" style="' + _logInp + '"></label>';
+    html += '<button class="btn sm" data-action="logs-export">' + IC.download + ' В Excel</button>';
     html += '</div>';
     html += '<table class="dt"><thead><tr><th>Время</th><th>Пользователь</th><th>Действие</th><th>Детали</th></tr></thead><tbody>';
     logs.forEach(function(l) {
       var d = parseLogDate(l.ts || l.created_at);
       var dStr = d ? d.getDate() + ' ' + MON[d.getMonth()] + ' ' + d.getFullYear() + ' ' + d.toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'}) : '\u2014';
-      html += '<tr class="log-row" data-user="' + esc(l.user_name || '') + '" data-action="' + esc(l.action || '') + '" data-details="' + esc(l.details || '') + '">';
+      html += '<tr class="log-row" data-user="' + esc(l.user_name || '') + '" data-action="' + esc(l.action || '') + '" data-details="' + esc(l.details || '') + '" data-ts="' + (d ? d.getTime() : 0) + '">'; // 22.09-267: время для фильтра по периоду
       html += '<td style="white-space:nowrap;font-size:12px;color:var(--muted)">' + dStr + '</td>';
       html += '<td style="font-weight:600">' + esc(l.user_name || '\u2014') + '</td>';
       html += '<td>' + esc(l.action || '\u2014') + '</td>';
@@ -920,8 +937,15 @@
       var av = fa ? fa.value.toLowerCase() : '';
       var sv = fs ? fs.value.toLowerCase() : '';
       document.querySelectorAll('.log-row').forEach(function(row) {
+        var dFromEl = document.getElementById('log-date-from');
+        var dToEl = document.getElementById('log-date-to');
+        var ts = parseInt(row.dataset.ts || '0', 10) || 0;
+        var okFrom = true, okTo = true;
+        if (dFromEl && dFromEl.value) { var t0 = new Date(dFromEl.value + 'T00:00:00').getTime(); if (isFinite(t0)) okFrom = ts >= t0; }
+        if (dToEl && dToEl.value) { var t1 = new Date(dToEl.value + 'T23:59:59').getTime(); if (isFinite(t1)) okTo = ts <= t1; }
         var match = (!uv || (row.dataset.user || '').toLowerCase().indexOf(uv) !== -1) &&
                     (!av || (row.dataset.action || '').toLowerCase().indexOf(av) !== -1) &&
+                    okFrom && okTo &&
                     (!sv || (row.dataset.user + ' ' + row.dataset.action + ' ' + row.dataset.details).toLowerCase().indexOf(sv) !== -1);
         row.style.display = match ? '' : 'none';
       });
@@ -929,6 +953,8 @@
     if (fu) fu.addEventListener('change', applyFilter);
     if (fa) fa.addEventListener('change', applyFilter);
     if (fs) fs.addEventListener('input', applyFilter);
+    var _df = document.getElementById('log-date-from'); if (_df) _df.addEventListener('change', applyFilter); // 22.09-267
+    var _dt = document.getElementById('log-date-to'); if (_dt) _dt.addEventListener('change', applyFilter);
     var clearBtn = document.getElementById('btn-clear-logs');
     if (clearBtn) clearBtn.addEventListener('click', function() {
       return spConfirm('Очистить весь журнал действий?', { title: 'Журнал действий', ok: 'Очистить', danger: true }, function () { // 22.09-244: оформленное окно
@@ -938,6 +964,32 @@
       }
       });
     });
+  }
+
+  // 22.09-267: выгрузка журнала действий в Excel (учитывает фильтры: кто, что, период, поиск)
+  function logsExportExcel() {
+    try {
+      if (!window.XLSX) { ensureXlsxRetry(logsExportExcel); return; }
+      var rows = [['Время', 'Пользователь', 'Действие', 'Подробности']];
+      var n = 0;
+      document.querySelectorAll('#view .log-row').forEach(function (r) {
+        if (r.style.display === 'none') return;
+        var c = r.querySelectorAll('td');
+        var ts = parseInt(r.dataset.ts || '0', 10) || 0;
+        rows.push([ts ? new Date(ts).toLocaleString('ru-RU') : '', (c[1] || {}).textContent || '', (c[2] || {}).textContent || '', (c[3] || {}).textContent || '']);
+        n++;
+      });
+      if (!n) { toast('warn', 'Нет записей для выгрузки (проверьте фильтры)'); return; }
+      var wb = XLSX.utils.book_new();
+      var ws = XLSX.utils.aoa_to_sheet(rows);
+      ws['!cols'] = [{ wch: 20 }, { wch: 24 }, { wch: 30 }, { wch: 60 }];
+      XLSX.utils.book_append_sheet(wb, ws, 'Журнал');
+      var d = new Date();
+      var pad = function (x) { return String(x).padStart(2, '0'); };
+      XLSX.writeFile(wb, 'Журнал_действий_' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '_' + pad(d.getHours()) + pad(d.getMinutes()) + '.xlsx');
+      logAction('Выгрузка журнала действий в Excel', n + ' записей');
+      toast('ok', '✓ Выгружено записей: ' + n);
+    } catch (e) { toast('err', 'Не удалось выгрузить: ' + String(e && e.message || e)); }
   }
 
   function openUserModal(mode, uid) {

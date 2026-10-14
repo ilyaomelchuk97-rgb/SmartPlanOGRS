@@ -307,6 +307,13 @@ window.SP_API = (function () {
     });
   }
 
+  // 22.09-267: инструменты администратора
+  function adminStatus() { return request('GET', '/admin/status'); }
+  function backupNow() { return request('POST', '/admin/backup', {}); }
+  function auditByObject(objectId, limit) {
+    return request('GET', '/audit?object_id=' + encodeURIComponent(objectId) + '&limit=' + (limit || 50));
+  }
+
   function sync(since) {
     return request('GET', '/sync?since=' + (since || 0));
   }
@@ -361,6 +368,9 @@ window.SP_API = (function () {
     update: update,
     del: del,
     sync: sync,
+    status: adminStatus,            // 22.09-267
+    backupNow: backupNow,           // 22.09-267
+    auditByObject: auditByObject,   // 22.09-267
     audit: audit,
     errorsPush: errorsPush,
     errorsGet: errorsGet,

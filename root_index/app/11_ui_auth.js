@@ -95,6 +95,14 @@
           next.style.display = isAdmin ? '' : 'none';
           next = next.nextElementSibling;
         }
+        // 22.09-268: роли с правом viewLogs видят журналы (даже не будучи админом)
+        if (!isAdmin && typeof permCan === 'function' && permCan('viewLogs')) {
+          g.style.display = '';
+          ['logs', 'errlogs'].forEach(function (sc) {
+            var a = document.querySelector('#nav a[data-screen="' + sc + '"]');
+            if (a) a.style.display = '';
+          });
+        }
       }
     });
     // Слесарь: в меню — только Карта маршрутов, Карта местоположения, Карта объектов
@@ -237,7 +245,7 @@
     document.body.classList.add('logged-in');
     var bs = document.getElementById('base-select'); if (bs) bs.value = S.baseId;
     applyUser();
-    setScreen(S.role === 'slesar' ? 'map' : 'dashboard');
+    setScreen(S.role === 'slesar' ? 'myday' : 'dashboard'); // 22.09-266: слесарь сразу видит свои задания
     // Дропдаун онлайн-пользователей (после входа — знаем роль и ID юзера)
     try { setupSyncDropdown(); } catch (e) { console.error('setupSyncDropdown:', e); }
     // 22.09-136: миграция видов телеметрии (идемпотентная): сразу после входа
@@ -246,6 +254,8 @@
     // списку браузера при КАЖДОМ входе создавались «недостающие» виды телеметрии с новыми id,
     // а прежние удалялись как дубли
     whenSyncReady(function () { try { telemetryMigrateTypes(); } catch (e) { console.error('telemetryMigrateTypes:', e); } });
+    // 22.09-264: объявления администратора — после получения данных с сервера показать новые
+    whenSyncReady(function () { setTimeout(function () { try { if (window.SP_ANN && SP_ANN.start) SP_ANN.start(); } catch (eAn) {} }, 1200); });
     // 22.09-255: в браузере сохранилась копия видов работ, отличающаяся от сервера — предложить вернуть настройки
     if (u.role === 'admin') whenSyncReady(function () { setTimeout(function () { try { workRecoveryNotify(); } catch (e) {} }, 1500); });
     setTimeout(function () {
@@ -517,7 +527,12 @@
     if (name === 'wxtest' && S.role !== 'admin') { toast('err', 'Страница «Тест погодный» — только для администратора'); return; }
     if (name === 'testdep' && S.role !== 'admin') { toast('err', 'Страница «Тест зависимости» — только для администратора'); return; }
     // Защита: страницы администрирования — только админу
-    if ((name === 'users' || name === 'logs' || name === 'changelog') && S.role !== 'admin') {
+    // 22.09-268: «Журнал действий» и «Логи ошибок» — можно разрешить другим ролям (таблица прав)
+    if ((name === 'logs' || name === 'errlogs') && S.role !== 'admin' && (typeof permCan !== 'function' || !permCan('viewLogs'))) {
+      toast('err', 'Доступ к журналам закрыт (настраивается в «Правах доступа»)');
+      return;
+    }
+    if ((name === 'users' || name === 'changelog' || name === 'adminctl') && S.role !== 'admin') { // 22.09-264: + «Управление администрированием»
       toast('err', 'Доступ только для администратора');
       return;
     }

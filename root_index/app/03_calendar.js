@@ -217,6 +217,11 @@
   }
 
   function purgeTrash() {
+    // 22.09-268: очистка корзины — по правам
+    if (S.role !== 'admin' && (typeof permCan !== 'function' || !permCan('delTasks'))) {
+      try { toast('err', 'Чистить корзину можно только с разрешения (Права доступа)'); } catch (e) {}
+      return;
+    }
     var oldTrash = getTrash();
     saveTrash([]);
     var API = (window.SP_CONFIG && SP_CONFIG.serverUrl) || '';
@@ -520,6 +525,11 @@
   }
 
   function deleteTaskToTrash(id) {
+    // 22.09-268: удаление задач — по правам доступа (админ всегда может)
+    if (S.role !== 'admin' && (typeof permCan !== 'function' || !permCan('delTasks'))) {
+      try { toast('err', 'Удалять задачи можно только с разрешения (Права доступа)'); } catch (e) {}
+      return;
+    }
     var t = findTask(id); if (!t) return;
     if (!canEditTask(t)) { toast('err', 'Нет прав на удаление этой задачи'); return; }
     var w = workOf(t);

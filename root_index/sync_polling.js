@@ -41,7 +41,8 @@ window.SP_SYNC_POLL = (function () {
     graphs: 'smartplan_graphs',
     holidays: 'smartplan_holidays', // 22.09-109
     telemetry: 'smartplan_telemetry', // 22.09-111: виды телеметрии
-    messages: 'smartplan_messages' // 22.09-264: объявления администратора
+    messages: 'smartplan_messages', // 22.09-264: объявления администратора
+    settings: 'smartplan_settings' // 22.09-268: общие настройки (права доступа)
   };
 
   var state = {
@@ -176,7 +177,7 @@ window.SP_SYNC_POLL = (function () {
     delete data._deleted;
     delete data._updated_at;
 
-    if (sec === 'graphs' || sec === 'holidays' || sec === 'telemetry' || sec === 'messages') { // 22.09-264: + messages
+    if (sec === 'graphs' || sec === 'holidays' || sec === 'telemetry' || sec === 'messages' || sec === 'settings') { // 22.09-264/268
       // graphs / holidays / telemetry — массив записей в localStorage
       var list = lsRead(lsKey);
       if (!Array.isArray(list)) list = [];
@@ -453,6 +454,10 @@ window.SP_SYNC_POLL = (function () {
         }
         if (changed) {
           refreshModules();
+          // 22.09-266: сообщить приложению «данные изменились» — мягкое обновление экрана
+          // (раньше этого не было: изменения с сервера не доходили до открытой страницы
+          //  до её перерисовки — например, новые задачи в «Мои задания»)
+          try { if (typeof window.onSyncUpdate === 'function') window.onSyncUpdate(); } catch (eSU) {}
           // Перерисовать UI (без сброса открытой модалки)
           try {
             var ov = document.getElementById('overlay');

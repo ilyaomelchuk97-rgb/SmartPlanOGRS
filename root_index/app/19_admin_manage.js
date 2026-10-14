@@ -4,7 +4,7 @@
    (Администрирование → первая). Сейчас на ней — блок
    «Объявления и сообщения»: администратор отправляет сообщение
    одному работнику или всем сразу; работник видит объявление
-   всплывающим окном и нажимает «Ознакомлен»; администратор
+   всплывающим окном и нажимает «ОК»; администратор
    видит, сколько человек ознакомилось.
    Страница сделана «с запасом»: ниже по разметке будут
    добавляться другие функции управления (текущий блок занимает
@@ -73,13 +73,16 @@
     _annShowing = true;
     var m = _annQueue[0];
     var meta = (m.from ? 'От: ' + m.from : 'Администратор') + (m.ts ? ' · ' + annFmtTs(m.ts) : '') + (m.to === 'all' ? ' · всем работникам' : '');
+    var high = (m.prio === 'high');
     spDialog('', {
-      title: 'Объявление от администратора',
-      icon: '📢',
+      title: high ? 'ВАЖНОЕ объявление' : 'Объявление от администратора',
+      icon: high ? '⚠️' : '📢',
+      danger: high,
       cancel: false,
       html: '<div style="font-size:12px;color:#64748b;margin-bottom:8px">' + esc(meta) + '</div>' +
-        '<div style="font-size:15px;line-height:1.55;white-space:pre-wrap">' + esc(m.text || '') + '</div>',
-      choices: [{ label: 'Ознакомлен', value: true, cls: 'primary' }]
+        '<div style="font-size:' + (high ? '16.5' : '15') + 'px;font-weight:' + (high ? '700' : '400') + ';line-height:1.55;white-space:pre-wrap">' + esc(m.text || '') + '</div>' +
+        (high ? '<div style="margin-top:10px;font-size:12px;color:#b91c1c">Прочитайте внимательно и нажмите «ОК» — автор увидит, что вы ознакомились.</div>' : ''),
+      choices: [{ label: 'ОК', value: true, cls: 'primary' }] // 22.09-265: работник просто нажимает «ОК»
     }, function () {
       _annQueue.shift();
       _annShowing = false;
@@ -135,12 +138,16 @@
           ? '<span style="color:var(--green);font-weight:700">' + names.length + (nTo ? ' из ' + nTo : '') + '</span>'
           : '<span style="color:var(--muted)">0' + (nTo ? ' из ' + nTo : '') + '</span>';
         var mineMark = annToMe(m) ? ' <span class="chip" style="background:var(--blue);color:#fff" title="Это объявление адресовано и вам">вам</span>' : '';
+        var prioMark = (m.prio === 'high') ? ' <span class="chip" style="background:var(--red);color:#fff" title="Важное объявление">важное</span>' : '';
         h += '<tr>' +
           '<td style="color:var(--muted);font-size:12px">' + esc(annFmtTs(m.ts)) + '</td>' +
-          '<td>' + (m.to === 'all' ? '<b>📢 Всем работникам</b>' : ('<b>' + esc(m.to_name || m.to) + '</b>')) + mineMark + '</td>' +
+          '<td>' + (m.to === 'all' ? '<b>📢 Всем работникам</b>' : ('<b>' + esc(m.to_name || m.to) + '</b>')) + prioMark + mineMark + '</td>' +
           '<td style="white-space:pre-wrap;max-width:520px">' + esc(m.text || '') + '</td>' +
           '<td title="' + esc(names.length ? names.join(', ') : 'пока никто') + '">' + ackTxt + '</td>' +
-          '<td style="text-align:right"><button class="btn sm" data-action="ann-del" data-mid="' + esc(m.id) + '" style="color:var(--red)" title="Удалить объявление (у всех)">Удалить</button></td>' +
+          '<td style="text-align:right;white-space:nowrap">' +
+            (names.length < nTo ? '<button class="btn sm" data-action="ann-remind" data-mid="' + esc(m.id) + '" title="Отправить напоминание тем, кто ещё не нажал «ОК»">🔔 Напомнить</button> ' : '') +
+            '<button class="btn sm" data-action="ann-del" data-mid="' + esc(m.id) + '" style="color:var(--red)" title="Удалить объявление (у всех)">Удалить</button>' +
+          '</td>' +
           '</tr>';
       });
       h += '</tbody></table>';
@@ -168,13 +175,27 @@
           return '<option value="' + esc(u.id) + '">' + esc(u.full_name || u.login) + (u.area ? ' · ' + esc(u.area) : '') + '</option>';
         }).join('');
       var inputCss = 'padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;color:var(--txt);background:var(--card)';
-      var html = '<div class="card">' +
-        '<div class="card-h"><h2>📢 Объявления и сообщения</h2><span class="sub">Сообщение одному работнику или всем сразу · получатель видит его на экране и нажимает «Ознакомлен»</span></div>' +
+      var html =
+        // 22.09-267: «Состояние системы» — бэкапы, ошибки, кто онлайн, кто на старой версии
+        '<div class="card"><div class="card-h"><h2>🩺 Состояние системы</h2><span class="sub">Бэкапы на Google Диск · ошибки · кто сейчас на сайте · у кого старая версия сайта</span></div>' +
+        '<div class="card-b"><div id="sys-status-box"><div style="color:var(--muted);font-size:13px">Нажмите «Обновить состояние», чтобы проверить систему.</div></div></div></div>' +
+        '<div class="card" style="margin-top:14px">' +
+        '<div class="card-h"><h2>📢 Объявления и сообщения</h2><span class="sub">Сообщение одному работнику или всем сразу · получатель видит его на экране и нажимает «ОК»</span></div>' +
         '<div class="card-b">' +
           '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start;margin-bottom:6px">' +
             '<select id="ann-to" title="Кому отправить объявление" style="' + inputCss + ';min-width:250px">' + options + '</select>' +
+            '<select id="ann-tpl" title="Готовый текст" style="' + inputCss + ';max-width:220px">' +
+              '<option value="">— шаблон текста —</option>' +
+              '<option value="Планёрка в 15:00 у диспетчера. Явка обязательна.">Планёрка 15:00</option>' +
+              '<option value="Завтра субботник: приходить к 9:00, инвентарь на складе.">Субботник</option>' +
+              '<option value="Внимание: отключение воды (газа) на участке с 10:00 до 14:00. Работы не начинать.">Отключение</option>' +
+              '<option value="Пройдите инструктаж по охране труда до конца недели (кабинет 12).">Инструктаж</option>' +
+              '<option value="Сдать отчёты по выполненным работам за неделю до пятницы.">Отчёты за неделю</option>' +
+            '</select>' +
             '<textarea id="ann-text" rows="3" maxlength="500" placeholder="Текст объявления (до 500 символов)" style="' + inputCss + ';flex:1;min-width:260px;resize:vertical"></textarea>' +
             '<button class="btn primary" data-action="ann-send" title="Отправить объявление">Отправить</button>' +
+            '<label style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);padding:8px 2px" title="Важное объявление: показывается крупнее, с пометкой «ВАЖНОЕ»">' +
+              '<input type="checkbox" id="ann-high"> важное</label>' +
           '</div>' +
           '<div style="font-size:12px;color:var(--muted);margin:2px 0 14px">Получатель увидит объявление сразу (в течение нескольких секунд), даже если сейчас находится на другой странице сайта.</div>' +
           '<div id="ann-list"></div>' +
@@ -184,13 +205,28 @@
       '<div class="card" style="margin-top:14px;border-style:dashed"><div class="card-b" style="color:var(--muted);font-size:13px">Этот раздел будет пополняться: здесь появятся другие функции управления.</div></div>';
       view.innerHTML = html;
       annRenderList();
+      try { sysStatusLoad(true); } catch (eSys) {}   // 22.09-267: состояние системы сразу
+      try { var _tpl = document.getElementById('ann-tpl'); if (_tpl) _tpl.addEventListener('change', annApplyTemplate); } catch (eTpl) {}
+      try { permRenderMatrix(); } catch (ePerm) {}   // 22.09-268: общая таблица прав
     } catch (e) {
       try { toast('err', 'Ошибка страницы «Управление администрированием»: ' + String(e && e.message || e)); } catch (e2) {}
     }
   }
+  // Выбор шаблона — подставить текст в поле
+  function annApplyTemplate() {
+    try {
+      var sel = document.getElementById('ann-tpl');
+      var ta = document.getElementById('ann-text');
+      if (!sel || !ta) return;
+      if (!sel.value) return;
+      ta.value = sel.value;
+      sel.value = '';
+      ta.focus();
+    } catch (e) {}
+  }
   function annSend() {
     try {
-      if (!S.user || S.role !== 'admin') { toast('err', 'Отправлять объявления может только администратор'); return; }
+      if (!S.user || !canSendAnn()) { toast('err', 'Отправлять объявления может только администратор (или роли, которым это разрешено)'); return; }
       var sel = document.getElementById('ann-to');
       var ta = document.getElementById('ann-text');
       var to = sel ? String(sel.value || 'all') : 'all';
@@ -204,14 +240,17 @@
         if (!u) { toast('err', 'Получатель не найден — обновите страницу (Ctrl+Shift+R)'); return; }
         toName = u.full_name || u.login || to; nTo = 1;
       }
+      var highEl = document.getElementById('ann-high');
       var rec = {
         id: 'msg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
         kind: 'ann', to: to, to_name: toName, n_to: nTo, text: text,
+        prio: (highEl && highEl.checked) ? 'high' : '', // 22.09-267: важное объявление
         from: S.user.full_name || '', from_id: S.user.id, ts: Date.now()
       };
       var after = function () {
-        toast('ok', '✓ Объявление отправлено: ' + toName);
+        toast('ok', '✓ ' + (rec.prio === 'high' ? 'Важное объявление' : 'Объявление') + ' отправлено: ' + toName);
         if (ta) ta.value = '';
+        if (highEl) highEl.checked = false;
         try { if (window.SP_SYNC_POLL && SP_SYNC_POLL.applyRemote) SP_SYNC_POLL.applyRemote('messages', [rec]); } catch (eA) {}
         _annListSig = '';
         annRenderList();
@@ -228,6 +267,48 @@
       }
     } catch (e) { try { toast('err', 'Ошибка отправки: ' + String(e && e.message || e)); } catch (e2) {} }
   }
+  // 22.09-268: права — из ОБЩЕЙ таблицы «действие × роль» (раздел settings на сервере)
+  function annPerms() { try { return (typeof permLoad === 'function') ? permLoad() : {}; } catch (e) { return {}; } }
+  function canSendAnn() { try { return (typeof permCan === 'function') ? permCan('sendAnn') : (S.role === 'admin'); } catch (e) { return S.role === 'admin'; } }
+  // Напоминание тем, кто ещё НЕ нажал «ОК» — отдельное объявление каждому
+  function annRemind(id) {
+    if (!S.user || !canSendAnn()) { toast('err', 'Нет прав на отправку объявлений'); return; }
+    var m = annAnnouncements().filter(function (x) { return x.id === id; })[0];
+    if (!m) return;
+    var acks = annAcksMap()[id] || [];
+    var users = annActiveUsers();
+    var targets;
+    if (m.to === 'all') {
+      targets = users.filter(function (u) { return acks.indexOf(u.full_name) < 0 && String(u.id) !== String(m.from_id || ''); });
+    } else {
+      var u = users.filter(function (x) { return String(x.id) === String(m.to); })[0];
+      targets = (u && acks.indexOf(u.full_name) < 0) ? [u] : [];
+    }
+    if (!targets.length) { toast('ok', 'Все уже ознакомились — напоминать некому'); return; }
+    spConfirm('Отправить напоминание ' + targets.length + ' чел., кто ещё не нажал «ОК»?', { title: 'Напоминание об объявлении', ok: 'Отправить' }, function () {
+      var done = 0, chain = Promise.resolve();
+      targets.forEach(function (u) {
+        chain = chain.then(function () {
+          var rec = {
+            id: 'msg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6) + u.id.slice(-3),
+            kind: 'ann', to: u.id, to_name: u.full_name, n_to: 1,
+            prio: m.prio || '', remind_of: m.id,
+            text: 'Напоминание: ' + String(m.text || ''),
+            from: S.user.full_name || '', from_id: S.user.id, ts: Date.now()
+          };
+          return SP_API.syncPush('messages', rec).then(function (r) {
+            if (r && r.ok) { done++; try { SP_SYNC_POLL.applyRemote('messages', [rec]); } catch (eA) {} }
+          })['catch'](function () {});
+        });
+      });
+      chain.then(function () {
+        logAction('Напоминание об объявлении', done + ' чел.');
+        toast(done ? 'ok' : 'err', (done ? '✓ Напоминание отправлено: ' : 'Не удалось отправить: ') + done + ' чел.');
+        _annListSig = ''; annRenderList();
+      });
+    });
+  }
+
   function annDel(id) {
     if (!id) return;
     if (!S.user || S.role !== 'admin') { toast('err', 'Удалять объявления может только администратор'); return; }
@@ -260,6 +341,6 @@
     try { if (S.screen === 'adminctl') annRenderList(); } catch (e2) {}
   }
   window.SP_ANN = {
-    check: annCheck, render: renderAdminCtl, pageRefresh: annPageRefresh, list: annAnnouncements,
+    check: annCheck, remind: annRemind, canSend: canSendAnn, perms: annPerms, render: renderAdminCtl, pageRefresh: annPageRefresh, list: annAnnouncements,
     send: annSend, reshow: annShowNext, seen: annSeenLoad, start: annStart, stopLoop: annStopLoop, afterSync: annAfterSync
   };

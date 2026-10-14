@@ -5,6 +5,8 @@
     reconcileFiredResponsibles(); // 22.09-161: уволенных мастеров снять с объектов по дате увольнения
     // Мягкое обновление при синхронизации — только данные, без мигания экрана
     window.onSyncUpdate = function() {
+      // 22.09-268: могли прийти права доступа с сервера — обновить меню/видимость страниц
+      try { if (S.user && typeof applyUser === 'function') applyUser(); } catch (ePU) {}
       if (window.SP_TASKS) S.tasks = window.SP_TASKS.getTasks();
       refreshObjects(); // объекты могли прийти с сервера (добавлены другими пользователями)
       // Карта местоположения: данные изменились → плавно перестраиваем маршруты (сигнатура отсеивает пустые обновления)
@@ -22,15 +24,27 @@
         var redzone = visibleTasks().filter(function (t) { return !isDone(t) && (t.dl <= 2 || t.d < 0); });
         rzBadge.textContent = redzone.length;
       }
-      // Дашборд: обновляем KPI числа без перерисовки всей страницы
-      if (S.screen === 'dashboard') {
-        softUpdateDashboard();
+      // 22.09-268: если панель успела показать «скелетон» — перерисовать её целиком,
+      // когда данные пришли (иначе на экране так и останутся серые блоки)
+      if (S.screen === 'dashboard' && document.querySelector('#view .sk-wrap')) {
+        try { renderDashboard(); dashboardDecorate(); } catch (eSk) {}
       }
+      // Дашборд: обновляем KPI числа без перерисовки всей страницы
+      if (S.screen === 'dashboard' && !document.querySelector('#view .sk-wrap')) {
+        softUpdateDashboard();
+        if (!document.getElementById('dash-widgets-bar')) { try { dashboardDecorate(); } catch (eDec2) {} }
+      }
+      // 22.09-266: «Мои задания» — перерисовываем при каждом изменении данных
+      // (мастер назначил/снял задачу — работник видит это сразу)
+      if (S.screen === 'myday') { try { renderMyDay(); } catch (eMd) {} }
       // Календарь: обновляем только сетку задач, не трогая шапку
       if (S.screen === 'calendar') {
         var _h = S.tasks.map(function(t){return t.id+':'+t.m+':'+t.d+':'+(t.s||t.status);}).sort().join('|');
         if (window._lastTaskHash !== _h) { window._lastTaskHash = _h; var grid = document.getElementById('cal-grid'); if (grid) drawCalendarGrid(); }
       }
+      // 22.09-264: объявления — показать новые; страница управления — обновить список (ознакомившиеся)
+      try { if (window.SP_ANN && SP_ANN.afterSync) SP_ANN.afterSync(); } catch (eAn2) {}
+      try { if (S.screen === 'adminctl') annRenderList(); } catch (eAn3) {}
       console.log('🔄 Данные обновлены мягко (без перерисовки)');
     };
     var view = document.getElementById('view');
@@ -61,7 +75,8 @@
         S.user = freshUser; // обновляем данные пользователя, но НЕ меняем сессию
       }
     }
-    if (S.screen === 'dashboard') renderDashboard();
+    if (S.screen === 'myday') renderMyDay(); // 22.09-266: «Мои задания»
+    else if (S.screen === 'dashboard') { if (!uiSkeletonMaybe()) { renderDashboard(); dashboardDecorate(); } } // 22.09-268: + настройка панели
     else if (S.screen === 'calendar') renderCalendar();
     else if (S.screen === 'map') renderMap();
     else if (S.screen === 'testmap') renderTestMap();
@@ -81,10 +96,17 @@
     else if (S.screen === 'errlogs') renderErrLogs();
     else if (S.screen === 'changelog') renderChangelog(); // 22.09-219
     else if (S.screen === 'backup') renderBackup(); // 22.09-139
+    else if (S.screen === 'adminctl') annPageRefresh(); // 22.09-264: Управление администрированием
     else if (S.screen === 'graphs') renderGraphs();
     // 22.09-220: открытые рабочие окна («Настройки бригад», «Факт работ…») — со страницей под ними
     if (S.workersModal && S.screen !== 'workers') renderWorkers();
     if (S.factModal && S.screen !== 'factmonth') renderFactMonth();
+    uiEnhance();   // 22.09-266: поиск/сортировка таблиц текущей страницы
+    uiObserve();   // 22.09-266: следить за перерисовками #view
+    // 22.09-268: страховка — на панели мониторинга всегда есть кнопка «Настроить панель»
+    if (S.screen === 'dashboard' && !document.getElementById('dash-widgets-bar')) {
+      try { dashboardDecorate(); } catch (eDec) {}
+    }
   }
 
   /* ===== ГЛОБАЛЬНЫЙ ПЕРЕХВАТ ОШИБОК: приложение не «белеет» молча =====
@@ -396,6 +418,31 @@
     else if (a === 'open-trash') { openTrashModal(); }
     else if (a === 'restore-task') { restoreFromTrash(parseInt(el.dataset.trashIdx, 10)); }
     else if (a === 'purge-trash') { spConfirm('Удалить все задачи из корзины безвозвратно?', { title: 'Очистка корзины', ok: 'Удалить все', danger: true }, purgeTrash); } // 22.09-244
+    else if (a === 'myday-done') { myDaySet(el.dataset.tid, 'done'); } // 22.09-266: «Мои задания»
+    else if (a === 'myday-progress') { myDaySet(el.dataset.tid, 'progress'); }
+    else if (a === 'myday-map') { setScreen('map'); }
+    else if (a === 'ui-print') { uiPrint(); } // 22.09-266: печать страницы
+    else if (a === 'logs-export') { logsExportExcel(); }          // 22.09-267
+    else if (a === 'dash-setup') { openDashSetup(); }             // 22.09-268: настройка панели
+    else if (a === 'dw-up') { dwMove(el.dataset.dw, -1); }
+    else if (a === 'dw-down') { dwMove(el.dataset.dw, 1); }
+    else if (a === 'dash-setup-save') { dashSetupSave(); }
+    else if (a === 'dash-setup-reset') { dashSetupReset(); }
+    else if (a === 'perm-save-matrix') { permSaveMatrix(); }
+    else if (a === 'sys-refresh') { sysStatusLoad(true); }        // 22.09-267
+    else if (a === 'sys-backup') { sysBackupNow(); }
+    else if (a === 'bulk-check') { bulkPanelSync(); bulkPassCount(); }
+    else if (a === 'bulk-all') { bulkToggleAll(true); }
+    else if (a === 'bulk-none') { bulkToggleAll(false); }
+    else if (a === 'bulk-off') { bulkSetActive(false); }
+    else if (a === 'bulk-on') { bulkSetActive(true); }
+    else if (a === 'bulk-pass') { bulkSetPassword(); }
+    else if (a === 'bulk-pass-go') { bulkSetPasswordGo(); }
+    else if (a === 'task-history') { taskHistoryAction(el); }
+    else if (a === 'ann-send') { annSend(); } // 22.09-264: отправить объявление
+    else if (a === 'ann-del') { annDel(el.dataset.mid); } // 22.09-264: удалить объявление
+    else if (a === 'ann-remind') { annRemind(el.dataset.mid); } // 22.09-267: напомнить непрочитавшим
+    else if (a === 'ann-tpl-apply') { annApplyTemplate(); }
     else if (a === 'new-user') { openUserModal('new'); }
     else if (a === 'edit-user') { openUserModal('edit', el.dataset.uid); }
     else if (a === 'pwd-user') { openUserModal('pwd', el.dataset.uid); }
