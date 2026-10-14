@@ -563,6 +563,8 @@
       w.classList.toggle('open', !!(sub && sub.dataset.screen === name));
     });
     document.getElementById('screen-title').textContent = (TITLES[name] || '');
+    // 22.09-271: кнопка «Настроить панель» — в шапке, только на панели мониторинга
+    try { if (typeof dashSetupBtnSync === 'function') dashSetupBtnSync(); } catch (eDsb) {}
     // 22.09-219: в шапке — только номер текущей сборки; описания изменений больше НЕ
     // пишутся в шапку — они в Администрировании → «Журнал изменений» (SP_CHANGELOG, data.js).
     var _crEl = document.getElementById('screen-crumb');

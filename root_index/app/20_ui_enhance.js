@@ -81,6 +81,12 @@
       var view = document.getElementById('view');
       if (!view) return;
       Array.prototype.forEach.call(view.querySelectorAll('table.dt'), function (table) {
+        // 22.09-272: в коротких таблицах (меньше 12 строк) заголовок НЕ «прилипает» —
+        // иначе он висит под шапкой и выглядит как второй заголовок страницы
+        try {
+          var rowsN = table.tBodies[0] ? table.tBodies[0].rows.length : 0;
+          if (rowsN && rowsN < 12) table.dataset.nosticky = '1';
+        } catch (eNs) {}
         if (table.dataset.uiPrep !== '1') {
           table.dataset.uiPrep = '1';
           Array.prototype.forEach.call(table.querySelectorAll('thead th'), function (th) {

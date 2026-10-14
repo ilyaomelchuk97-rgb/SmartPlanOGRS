@@ -34,7 +34,7 @@
       var travelText = t.travelText != null ? t.travelText : (travelMin != null ? fmtDuration(travelMin) : null);
       if (lat != null && lng != null) prevObj = { lat: lat, lng: lng };
       // 22.09-223: hours — ДЛИТЕЛЬНОСТЬ (стоянка на точке), norm — ОБЩАЯ норма из справочника
-      return { id: t.id, lat: lat, lng: lng, addr: addrOf(t), addr_be: t.addr_be || addrOf(t), type: o ? o.type : '—', work: w ? w.name : '?', master: m ? m.name : '?', mcol: m ? m.color : '#94a3b8', hours: taskDurHours(t), norm: w ? w.norm : 0, travelMin: travelMin, travelText: travelText, travelKm: travelKm, travelKmText: travelKmText };
+      return { id: t.id, lat: lat, lng: lng, addr: addrOf(t), addr_be: t.addr_be || addrOf(t), type: o ? o.type : '—', work: w ? (workGroupOf(w) || w.name) : '?', workName: w ? w.name : '', master: m ? m.name : '?', mcol: m ? m.color : '#94a3b8', hours: taskDurHours(t), norm: w ? w.norm : 0, travelMin: travelMin, travelText: travelText, travelKm: travelKm, travelKmText: travelKmText };
     });
 
     var prov = (S.mapProvider = 'brouter-car-eco'); // 22.09-179: роутер один — BRouter car (economic)

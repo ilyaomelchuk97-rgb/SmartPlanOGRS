@@ -76,7 +76,7 @@
         '<a class="btn" href="https://drive.google.com/drive/search?q=SmartPlan%20backups" target="_blank" rel="noopener">Открыть папку на Диске</a>' +
       '</div>' +
       (bkRows ? ('<div style="font-size:12.5px;color:var(--muted);margin-bottom:4px">Последние копии (журнал):</div>' +
-        '<table class="dt" data-nosort="0"><thead><tr><th>Когда</th><th>Файл</th><th style="text-align:right">Размер</th><th style="text-align:right">Записей</th></tr></thead><tbody>' + bkRows + '</tbody></table>')
+        '<table class="dt" data-nosort="0" data-nosticky="1"><thead><tr><th>Когда</th><th>Файл</th><th style="text-align:right">Размер</th><th style="text-align:right">Записей</th></tr></thead><tbody>' + bkRows + '</tbody></table>')
         : '<div style="font-size:12.5px;color:var(--muted)">Копий пока нет.</div>');
   }
   function sysBackupNow() {

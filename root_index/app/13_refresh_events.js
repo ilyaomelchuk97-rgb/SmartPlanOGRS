@@ -29,10 +29,11 @@
       if (S.screen === 'dashboard' && document.querySelector('#view .sk-wrap')) {
         try { renderDashboard(); dashboardDecorate(); } catch (eSk) {}
       }
+      try { if (typeof dashSetupBtnSync === 'function') dashSetupBtnSync(); } catch (eDSB) {}
       // Дашборд: обновляем KPI числа без перерисовки всей страницы
       if (S.screen === 'dashboard' && !document.querySelector('#view .sk-wrap')) {
         softUpdateDashboard();
-        if (!document.getElementById('dash-widgets-bar')) { try { dashboardDecorate(); } catch (eDec2) {} }
+        try { if (typeof dashSetupBtnSync === 'function') dashSetupBtnSync(); } catch (eDec2) {}
       }
       // 22.09-266: «Мои задания» — перерисовываем при каждом изменении данных
       // (мастер назначил/снял задачу — работник видит это сразу)
@@ -103,10 +104,8 @@
     if (S.factModal && S.screen !== 'factmonth') renderFactMonth();
     uiEnhance();   // 22.09-266: поиск/сортировка таблиц текущей страницы
     uiObserve();   // 22.09-266: следить за перерисовками #view
-    // 22.09-268: страховка — на панели мониторинга всегда есть кнопка «Настроить панель»
-    if (S.screen === 'dashboard' && !document.getElementById('dash-widgets-bar')) {
-      try { dashboardDecorate(); } catch (eDec) {}
-    }
+    // 22.09-271: кнопка «Настроить панель» в шапке — показать только на панели мониторинга
+    try { if (typeof dashSetupBtnSync === 'function') dashSetupBtnSync(); } catch (eDec) {}
   }
 
   /* ===== ГЛОБАЛЬНЫЙ ПЕРЕХВАТ ОШИБОК: приложение не «белеет» молча =====

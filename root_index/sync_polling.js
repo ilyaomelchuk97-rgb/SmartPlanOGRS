@@ -123,35 +123,45 @@ window.SP_SYNC_POLL = (function () {
 
   function updateIndicator(mode, info) {
     info = info || {};
+    state.mode = mode; // 22.09-271: режим виден мини-окошку в шапке
     var dot = document.getElementById('sync-dot');
     var txt = document.getElementById('sync-text');
     var box = document.getElementById('sync-indicator');
     if (!dot || !txt) return;
+    // 22.09-271: кружок мигает — зелёный в сети, оранжевый при подключении/сбоях, красный без связи
     if (mode === 'connected') {
       dot.style.background = '#16a34a';
-      txt.textContent = 'Сервер: в сети'; // Сборка 22.09-93: счётчик «N онлайн» в шапке не показываем
-      txt.style.color = '#166534';
-      if (box) box.title = 'Real-time синхронизация · последний опрос ' + fmtAgo(state.lastPoll) + ' назад';
+      dot.style.animationDuration = '1.8s';
+      txt.textContent = 'Сервер: в сети';
+      txt.style.color = 'var(--green)';
+      box.title = '';
     } else if (mode === 'connecting') {
-      dot.style.background = '#94a3b8';
+      dot.style.background = '#f59e0b';
+      dot.style.animationDuration = '1s';
       txt.textContent = 'Сервер: подключение…';
-      txt.style.color = '#64748b';
-      if (box) box.title = 'Подключение к серверу Render…';
+      txt.style.color = 'var(--yellow)';
+      box.title = '';
     } else if (mode === 'warn') {
       dot.style.background = '#f59e0b';
+      dot.style.animationDuration = '0.8s';
       txt.textContent = 'Нет связи (' + (info.attempt || 1) + '/3)';
-      txt.style.color = '#92400e';
-      if (box) box.title = 'Проблемы со связью — пробую ещё раз';
+      txt.style.color = 'var(--yellow)';
+      box.title = '';
     } else if (mode === 'error') {
       dot.style.background = '#dc2626';
+      dot.style.animationDuration = '0.7s';
       txt.textContent = 'Сервер недоступен';
-      txt.style.color = '#7f1d1d';
-      if (box) box.title = 'Сервер Render недоступен';
+      txt.style.color = 'var(--red)';
+      box.title = '';
     } else if (mode === 'offline') {
-      dot.style.background = '#94a3b8';
-      txt.textContent = 'Сервер: не в сети'; // 22.09-101
-      txt.style.color = '#64748b';
+      dot.style.background = '#dc2626';
+      dot.style.animationDuration = '1.2s';
+      txt.textContent = 'Сервер: не в сети';
+      txt.style.color = 'var(--muted)';
+      box.title = '';
     }
+    // обновить открытое мини-окошко, если оно показано
+    try { if (typeof window.spTipRefreshServer === 'function') window.spTipRefreshServer(); } catch (e) {}
   }
 
   // Утилита — записать в localStorage и пометить dirty
@@ -514,7 +524,9 @@ window.SP_SYNC_POLL = (function () {
       stopped: state.stopped,
       online: state.online,
       live: state.sseUp, // 22.09-243: мгновенные уведомления работают
-      ready: state.ready // 22.09-254: актуальные данные получены
+      ready: state.ready, // 22.09-254: актуальные данные получены
+      mode: state.mode || 'connecting', // 22.09-271: режим индикатора сервера
+      lastPoll: state.lastPoll // 22.09-271: время последнего удачного опроса
     };
   }
 

@@ -70,12 +70,7 @@
       if (!map.filter.length && !map.kpi.length && !map.today.length) return;   // панель ещё не отрисована
       var order = dwLoad(), hidden = dwHidden();
       // 22.09-270: пока панель не настроена — оставляем её ровно как раньше (только кнопка настройки)
-      if (!dwIsCustom()) {
-        var bar0 = document.getElementById('dash-widgets-bar');
-        var view0 = document.getElementById('view');
-        if (bar0 && view0) view0.insertBefore(bar0, view0.firstChild);
-        return;
-      }
+      if (!dwIsCustom()) return;   // 22.09-270: пока панель не настроена — стандартный вид
 
       // 1) видимость: скрыть/показать все узлы каждого виджета
       DW_LIST.forEach(function (w) {
@@ -100,28 +95,12 @@
       });
       var view = document.getElementById('view');
       seq.forEach(function (n) { if (n && n.parentNode) view.appendChild(n); });   // порядок = порядок в seq
-      // 4) кнопка «Настроить панель» — всегда первой на странице
-      var bar = document.getElementById('dash-widgets-bar');
-      if (bar && view) view.insertBefore(bar, view.firstChild);
-    } catch (e) {}
-  }
-  function dwBarEnsure() {
-    try {
-      if (S.screen !== 'dashboard') return;
-      var view = document.getElementById('view');
-      if (!view || document.getElementById('dash-widgets-bar')) return;
-      var bar = document.createElement('div');
-      bar.id = 'dash-widgets-bar';
-      bar.className = 'dash-widgets-bar no-print';
-      bar.style.cssText = 'display:flex;justify-content:flex-end;margin:-4px 0 10px';
-      bar.innerHTML = '<button class="btn sm" data-action="dash-setup" title="Какие блоки показывать на панели и в каком порядке">⚙ Настроить панель</button>';
-      view.insertBefore(bar, view.firstChild);
     } catch (e) {}
   }
   function dashboardDecorate() {
     try {
-      if (S.screen !== 'dashboard') return;
-      dwBarEnsure();
+      if (S.screen !== 'dashboard') { try { dashSetupBtnSync(); } catch (e0) {} return; }
+      try { dashSetupBtnSync(); } catch (e1) {}   // 22.09-271: кнопка настройки — в шапке, только на панели
       dwApply();
     } catch (e) {}
   }

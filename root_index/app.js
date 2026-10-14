@@ -489,6 +489,13 @@
     if (m && m.area) { var w = WORK.getWork(m.area, t.w); if (w) return w; }
     return WORK_MAP[t.w] || null;
   }
+  // 22.09-272: ГРУППА вида работ — для «Карты маршрутов» и «Списаний» показываем группы, а не виды работ.
+  // Если у работы группы нет — показываем само название (как раньше).
+  function workGroupOf(w) {
+    if (!w) return '';
+    var g = w.group != null ? String(w.group).trim() : '';
+    return g || String(w.name || '');
+  }
 
   /* ---------- ЛОГИКА ЗАДАЧ (с объёмом, погодой, техникой) ---------- */
   // Расчёт трудозатрат: норма × объём (по единице измерения)
@@ -880,7 +887,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-270';
+  var SP_BUILD = '22.09-272';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -4323,7 +4330,7 @@
       var travelText = t.travelText != null ? t.travelText : (travelMin != null ? fmtDuration(travelMin) : null);
       if (lat != null && lng != null) prevObj = { lat: lat, lng: lng };
       // 22.09-223: hours — ДЛИТЕЛЬНОСТЬ (стоянка на точке), norm — ОБЩАЯ норма из справочника
-      return { id: t.id, lat: lat, lng: lng, addr: addrOf(t), addr_be: t.addr_be || addrOf(t), type: o ? o.type : '—', work: w ? w.name : '?', master: m ? m.name : '?', mcol: m ? m.color : '#94a3b8', hours: taskDurHours(t), norm: w ? w.norm : 0, travelMin: travelMin, travelText: travelText, travelKm: travelKm, travelKmText: travelKmText };
+      return { id: t.id, lat: lat, lng: lng, addr: addrOf(t), addr_be: t.addr_be || addrOf(t), type: o ? o.type : '—', work: w ? (workGroupOf(w) || w.name) : '?', workName: w ? w.name : '', master: m ? m.name : '?', mcol: m ? m.color : '#94a3b8', hours: taskDurHours(t), norm: w ? w.norm : 0, travelMin: travelMin, travelText: travelText, travelKm: travelKm, travelKmText: travelKmText };
     });
 
     var prov = (S.mapProvider = 'brouter-car-eco'); // 22.09-179: роутер один — BRouter car (economic)
@@ -17246,6 +17253,8 @@
       w.classList.toggle('open', !!(sub && sub.dataset.screen === name));
     });
     document.getElementById('screen-title').textContent = (TITLES[name] || '');
+    // 22.09-271: кнопка «Настроить панель» — в шапке, только на панели мониторинга
+    try { if (typeof dashSetupBtnSync === 'function') dashSetupBtnSync(); } catch (eDsb) {}
     // 22.09-219: в шапке — только номер текущей сборки; описания изменений больше НЕ
     // пишутся в шапку — они в Администрировании → «Журнал изменений» (SP_CHANGELOG, data.js).
     var _crEl = document.getElementById('screen-crumb');
@@ -17519,6 +17528,24 @@
     });
   }
 
+  // 22.09-272: группы работ задачи (параллельно видам работ) — в «Списаниях» показываем ГРУППЫ работ
+  function writeoffWorkGroups(t) {
+    if (!t) return [];
+    var m = masterById(t.m);
+    var area = (t.garea != null && t.garea !== '') ? t.garea : (m ? m.area : null);
+    var ids = (t.works && t.works.length) ? t.works : (t.w ? [t.w] : []);
+    return ids.map(function (wid) {
+      var w = area ? WORK.getWork(area, wid) : WORK_MAP[wid];
+      return w ? (workGroupOf(w) || String(wid || '?')) : String(wid || '?');
+    });
+  }
+  // Строка «группы работ» задачи: без повторов (несколько работ одной группы — один раз)
+  function woGroupTitle(t) {
+    var seen = {}, out = [];
+    writeoffWorkGroups(t).forEach(function (g) { if (!seen[g]) { seen[g] = 1; out.push(g); } });
+    return out.join(' · ') || '?';
+  }
+
   // Слесаря задачи строкой: конкретные ФИО или «Вся бригада участка»
   function writeoffSlesariNames(t) {
     if (!t) return '—';
@@ -17564,7 +17591,7 @@
     if (q) {
       items = all.filter(function (t) {
         var m = masterById(t.m), w = workOf(t);
-        var hay = [addrOf(t), w ? w.name : '', m ? m.name : '', writeoffSlesariNames(t),
+        var hay = [addrOf(t), w ? w.name : '', woGroupTitle(t), m ? m.name : '', writeoffSlesariNames(t),
           writeoffWorkNames(t).join(' '), fmtDmyIso(writeoffPlanIso(t)), fmtDmyIso(writeoffCloseIso(t)),
           writeoffPlanIso(t), writeoffCloseIso(t)].join('\n').toLowerCase();
         return hay.indexOf(q) !== -1;
@@ -17588,7 +17615,7 @@
       html += '<div class="card" style="margin-bottom:10px"><div class="card-b" data-action="wo-open" data-tid="' + esc(t.id) + '" style="cursor:pointer;display:flex;align-items:center;gap:14px;flex-wrap:wrap" title="Нажмите — подробности списания">' +
         '<div style="flex:1;min-width:220px">' +
           '<div style="font-weight:700;color:var(--ink);font-size:13.5px;margin-bottom:3px">📍 ' + esc(addrOf(t)) + '</div>' +
-          '<div style="font-size:12px;color:var(--txt);margin-bottom:2px">🔧 ' + esc(w ? w.name : '?') + '</div>' +
+          '<div style="font-size:12px;color:var(--txt);margin-bottom:2px">🔧 ' + esc(woGroupTitle(t)) + '</div>' + // 22.09-272: группа работ
           '<div style="font-size:12.5px;color:var(--muted)">👷 ' + esc(m ? m.name : '?') + ' · ' + esc(m ? m.area : '') + '</div>' +
         '</div>' +
         '<div style="text-align:right;font-size:12px;line-height:1.6;white-space:nowrap">' +
@@ -17693,15 +17720,20 @@
     var host = document.getElementById('wo-works'); if (!host) return;
     var t = findTask(S.woTid); if (!t) return;
     var names = writeoffWorkNames(t);
+    var groups = writeoffWorkGroups(t); // 22.09-272: показываем ГРУППЫ работ
     if (!names.length) { host.innerHTML = '<div style="color:var(--muted);font-size:12.5px">—</div>'; return; }
     if (S.woWorkIdx == null || S.woWorkIdx < 0 || S.woWorkIdx > names.length - 1) S.woWorkIdx = 0;
     if (!S.woSelMats) S.woSelMats = woSelGroup(S.woWorkIdx);
+    var gCount = {};
+    groups.forEach(function (g) { gCount[g] = (gCount[g] || 0) + 1; });
     var html = '';
     names.forEach(function (name, wi) {
       var cnt = woSelGroup(wi).length;
       var on = wi === S.woWorkIdx;
-      html += '<button type="button" data-action="wo-work-pick" data-idx="' + wi + '" title="Списывать материалы по этой работе" style="display:inline-flex;align-items:center;gap:5px;margin:0 6px 6px 0;padding:5px 11px;border:' + (on ? '2px solid #16a34a' : '1px solid var(--line)') + ';border-radius:999px;background:' + (on ? '#dcfce7' : 'var(--card)') + ';color:var(--ink);font-size:12px;font-weight:' + (on ? '800' : '600') + ';cursor:pointer;font-family:inherit">' +
-        '🔧 ' + esc(name) +
+      var g = groups[wi] || name;
+      var sub = (gCount[g] > 1) ? '<span style="font-weight:600;opacity:.75;margin-left:4px">· ' + esc(name) + '</span>' : '';
+      html += '<button type="button" data-action="wo-work-pick" data-idx="' + wi + '" title="Списывать материалы по работе: ' + esc(name) + '" style="display:inline-flex;align-items:center;gap:5px;margin:0 6px 6px 0;padding:5px 11px;border:' + (on ? '2px solid #16a34a' : '1px solid var(--line)') + ';border-radius:999px;background:' + (on ? '#dcfce7' : 'var(--card)') + ';color:var(--ink);font-size:12px;font-weight:' + (on ? '800' : '600') + ';cursor:pointer;font-family:inherit">' +
+        '🔧 ' + esc(g) + sub +
         '<span style="min-width:17px;text-align:center;background:' + (cnt ? '#16a34a' : '#e2e8f0') + ';color:' + (cnt ? '#fff' : 'var(--muted)') + ';border-radius:999px;padding:1px 5px;font-size:11.5px;font-weight:800">' + cnt + '</span>' +
       '</button>';
     });
@@ -17897,7 +17929,7 @@
     h += row('\uD83D\uDCC5 Плановая дата', esc(fmtDmyIso(planIso)));
     h += row('\u2705 Дата закрытия', '<b style="color:#16a34a">' + esc(fmtDmyIso(closeIso)) + '</b>');
     if (t.started_at || t.finished_at) h += row('\u23F1 Факт работы', (t.started_at ? 'с <b>' + fmtClock(t.started_at) + '</b>' : 'с ?') + ' ' + (t.finished_at ? 'до <b style="color:#16a34a">' + fmtClock(t.finished_at) + '</b>' : 'до …') + (taskFactHours(t) != null ? ' · <b style="color:#2563eb">' + fmtH(taskFactHours(t)) + ' ч</b>' : '')); // 22.09-190
-    h += '<div style="margin:14px 0 7px;font-size:12px;color:var(--muted);font-weight:700">Виды работ — выберите, к какой списывать материалы:</div>';
+    h += '<div style="margin:14px 0 7px;font-size:12px;color:var(--muted);font-weight:700">Группы работ — выберите, к какой списывать материалы:</div>';
     h += '<div id="wo-works"></div>';
     h += '<div id="wo-sel-title" style="margin:14px 0 7px;font-size:12px;color:var(--muted);font-weight:700">Материалы к списанию:</div>';
     h += '<div id="wo-sel" style="border:2px dashed var(--line);border-radius:10px;padding:8px;min-height:76px"></div>';
@@ -17952,10 +17984,11 @@
       if (S.screen === 'dashboard' && document.querySelector('#view .sk-wrap')) {
         try { renderDashboard(); dashboardDecorate(); } catch (eSk) {}
       }
+      try { if (typeof dashSetupBtnSync === 'function') dashSetupBtnSync(); } catch (eDSB) {}
       // Дашборд: обновляем KPI числа без перерисовки всей страницы
       if (S.screen === 'dashboard' && !document.querySelector('#view .sk-wrap')) {
         softUpdateDashboard();
-        if (!document.getElementById('dash-widgets-bar')) { try { dashboardDecorate(); } catch (eDec2) {} }
+        try { if (typeof dashSetupBtnSync === 'function') dashSetupBtnSync(); } catch (eDec2) {}
       }
       // 22.09-266: «Мои задания» — перерисовываем при каждом изменении данных
       // (мастер назначил/снял задачу — работник видит это сразу)
@@ -18026,10 +18059,8 @@
     if (S.factModal && S.screen !== 'factmonth') renderFactMonth();
     uiEnhance();   // 22.09-266: поиск/сортировка таблиц текущей страницы
     uiObserve();   // 22.09-266: следить за перерисовками #view
-    // 22.09-268: страховка — на панели мониторинга всегда есть кнопка «Настроить панель»
-    if (S.screen === 'dashboard' && !document.getElementById('dash-widgets-bar')) {
-      try { dashboardDecorate(); } catch (eDec) {}
-    }
+    // 22.09-271: кнопка «Настроить панель» в шапке — показать только на панели мониторинга
+    try { if (typeof dashSetupBtnSync === 'function') dashSetupBtnSync(); } catch (eDec) {}
   }
 
   /* ===== ГЛОБАЛЬНЫЙ ПЕРЕХВАТ ОШИБОК: приложение не «белеет» молча =====
@@ -26256,6 +26287,12 @@
       var view = document.getElementById('view');
       if (!view) return;
       Array.prototype.forEach.call(view.querySelectorAll('table.dt'), function (table) {
+        // 22.09-272: в коротких таблицах (меньше 12 строк) заголовок НЕ «прилипает» —
+        // иначе он висит под шапкой и выглядит как второй заголовок страницы
+        try {
+          var rowsN = table.tBodies[0] ? table.tBodies[0].rows.length : 0;
+          if (rowsN && rowsN < 12) table.dataset.nosticky = '1';
+        } catch (eNs) {}
         if (table.dataset.uiPrep !== '1') {
           table.dataset.uiPrep = '1';
           Array.prototype.forEach.call(table.querySelectorAll('thead th'), function (th) {
@@ -26500,7 +26537,7 @@
         '<a class="btn" href="https://drive.google.com/drive/search?q=SmartPlan%20backups" target="_blank" rel="noopener">Открыть папку на Диске</a>' +
       '</div>' +
       (bkRows ? ('<div style="font-size:12.5px;color:var(--muted);margin-bottom:4px">Последние копии (журнал):</div>' +
-        '<table class="dt" data-nosort="0"><thead><tr><th>Когда</th><th>Файл</th><th style="text-align:right">Размер</th><th style="text-align:right">Записей</th></tr></thead><tbody>' + bkRows + '</tbody></table>')
+        '<table class="dt" data-nosort="0" data-nosticky="1"><thead><tr><th>Когда</th><th>Файл</th><th style="text-align:right">Размер</th><th style="text-align:right">Записей</th></tr></thead><tbody>' + bkRows + '</tbody></table>')
         : '<div style="font-size:12.5px;color:var(--muted)">Копий пока нет.</div>');
   }
   function sysBackupNow() {
@@ -26718,12 +26755,7 @@
       if (!map.filter.length && !map.kpi.length && !map.today.length) return;   // панель ещё не отрисована
       var order = dwLoad(), hidden = dwHidden();
       // 22.09-270: пока панель не настроена — оставляем её ровно как раньше (только кнопка настройки)
-      if (!dwIsCustom()) {
-        var bar0 = document.getElementById('dash-widgets-bar');
-        var view0 = document.getElementById('view');
-        if (bar0 && view0) view0.insertBefore(bar0, view0.firstChild);
-        return;
-      }
+      if (!dwIsCustom()) return;   // 22.09-270: пока панель не настроена — стандартный вид
 
       // 1) видимость: скрыть/показать все узлы каждого виджета
       DW_LIST.forEach(function (w) {
@@ -26748,28 +26780,12 @@
       });
       var view = document.getElementById('view');
       seq.forEach(function (n) { if (n && n.parentNode) view.appendChild(n); });   // порядок = порядок в seq
-      // 4) кнопка «Настроить панель» — всегда первой на странице
-      var bar = document.getElementById('dash-widgets-bar');
-      if (bar && view) view.insertBefore(bar, view.firstChild);
-    } catch (e) {}
-  }
-  function dwBarEnsure() {
-    try {
-      if (S.screen !== 'dashboard') return;
-      var view = document.getElementById('view');
-      if (!view || document.getElementById('dash-widgets-bar')) return;
-      var bar = document.createElement('div');
-      bar.id = 'dash-widgets-bar';
-      bar.className = 'dash-widgets-bar no-print';
-      bar.style.cssText = 'display:flex;justify-content:flex-end;margin:-4px 0 10px';
-      bar.innerHTML = '<button class="btn sm" data-action="dash-setup" title="Какие блоки показывать на панели и в каком порядке">⚙ Настроить панель</button>';
-      view.insertBefore(bar, view.firstChild);
     } catch (e) {}
   }
   function dashboardDecorate() {
     try {
-      if (S.screen !== 'dashboard') return;
-      dwBarEnsure();
+      if (S.screen !== 'dashboard') { try { dashSetupBtnSync(); } catch (e0) {} return; }
+      try { dashSetupBtnSync(); } catch (e1) {}   // 22.09-271: кнопка настройки — в шапке, только на панели
       dwApply();
     } catch (e) {}
   }
@@ -27004,4 +27020,123 @@
     saveFromModal: dwSaveFromModal, save: dashSetupSave, reset: dashSetupReset, standardOrder: dwStandardOrder, isCustom: dwIsCustom,
     permLoad: permLoad, permCan: permCan, permMatrix: permRenderMatrix, permSaveMatrix: permSaveMatrix
   };
+  /* ── часть 24 · app/24_topbar.js — кнопки шапки: «Настроить панель» и индикатор сервера с мигающим кружком и мини-окошком при наведении (22.09-271) ── */
+/* ============================================================
+   22.09-271
+   · «⚙ Настроить панель» — красивая кнопка с подписью в шапке,
+     показывается ТОЛЬКО на панели мониторинга, слева от индикатора сервера.
+   · «Сервер: …» — теперь тоже кнопка: внутри мигающий кружок
+     (зелёный — в сети, оранжевый — подключение/сбои, красный — нет связи).
+   · При наведении на любую из этих кнопок появляется мини-окошко
+     с подписью (у настройки) или подробностями (у сервера).
+   ============================================================ */
+  var _tipEl = null, _tipAnchor = null;
+
+  function spTipEl() {
+    if (!_tipEl) _tipEl = document.getElementById('sp-mini-tip');
+    return _tipEl;
+  }
+  function spTipShow(anchor, html) {
+    try {
+      var tip = spTipEl();
+      if (!tip || !anchor) return;
+      tip.innerHTML = html;
+      tip.style.display = 'block';
+      _tipAnchor = anchor;
+      var r = anchor.getBoundingClientRect();
+      var tr = tip.getBoundingClientRect();
+      var left = Math.round(r.right - tr.width);
+      left = Math.max(8, Math.min(left, (window.innerWidth || 1200) - tr.width - 8));
+      var top = Math.round(r.bottom + 8);
+      if (top + tr.height > (window.innerHeight || 800) - 8) top = Math.max(8, Math.round(r.top - tr.height - 8));
+      tip.style.left = left + 'px';
+      tip.style.top = top + 'px';
+    } catch (e) {}
+  }
+  function spTipHide() {
+    try { var tip = spTipEl(); if (tip) tip.style.display = 'none'; _tipAnchor = null; } catch (e) {}
+  }
+  function spTipShownFor(el) { return !!(_tipAnchor && el && _tipAnchor === el); }
+
+  // ===== Подпись кнопки «Настроить панель» =====
+  function dashSetupTipHtml() {
+    return '<div class="mt-h">⚙ Настройка панели</div>' +
+      '<div class="mt-r">Какие блоки показывать на панели мониторинга и в каком порядке. Блоки перетаскиваются мышкой за значок ⠿.</div>' +
+      '<div class="mt-hint">Настройка — для этого браузера</div>';
+  }
+  // ===== Подробности о сервере =====
+  function spAgo(ts) {
+    if (!ts) return '—';
+    var s = Math.round((Date.now() - ts) / 1000);
+    if (s < 2) return 'только что';
+    if (s < 60) return s + ' с назад';
+    if (s < 3600) return Math.round(s / 60) + ' мин назад';
+    return Math.round(s / 3600) + ' ч назад';
+  }
+  function serverTipHtml() {
+    var st = {};
+    try { st = (window.SP_SYNC_POLL && SP_SYNC_POLL.status) ? SP_SYNC_POLL.status() : {}; } catch (e) {}
+    var mode = st.mode || 'connecting';
+    var col = mode === 'connected' ? '#16a34a' : (mode === 'error' || mode === 'offline') ? '#dc2626' : '#f59e0b';
+    var label = mode === 'connected' ? 'Сервер: в сети'
+      : mode === 'error' ? 'Сервер недоступен'
+      : mode === 'offline' ? 'Сервер: не в сети'
+      : mode === 'warn' ? 'Проблемы со связью' : 'Подключение к серверу…';
+    var online = (st.online || []);
+    var names = online.slice(0, 3).map(function (o) { return esc(o.full_name || o.login || ''); }).join(', ');
+    var h = '<div class="mt-h"><span class="sp-dot" style="background:' + col + '"></span>' + esc(label) + '</div>';
+    h += '<div class="mt-r">Последний опрос: <b>' + esc(spAgo(st.lastPoll)) + '</b></div>';
+    h += '<div class="mt-r">Онлайн сейчас: <b>' + online.length + ' чел.</b>' + (names ? ' <span style="color:var(--muted)">(' + names + (online.length > 3 ? '…' : '') + ')</span>' : '') + '</div>';
+    if (st.errors > 0) h += '<div class="mt-r" style="color:#b45309">Неудачных попыток подряд: <b>' + st.errors + '</b></div>';
+    h += '<div class="mt-r">Сборка сайта: <b>' + esc(String(window.SP_BUILD || '')) + '</b> · обновление ' + (st.live ? 'мгновенное (соединение открыто)' : 'каждую секунду') + '</div>';
+    var isAdmin = (S && S.role === 'admin');
+    h += '<div class="mt-hint">' + (isAdmin ? 'Нажмите — список пользователей онлайн' : 'Данные синхронизируются с сервером автоматически') + '</div>';
+    return h;
+  }
+  // Обновление открытого мини-окошка (вызывается из синхронизации)
+  function spTipRefreshServer() {
+    try {
+      var ind = document.getElementById('sync-indicator');
+      if (ind && spTipShownFor(ind)) spTipShow(ind, serverTipHtml());
+    } catch (e) {}
+  }
+  window.spTipRefreshServer = spTipRefreshServer;
+
+  // ===== Показ кнопки «Настроить панель» только на панели мониторинга =====
+  function dashSetupBtnSync() {
+    try {
+      var b = document.getElementById('dash-setup-btn');
+      if (!b) return;
+      b.style.display = (S.screen === 'dashboard') ? '' : 'none';
+      if (S.screen !== 'dashboard') spTipHide();
+    } catch (e) {}
+  }
+  window.dashSetupBtnSync = dashSetupBtnSync;
+
+  // ===== Наведение на кнопки шапки =====
+  function topbarTipsWire() {
+    try {
+      var setup = document.getElementById('dash-setup-btn');
+      var ind = document.getElementById('sync-indicator');
+      if (setup) {
+        setup.addEventListener('mouseenter', function () { spTipShow(setup, dashSetupTipHtml()); });
+        setup.addEventListener('mouseleave', spTipHide);
+        setup.addEventListener('focus', function () { spTipShow(setup, dashSetupTipHtml()); });
+        setup.addEventListener('blur', spTipHide);
+      }
+      if (ind) {
+        ind.addEventListener('mouseenter', function () { spTipShow(ind, serverTipHtml()); });
+        ind.addEventListener('mouseleave', spTipHide);
+        ind.addEventListener('focus', function () { spTipShow(ind, serverTipHtml()); });
+        ind.addEventListener('blur', spTipHide);
+      }
+      // при изменении размеров/прокрутке — прятать, чтобы окно не «висело» не там
+      window.addEventListener('resize', spTipHide);
+      window.addEventListener('scroll', spTipHide, true);
+    } catch (e) {}
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', topbarTipsWire);
+  else topbarTipsWire();
+
+  window.SP_TOPBAR = { setupSync: dashSetupBtnSync, tipShow: spTipShow, tipHide: spTipHide, serverTip: serverTipHtml };
 })();

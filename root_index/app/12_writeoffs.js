@@ -263,6 +263,24 @@
     });
   }
 
+  // 22.09-272: группы работ задачи (параллельно видам работ) — в «Списаниях» показываем ГРУППЫ работ
+  function writeoffWorkGroups(t) {
+    if (!t) return [];
+    var m = masterById(t.m);
+    var area = (t.garea != null && t.garea !== '') ? t.garea : (m ? m.area : null);
+    var ids = (t.works && t.works.length) ? t.works : (t.w ? [t.w] : []);
+    return ids.map(function (wid) {
+      var w = area ? WORK.getWork(area, wid) : WORK_MAP[wid];
+      return w ? (workGroupOf(w) || String(wid || '?')) : String(wid || '?');
+    });
+  }
+  // Строка «группы работ» задачи: без повторов (несколько работ одной группы — один раз)
+  function woGroupTitle(t) {
+    var seen = {}, out = [];
+    writeoffWorkGroups(t).forEach(function (g) { if (!seen[g]) { seen[g] = 1; out.push(g); } });
+    return out.join(' · ') || '?';
+  }
+
   // Слесаря задачи строкой: конкретные ФИО или «Вся бригада участка»
   function writeoffSlesariNames(t) {
     if (!t) return '—';
@@ -308,7 +326,7 @@
     if (q) {
       items = all.filter(function (t) {
         var m = masterById(t.m), w = workOf(t);
-        var hay = [addrOf(t), w ? w.name : '', m ? m.name : '', writeoffSlesariNames(t),
+        var hay = [addrOf(t), w ? w.name : '', woGroupTitle(t), m ? m.name : '', writeoffSlesariNames(t),
           writeoffWorkNames(t).join(' '), fmtDmyIso(writeoffPlanIso(t)), fmtDmyIso(writeoffCloseIso(t)),
           writeoffPlanIso(t), writeoffCloseIso(t)].join('\n').toLowerCase();
         return hay.indexOf(q) !== -1;
@@ -332,7 +350,7 @@
       html += '<div class="card" style="margin-bottom:10px"><div class="card-b" data-action="wo-open" data-tid="' + esc(t.id) + '" style="cursor:pointer;display:flex;align-items:center;gap:14px;flex-wrap:wrap" title="Нажмите — подробности списания">' +
         '<div style="flex:1;min-width:220px">' +
           '<div style="font-weight:700;color:var(--ink);font-size:13.5px;margin-bottom:3px">📍 ' + esc(addrOf(t)) + '</div>' +
-          '<div style="font-size:12px;color:var(--txt);margin-bottom:2px">🔧 ' + esc(w ? w.name : '?') + '</div>' +
+          '<div style="font-size:12px;color:var(--txt);margin-bottom:2px">🔧 ' + esc(woGroupTitle(t)) + '</div>' + // 22.09-272: группа работ
           '<div style="font-size:12.5px;color:var(--muted)">👷 ' + esc(m ? m.name : '?') + ' · ' + esc(m ? m.area : '') + '</div>' +
         '</div>' +
         '<div style="text-align:right;font-size:12px;line-height:1.6;white-space:nowrap">' +
@@ -437,15 +455,20 @@
     var host = document.getElementById('wo-works'); if (!host) return;
     var t = findTask(S.woTid); if (!t) return;
     var names = writeoffWorkNames(t);
+    var groups = writeoffWorkGroups(t); // 22.09-272: показываем ГРУППЫ работ
     if (!names.length) { host.innerHTML = '<div style="color:var(--muted);font-size:12.5px">—</div>'; return; }
     if (S.woWorkIdx == null || S.woWorkIdx < 0 || S.woWorkIdx > names.length - 1) S.woWorkIdx = 0;
     if (!S.woSelMats) S.woSelMats = woSelGroup(S.woWorkIdx);
+    var gCount = {};
+    groups.forEach(function (g) { gCount[g] = (gCount[g] || 0) + 1; });
     var html = '';
     names.forEach(function (name, wi) {
       var cnt = woSelGroup(wi).length;
       var on = wi === S.woWorkIdx;
-      html += '<button type="button" data-action="wo-work-pick" data-idx="' + wi + '" title="Списывать материалы по этой работе" style="display:inline-flex;align-items:center;gap:5px;margin:0 6px 6px 0;padding:5px 11px;border:' + (on ? '2px solid #16a34a' : '1px solid var(--line)') + ';border-radius:999px;background:' + (on ? '#dcfce7' : 'var(--card)') + ';color:var(--ink);font-size:12px;font-weight:' + (on ? '800' : '600') + ';cursor:pointer;font-family:inherit">' +
-        '🔧 ' + esc(name) +
+      var g = groups[wi] || name;
+      var sub = (gCount[g] > 1) ? '<span style="font-weight:600;opacity:.75;margin-left:4px">· ' + esc(name) + '</span>' : '';
+      html += '<button type="button" data-action="wo-work-pick" data-idx="' + wi + '" title="Списывать материалы по работе: ' + esc(name) + '" style="display:inline-flex;align-items:center;gap:5px;margin:0 6px 6px 0;padding:5px 11px;border:' + (on ? '2px solid #16a34a' : '1px solid var(--line)') + ';border-radius:999px;background:' + (on ? '#dcfce7' : 'var(--card)') + ';color:var(--ink);font-size:12px;font-weight:' + (on ? '800' : '600') + ';cursor:pointer;font-family:inherit">' +
+        '🔧 ' + esc(g) + sub +
         '<span style="min-width:17px;text-align:center;background:' + (cnt ? '#16a34a' : '#e2e8f0') + ';color:' + (cnt ? '#fff' : 'var(--muted)') + ';border-radius:999px;padding:1px 5px;font-size:11.5px;font-weight:800">' + cnt + '</span>' +
       '</button>';
     });
@@ -641,7 +664,7 @@
     h += row('\uD83D\uDCC5 Плановая дата', esc(fmtDmyIso(planIso)));
     h += row('\u2705 Дата закрытия', '<b style="color:#16a34a">' + esc(fmtDmyIso(closeIso)) + '</b>');
     if (t.started_at || t.finished_at) h += row('\u23F1 Факт работы', (t.started_at ? 'с <b>' + fmtClock(t.started_at) + '</b>' : 'с ?') + ' ' + (t.finished_at ? 'до <b style="color:#16a34a">' + fmtClock(t.finished_at) + '</b>' : 'до …') + (taskFactHours(t) != null ? ' · <b style="color:#2563eb">' + fmtH(taskFactHours(t)) + ' ч</b>' : '')); // 22.09-190
-    h += '<div style="margin:14px 0 7px;font-size:12px;color:var(--muted);font-weight:700">Виды работ — выберите, к какой списывать материалы:</div>';
+    h += '<div style="margin:14px 0 7px;font-size:12px;color:var(--muted);font-weight:700">Группы работ — выберите, к какой списывать материалы:</div>';
     h += '<div id="wo-works"></div>';
     h += '<div id="wo-sel-title" style="margin:14px 0 7px;font-size:12px;color:var(--muted);font-weight:700">Материалы к списанию:</div>';
     h += '<div id="wo-sel" style="border:2px dashed var(--line);border-radius:10px;padding:8px;min-height:76px"></div>';
