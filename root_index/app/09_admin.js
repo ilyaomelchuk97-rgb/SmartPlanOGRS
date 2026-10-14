@@ -526,10 +526,7 @@
   /* ---------- СТРАНИЦА ---------- */
   function renderBackup() {
     if (S.role !== 'admin') { view.innerHTML = '<div class="card"><div class="card-b"><div class="empty">Страница доступна только администратору.</div></div></div>'; return; }
-    // 22.09-274: «Состояние системы» (копии на Google Диск, ошибки, кто онлайн и у кого старая версия) — здесь
-    var _sysCard = '<div class="card" style="margin-bottom:14px"><div class="card-h"><h2>🩺 Состояние системы</h2><span class="sub">Копии на Google Диск · ошибки · кто сейчас на сайте · у кого старая версия сайта</span></div>' +
-      '<div class="card-b"><div id="sys-status-box"><div style="color:var(--muted);font-size:13px">Нажмите «Обновить состояние», чтобы проверить систему.</div></div></div></div>';
-    var html = _sysCard + '<div class="card"><div class="card-h"><h2>💾 Бэкапы баз данных</h2><span class="sub">Каждая база — отдельный файл · выбрано 2 и больше — единый ZIP-архив</span><div class="spacer"></div></div><div class="card-b">';
+    var html = '<div class="card"><div class="card-h"><h2>💾 Бэкапы баз данных</h2><span class="sub">Каждая база — отдельный файл · выбрано 2 и больше — единый ZIP-архив</span><div class="spacer"></div></div><div class="card-b">';
     html += '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px">' +
       '<button type="button" class="btn primary" data-action="backup-dl-sel">💾 Скачать выбранные</button>' +
       '<button type="button" class="btn" data-action="backup-dl-all">📦 Скачать ВСЕ базы (ZIP)</button>' +
@@ -566,7 +563,6 @@
     html += '<div class="calc" style="margin-top:12px;font-size:12.5px;align-items:flex-start;line-height:1.55">Как это работает: каждая база выгружается отдельным JSON-файлом (внутри — служебный заголовок с типом базы, датой выгрузки и числом записей). Если баз 2 и больше — файлы упаковываются в один ZIP-архив, открывающийся любым архиватором. <b>Восстановление</b> принимает файлы .json, .zip или сразу несколько файлов: данные баз заменяются содержимым файлов на устройстве и на сервере — перенос происходит без потерь (при повреждённом архиве контрольная сумма не сойдётся и восстановление не выполнится).</div>';
     html += '</div></div>';
     view.innerHTML = html;
-    try { sysStatusLoad(true); } catch (eSys) {}   // 22.09-274: сразу показать состояние системы
     var inp = document.getElementById('backup-file');
     if (inp) inp.addEventListener('change', function () { backupScanFiles(inp.files); try { inp.value = ''; } catch (e) {} });
   }

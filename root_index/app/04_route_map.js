@@ -1808,7 +1808,7 @@
     var proj = null;
     try { proj = map.options.get('projection'); } catch (e) {}
     if (!proj && window.ymaps && ymaps.projection) proj = ymaps.projection.wgs84Mercator;
-    var st = { dead: false, svg: svg, items: [], lastKey: null, rafId: null, lastDraw: 0, lastActive: 0, pollTimer: null, onResize: null, domKick: null , clusters: [] };
+    var st = { dead: false, svg: svg, items: [], lastKey: null, rafId: null, lastDraw: 0, lastActive: 0, pollTimer: null, onResize: null, domKick: null };
 
     // Живое состояние карты: во время цепочки зумов boundschange приходит
     // ТОЛЬКО в самом конце (карта анимируется), поэтому промежуточные
@@ -1839,7 +1839,6 @@
         svg.setAttribute('height', H);
         var dx = gpc[0] - W / 2, dy = gpc[1] - H / 2; // экран = глобальные − (центр − размер/2)
         var out = [], defs = [];
-        var pendingDots = []; // 22.09-276: точки собираем отдельно — близкие объединим в «кластеры»
         for (var k = 0; k < st.items.length; k++) {
           var it = st.items[k];
           try {
@@ -1870,47 +1869,16 @@
               defs.push('<radialGradient id="' + gid + '"><stop offset="0" stop-color="' + it.color + '" stop-opacity="' + bop + '"/><stop offset="0.6" stop-color="' + it.color + '" stop-opacity="' + (bop * 0.55).toFixed(2) + '"/><stop offset="1" stop-color="' + it.color + '" stop-opacity="0"/></radialGradient>');
               out.push('<circle cx="' + bx.toFixed(1) + '" cy="' + by.toFixed(1) + '" r="' + br.toFixed(1) + '" fill="url(#' + gid + ')"/>');
             } else if (it.kind === 'dot') {
-              // точка-объект: координаты на экран; рисовать будем после группировки (кластеризация)
+              // точка-объект: цветной кружок с номером (как прежние метки)
               var gpd = proj.toGlobalPixels([+it.lat, +it.lng], zoom);
               var px = gpd[0] - dx, py = gpd[1] - dy;
               if (px < -40 || px > W + 40 || py < -40 || py > H + 40) continue;
-              pendingDots.push({ x: px, y: py, color: it.color, label: it.label, lat: +it.lat, lng: +it.lng, r: it.r || 15 });
+              var r = it.r || 15;
+              out.push('<circle cx="' + px.toFixed(1) + '" cy="' + py.toFixed(1) + '" r="' + r + '" fill="' + it.color + '" stroke="#ffffff" stroke-width="3"/>' +
+                '<text x="' + px.toFixed(1) + '" y="' + (py + r * 0.34).toFixed(1) + '" text-anchor="middle" font-family="Arial,sans-serif" font-size="' + Math.round(r * 0.9) + '" font-weight="bold" fill="#ffffff">' + (it.label || '·') + '</text>');
             }
           } catch (e) { /* один объект не может ломать слой */ }
         }
-        // 22.09-276: КЛАСТЕРИЗАЦИЯ — близкие точки (в пределах 36px) объединяем в кружок с числом.
-        // Клик по кластеру приближает карту (см. обработчик клика).
-        var CL = 36, clusters = [];
-        for (var di = 0; di < pendingDots.length; di++) {
-          var d0 = pendingDots[di], put = null;
-          for (var ci = 0; ci < clusters.length; ci++) {
-            var c0 = clusters[ci];
-            if (Math.abs(c0.x - d0.x) < CL && Math.abs(c0.y - d0.y) < CL) { put = c0; break; }
-          }
-          if (put) {
-            put.pts.push(d0);
-            put.x = (put.x * (put.pts.length - 1) + d0.x) / put.pts.length;
-            put.y = (put.y * (put.pts.length - 1) + d0.y) / put.pts.length;
-            put.lat = (put.lat * (put.pts.length - 1) + d0.lat) / put.pts.length;
-            put.lng = (put.lng * (put.pts.length - 1) + d0.lng) / put.pts.length;
-          } else {
-            clusters.push({ x: d0.x, y: d0.y, lat: d0.lat, lng: d0.lng, pts: [d0] });
-          }
-        }
-        clusters.forEach(function (c3) {
-          var n3 = c3.pts.length;
-          if (n3 === 1) {
-            var d3 = c3.pts[0], r3 = d3.r;
-            out.push('<circle cx="' + c3.x.toFixed(1) + '" cy="' + c3.y.toFixed(1) + '" r="' + r3 + '" fill="' + d3.color + '" stroke="#ffffff" stroke-width="3"/>' +
-              (d3.label ? '<text x="' + c3.x.toFixed(1) + '" y="' + (c3.y + r3 * 0.34).toFixed(1) + '" text-anchor="middle" font-family="Arial,sans-serif" font-size="' + Math.round(r3 * 0.95) + '" font-weight="700" fill="#ffffff" style="pointer-events:none">' + String(d3.label).replace(/[<&>]/g, '') + '</text>' : ''));
-          } else {
-            // кластер: крупнее по числу точек, с счётчиком
-            var cr3 = Math.min(26, 16 + Math.round(n3 * 1.2));
-            out.push('<circle cx="' + c3.x.toFixed(1) + '" cy="' + c3.y.toFixed(1) + '" r="' + cr3 + '" fill="#1e40af" fill-opacity="0.92" stroke="#ffffff" stroke-width="3"/>' +
-              '<text x="' + c3.x.toFixed(1) + '" y="' + (c3.y + cr3 * 0.33).toFixed(1) + '" text-anchor="middle" font-family="Arial,sans-serif" font-size="' + Math.round(cr3 * 0.82) + '" font-weight="800" fill="#ffffff" style="pointer-events:none">' + n3 + '</text>');
-          }
-        });
-        st.clusters = clusters;   // для клика: приблизить к группе
         svg.innerHTML = (defs.length ? '<defs>' + defs.join('') + '</defs>' : '') + out.join('');
       } catch (e) { /* перерисовка не может ломать страницу */ }
     }
@@ -1957,7 +1925,6 @@
     window.addEventListener('resize', st.onResize);
     st.pollTimer = setInterval(poke, 500); // страховка: любое изменение состояния подхватится
     return {
-      getClusters: function () { return st.clusters || []; },   // 22.09-276: группы точек (для клика)
       set: function (items) {
         st.items = items || [];
         var k = stateKey();
@@ -1988,36 +1955,21 @@
   var omFilter = { grp: true, shrp: true, grs: true, pgrp: true, other: true, zones: true };
   try {
     var _omf = JSON.parse(localStorage.getItem('smartplan_objmap_filter') || 'null');
-    if (_omf) omFilter = { grp: _omf.grp !== false, shrp: _omf.shrp !== false, grs: _omf.grs !== false, pgrp: _omf.pgrp !== false, other: _omf.other !== false, zones: _omf.zones !== false, heat: !!_omf.heat }; // 22.09-276: + тепловая карта
+    if (_omf) omFilter = { grp: _omf.grp !== false, shrp: _omf.shrp !== false, grs: _omf.grs !== false, pgrp: _omf.pgrp !== false, other: _omf.other !== false, zones: _omf.zones !== false };
   } catch (e) {}
   function omPtCat(o) { return o.type === 'ГРП' ? 'grp' : (o.type === 'ШРП' ? 'shrp' : (o.type === 'ГРС' ? 'grs' : (o.type === 'ПГРП' ? 'pgrp' : (o.type === 'Область' ? 'zones' : 'other')))); }
   // Цвет точки на карте по типу объекта (ГРП синий, ШРП фиолетовый, ГРС бирюзовый, ПГРП оранжевый, прочие серые)
   function omTypeColor(t) { return t === 'ГРП' ? '#2563eb' : (t === 'ШРП' ? '#7c3aed' : (t === 'ГРС' ? '#0891b2' : (t === 'ПГРП' ? '#d97706' : '#64748b'))); }
   // применить фильтр: пересобрать видимые объекты (omState.vc / omState.vp) и перерисовать слой
   function omApplyFilter(allCoords, allPoly, layer) {
-    omState.lastApply = function () { try { omApplyFilter(allCoords, allPoly, layer); } catch (e) {} };   // 22.09-276: для повторного применения (тепловая карта)
     var inputs = document.querySelectorAll('#om-filter input[type=checkbox]');
     for (var i = 0; i < inputs.length; i++) omFilter[inputs[i].getAttribute('data-f')] = inputs[i].checked;
-    try { localStorage.setItem('smartplan_objmap_filter', JSON.stringify(omFilter)); } catch (e) {}   // heat тоже сохраняется
+    try { localStorage.setItem('smartplan_objmap_filter', JSON.stringify(omFilter)); } catch (e) {}
     omState.vc = allCoords.filter(function (o) { return omFilter[omPtCat(o)]; });
     // полигоны — по типу: тип «Область» — чекбокс «Области»,
     // трассы/просеки с контуром — чекбокс «Прочие»
     omState.vp = allPoly.filter(function (o) { return omFilter[omPtCat(o)]; });
     var items = [];
-    // 22.09-276: ТЕПЛОВАЯ КАРТА — пятна по плотности объектов (сколько соседей рядом)
-    if (omFilter.heat) {
-      var pts0 = omState.vc;
-      for (var hi = 0; hi < pts0.length; hi++) {
-        var n0 = 0;
-        for (var hj = 0; hj < pts0.length; hj++) {
-          if (hi === hj) continue;
-          var dlat = (+pts0[hj].lat - +pts0[hi].lat), dlng = (+pts0[hj].lng - +pts0[hi].lng);
-          if ((dlat * dlat + dlng * dlng) < (0.006 * 0.006)) n0++;   // ~600 м
-        }
-        var col0 = n0 >= 5 ? '#dc2626' : (n0 >= 2 ? '#f59e0b' : '#22c55e');
-        items.push({ kind: 'blob', lat: +pts0[hi].lat, lng: +pts0[hi].lng, radiusM: 900, color: col0, opacity: 0.42, gid: 'h' + hi });
-      }
-    }
     omState.vp.forEach(function (o) {
       try {
         var ring = o.poly.map(function (p) { return [+p[0], +p[1]]; });
@@ -2025,24 +1977,10 @@
       } catch (e) {}
     });
     omState.vc.forEach(function (o) {
-      items.push({ kind: 'dot', lat: +o.lat, lng: +o.lng, color: omTypeColor(o.type), label: objNumOf(o) || '·', r: omFilter.heat ? 11 : 15 });
+      items.push({ kind: 'dot', lat: +o.lat, lng: +o.lng, color: omTypeColor(o.type), label: objNumOf(o) || '·', r: 15 });
     });
     layer.set(items);
   }
-  // 22.09-276: точка доступа к карте объектов (для других частей сайта и автотестов)
-  window.SP_OBJMAP = {
-    zoom: function () { try { return omState.map ? omState.map.getZoom() : null; } catch (e) { return null; } },
-    setZoom: function (z) { try { if (omState.map) omState.map.setZoom(z); } catch (e) {} },
-    clusters: function () { try { return (omState.svg && omState.svg.getClusters) ? omState.svg.getClusters() : []; } catch (e) { return []; } },
-    heat: function () { return !!omFilter.heat; },
-    setHeat: function (v) {
-      omFilter.heat = !!v;
-      try { var cb = document.getElementById('om-heat-cb'); if (cb) cb.checked = !!v; } catch (e) {}
-      try { if (omState.lastApply) omState.lastApply(); } catch (e2) {}
-    },
-    visible: function () { return { coords: (omState.vc || []).length, polys: (omState.vp || []).length }; }
-  };
-
   // панель фильтра справа поверх карты (в контейнере #om-map; карта — во вложенном div)
   function omAddFilterPanel(holder, allCoords, allPoly, layer) {
     var cnt = { grp: 0, shrp: 0, grs: 0, pgrp: 0, other: 0, zones: 0 };
@@ -2065,10 +2003,6 @@
     // выбор слоя: в один ряд (flex-direction: row), левый верхний угол карты
     p.style.cssText = 'position:absolute;left:12px;top:12px;z-index:1000;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 6px 20px rgba(15,39,64,.18);padding:8px 12px;font-size:12px;display:flex;flex-direction:row;align-items:center;gap:12px;flex-wrap:wrap;max-width:calc(100% - 24px)';
     var h = '<span style="font-weight:800;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;flex:0 0 auto">Слои:</span>';
-    // 22.09-276: тепловая карта плотности объектов
-    h += '<label style="display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none;padding-left:4px;border-left:1px solid var(--line)" title="Тепловая карта: где объектов густо — там «горячее» (зелёный → жёлтый → красный)">' +
-      '<input type="checkbox" data-f="heat"' + (omFilter.heat ? ' checked' : '') + ' style="accent-color:#dc2626;width:14px;height:14px;cursor:pointer;margin:0" id="om-heat-cb">' +
-      '<span style="color:var(--ink)">Тепловая карта</span></label>';
     rows.forEach(function (r) {
       h += '<label style="display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none">' +
         '<input type="checkbox" data-f="' + r.k + '"' + (omFilter[r.k] ? ' checked' : '') + ' style="accent-color:#2563eb;width:14px;height:14px;cursor:pointer;margin:0;flex:0 0 auto">' +
@@ -2242,20 +2176,6 @@
             var zoom2 = map.getZoom();
             var mPerPx2 = 156543.03392 * Math.cos(c[0] * Math.PI / 180) / Math.pow(2, zoom2);
             var R2 = 20 * mPerPx2 / 111320;
-            // 22.09-276: клик по кластеру (группе точек) — приближаем карту к этой группе
-            try {
-              var cls = (layer && layer.getClusters) ? layer.getClusters() : [];
-              var Rcl = 26 * mPerPx2 / 111320;
-              for (var ci3 = 0; ci3 < cls.length; ci3++) {
-                var c3 = cls[ci3];
-                if (!c3 || c3.pts.length < 2) continue;
-                var dyc = c3.lat - c[0], dxc = c3.lng - c[1];
-                if (Math.sqrt(dyc * dyc + dxc * dxc) < Rcl) {
-                  map.setCenter([c3.lat, c3.lng], Math.min(zoom2 + 2, 18));
-                  return;
-                }
-              }
-            } catch (eCl) {}
             var hit = false;
             var vc2 = omState.vc || [];
             for (var i2 = 0; i2 < vc2.length; i2++) {

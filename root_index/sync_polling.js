@@ -125,39 +125,39 @@ window.SP_SYNC_POLL = (function () {
     info = info || {};
     state.mode = mode; // 22.09-271: режим виден мини-окошку в шапке
     var dot = document.getElementById('sync-dot');
-    var txt = document.getElementById('sync-text'); // 22.09-273: кнопка без текста — элемента может не быть
+    var txt = document.getElementById('sync-text');
     var box = document.getElementById('sync-indicator');
-    if (!dot) return;
+    if (!dot || !txt) return;
     // 22.09-271: кружок мигает — зелёный в сети, оранжевый при подключении/сбоях, красный без связи
     if (mode === 'connected') {
       dot.style.background = '#16a34a';
       dot.style.animationDuration = '1.8s';
-      if (txt) txt.textContent = 'Сервер: в сети';
-      if (txt) txt.style.color = 'var(--green)';
+      txt.textContent = 'Сервер: в сети';
+      txt.style.color = 'var(--green)';
       box.title = '';
     } else if (mode === 'connecting') {
       dot.style.background = '#f59e0b';
       dot.style.animationDuration = '1s';
-      if (txt) txt.textContent = 'Сервер: подключение…';
-      if (txt) txt.style.color = 'var(--yellow)';
+      txt.textContent = 'Сервер: подключение…';
+      txt.style.color = 'var(--yellow)';
       box.title = '';
     } else if (mode === 'warn') {
       dot.style.background = '#f59e0b';
       dot.style.animationDuration = '0.8s';
-      if (txt) txt.textContent = 'Нет связи (' + (info.attempt || 1) + '/3)';
-      if (txt) txt.style.color = 'var(--yellow)';
+      txt.textContent = 'Нет связи (' + (info.attempt || 1) + '/3)';
+      txt.style.color = 'var(--yellow)';
       box.title = '';
     } else if (mode === 'error') {
       dot.style.background = '#dc2626';
       dot.style.animationDuration = '0.7s';
-      if (txt) txt.textContent = 'Сервер недоступен';
-      if (txt) txt.style.color = 'var(--red)';
+      txt.textContent = 'Сервер недоступен';
+      txt.style.color = 'var(--red)';
       box.title = '';
     } else if (mode === 'offline') {
       dot.style.background = '#dc2626';
       dot.style.animationDuration = '1.2s';
-      if (txt) txt.textContent = 'Сервер: не в сети';
-      if (txt) txt.style.color = 'var(--muted)';
+      txt.textContent = 'Сервер: не в сети';
+      txt.style.color = 'var(--muted)';
       box.title = '';
     }
     // обновить открытое мини-окошко, если оно показано

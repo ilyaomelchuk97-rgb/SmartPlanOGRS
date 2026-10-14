@@ -102,14 +102,6 @@
     // 22.09-220: открытые рабочие окна («Настройки бригад», «Факт работ…») — со страницей под ними
     if (S.workersModal && S.screen !== 'workers') renderWorkers();
     if (S.factModal && S.screen !== 'factmonth') renderFactMonth();
-    // 22.09-276: плавное появление страницы — только при СМЕНЕ экрана (не при каждом обновлении данных)
-    try {
-      if (window.__spLastAnimScreen !== S.screen) {
-        window.__spLastAnimScreen = S.screen;
-        var _viewAnim = document.getElementById('view');
-        if (_viewAnim) { _viewAnim.classList.remove('page-in'); void _viewAnim.offsetWidth; _viewAnim.classList.add('page-in'); }
-      }
-    } catch (eV) {}
     uiEnhance();   // 22.09-266: поиск/сортировка таблиц текущей страницы
     uiObserve();   // 22.09-266: следить за перерисовками #view
     // 22.09-271: кнопка «Настроить панель» в шапке — показать только на панели мониторинга
@@ -433,10 +425,8 @@
     else if (a === 'dash-setup-save') { dashSetupSave(); }
     else if (a === 'dash-setup-reset') { dashSetupReset(); }
     else if (a === 'perm-save-matrix') { permSaveMatrix(); }
-    else if (a === 'selftest-run') { stRun(); }   // 22.09-276: самопроверка
     else if (a === 'sys-refresh') { sysStatusLoad(true); }        // 22.09-267
     else if (a === 'sys-backup') { sysBackupNow(); }
-    else if (a === 'bk-restore') { bkRestore(el.dataset.name); }   // 22.09-275: восстановление из копии
     else if (a === 'bulk-check') { bulkPanelSync(); bulkPassCount(); }
     else if (a === 'bulk-all') { bulkToggleAll(true); }
     else if (a === 'bulk-none') { bulkToggleAll(false); }

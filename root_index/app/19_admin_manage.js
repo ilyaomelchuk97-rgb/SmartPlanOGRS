@@ -176,8 +176,10 @@
         }).join('');
       var inputCss = 'padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;color:var(--txt);background:var(--card)';
       var html =
-        // 22.09-274: «Состояние системы» перенесено на страницу «Бэкапы БД»
-        '<div class="card">' +
+        // 22.09-267: «Состояние системы» — бэкапы, ошибки, кто онлайн, кто на старой версии
+        '<div class="card"><div class="card-h"><h2>🩺 Состояние системы</h2><span class="sub">Бэкапы на Google Диск · ошибки · кто сейчас на сайте · у кого старая версия сайта</span></div>' +
+        '<div class="card-b"><div id="sys-status-box"><div style="color:var(--muted);font-size:13px">Нажмите «Обновить состояние», чтобы проверить систему.</div></div></div></div>' +
+        '<div class="card" style="margin-top:14px">' +
         '<div class="card-h"><h2>📢 Объявления и сообщения</h2><span class="sub">Сообщение одному работнику или всем сразу · получатель видит его на экране и нажимает «ОК»</span></div>' +
         '<div class="card-b">' +
           '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start;margin-bottom:6px">' +
@@ -203,9 +205,9 @@
       '<div class="card" style="margin-top:14px;border-style:dashed"><div class="card-b" style="color:var(--muted);font-size:13px">Этот раздел будет пополняться: здесь появятся другие функции управления.</div></div>';
       view.innerHTML = html;
       annRenderList();
+      try { sysStatusLoad(true); } catch (eSys) {}   // 22.09-267: состояние системы сразу
       try { var _tpl = document.getElementById('ann-tpl'); if (_tpl) _tpl.addEventListener('change', annApplyTemplate); } catch (eTpl) {}
       try { permRenderMatrix(); } catch (ePerm) {}   // 22.09-268: общая таблица прав
-      try { stCard(); } catch (eSt) {}                  // 22.09-276: «Проверить систему»
     } catch (e) {
       try { toast('err', 'Ошибка страницы «Управление администрированием»: ' + String(e && e.message || e)); } catch (e2) {}
     }

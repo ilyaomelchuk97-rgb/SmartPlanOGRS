@@ -887,7 +887,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-276';
+  var SP_BUILD = '22.09-272';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -909,7 +909,7 @@
     factmonth: 'Факт работ по объектам',
     workers: 'Работники',
     schedules: 'Графики смен',
-    adminctl: 'Параметры', // 22.09-274: было «Управление администрированием»
+    adminctl: 'Управление администрированием',
     users: 'Пользователи',
     reports: 'Отчёты',
     logs: 'Журнал действий',
@@ -3031,7 +3031,7 @@
     // Выпадающий список при нажатии
     html += '<div id="weather-dropdown" class="weather-dropdown" data-dw="weather"></div>'; // 22.09-269: едет вместе с блоком погоды
     // Отступ перед панелью аналитики
-    html += '<div data-dw="weather" style="height:16px;"></div>'; // 22.09-274: отступ — часть блока погоды (едет с ним)
+    html += '<div style="height:16px;"></div>';
 
     // 22.09-173: «Панель аналитики» удалена с панели мониторинга (выбор месяца — кнопкой-календарём в «⚡ КПД мастеров»)
 
@@ -6104,7 +6104,7 @@
     var proj = null;
     try { proj = map.options.get('projection'); } catch (e) {}
     if (!proj && window.ymaps && ymaps.projection) proj = ymaps.projection.wgs84Mercator;
-    var st = { dead: false, svg: svg, items: [], lastKey: null, rafId: null, lastDraw: 0, lastActive: 0, pollTimer: null, onResize: null, domKick: null , clusters: [] };
+    var st = { dead: false, svg: svg, items: [], lastKey: null, rafId: null, lastDraw: 0, lastActive: 0, pollTimer: null, onResize: null, domKick: null };
 
     // Живое состояние карты: во время цепочки зумов boundschange приходит
     // ТОЛЬКО в самом конце (карта анимируется), поэтому промежуточные
@@ -6135,7 +6135,6 @@
         svg.setAttribute('height', H);
         var dx = gpc[0] - W / 2, dy = gpc[1] - H / 2; // экран = глобальные − (центр − размер/2)
         var out = [], defs = [];
-        var pendingDots = []; // 22.09-276: точки собираем отдельно — близкие объединим в «кластеры»
         for (var k = 0; k < st.items.length; k++) {
           var it = st.items[k];
           try {
@@ -6166,47 +6165,16 @@
               defs.push('<radialGradient id="' + gid + '"><stop offset="0" stop-color="' + it.color + '" stop-opacity="' + bop + '"/><stop offset="0.6" stop-color="' + it.color + '" stop-opacity="' + (bop * 0.55).toFixed(2) + '"/><stop offset="1" stop-color="' + it.color + '" stop-opacity="0"/></radialGradient>');
               out.push('<circle cx="' + bx.toFixed(1) + '" cy="' + by.toFixed(1) + '" r="' + br.toFixed(1) + '" fill="url(#' + gid + ')"/>');
             } else if (it.kind === 'dot') {
-              // точка-объект: координаты на экран; рисовать будем после группировки (кластеризация)
+              // точка-объект: цветной кружок с номером (как прежние метки)
               var gpd = proj.toGlobalPixels([+it.lat, +it.lng], zoom);
               var px = gpd[0] - dx, py = gpd[1] - dy;
               if (px < -40 || px > W + 40 || py < -40 || py > H + 40) continue;
-              pendingDots.push({ x: px, y: py, color: it.color, label: it.label, lat: +it.lat, lng: +it.lng, r: it.r || 15 });
+              var r = it.r || 15;
+              out.push('<circle cx="' + px.toFixed(1) + '" cy="' + py.toFixed(1) + '" r="' + r + '" fill="' + it.color + '" stroke="#ffffff" stroke-width="3"/>' +
+                '<text x="' + px.toFixed(1) + '" y="' + (py + r * 0.34).toFixed(1) + '" text-anchor="middle" font-family="Arial,sans-serif" font-size="' + Math.round(r * 0.9) + '" font-weight="bold" fill="#ffffff">' + (it.label || '·') + '</text>');
             }
           } catch (e) { /* один объект не может ломать слой */ }
         }
-        // 22.09-276: КЛАСТЕРИЗАЦИЯ — близкие точки (в пределах 36px) объединяем в кружок с числом.
-        // Клик по кластеру приближает карту (см. обработчик клика).
-        var CL = 36, clusters = [];
-        for (var di = 0; di < pendingDots.length; di++) {
-          var d0 = pendingDots[di], put = null;
-          for (var ci = 0; ci < clusters.length; ci++) {
-            var c0 = clusters[ci];
-            if (Math.abs(c0.x - d0.x) < CL && Math.abs(c0.y - d0.y) < CL) { put = c0; break; }
-          }
-          if (put) {
-            put.pts.push(d0);
-            put.x = (put.x * (put.pts.length - 1) + d0.x) / put.pts.length;
-            put.y = (put.y * (put.pts.length - 1) + d0.y) / put.pts.length;
-            put.lat = (put.lat * (put.pts.length - 1) + d0.lat) / put.pts.length;
-            put.lng = (put.lng * (put.pts.length - 1) + d0.lng) / put.pts.length;
-          } else {
-            clusters.push({ x: d0.x, y: d0.y, lat: d0.lat, lng: d0.lng, pts: [d0] });
-          }
-        }
-        clusters.forEach(function (c3) {
-          var n3 = c3.pts.length;
-          if (n3 === 1) {
-            var d3 = c3.pts[0], r3 = d3.r;
-            out.push('<circle cx="' + c3.x.toFixed(1) + '" cy="' + c3.y.toFixed(1) + '" r="' + r3 + '" fill="' + d3.color + '" stroke="#ffffff" stroke-width="3"/>' +
-              (d3.label ? '<text x="' + c3.x.toFixed(1) + '" y="' + (c3.y + r3 * 0.34).toFixed(1) + '" text-anchor="middle" font-family="Arial,sans-serif" font-size="' + Math.round(r3 * 0.95) + '" font-weight="700" fill="#ffffff" style="pointer-events:none">' + String(d3.label).replace(/[<&>]/g, '') + '</text>' : ''));
-          } else {
-            // кластер: крупнее по числу точек, с счётчиком
-            var cr3 = Math.min(26, 16 + Math.round(n3 * 1.2));
-            out.push('<circle cx="' + c3.x.toFixed(1) + '" cy="' + c3.y.toFixed(1) + '" r="' + cr3 + '" fill="#1e40af" fill-opacity="0.92" stroke="#ffffff" stroke-width="3"/>' +
-              '<text x="' + c3.x.toFixed(1) + '" y="' + (c3.y + cr3 * 0.33).toFixed(1) + '" text-anchor="middle" font-family="Arial,sans-serif" font-size="' + Math.round(cr3 * 0.82) + '" font-weight="800" fill="#ffffff" style="pointer-events:none">' + n3 + '</text>');
-          }
-        });
-        st.clusters = clusters;   // для клика: приблизить к группе
         svg.innerHTML = (defs.length ? '<defs>' + defs.join('') + '</defs>' : '') + out.join('');
       } catch (e) { /* перерисовка не может ломать страницу */ }
     }
@@ -6253,7 +6221,6 @@
     window.addEventListener('resize', st.onResize);
     st.pollTimer = setInterval(poke, 500); // страховка: любое изменение состояния подхватится
     return {
-      getClusters: function () { return st.clusters || []; },   // 22.09-276: группы точек (для клика)
       set: function (items) {
         st.items = items || [];
         var k = stateKey();
@@ -6284,36 +6251,21 @@
   var omFilter = { grp: true, shrp: true, grs: true, pgrp: true, other: true, zones: true };
   try {
     var _omf = JSON.parse(localStorage.getItem('smartplan_objmap_filter') || 'null');
-    if (_omf) omFilter = { grp: _omf.grp !== false, shrp: _omf.shrp !== false, grs: _omf.grs !== false, pgrp: _omf.pgrp !== false, other: _omf.other !== false, zones: _omf.zones !== false, heat: !!_omf.heat }; // 22.09-276: + тепловая карта
+    if (_omf) omFilter = { grp: _omf.grp !== false, shrp: _omf.shrp !== false, grs: _omf.grs !== false, pgrp: _omf.pgrp !== false, other: _omf.other !== false, zones: _omf.zones !== false };
   } catch (e) {}
   function omPtCat(o) { return o.type === 'ГРП' ? 'grp' : (o.type === 'ШРП' ? 'shrp' : (o.type === 'ГРС' ? 'grs' : (o.type === 'ПГРП' ? 'pgrp' : (o.type === 'Область' ? 'zones' : 'other')))); }
   // Цвет точки на карте по типу объекта (ГРП синий, ШРП фиолетовый, ГРС бирюзовый, ПГРП оранжевый, прочие серые)
   function omTypeColor(t) { return t === 'ГРП' ? '#2563eb' : (t === 'ШРП' ? '#7c3aed' : (t === 'ГРС' ? '#0891b2' : (t === 'ПГРП' ? '#d97706' : '#64748b'))); }
   // применить фильтр: пересобрать видимые объекты (omState.vc / omState.vp) и перерисовать слой
   function omApplyFilter(allCoords, allPoly, layer) {
-    omState.lastApply = function () { try { omApplyFilter(allCoords, allPoly, layer); } catch (e) {} };   // 22.09-276: для повторного применения (тепловая карта)
     var inputs = document.querySelectorAll('#om-filter input[type=checkbox]');
     for (var i = 0; i < inputs.length; i++) omFilter[inputs[i].getAttribute('data-f')] = inputs[i].checked;
-    try { localStorage.setItem('smartplan_objmap_filter', JSON.stringify(omFilter)); } catch (e) {}   // heat тоже сохраняется
+    try { localStorage.setItem('smartplan_objmap_filter', JSON.stringify(omFilter)); } catch (e) {}
     omState.vc = allCoords.filter(function (o) { return omFilter[omPtCat(o)]; });
     // полигоны — по типу: тип «Область» — чекбокс «Области»,
     // трассы/просеки с контуром — чекбокс «Прочие»
     omState.vp = allPoly.filter(function (o) { return omFilter[omPtCat(o)]; });
     var items = [];
-    // 22.09-276: ТЕПЛОВАЯ КАРТА — пятна по плотности объектов (сколько соседей рядом)
-    if (omFilter.heat) {
-      var pts0 = omState.vc;
-      for (var hi = 0; hi < pts0.length; hi++) {
-        var n0 = 0;
-        for (var hj = 0; hj < pts0.length; hj++) {
-          if (hi === hj) continue;
-          var dlat = (+pts0[hj].lat - +pts0[hi].lat), dlng = (+pts0[hj].lng - +pts0[hi].lng);
-          if ((dlat * dlat + dlng * dlng) < (0.006 * 0.006)) n0++;   // ~600 м
-        }
-        var col0 = n0 >= 5 ? '#dc2626' : (n0 >= 2 ? '#f59e0b' : '#22c55e');
-        items.push({ kind: 'blob', lat: +pts0[hi].lat, lng: +pts0[hi].lng, radiusM: 900, color: col0, opacity: 0.42, gid: 'h' + hi });
-      }
-    }
     omState.vp.forEach(function (o) {
       try {
         var ring = o.poly.map(function (p) { return [+p[0], +p[1]]; });
@@ -6321,24 +6273,10 @@
       } catch (e) {}
     });
     omState.vc.forEach(function (o) {
-      items.push({ kind: 'dot', lat: +o.lat, lng: +o.lng, color: omTypeColor(o.type), label: objNumOf(o) || '·', r: omFilter.heat ? 11 : 15 });
+      items.push({ kind: 'dot', lat: +o.lat, lng: +o.lng, color: omTypeColor(o.type), label: objNumOf(o) || '·', r: 15 });
     });
     layer.set(items);
   }
-  // 22.09-276: точка доступа к карте объектов (для других частей сайта и автотестов)
-  window.SP_OBJMAP = {
-    zoom: function () { try { return omState.map ? omState.map.getZoom() : null; } catch (e) { return null; } },
-    setZoom: function (z) { try { if (omState.map) omState.map.setZoom(z); } catch (e) {} },
-    clusters: function () { try { return (omState.svg && omState.svg.getClusters) ? omState.svg.getClusters() : []; } catch (e) { return []; } },
-    heat: function () { return !!omFilter.heat; },
-    setHeat: function (v) {
-      omFilter.heat = !!v;
-      try { var cb = document.getElementById('om-heat-cb'); if (cb) cb.checked = !!v; } catch (e) {}
-      try { if (omState.lastApply) omState.lastApply(); } catch (e2) {}
-    },
-    visible: function () { return { coords: (omState.vc || []).length, polys: (omState.vp || []).length }; }
-  };
-
   // панель фильтра справа поверх карты (в контейнере #om-map; карта — во вложенном div)
   function omAddFilterPanel(holder, allCoords, allPoly, layer) {
     var cnt = { grp: 0, shrp: 0, grs: 0, pgrp: 0, other: 0, zones: 0 };
@@ -6361,10 +6299,6 @@
     // выбор слоя: в один ряд (flex-direction: row), левый верхний угол карты
     p.style.cssText = 'position:absolute;left:12px;top:12px;z-index:1000;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 6px 20px rgba(15,39,64,.18);padding:8px 12px;font-size:12px;display:flex;flex-direction:row;align-items:center;gap:12px;flex-wrap:wrap;max-width:calc(100% - 24px)';
     var h = '<span style="font-weight:800;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;flex:0 0 auto">Слои:</span>';
-    // 22.09-276: тепловая карта плотности объектов
-    h += '<label style="display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none;padding-left:4px;border-left:1px solid var(--line)" title="Тепловая карта: где объектов густо — там «горячее» (зелёный → жёлтый → красный)">' +
-      '<input type="checkbox" data-f="heat"' + (omFilter.heat ? ' checked' : '') + ' style="accent-color:#dc2626;width:14px;height:14px;cursor:pointer;margin:0" id="om-heat-cb">' +
-      '<span style="color:var(--ink)">Тепловая карта</span></label>';
     rows.forEach(function (r) {
       h += '<label style="display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none">' +
         '<input type="checkbox" data-f="' + r.k + '"' + (omFilter[r.k] ? ' checked' : '') + ' style="accent-color:#2563eb;width:14px;height:14px;cursor:pointer;margin:0;flex:0 0 auto">' +
@@ -6538,20 +6472,6 @@
             var zoom2 = map.getZoom();
             var mPerPx2 = 156543.03392 * Math.cos(c[0] * Math.PI / 180) / Math.pow(2, zoom2);
             var R2 = 20 * mPerPx2 / 111320;
-            // 22.09-276: клик по кластеру (группе точек) — приближаем карту к этой группе
-            try {
-              var cls = (layer && layer.getClusters) ? layer.getClusters() : [];
-              var Rcl = 26 * mPerPx2 / 111320;
-              for (var ci3 = 0; ci3 < cls.length; ci3++) {
-                var c3 = cls[ci3];
-                if (!c3 || c3.pts.length < 2) continue;
-                var dyc = c3.lat - c[0], dxc = c3.lng - c[1];
-                if (Math.sqrt(dyc * dyc + dxc * dxc) < Rcl) {
-                  map.setCenter([c3.lat, c3.lng], Math.min(zoom2 + 2, 18));
-                  return;
-                }
-              }
-            } catch (eCl) {}
             var hit = false;
             var vc2 = omState.vc || [];
             for (var i2 = 0; i2 < vc2.length; i2++) {
@@ -13687,10 +13607,7 @@
   /* ---------- СТРАНИЦА ---------- */
   function renderBackup() {
     if (S.role !== 'admin') { view.innerHTML = '<div class="card"><div class="card-b"><div class="empty">Страница доступна только администратору.</div></div></div>'; return; }
-    // 22.09-274: «Состояние системы» (копии на Google Диск, ошибки, кто онлайн и у кого старая версия) — здесь
-    var _sysCard = '<div class="card" style="margin-bottom:14px"><div class="card-h"><h2>🩺 Состояние системы</h2><span class="sub">Копии на Google Диск · ошибки · кто сейчас на сайте · у кого старая версия сайта</span></div>' +
-      '<div class="card-b"><div id="sys-status-box"><div style="color:var(--muted);font-size:13px">Нажмите «Обновить состояние», чтобы проверить систему.</div></div></div></div>';
-    var html = _sysCard + '<div class="card"><div class="card-h"><h2>💾 Бэкапы баз данных</h2><span class="sub">Каждая база — отдельный файл · выбрано 2 и больше — единый ZIP-архив</span><div class="spacer"></div></div><div class="card-b">';
+    var html = '<div class="card"><div class="card-h"><h2>💾 Бэкапы баз данных</h2><span class="sub">Каждая база — отдельный файл · выбрано 2 и больше — единый ZIP-архив</span><div class="spacer"></div></div><div class="card-b">';
     html += '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px">' +
       '<button type="button" class="btn primary" data-action="backup-dl-sel">💾 Скачать выбранные</button>' +
       '<button type="button" class="btn" data-action="backup-dl-all">📦 Скачать ВСЕ базы (ZIP)</button>' +
@@ -13727,7 +13644,6 @@
     html += '<div class="calc" style="margin-top:12px;font-size:12.5px;align-items:flex-start;line-height:1.55">Как это работает: каждая база выгружается отдельным JSON-файлом (внутри — служебный заголовок с типом базы, датой выгрузки и числом записей). Если баз 2 и больше — файлы упаковываются в один ZIP-архив, открывающийся любым архиватором. <b>Восстановление</b> принимает файлы .json, .zip или сразу несколько файлов: данные баз заменяются содержимым файлов на устройстве и на сервере — перенос происходит без потерь (при повреждённом архиве контрольная сумма не сойдётся и восстановление не выполнится).</div>';
     html += '</div></div>';
     view.innerHTML = html;
-    try { sysStatusLoad(true); } catch (eSys) {}   // 22.09-274: сразу показать состояние системы
     var inp = document.getElementById('backup-file');
     if (inp) inp.addEventListener('change', function () { backupScanFiles(inp.files); try { inp.value = ''; } catch (e) {} });
   }
@@ -18141,14 +18057,6 @@
     // 22.09-220: открытые рабочие окна («Настройки бригад», «Факт работ…») — со страницей под ними
     if (S.workersModal && S.screen !== 'workers') renderWorkers();
     if (S.factModal && S.screen !== 'factmonth') renderFactMonth();
-    // 22.09-276: плавное появление страницы — только при СМЕНЕ экрана (не при каждом обновлении данных)
-    try {
-      if (window.__spLastAnimScreen !== S.screen) {
-        window.__spLastAnimScreen = S.screen;
-        var _viewAnim = document.getElementById('view');
-        if (_viewAnim) { _viewAnim.classList.remove('page-in'); void _viewAnim.offsetWidth; _viewAnim.classList.add('page-in'); }
-      }
-    } catch (eV) {}
     uiEnhance();   // 22.09-266: поиск/сортировка таблиц текущей страницы
     uiObserve();   // 22.09-266: следить за перерисовками #view
     // 22.09-271: кнопка «Настроить панель» в шапке — показать только на панели мониторинга
@@ -18472,10 +18380,8 @@
     else if (a === 'dash-setup-save') { dashSetupSave(); }
     else if (a === 'dash-setup-reset') { dashSetupReset(); }
     else if (a === 'perm-save-matrix') { permSaveMatrix(); }
-    else if (a === 'selftest-run') { stRun(); }   // 22.09-276: самопроверка
     else if (a === 'sys-refresh') { sysStatusLoad(true); }        // 22.09-267
     else if (a === 'sys-backup') { sysBackupNow(); }
-    else if (a === 'bk-restore') { bkRestore(el.dataset.name); }   // 22.09-275: восстановление из копии
     else if (a === 'bulk-check') { bulkPanelSync(); bulkPassCount(); }
     else if (a === 'bulk-all') { bulkToggleAll(true); }
     else if (a === 'bulk-none') { bulkToggleAll(false); }
@@ -26130,8 +26036,10 @@
         }).join('');
       var inputCss = 'padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;color:var(--txt);background:var(--card)';
       var html =
-        // 22.09-274: «Состояние системы» перенесено на страницу «Бэкапы БД»
-        '<div class="card">' +
+        // 22.09-267: «Состояние системы» — бэкапы, ошибки, кто онлайн, кто на старой версии
+        '<div class="card"><div class="card-h"><h2>🩺 Состояние системы</h2><span class="sub">Бэкапы на Google Диск · ошибки · кто сейчас на сайте · у кого старая версия сайта</span></div>' +
+        '<div class="card-b"><div id="sys-status-box"><div style="color:var(--muted);font-size:13px">Нажмите «Обновить состояние», чтобы проверить систему.</div></div></div></div>' +
+        '<div class="card" style="margin-top:14px">' +
         '<div class="card-h"><h2>📢 Объявления и сообщения</h2><span class="sub">Сообщение одному работнику или всем сразу · получатель видит его на экране и нажимает «ОК»</span></div>' +
         '<div class="card-b">' +
           '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start;margin-bottom:6px">' +
@@ -26157,9 +26065,9 @@
       '<div class="card" style="margin-top:14px;border-style:dashed"><div class="card-b" style="color:var(--muted);font-size:13px">Этот раздел будет пополняться: здесь появятся другие функции управления.</div></div>';
       view.innerHTML = html;
       annRenderList();
+      try { sysStatusLoad(true); } catch (eSys) {}   // 22.09-267: состояние системы сразу
       try { var _tpl = document.getElementById('ann-tpl'); if (_tpl) _tpl.addEventListener('change', annApplyTemplate); } catch (eTpl) {}
       try { permRenderMatrix(); } catch (ePerm) {}   // 22.09-268: общая таблица прав
-      try { stCard(); } catch (eSt) {}                  // 22.09-276: «Проверить систему»
     } catch (e) {
       try { toast('err', 'Ошибка страницы «Управление администрированием»: ' + String(e && e.message || e)); } catch (e2) {}
     }
@@ -26614,8 +26522,7 @@
       : '<div style="color:var(--green);font-size:12.5px;margin-top:10px">✅ Все открытые сессии — на свежей версии сайта (' + esc(d.newest_build || '—') + ')</div>';
     var bks = (d.backups || []).filter(function (b) { return !b.skipped && b.file; });
     var bkRows = bks.map(function (b) {
-      return '<tr><td style="white-space:nowrap">' + esc(new Date(b.ts).toLocaleString('ru-RU')) + '</td><td style="font-family:monospace;font-size:12px">' + esc(b.file) + '</td><td style="text-align:right">' + b.size_kb + ' КБ</td><td style="text-align:right">' + b.records + '</td>' +
-        '<td style="text-align:right;white-space:nowrap"><button class="btn sm" data-action="bk-restore" data-name="' + esc(b.file) + '" title="Восстановить все данные из этой копии (записи из копии заменят текущие)">↩ Восстановить</button></td></tr>';
+      return '<tr><td style="white-space:nowrap">' + esc(new Date(b.ts).toLocaleString('ru-RU')) + '</td><td style="font-family:monospace;font-size:12px">' + esc(b.file) + '</td><td style="text-align:right">' + b.size_kb + ' КБ</td><td style="text-align:right">' + b.records + '</td></tr>';
     }).join('');
     box.innerHTML =
       '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">' +
@@ -26630,7 +26537,7 @@
         '<a class="btn" href="https://drive.google.com/drive/search?q=SmartPlan%20backups" target="_blank" rel="noopener">Открыть папку на Диске</a>' +
       '</div>' +
       (bkRows ? ('<div style="font-size:12.5px;color:var(--muted);margin-bottom:4px">Последние копии (журнал):</div>' +
-        '<table class="dt" data-nosort="0" data-nosticky="1"><thead><tr><th>Когда</th><th>Файл</th><th style="text-align:right">Размер</th><th style="text-align:right">Записей</th><th style="width:130px"></th></tr></thead><tbody>' + bkRows + '</tbody></table>')
+        '<table class="dt" data-nosort="0" data-nosticky="1"><thead><tr><th>Когда</th><th>Файл</th><th style="text-align:right">Размер</th><th style="text-align:right">Записей</th></tr></thead><tbody>' + bkRows + '</tbody></table>')
         : '<div style="font-size:12.5px;color:var(--muted)">Копий пока нет.</div>');
   }
   function sysBackupNow() {
@@ -26775,28 +26682,6 @@
     var n = document.getElementById('bulk-pass-n');
     if (n) n.textContent = bulkSelected().length + ' чел.';
   }
-  // 22.09-275: восстановление из копии на Google Диске
-  function bkRestore(name) {
-    if (!name) return;
-    if (!S.user || S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
-    spConfirm('Восстановить данные из копии «' + name + '»?\n\nВсе текущие записи будут заменены данными из копии (данные копии надёжнее — свежих правок в них нет). Если сомневаетесь — сначала сделайте копию кнопкой «Сделать бэкап сейчас».', { title: 'Восстановление из копии', ok: 'Восстановить', danger: true }, function () {
-      toast('ok', '⏳ Читаю копию с Google Диска и восстанавливаю…');
-      SP_API.restoreFrom(name).then(function (r) {
-        if (r && r.ok) {
-          var sum = 0, det = r.restored && r.restored.sections ? r.restored.sections : {};
-          Object.keys(det).forEach(function (k) { sum += det[k] || 0; });
-          logAction('Восстановление из копии Google Диска', name + (r.hash_ok === false ? ' (хеш не совпал!)' : ''));
-          toast((r.hash_ok === false ? 'warn' : 'ok'), (r.hash_ok === false ? '⚠ Хеш копии не совпал, но данные загружены: ' : '✓ Восстановлено: ') + sum + ' записей, пользователей: ' + ((r.restored && r.restored.users) || 0) + '. Обновляю страницу…');
-          try { if (SP_SYNC_POLL && SP_SYNC_POLL.kick) SP_SYNC_POLL.kick(); } catch (e) {}
-          setTimeout(function () { location.reload(); }, 1600);
-        } else {
-          toast('err', 'Не удалось восстановить: ' + ((r && r.err) || 'нет связи'));
-        }
-      })['catch'](function (e) { toast('err', 'Не удалось восстановить: ' + String((e && e.message) || e)); });
-    });
-  }
-  window.bkRestore = bkRestore;
-
   window.SP_ADMINX = { status: sysStatusLoad, backupNow: sysBackupNow, history: taskHistoryShow, bulkToggleAll: bulkToggleAll, bulkPanelSync: bulkPanelSync, bulkPassCount: bulkPassCount };
   /* ── часть 23 · app/23_dash_perm.js — настройка панели мониторинга (виджеты) и права доступа (общие, на сервере) (22.09-268) ── */
 /* ============================================================
@@ -26872,32 +26757,16 @@
       // 22.09-270: пока панель не настроена — оставляем её ровно как раньше (только кнопка настройки)
       if (!dwIsCustom()) return;   // 22.09-270: пока панель не настроена — стандартный вид
 
-      // 1) видимость: скрыть/показать узлы виджета.
-      // 22.09-274: НЕ трогаем display у видимых блоков — иначе теряется их собственная
-      // вёрстка (например, у фильтра участка и блока погоды он задан как flex)
+      // 1) видимость: скрыть/показать все узлы каждого виджета
       DW_LIST.forEach(function (w) {
-        var hide = hidden.indexOf(w.key) >= 0;
         (map[w.key] || []).forEach(function (n) {
-          if (hide) {
-            if (n.getAttribute('data-dw-disp') === null) n.setAttribute('data-dw-disp', n.style.display || '');
-            n.style.display = 'none';
-          } else if (n.getAttribute('data-dw-disp') !== null) {
-            n.style.display = n.getAttribute('data-dw-disp');
-            n.removeAttribute('data-dw-disp');
-          }
+          n.style.display = (hidden.indexOf(w.key) >= 0) ? 'none' : '';
         });
       });
-      // 2) порядок карточек ВНУТРИ «Сегодня + графики».
-      // 22.09-274: ширина блока едет ВМЕСТЕ с блоком — если «Графики» встают первыми,
-      // колонки сетки зеркалятся (1fr + 1.4fr), поэтому «Сегодня» остаётся широкой
+      // 2) порядок карточек ВНУТРИ «Сегодня + графики» (по относительному порядку)
       var chartsFirst = order.indexOf('charts') < order.indexOf('today');
-      var todayHidden = hidden.indexOf('today') >= 0, chartsHidden = hidden.indexOf('charts') >= 0;
       var seqIn = chartsFirst ? [map.charts[0], map.today[0]] : [map.today[0], map.charts[0]];
-      if (grid) {
-        seqIn.forEach(function (n) { if (n && n.parentNode) n.parentNode.appendChild(n); });
-        grid.classList.toggle('dw-inv', chartsFirst && !(todayHidden || chartsHidden));   // зеркалим колонки
-        grid.classList.toggle('dw-one', todayHidden || chartsHidden);                    // остался один блок — на всю ширину
-      }
+      if (grid) seqIn.forEach(function (n) { if (n && n.parentNode) n.parentNode.appendChild(n); });
 
       // 3) порядок блоков на странице: собираем по списку, «сетка» встаёт
       //    на месте первого из «Сегодня»/«графиков»
@@ -27270,118 +27139,4 @@
   else topbarTipsWire();
 
   window.SP_TOPBAR = { setupSync: dashSetupBtnSync, tipShow: spTipShow, tipHide: spTipHide, serverTip: serverTipHtml };
-  /* ── часть 25 · app/25_selftest.js — «Проверить систему» на странице «Параметры»: самопроверка сайта по кнопке (22.09-276) ── */
-/* ============================================================
-   22.09-276: кнопка «Проверить систему» в «Параметрах».
-   Прогоняет набор проверок прямо в браузере и показывает отчёт:
-   версия сайта и сервера совпадает, сервер отвечает, данные
-   загружены, служебные модули на месте, уведомления работают,
-   хранилище браузера доступно, свежесть резервной копии,
-   кто на старой версии, нет ли застрявшей очереди отправки.
-   ============================================================ */
-  function stCard() {
-    var view = document.getElementById('view');
-    if (!view || !document.getElementById('ann-list')) return;      // только на странице «Параметры»
-    if (document.getElementById('selftest-box')) return;
-    var card = document.createElement('div');
-    card.className = 'card';
-    card.id = 'selftest-box';
-    card.style.marginTop = '14px';
-    card.innerHTML = '<div class="card-h"><h2>🩺 Проверить систему</h2><span class="sub">Быстрая самопроверка: версия, сервер, данные, уведомления, бэкап</span></div>' +
-      '<div class="card-b"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">' +
-        '<button class="btn primary" data-action="selftest-run">▶ Запустить проверку</button>' +
-        '<span style="font-size:12.5px;color:var(--muted)">Занимает пару секунд, ничего не меняет</span>' +
-      '</div><div id="selftest-res"></div></div>';
-    view.appendChild(card);
-  }
-  function stRow(ok, title, detail) {
-    var ic = ok === true ? '<span style="color:var(--green);font-weight:800">✓</span>' : (ok === 'warn' ? '<span style="color:var(--yellow);font-weight:800">⚠</span>' : '<span style="color:var(--red);font-weight:800">✗</span>');
-    return '<div style="display:flex;gap:9px;align-items:flex-start;padding:7px 0;border-bottom:1px dashed var(--line)">' +
-      '<div style="flex:0 0 16px;text-align:center">' + ic + '</div>' +
-      '<div style="flex:1"><div style="font-size:13px;font-weight:700;color:var(--txt)">' + esc(title) + '</div>' +
-      (detail ? '<div style="font-size:12px;color:var(--muted);margin-top:2px">' + esc(detail) + '</div>' : '') + '</div></div>';
-  }
-  function stRun() {
-    var res = document.getElementById('selftest-res');
-    if (!res) return;
-    res.innerHTML = '<div style="color:var(--muted);font-size:13px">Проверяю…</div>';
-    var rows = [], pending = 2, finished = false;   // ждём 2 ответа: версия сайта и состояние системы
-    function add(ok, title, detail) { rows.push(stRow(ok, title, detail)); }
-    if (!(S.role === 'admin' && SP_API.status)) pending = 1;   // не админ — ждём только версию
-    function tick() { if (--pending <= 0) finish(); }
-    function finish() {
-      if (finished) return;
-      finished = true;
-      var bad = rows.filter(function (r) { return r.indexOf('color:var(--red)') >= 0; }).length;
-      var warn = rows.filter(function (r) { return r.indexOf('color:var(--yellow)') >= 0; }).length;
-      var head = bad
-        ? '<div style="background:var(--red-l);border:1px solid #fca5a5;border-radius:9px;padding:10px 12px;margin-bottom:10px;font-size:13px;font-weight:700;color:#7f1d1d">Есть проблемы: ' + bad + ' (проверьте пункты ниже)</div>'
-        : (warn
-          ? '<div style="background:var(--yellow-l);border:1px solid #fde68a;border-radius:9px;padding:10px 12px;margin-bottom:10px;font-size:13px;font-weight:700;color:#78350f">Всё работает, есть замечания: ' + warn + '</div>'
-          : '<div style="background:var(--green-l);border:1px solid #bbf7d0;border-radius:9px;padding:10px 12px;margin-bottom:10px;font-size:13px;font-weight:700;color:#166534">Всё в порядке — система работает нормально</div>');
-      res.innerHTML = head + rows.join('') + '<div style="font-size:11.5px;color:var(--muted);margin-top:8px">Проверено ' + new Date().toLocaleTimeString('ru-RU') + '</div>';
-    }
-    // 1) версия сайта и сервера
-    fetch('root_index/version.txt?st=' + Date.now(), { cache: 'no-store' })
-      .then(function (r) { return r.ok ? r.text() : ''; })
-      .then(function (txt) {
-        var srv = String(txt || '').trim();
-        add(srv && srv === String(window.SP_BUILD), 'Версия сайта совпадает с сервером',
-          'на странице: ' + window.SP_BUILD + ', на сервере: ' + (srv || 'не найдено') + (srv !== String(window.SP_BUILD) ? ' — обновите страницу (Ctrl+Shift+R)' : ''));
-      })['catch'](function () { add(false, 'Версия сайта совпадает с сервером', 'не удалось прочитать version.txt'); })
-      .then(function () { tick(); });
-    // 2) сервер и синхронизация
-    var st = {};
-    try { st = SP_SYNC_POLL.status(); } catch (e) {}
-    add(st.mode === 'connected', 'Сервер отвечает, данные синхронизируются',
-      'последний опрос: ' + (st.lastPoll ? Math.round((Date.now() - st.lastPoll) / 1000) + ' с назад' : 'нет данных') + (st.errors ? ' · неудачных попыток: ' + st.errors : ''));
-    // 3) уведомления (SSE)
-    add(st.live === true || st.live === false, 'Мгновенные уведомления между устройствами',
-      st.live ? 'работают (соединение открыто)' : 'соединение восстанавливается — опрос идёт раз в секунду');
-    if (st.live !== true) rows[rows.length - 1] = stRow('warn', 'Мгновенные уведомления между устройствами', 'соединение восстанавливается — опрос идёт раз в секунду');
-    // 4) данные загружены
-    var cnt = { objects: 0, tasks: 0, users: 0, works: 0, graphs: 0 };
-    try {
-      cnt.objects = (SP_OBJECTS.getObjects() || []).length;
-      cnt.tasks = (SP_TASKS.getTasks() || []).filter(function (t) { return t.id !== 't_day_anchor'; }).length;
-      cnt.users = (SP_USERS_DB.getUsers() || []).length;
-      cnt.works = SP_WORK.getAreas().reduce(function (a, ar) { return a + SP_WORK.getWorks(ar).length; }, 0);
-      cnt.graphs = (window.graphsLoad ? graphsLoad() : []).length;
-    } catch (e) {}
-    var dataOk = cnt.objects > 0 && cnt.users > 0 && cnt.works > 0;
-    add(dataOk, 'Данные загружены', 'объектов: ' + cnt.objects + ' · задач: ' + cnt.tasks + ' · видов работ: ' + cnt.works + ' · пользователей: ' + cnt.users + ' · графиков: ' + cnt.graphs);
-    // 5) служебные модули
-    var need = ['SP_API', 'SP_SYNC_POLL', 'SP_WORK', 'SP_TASKS', 'SP_OBJECTS', 'SP_USERS_DB', 'SP_AREAS', 'SP_PROFS', 'SP_WORKERS'];
-    var miss = need.filter(function (k) { return !window[k]; });
-    add(miss.length === 0, 'Все служебные модули загружены', miss.length ? 'не загружены: ' + miss.join(', ') + ' — обновите страницу' : 'проверено модулей: ' + need.length);
-    // 6) хранилище браузера
-    var lsOk = false;
-    try { localStorage.setItem('smartplan_st_test', '1'); lsOk = localStorage.getItem('smartplan_st_test') === '1'; localStorage.removeItem('smartplan_st_test'); } catch (e) {}
-    add(lsOk, 'Хранилище браузера доступно', lsOk ? 'данные сохраняются' : 'браузер запрещает сохранение — смотрите «🍪 Cookie» внизу меню');
-    // 7) очередь отправки (если что-то застряло)
-    var ob = 0;
-    try { ob = JSON.parse(localStorage.getItem('smartplan_outbox_v1') || '[]').length; } catch (e) {}
-    add(ob === 0, 'Нет застрявших отправок', ob === 0 ? 'все изменения отправлены на сервер' : 'в очереди: ' + ob + ' (уйдут при восстановлении связи)');
-    if (ob !== 0) rows[rows.length - 1] = stRow('warn', 'Есть очередь отправки', 'в очереди: ' + ob + ' записей — уйдут при восстановлении связи');
-    // 8) состояние системы (бэкап, кто на старой версии) — только для админа
-    if (S.role === 'admin' && SP_API.status) {
-      SP_API.status().then(function (r) {
-        if (r && r.ok) {
-          var lb = r.last_backup;
-          var ageH = lb ? Math.round((Date.now() - lb.ts) / 3600000) : null;
-          add(!!lb && ageH <= 26, 'Свежая резервная копия на Google Диске',
-            lb ? ('последняя: ' + new Date(lb.ts).toLocaleString('ru-RU') + ' (' + (ageH <= 1 ? 'только что' : ageH + ' ч назад') + ')') : 'копий пока нет — проверьте cron-триггер и скрипт Google');
-          if (!lb || ageH > 26) rows[rows.length - 1] = stRow('warn', 'Резервная копия на Google Диске', lb ? ('последняя: ' + new Date(lb.ts).toLocaleString('ru-RU') + ' (' + ageH + ' ч назад)') : 'копий пока нет');
-          var outd = r.outdated || [];
-          if (outd.length) {
-            add('warn', 'Есть сотрудники на старой версии сайта', outd.map(function (x) { return x.name + ' (' + x.build + ')'; }).join(', ') + ' — попросите обновить страницу (F5)');
-          }
-          tick();
-        } else { add('warn', 'Состояние системы', 'сервер не ответил — проверьте позже'); tick(); }
-      })['catch'](function () { add('warn', 'Состояние системы', 'нет связи с сервером'); tick(); });
-    }
-    setTimeout(finish, 7000);   // страховка: отчёт появится в любом случае
-  }
-  // Доступ из других частей и автотестов
-  window.SP_SELFTEST = { card: stCard, run: stRun };
 })();
