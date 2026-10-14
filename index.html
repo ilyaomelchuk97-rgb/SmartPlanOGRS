@@ -551,23 +551,6 @@
   .sk-r{height:9px;margin-bottom:9px}
   @keyframes skShine{0%{background-position:100% 50%}100%{background-position:0 50%}}
   @keyframes skPulse{0%,100%{opacity:1}50%{opacity:.6}}
-  .md-head{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:12px}
-  .md-h-t{font-size:18px;font-weight:800;color:var(--txt)}
-  .md-h-s{font-size:13px;color:var(--muted);margin-top:3px}
-  .md-list{display:flex;flex-direction:column;gap:12px;max-width:760px}
-  .md-card{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:12px;padding:14px 16px}
-  .md-top{display:flex;align-items:flex-start;gap:10px;justify-content:space-between;flex-wrap:wrap}
-  .md-addr{font-size:17px;font-weight:800;color:var(--txt);line-height:1.3}
-  .md-work{font-size:15px;color:var(--txt);margin:7px 0 12px;line-height:1.45}
-  .md-st{font-size:12px;font-weight:700;border-radius:999px;padding:3px 10px;white-space:nowrap}
-  .md-st-pl{background:var(--panel-3);color:var(--muted)}
-  .md-st-p{background:var(--blue);color:#fff}
-  .md-acts{display:flex;gap:9px;flex-wrap:wrap}
-  .md-btn{border:1px solid var(--line);background:var(--card);color:var(--txt);border-radius:11px;padding:13px 16px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;min-height:48px}
-  .md-btn:active{transform:scale(.98)}
-  .md-btn-p{border-color:var(--blue);color:var(--blue)}
-  .md-btn-ok{background:var(--green);border-color:var(--green);color:#fff;flex:1;min-width:150px}
-  .md-btn-m{min-width:48px;padding:13px 12px}
   /* 22.09-270: настройка панели — строки, которые тянутся мышкой */
   #dw-list{border:1px solid var(--line);border-radius:10px;overflow:hidden}
   .dw-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--card);cursor:grab;touch-action:none;user-select:none}
@@ -577,7 +560,6 @@
   .dw-lab{display:inline-flex;align-items:center;gap:8px;flex:1;font-size:13.5px;cursor:pointer}
   .dw-row.dw-dragging{background:var(--panel-3);cursor:grabbing;box-shadow:inset 0 0 0 2px var(--blue);border-radius:8px}
   .dw-hint{font-size:12.5px;color:var(--muted);margin-bottom:10px;line-height:1.5}
-  @media(max-width:640px){ .md-addr{font-size:16px} .md-btn{font-size:15px;padding:14px 14px} }
   table.dt td{padding:9px 11px;border-bottom:1px solid var(--line);color:var(--txt)}
   table.dt tr:hover td{background:#f8fafc}
   .chip{font-size:12px;font-weight:700;padding:2px 8px;border-radius:20px;background:#eef2f6;color:var(--muted)}
@@ -1506,7 +1488,7 @@
           <div style="margin-top:6px;font-size:12px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-276 · кластеры и тепловая карта, «Проверить систему»</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-277 · страница «Мои задания» удалена</div>
         <div style="margin-top:6px;text-align:center"><a href="#" id="li-cookie-link" class="cookie-link" title="Посмотреть или изменить разрешение">🍪 Cookie и хранилище браузера</a></div>
     </div>
   </div>
@@ -1533,7 +1515,6 @@
     </div>
     <nav class="nav" id="nav">
       <div class="grp">Оперативная работа</div>
-      <a data-screen="myday" title="Задачи на сегодня крупными карточками — для телефона: отметить «В работе» или «Выполнено»"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h11"/></svg>Мои задания</a>
       <a data-screen="dashboard" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>Панель мониторинга <span class="badge" id="rz-badge">0</span></a>
       <div class="nav-acc" id="nav-plan">
         <a data-screen="calendar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg>Планирование / Календарь</a>
@@ -1762,17 +1743,17 @@
      Сайт остаётся на Render, а API (сервер + данные) — на воркере Cloudflare.
      Чтобы вернуться к базе Render — удалить следующую строку. -->
 <script>window.SP_CONFIG_OVERRIDE = 'https://smartplanogrsdb.ilya-omelchuk97.workers.dev/api';</script>
-<script src="root_index/config.js?v=22.09-276"></script>
-<script src="root_index/data.js?v=22.09-276"></script>
-<script src="root_index/users_db.js?v=22.09-276"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-276"></script>
-<script src="root_index/areas_db.js?v=22.09-276"></script>
-<script src="root_index/professions_db.js?v=22.09-276"></script>
-<script src="root_index/work_db.js?v=22.09-276"></script>
-<script src="root_index/objects_db.js?v=22.09-276"></script>
-<script src="root_index/workers_db.js?v=22.09-276"></script>
-<script src="root_index/tasks_db.js?v=22.09-276"></script>
-<script src="root_index/db.js?v=22.09-276"></script>
+<script src="root_index/config.js?v=22.09-277"></script>
+<script src="root_index/data.js?v=22.09-277"></script>
+<script src="root_index/users_db.js?v=22.09-277"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-277"></script>
+<script src="root_index/areas_db.js?v=22.09-277"></script>
+<script src="root_index/professions_db.js?v=22.09-277"></script>
+<script src="root_index/work_db.js?v=22.09-277"></script>
+<script src="root_index/objects_db.js?v=22.09-277"></script>
+<script src="root_index/workers_db.js?v=22.09-277"></script>
+<script src="root_index/tasks_db.js?v=22.09-277"></script>
+<script src="root_index/db.js?v=22.09-277"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -1790,12 +1771,12 @@
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-276"></script>
-      <script src="root_index/error_log.js?v=22.09-276"></script>
-      <script src="root_index/api_client.js?v=22.09-276"></script>
-      <script src="root_index/sync_polling.js?v=22.09-276"></script>
-      <script src="root_index/zip_util.js?v=22.09-276"></script>
-      <script src="root_index/app.js?v=22.09-276"></script>
+<script src="root_index/object_attrs.js?v=22.09-277"></script>
+      <script src="root_index/error_log.js?v=22.09-277"></script>
+      <script src="root_index/api_client.js?v=22.09-277"></script>
+      <script src="root_index/sync_polling.js?v=22.09-277"></script>
+      <script src="root_index/zip_util.js?v=22.09-277"></script>
+      <script src="root_index/app.js?v=22.09-277"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {

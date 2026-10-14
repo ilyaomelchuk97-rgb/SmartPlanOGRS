@@ -132,7 +132,7 @@
 
   // Роль «Слесарь»: доступ только к трём картам (просмотр)
   function isSlesar() { return S.role === 'slesar'; }
-  var SLESAR_SCREENS = { myday: 1, map: 1, livemap: 1, objmap: 1 }; // 22.09-266: + «Мои задания»
+  var SLESAR_SCREENS = { map: 1, livemap: 1, objmap: 1 };
   // Список участков — из справочника (areas_db.js); fallback — каталог работ
   function areasList() {
     try {
@@ -887,13 +887,12 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-276';
+  var SP_BUILD = '22.09-277';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
   try { console.log('%cSmartPlan © 2026 Омельчук Илья Анатольевич · оператор ПЭВМ УП «МИНГАЗ» · все права защищены', 'color:#64748b;font-size:12px'); } catch (eC) {}
   var TITLES = {
-    myday: 'Мои задания', // 22.09-266: мобильный экран работника
     dashboard: 'Панель мониторинга',
     calendar: 'Планирование / Календарь',
     graphs: 'Планирование / График работ',
@@ -17019,7 +17018,7 @@
     document.body.classList.add('logged-in');
     var bs = document.getElementById('base-select'); if (bs) bs.value = S.baseId;
     applyUser();
-    setScreen(S.role === 'slesar' ? 'myday' : 'dashboard'); // 22.09-266: слесарь сразу видит свои задания
+    setScreen(S.role === 'slesar' ? 'map' : 'dashboard');
     // Дропдаун онлайн-пользователей (после входа — знаем роль и ID юзера)
     try { setupSyncDropdown(); } catch (e) { console.error('setupSyncDropdown:', e); }
     // 22.09-136: миграция видов телеметрии (идемпотентная): сразу после входа
@@ -18074,9 +18073,6 @@
         softUpdateDashboard();
         try { if (typeof dashSetupBtnSync === 'function') dashSetupBtnSync(); } catch (eDec2) {}
       }
-      // 22.09-266: «Мои задания» — перерисовываем при каждом изменении данных
-      // (мастер назначил/снял задачу — работник видит это сразу)
-      if (S.screen === 'myday') { try { renderMyDay(); } catch (eMd) {} }
       // Календарь: обновляем только сетку задач, не трогая шапку
       if (S.screen === 'calendar') {
         var _h = S.tasks.map(function(t){return t.id+':'+t.m+':'+t.d+':'+(t.s||t.status);}).sort().join('|');
@@ -18115,8 +18111,7 @@
         S.user = freshUser; // обновляем данные пользователя, но НЕ меняем сессию
       }
     }
-    if (S.screen === 'myday') renderMyDay(); // 22.09-266: «Мои задания»
-    else if (S.screen === 'dashboard') { if (!uiSkeletonMaybe()) { renderDashboard(); dashboardDecorate(); } } // 22.09-268: + настройка панели
+    if (S.screen === 'dashboard') { if (!uiSkeletonMaybe()) { renderDashboard(); dashboardDecorate(); } } // 22.09-268: + настройка панели
     else if (S.screen === 'calendar') renderCalendar();
     else if (S.screen === 'map') renderMap();
     else if (S.screen === 'testmap') renderTestMap();
@@ -18464,9 +18459,6 @@
     else if (a === 'open-trash') { openTrashModal(); }
     else if (a === 'restore-task') { restoreFromTrash(parseInt(el.dataset.trashIdx, 10)); }
     else if (a === 'purge-trash') { spConfirm('Удалить все задачи из корзины безвозвратно?', { title: 'Очистка корзины', ok: 'Удалить все', danger: true }, purgeTrash); } // 22.09-244
-    else if (a === 'myday-done') { myDaySet(el.dataset.tid, 'done'); } // 22.09-266: «Мои задания»
-    else if (a === 'myday-progress') { myDaySet(el.dataset.tid, 'progress'); }
-    else if (a === 'myday-map') { setScreen('map'); }
     else if (a === 'logs-export') { logsExportExcel(); }          // 22.09-267
     else if (a === 'dash-setup') { openDashSetup(); }             // 22.09-268: настройка панели
     else if (a === 'dash-setup-save') { dashSetupSave(); }
@@ -26448,109 +26440,6 @@
   }
 
   window.SP_UI = { enhance: uiEnhance, skeleton: uiSkeletonMaybe, empty: uiEmpty, ready: uiDataReady };
-  /* ── часть 21 · app/21_myday.js — «Мои задания»: мобильный экран работника — задачи на сегодня крупными карточками, кнопки «В работе» / «Выполнено» (22.09-266) ── */
-/* ============================================================
-   22.09-266: страница «Мои задания» — для телефона.
-   · Слесарю: задачи на сегодня, где он в списке исполнителей (t.slesari).
-   · Мастеру и остальным: задачи на сегодня, где он ответственный (t.m).
-   · Крупные карточки: объект, вид работы, объём, статус.
-   · Кнопки: «▶ В работе» и «✓ Выполнено» — отметка уходит на сервер
-     (её сразу видят мастер и диспетчер) и пишется в журнал действий.
-   · У слесаря это экран по умолчанию (открывается сразу после входа).
-   ============================================================ */
-  function myDayTasks() {
-    var my = (S.user && S.user.id) ? String(S.user.id) : '';
-    if (!my) return [];
-    var all = (window.SP_TASKS ? SP_TASKS.getTasks() : (S.tasks || [])) || [];
-    var mine = all.filter(function (t) {
-      if (!t || !t.id || t.id === 't_day_anchor' || isDone(t)) return false;
-      if (typeof t.d !== 'number' || t.d !== 0) return false;      // только сегодня
-      if (S.role === 'slesar') {
-        return Array.isArray(t.slesari) && t.slesari.some(function (id) { return String(id) === my; });
-      }
-      return String(t.m) === my;                                   // мастер видит свои задачи дня
-    });
-    return mine.sort(function (a, b) {
-      var sa = (typeof a.seq === 'number') ? a.seq : 999, sb = (typeof b.seq === 'number') ? b.seq : 999;
-      if (sa !== sb) return sa - sb;
-      return String(a.o || '').localeCompare(String(b.o || ''));
-    });
-  }
-  function myDayObject(t) {
-    try {
-      var o = (window.SP_OBJECTS && SP_OBJECTS.getObject) ? SP_OBJECTS.getObject(t.o) : null;
-      if (!o && OBJ_MAP) o = OBJ_MAP[t.o];
-      return o || null;
-    } catch (e) { return null; }
-  }
-  function myDayWorkName(t) {
-    try {
-      if (WORK_MAP && WORK_MAP[t.w]) return WORK_MAP[t.w].name || t.w;
-    } catch (e) {}
-    return t.w || '—';
-  }
-  function myDayCard(t) {
-    var o = myDayObject(t);
-    var addr = o ? objFullAddr(o) : (t.addr || 'Объект ?');
-    var wname = myDayWorkName(t);
-    var vol = (t.volume && t.volume !== 1) ? (' · объём ' + t.volume) : '';
-    var st = (t.s || t.status || 'plan');
-    var chip = st === 'progress'
-      ? '<span class="md-st md-st-p">▶ в работе</span>'
-      : '<span class="md-st md-st-pl">в плане</span>';
-    var btnProg = (st === 'progress') ? '' : '<button class="md-btn md-btn-p" data-action="myday-progress" data-tid="' + esc(t.id) + '">▶ В работе</button>';
-    return '<div class="md-card">' +
-      '<div class="md-top"><div class="md-addr">' + esc(addr) + '</div>' + chip + '</div>' +
-      '<div class="md-work">' + esc(wname) + vol + '</div>' +
-      '<div class="md-acts">' + btnProg +
-        '<button class="md-btn md-btn-ok" data-action="myday-done" data-tid="' + esc(t.id) + '">✓ Выполнено</button>' +
-        '<button class="md-btn md-btn-m" data-action="myday-map" title="Открыть карту маршрутов">📍</button>' +
-      '</div></div>';
-  }
-  function renderMyDay() {
-    try {
-      var view = document.getElementById('view');
-      if (!view) return;
-      var list = myDayTasks();
-      var all = (window.SP_TASKS ? SP_TASKS.getTasks() : (S.tasks || [])) || [];
-      var my = (S.user && S.user.id) ? String(S.user.id) : '';
-      var doneToday = all.filter(function (t) {
-        if (!t || isDone(t) !== true) return false;
-        if (typeof t.d !== 'number' || t.d !== 0) return false;
-        if (S.role === 'slesar') return Array.isArray(t.slesari) && t.slesari.some(function (id) { return String(id) === my; });
-        return String(t.m) === my;
-      }).length;
-      var head = '<div class="md-head"><div class="md-h-t">Мои задания на сегодня</div>' +
-        '<div class="md-h-s">' + (list.length ? ('осталось: ' + list.length) : 'всё выполнено') +
-        (doneToday ? (' · выполнено сегодня: ' + doneToday) : '') + '</div></div>';
-      if (!list.length) {
-        view.innerHTML = head + uiEmpty('🎉', 'На сегодня заданий нет', 'Все работы на сегодня выполнены или ещё не назначены. Загляните позже или откройте «Карту маршрутов».', 'Открыть карту', 'myday-map');
-        return;
-      }
-      view.innerHTML = head + '<div class="md-list">' + list.map(myDayCard).join('') + '</div>';
-    } catch (e) {
-      try { toast('err', 'Ошибка страницы «Мои задания»: ' + String(e && e.message || e)); } catch (e2) {}
-    }
-  }
-  // доступ из других частей и автотестов
-  window.SP_MYDAY = { tasks: myDayTasks, render: renderMyDay, set: myDaySet };
-  function myDaySet(tid, st) {
-    try {
-      if (!tid) return;
-      var t = (window.SP_TASKS ? SP_TASKS.getTasks() : []).filter(function (x) { return x.id === tid; })[0];
-      if (!t) return;
-      if (st === 'done') {
-        TASKS_DB.updateTask(tid, { s: 'done', status: 'done', done_at: Date.now(), done_by: (S.user && S.user.full_name) || '' });
-        logAction('Отметка «выполнено» (Мои задания)', myDayWorkName(t) + ' · ' + (myDayObject(t) ? objFullAddr(myDayObject(t)) : t.o));
-        toast('ok', '✓ Работа отмечена выполненной — мастер увидит отметку');
-      } else {
-        TASKS_DB.updateTask(tid, { s: 'progress', status: 'progress', started_at: Date.now() });
-        logAction('Отметка «в работе» (Мои задания)', myDayWorkName(t));
-        toast('ok', '▶ Отмечено «в работе»');
-      }
-      renderMyDay();
-    } catch (e) { try { toast('err', 'Не удалось отметить: ' + String(e && e.message || e)); } catch (e2) {} }
-  }
   /* ── часть 22 · app/22_admin_tools.js — админ-инструменты: «Состояние системы», бэкап по кнопке + список копий, история по задаче, массовые операции с пользователями (22.09-267) ── */
 /* ============================================================
    22.09-267: инструменты администратора
