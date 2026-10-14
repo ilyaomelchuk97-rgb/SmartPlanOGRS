@@ -24,16 +24,23 @@
     { key: 'today',   label: 'Сегодня (работы и шкала дня)' },
     { key: 'charts',  label: 'КПД мастеров и выполнение по дням' }
   ];
+  function dwStandardOrder() { return DW_LIST.map(function (w) { return w.key; }); }
+  // Порядок блоков. Если пользователь ничего не настраивал — стандартный (как раньше).
   function dwLoad() {
     try {
-      var a = JSON.parse(localStorage.getItem(DW_KEY) || '[]');
-      if (!Array.isArray(a)) a = [];
+      var raw = localStorage.getItem(DW_KEY);
+      if (raw === null) return dwStandardOrder();          // 22.09-270: без настройки — как было
+      var a = JSON.parse(raw || '[]');
+      if (!Array.isArray(a) || !a.length) return dwStandardOrder();
       var out = [];
-      // сначала сохранённый порядок (только известные виджеты), затем новые — в конец
       a.forEach(function (k) { if (typeof k === 'string' && DW_LIST.some(function (w) { return w.key === k; }) && out.indexOf(k) < 0) out.push(k); });
       DW_LIST.forEach(function (w) { if (out.indexOf(w.key) < 0) out.push(w.key); });
       return out;
-    } catch (e) { return DW_LIST.map(function (w) { return w.key; }); }
+    } catch (e) { return dwStandardOrder(); }
+  }
+  // Настраивал ли пользователь панель (порядок или видимость)
+  function dwIsCustom() {
+    try { return localStorage.getItem(DW_KEY) !== null || localStorage.getItem(DW_KEY + '_hidden') !== null; } catch (e) { return false; }
   }
   function dwHidden() {
     try { var h = JSON.parse(localStorage.getItem(DW_KEY + '_hidden') || '[]'); return Array.isArray(h) ? h : []; } catch (e) { return []; }
@@ -41,57 +48,61 @@
   function dwSave(order, hidden) {
     try { localStorage.setItem(DW_KEY, JSON.stringify(order)); localStorage.setItem(DW_KEY + '_hidden', JSON.stringify(hidden)); } catch (e) {}
   }
-  // Собрать блоки панели: ключ → узел (учитываем блоки внутри .dash-grid)
+  // Собрать блоки панели по меткам data-dw (надёжно, без «угадывания»)
   function dwCollect() {
     var view = document.getElementById('view');
-    if (!view) return {};
-    var map = {};
-    Array.prototype.forEach.call(view.children, function (n) {
-      if (!(n.className && String(n.className).indexOf('dash-widgets-bar') >= 0)) {
-        try {
-          if (n.querySelector && n.querySelector('#dash-area')) { map.filter = n; return; }
-          if (n.classList && n.classList.contains('kpi-row')) { map.kpi = n; return; }
-          if (n.classList && (n.classList.contains('permit-warn') || n.classList.contains('weather-warn'))) { map.warn = n; return; }
-          if (n.getAttribute && n.getAttribute('data-action') === 'open-weather') { map.weather = n; if (n.nextElementSibling && n.nextElementSibling.id === 'weather-dropdown') map.weather_dd = n.nextElementSibling; return; }
-          if (n.classList && n.classList.contains('dash-grid')) {
-            Array.prototype.forEach.call(n.children, function (c) {
-              var t = String(c.textContent || '');
-              if (t.indexOf('КПД мастеров') >= 0) map.charts = c; else map.today = c;
-            });
-          }
-        } catch (e) {}
-      }
+    var map = { filter: [], kpi: [], warn: [], weather: [], today: [], charts: [] };
+    if (!view) return { map: map, grid: null };
+    Array.prototype.forEach.call(view.querySelectorAll('[data-dw]'), function (n) {
+      var k = n.getAttribute('data-dw');
+      if (k === 'grid') return;
+      if (!map[k]) map[k] = [];
+      map[k].push(n);
     });
-    return map;
+    return { map: map, grid: view.querySelector('[data-dw="grid"]') };
   }
+  // Применить порядок и видимость блоков к панели
   function dwApply() {
     try {
       if (S.screen !== 'dashboard') return;
-      var map = dwCollect();
-      if (!Object.keys(map).length) return;
+      var col = dwCollect();
+      var map = col.map, grid = col.grid;
+      if (!map.filter.length && !map.kpi.length && !map.today.length) return;   // панель ещё не отрисована
       var order = dwLoad(), hidden = dwHidden();
-      // прячем/показываем
-      DW_LIST.forEach(function (w) {
-        var n = map[w.key];
-        if (n) n.style.display = (hidden.indexOf(w.key) >= 0) ? 'none' : '';
-      });
-      if (map.weather_dd) map.weather_dd.style.display = (hidden.indexOf('weather') >= 0) ? 'none' : '';
-      // порядок верхних блоков
-      var view = document.getElementById('view');
-      var bar = document.getElementById('dash-widgets-bar');
-      order.forEach(function (k) {
-        var n = map[k];
-        if (!n || !view) return;
-        if (n.parentNode === view) view.appendChild(n); // в конец — итоговый порядок задаётся порядком массива
-      });
-      if (bar && view) view.insertBefore(bar, view.firstChild);
-      // порядок внутри .dash-grid (Сегодня / графики)
-      var grid = null;
-      var g = map.today && map.today.parentNode;
-      if (g && g.classList && g.classList.contains('dash-grid')) grid = g;
-      if (grid) {
-        [map.today, map.charts].forEach(function (n) { if (n && n.parentNode === grid) grid.appendChild(n); });
+      // 22.09-270: пока панель не настроена — оставляем её ровно как раньше (только кнопка настройки)
+      if (!dwIsCustom()) {
+        var bar0 = document.getElementById('dash-widgets-bar');
+        var view0 = document.getElementById('view');
+        if (bar0 && view0) view0.insertBefore(bar0, view0.firstChild);
+        return;
       }
+
+      // 1) видимость: скрыть/показать все узлы каждого виджета
+      DW_LIST.forEach(function (w) {
+        (map[w.key] || []).forEach(function (n) {
+          n.style.display = (hidden.indexOf(w.key) >= 0) ? 'none' : '';
+        });
+      });
+      // 2) порядок карточек ВНУТРИ «Сегодня + графики» (по относительному порядку)
+      var chartsFirst = order.indexOf('charts') < order.indexOf('today');
+      var seqIn = chartsFirst ? [map.charts[0], map.today[0]] : [map.today[0], map.charts[0]];
+      if (grid) seqIn.forEach(function (n) { if (n && n.parentNode) n.parentNode.appendChild(n); });
+
+      // 3) порядок блоков на странице: собираем по списку, «сетка» встаёт
+      //    на месте первого из «Сегодня»/«графиков»
+      var seq = [], gridPlaced = false;
+      order.forEach(function (k) {
+        if (k === 'today' || k === 'charts') {
+          if (!gridPlaced && grid) { seq.push(grid); gridPlaced = true; }
+          return;
+        }
+        (map[k] || []).forEach(function (n) { seq.push(n); });
+      });
+      var view = document.getElementById('view');
+      seq.forEach(function (n) { if (n && n.parentNode) view.appendChild(n); });   // порядок = порядок в seq
+      // 4) кнопка «Настроить панель» — всегда первой на странице
+      var bar = document.getElementById('dash-widgets-bar');
+      if (bar && view) view.insertBefore(bar, view.firstChild);
     } catch (e) {}
   }
   function dwBarEnsure() {
@@ -115,58 +126,127 @@
     } catch (e) {}
   }
   var _dwTmpHidden = null; // состояние галочек в открытом окне (не сбрасывать при перестановке)
+  // ===== Окно настройки: строки перетаскиваются МЫШКОЙ (без стрелок) =====
+  // Строка всегда остаётся внутри списка (не может «улететь» за окно).
+  var _dwDragRow = null;
   function openDashSetup() {
     var hidden = _dwTmpHidden || dwHidden(), order = dwLoad();
     var rows = order.map(function (k) {
       var w = DW_LIST.filter(function (x) { return x.key === k; })[0] || { key: k, label: k };
-      return '<div style="display:flex;align-items:center;gap:10px;padding:7px 2px;border-bottom:1px solid var(--line)">' +
-        '<label style="display:inline-flex;align-items:center;gap:8px;flex:1;font-size:13.5px"><input type="checkbox" data-dw-on="' + w.key + '"' + (hidden.indexOf(w.key) < 0 ? ' checked' : '') + '> ' + esc(w.label) + '</label>' +
-        '<button class="btn sm" data-action="dw-up" data-dw="' + w.key + '" title="Выше">↑</button>' +
-        '<button class="btn sm" data-action="dw-down" data-dw="' + w.key + '" title="Ниже">↓</button>' +
+      return '<div class="dw-row" data-dw-key="' + esc(w.key) + '">' +
+        '<span class="dw-grip" title="Потяните мышкой, чтобы изменить порядок">⠿</span>' +
+        '<label class="dw-lab"><input type="checkbox" data-dw-on="' + w.key + '"' + (hidden.indexOf(w.key) < 0 ? ' checked' : '') + '> ' + esc(w.label) + '</label>' +
         '</div>';
     }).join('');
     var modal = document.getElementById('modal');
     overlay.classList.add('show');
     modal.style.maxWidth = '560px';
     modal.innerHTML = '<div class="modal-h"><h3>⚙ Настройка панели мониторинга</h3><button class="x" data-action="close-modal">×</button></div>' +
-      '<div class="modal-b"><div style="font-size:12.5px;color:var(--muted);margin-bottom:10px">Отметьте, какие блоки показывать, и расставьте порядок стрелками. Настройка — для этого браузера.</div>' + rows + '</div>' +
-      '<div class="modal-f"><button class="btn" data-action="dash-setup-reset">Вернуть как было</button><button class="btn primary" data-action="dash-setup-save">Сохранить</button></div>';
+      '<div class="modal-b">' +
+        '<div class="dw-hint">Потяните блок мышкой за значок ⠿ — он встанет на новое место. Галочкой можно скрыть ненужный блок. Изменения видны на панели сразу.</div>' +
+        '<div id="dw-list">' + rows + '</div>' +
+      '</div>' +
+      '<div class="modal-f"><button class="btn" data-action="dash-setup-reset">Вернуть как было</button><button class="btn primary" data-action="dash-setup-save">Готово</button></div>';
+    dwWireDrag();
   }
-  function dwMove(key, dir) {
+  // Перетаскивание строк внутри списка (pointer events; строка физически не покидает список):
+  // события — на документе, а перетаскиваемая строка исключена из «поиска под курсором»,
+  // поэтому она не мешает сама себе и не выходит за пределы окна настройки.
+  function dwWireDrag() {
+    try {
+      Array.prototype.forEach.call(document.querySelectorAll('#dw-list .dw-row'), function (row) {
+        row.addEventListener('pointerdown', function (e) {
+          if (e.target && (e.target.tagName === 'INPUT' || (e.target.closest && e.target.closest('label')))) return;
+          if (_dwDragRow) return;
+          _dwDragRow = row;
+          row.classList.add('dw-dragging');
+          row.style.pointerEvents = 'none';   // курсор «видит» строки под ней, а не саму перетаскиваемую
+          e.preventDefault();
+          document.addEventListener('pointermove', dwDragMove);
+          document.addEventListener('pointerup', dwDragEnd);
+          document.addEventListener('pointercancel', dwDragEnd);
+        });
+      });
+      Array.prototype.forEach.call(document.querySelectorAll('#dw-list input[data-dw-on]'), function (c) {
+        c.addEventListener('change', function () { dwSaveFromModal(); });
+      });
+    } catch (e) {}
+  }
+  function dwDragMove(e) {
+    try {
+      var row = _dwDragRow;
+      var list = document.getElementById('dw-list');
+      if (!row || !list) return;
+      var box = list.getBoundingClientRect();
+      // курсор держим в пределах списка — строка не может уйти за окно настройки
+      var y = Math.min(Math.max(e.clientY, box.top + 2), box.bottom - 2);
+      var el = document.elementFromPoint(e.clientX, y);
+      var target = el && el.closest ? el.closest('.dw-row') : null;
+      if (target && target !== row && target.parentNode === list) {
+        var r = target.getBoundingClientRect();
+        var after = (y - r.top) > r.height / 2;
+        list.insertBefore(row, after ? target.nextSibling : target);
+      }
+    } catch (e2) {}
+  }
+  function dwDragEnd(e) {
+    try {
+      var row = _dwDragRow;
+      document.removeEventListener('pointermove', dwDragMove);
+      document.removeEventListener('pointerup', dwDragEnd);
+      document.removeEventListener('pointercancel', dwDragEnd);
+      if (row) {
+        row.classList.remove('dw-dragging');
+        row.style.pointerEvents = '';
+      }
+      _dwDragRow = null;
+      dwSaveFromModal();   // сохранить и применить сразу
+    } catch (e) {}
+  }
+  // Собрать порядок и видимость из окна, сохранить, применить к панели
+  function dwSaveFromModal() {
+    try {
+      var order = [];
+      Array.prototype.forEach.call(document.querySelectorAll('#dw-list .dw-row'), function (r) { order.push(r.getAttribute('data-dw-key')); });
+      if (!order.length) return;
+      DW_LIST.forEach(function (w) { if (order.indexOf(w.key) < 0) order.push(w.key); });
+      var hidden = [];
+      Array.prototype.forEach.call(document.querySelectorAll('#dw-list input[data-dw-on]'), function (c) { if (!c.checked) hidden.push(c.getAttribute('data-dw-on')); });
+      _dwTmpHidden = hidden;
+      dwSave(order, hidden);
+      dwApply();
+    } catch (e) {}
+  }
+  // Программная перестановка (для автотестов и других частей)
+  function dwMoveTo(key, index) {
     try {
       var order = dwLoad();
       var i = order.indexOf(key);
       if (i < 0) return;
-      if (dir < 0 && i > 0) { order[i] = order[i - 1]; order[i - 1] = key; }
-      if (dir > 0 && i < order.length - 1) { order[i] = order[i + 1]; order[i + 1] = key; }
-      // 22.09-268: не потерять отмеченные галочки при перестановке
-      var cur = [];
-      document.querySelectorAll('[data-dw-on]').forEach(function (c) { if (!c.checked) cur.push(c.getAttribute('data-dw-on')); });
-      _dwTmpHidden = cur;
+      order.splice(i, 1);
+      index = Math.max(0, Math.min(index, order.length));
+      order.splice(index, 0, key);
       dwSave(order, dwHidden());
-      openDashSetup();               // перерисовать список (с учётом отмеченного)
       dwApply();
     } catch (e) {}
   }
   function dashSetupSave() {
     try {
-      var hidden = [];
-      document.querySelectorAll('[data-dw-on]').forEach(function (c) { if (!c.checked) hidden.push(c.getAttribute('data-dw-on')); });
-      dwSave(dwLoad(), hidden);
+      dwSaveFromModal();
       _dwTmpHidden = null;
       try { document.getElementById('overlay').classList.remove('show'); } catch (e) {}
+      try { document.getElementById('modal').style.maxWidth = ''; } catch (e2) {}
       toast('ok', '✓ Панель настроена');
-      dwApply();
     } catch (e) {}
   }
   function dashSetupReset() {
     try { localStorage.removeItem(DW_KEY); localStorage.removeItem(DW_KEY + '_hidden'); _dwTmpHidden = null; } catch (e) {}
     try { document.getElementById('overlay').classList.remove('show'); } catch (e) {}
-    toast('ok', 'Панель — как было');
+    toast('ok', 'Панель — как было (стандартный порядок)');
     if (typeof renderDashboard === 'function') { renderDashboard(); dashboardDecorate(); }
   }
 
-  // Карточка «Права доступа» — таблица «действие × роль»
+  // Карточка «Права доступа» — таблица «действие × роль» (общая, на сервере)
   function permRenderMatrix() {
     var view = document.getElementById('view');
     if (!view) return;
@@ -272,7 +352,7 @@
   }
 
   window.SP_DASHPERM = {
-    decorate: dashboardDecorate, apply: dwApply, setup: openDashSetup, move: dwMove,
-    save: dashSetupSave, reset: dashSetupReset,
+    decorate: dashboardDecorate, apply: dwApply, setup: openDashSetup, moveTo: dwMoveTo,
+    saveFromModal: dwSaveFromModal, save: dashSetupSave, reset: dashSetupReset, standardOrder: dwStandardOrder, isCustom: dwIsCustom,
     permLoad: permLoad, permCan: permCan, permMatrix: permRenderMatrix, permSaveMatrix: permSaveMatrix
   };

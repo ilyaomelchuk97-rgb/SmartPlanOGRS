@@ -540,22 +540,16 @@
   .md-btn-p{border-color:var(--blue);color:var(--blue)}
   .md-btn-ok{background:var(--green);border-color:var(--green);color:#fff;flex:1;min-width:150px}
   .md-btn-m{min-width:48px;padding:13px 12px}
+  /* 22.09-270: настройка панели — строки, которые тянутся мышкой */
+  #dw-list{border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .dw-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--card);cursor:grab;touch-action:none;user-select:none}
+  .dw-row:last-child{border-bottom:0}
+  .dw-row:hover{background:var(--panel-2)}
+  .dw-grip{color:var(--muted);font-size:16px;line-height:1;letter-spacing:-2px}
+  .dw-lab{display:inline-flex;align-items:center;gap:8px;flex:1;font-size:13.5px;cursor:pointer}
+  .dw-row.dw-dragging{background:var(--panel-3);cursor:grabbing;box-shadow:inset 0 0 0 2px var(--blue);border-radius:8px}
+  .dw-hint{font-size:12.5px;color:var(--muted);margin-bottom:10px;line-height:1.5}
   @media(max-width:640px){ .md-addr{font-size:16px} .md-btn{font-size:15px;padding:14px 14px} }
-  .print-only{display:none}
-  @media print{
-    #sidebar,.topbar,.fab,#burger,.ui-search,.no-print,.sb-foot{display:none!important}
-    .main{margin-left:0!important}
-    #view{padding:0!important;max-width:100%!important}
-    body{background:#fff!important}
-    .card,.md-card{box-shadow:none!important;border:1px solid #cbd5e1!important;break-inside:avoid;page-break-inside:avoid}
-    table.dt thead th{position:static!important;background:#f1f5f9!important;color:#334155!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    table.dt td,table.dt th{border-bottom:1px solid #e2e8f0!important}
-    .print-only{display:block!important}
-    .print-head{margin:0 0 12px;padding-bottom:8px;border-bottom:2px solid #334155}
-    .ph-t{font-size:16px;font-weight:800;color:#0f172a}
-    .ph-s{font-size:11.5px;color:#475569;margin-top:2px}
-    @page{margin:12mm}
-  }
   table.dt td{padding:9px 11px;border-bottom:1px solid var(--line);color:var(--txt)}
   table.dt tr:hover td{background:#f8fafc}
   .chip{font-size:12px;font-weight:700;padding:2px 8px;border-radius:20px;background:#eef2f6;color:var(--muted)}
@@ -1469,7 +1463,7 @@
           <div style="margin-top:6px;font-size:12px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-268 · настраиваемая панель мониторинга и общие права доступа (по ролям)</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-270 · настройка панели: блоки перетаскиваются мышкой</div>
         <div style="margin-top:6px;text-align:center"><a href="#" id="li-cookie-link" class="cookie-link" title="Посмотреть или изменить разрешение">🍪 Cookie и хранилище браузера</a></div>
     </div>
   </div>
@@ -1540,8 +1534,7 @@
         <span id="sync-caret" style="display:none;font-size:10.5px;color:#94a3b8;margin-left:2px">▾</span>
       </span>
       <span class="tb-btns">
-        <button type="button" class="tb-btn" id="print-btn" data-action="ui-print" title="Печать текущей страницы" aria-label="Печать">🖨</button>
-        <button type="button" class="tb-btn" id="theme-toggle" title="Тема: переключить светлую ↔ тёмную" aria-label="Переключить тему (светлая/тёмная)">
+                <button type="button" class="tb-btn" id="theme-toggle" title="Тема: переключить светлую ↔ тёмную" aria-label="Переключить тему (светлая/тёмная)">
           <svg class="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
           <svg class="ic-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
         </button>
@@ -1574,7 +1567,6 @@
         </div></div>
       </div>
     </header>
-    <div class="print-only print-head" id="print-head"></div>
     <main id="view"></main>
   </div>
 </div>
@@ -1723,17 +1715,17 @@
      Сайт остаётся на Render, а API (сервер + данные) — на воркере Cloudflare.
      Чтобы вернуться к базе Render — удалить следующую строку. -->
 <script>window.SP_CONFIG_OVERRIDE = 'https://smartplanogrsdb.ilya-omelchuk97.workers.dev/api';</script>
-<script src="root_index/config.js?v=22.09-268"></script>
-<script src="root_index/data.js?v=22.09-268"></script>
-<script src="root_index/users_db.js?v=22.09-268"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-268"></script>
-<script src="root_index/areas_db.js?v=22.09-268"></script>
-<script src="root_index/professions_db.js?v=22.09-268"></script>
-<script src="root_index/work_db.js?v=22.09-268"></script>
-<script src="root_index/objects_db.js?v=22.09-268"></script>
-<script src="root_index/workers_db.js?v=22.09-268"></script>
-<script src="root_index/tasks_db.js?v=22.09-268"></script>
-<script src="root_index/db.js?v=22.09-268"></script>
+<script src="root_index/config.js?v=22.09-270"></script>
+<script src="root_index/data.js?v=22.09-270"></script>
+<script src="root_index/users_db.js?v=22.09-270"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-270"></script>
+<script src="root_index/areas_db.js?v=22.09-270"></script>
+<script src="root_index/professions_db.js?v=22.09-270"></script>
+<script src="root_index/work_db.js?v=22.09-270"></script>
+<script src="root_index/objects_db.js?v=22.09-270"></script>
+<script src="root_index/workers_db.js?v=22.09-270"></script>
+<script src="root_index/tasks_db.js?v=22.09-270"></script>
+<script src="root_index/db.js?v=22.09-270"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -1751,12 +1743,12 @@
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-268"></script>
-      <script src="root_index/error_log.js?v=22.09-268"></script>
-      <script src="root_index/api_client.js?v=22.09-268"></script>
-      <script src="root_index/sync_polling.js?v=22.09-268"></script>
-      <script src="root_index/zip_util.js?v=22.09-268"></script>
-      <script src="root_index/app.js?v=22.09-268"></script>
+<script src="root_index/object_attrs.js?v=22.09-270"></script>
+      <script src="root_index/error_log.js?v=22.09-270"></script>
+      <script src="root_index/api_client.js?v=22.09-270"></script>
+      <script src="root_index/sync_polling.js?v=22.09-270"></script>
+      <script src="root_index/zip_util.js?v=22.09-270"></script>
+      <script src="root_index/app.js?v=22.09-270"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {

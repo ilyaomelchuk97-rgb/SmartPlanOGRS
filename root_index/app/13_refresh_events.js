@@ -421,11 +421,8 @@
     else if (a === 'myday-done') { myDaySet(el.dataset.tid, 'done'); } // 22.09-266: «Мои задания»
     else if (a === 'myday-progress') { myDaySet(el.dataset.tid, 'progress'); }
     else if (a === 'myday-map') { setScreen('map'); }
-    else if (a === 'ui-print') { uiPrint(); } // 22.09-266: печать страницы
     else if (a === 'logs-export') { logsExportExcel(); }          // 22.09-267
     else if (a === 'dash-setup') { openDashSetup(); }             // 22.09-268: настройка панели
-    else if (a === 'dw-up') { dwMove(el.dataset.dw, -1); }
-    else if (a === 'dw-down') { dwMove(el.dataset.dw, 1); }
     else if (a === 'dash-setup-save') { dashSetupSave(); }
     else if (a === 'dash-setup-reset') { dashSetupReset(); }
     else if (a === 'perm-save-matrix') { permSaveMatrix(); }

@@ -2037,7 +2037,7 @@
 
     // === Селектор участка для админа, начальника участка и начальника СЭОГС ===
     if (dashCanFilter) {
-      html += '<div style="margin-bottom:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">';
+      html += '<div data-dw="filter" style="margin-bottom:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">'; // 22.09-269: метка виджета
       html += '<label style="font-size:12px;font-weight:600;color:var(--muted)">Участок:</label>';
       html += '<select id="dash-area" style="padding:8px 12px;border:1px solid var(--line);border-radius:9px;font-size:13px;font-family:inherit;background:var(--card)">';
       html += '<option value=""' + (!dashFilterArea ? ' selected' : '') + '>Все участки</option>';
@@ -2054,7 +2054,7 @@
     // 22.09-199: сам выпадающий список перенесён с верха страницы в заголовок карточки «⚡ КПД мастеров» (см. _dashJoin ниже)
     var dashCanPickMaster = (S.role === 'admin' || S.role === 'viewer' || S.role === 'nach' || S.role === 'smaster');
 
-    html += '<div class="kpi-row">';
+    html += '<div class="kpi-row" data-dw="kpi">'; // 22.09-269: метка виджета
     html += kpi(today.length, 'Задач на сегодня', 'по ' + mastersToday.filter(function (m) { return today.some(function (t) { return String(t.m) === String(m.id); }); }).length + ' мастера(ам)', '#2563eb', 'kpi-today'); // 22.09-187: мастера без задач сегодня не считаем
     html += kpi(overloads, 'Перегрузок сегодня', 'превышение фонда рабочего времени', '#dc2626', 'kpi-overloads');
     html += kpi(pct + '%', 'Выполнено за месяц', doneMonth + ' из ' + totalMonth + ' работ', '#16a34a', 'kpi-month');
@@ -2068,10 +2068,10 @@
 
     // Оповещения УБиРОГС
     if (permitCount > 0) {
-      html += '<div class="permit-warn">📋 <b>Внимание:</b> ' + permitCount + ' задач с действующими ордерами. Проверьте сроки истечения разрешений в разделе «Отчёты».</div>';
+      html += '<div class="permit-warn" data-dw="warn">📋 <b>Внимание:</b> ' + permitCount + ' задач с действующими ордерами. Проверьте сроки истечения разрешений в разделе «Отчёты».</div>';
     }
     if (weatherCount > 0) {
-      html += '<div class="weather-warn">🌡️ <b>Погодные ограничения:</b> ' + weatherCount + ' задач не могут быть выполнены из-за несоответствия температуры.</div>';
+      html += '<div class="weather-warn" data-dw="warn">🌡️ <b>Погодные ограничения:</b> ' + weatherCount + ' задач не могут быть выполнены из-за несоответствия температуры.</div>';
     }
     // Информация о погоде из прогноза
     var todayWeather = getWeatherForecast(0);
@@ -2088,7 +2088,7 @@
     }
     var wIcon = todayWeather.snow ? '❄️' : todayWeather.desc.indexOf('Дождь') !== -1 || todayWeather.desc.indexOf('Морось') !== -1 ? '🌧️' : todayWeather.desc === 'Ясно' ? '☀️' : '⛅';
     var _wx = weatherSceneHTML(todayWeather, { hour: new Date().getHours(), leftFade: true });
-    html += '<div data-action="open-weather" style="margin-bottom:0;padding:14px 18px;min-height:68px;background:#1e3a5f;color:#fff;border-radius:10px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:transform .2s,box-shadow .2s;position:relative;overflow:hidden;" onmouseover="this.style.transform=\'translateY(-2px)\';this.style.boxShadow=\'0 8px 24px rgba(0,0,0,.3)\';" onmouseout="this.style.transform=\'\';this.style.boxShadow=\'\';" title="Нажмите для просмотра прогноза на 15 дней">';
+    html += '<div data-dw="weather" data-action="open-weather" style="margin-bottom:0;padding:14px 18px;min-height:68px;background:#1e3a5f;color:#fff;border-radius:10px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:transform .2s,box-shadow .2s;position:relative;overflow:hidden;" onmouseover="this.style.transform=\'translateY(-2px)\';this.style.boxShadow=\'0 8px 24px rgba(0,0,0,.3)\';" onmouseout="this.style.transform=\'\';this.style.boxShadow=\'\';" title="Нажмите для просмотра прогноза на 15 дней">';
     html += _wx.html;
     html += '<span style="font-size:28px;position:relative;z-index:1;text-shadow:0 1px 5px rgba(0,0,0,.35);">' + wIcon + '</span>';
     html += '<div style="position:relative;z-index:1;text-shadow:0 1px 5px rgba(0,0,0,.35);"><div style="font-size:15px;font-weight:700;">' + todayWeather.temp + '°C · ' + todayWeather.desc + '</div>';
@@ -2096,7 +2096,7 @@
     html += '<button class="wx-map-fab" data-action="open-wx-map" title="Открыть карту погоды Минска и Минской области">🗺 Карта погоды</button>';
     html += '</div>';
     // Выпадающий список при нажатии
-    html += '<div id="weather-dropdown" class="weather-dropdown"></div>';
+    html += '<div id="weather-dropdown" class="weather-dropdown" data-dw="weather"></div>'; // 22.09-269: едет вместе с блоком погоды
     // Отступ перед панелью аналитики
     html += '<div style="height:16px;"></div>';
 
@@ -2188,7 +2188,7 @@
       // сверху метрика КПД, под ней через разделитель — график по дням
       // 22.09-171: в заголовке — календарик выбора месяца (та же кнопка, что в панели аналитики);
       // «Выполнение по дням» — за тот же выбранный месяц; график занимает всю свободную высоту карточки
-      _dashJoin = '<div class="card" style="display:flex;flex-direction:column;height:100%"><div class="card-h" style="flex:none"><h2>⚡ КПД мастеров</h2><div class="spacer"></div>' + kpdMasterSel + '<button type="button" data-action="dash-month-toggle" title="Выбрать месяц для расчёта КПД и графика по дням" style="display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-weight:700;font-family:inherit;border-radius:9px;padding:5px 12px;cursor:pointer;font-size:12.5px;white-space:nowrap">📅 ' + esc(dashMonthLabel()) + '</button></div><div class="card-b" style="flex:1;display:flex;flex-direction:column;min-height:0">' + kpdBody +
+      _dashJoin = '<div class="card" data-dw="charts" style="display:flex;flex-direction:column;height:100%"><div class="card-h" style="flex:none"><h2>⚡ КПД мастеров</h2><div class="spacer"></div>' + kpdMasterSel + '<button type="button" data-action="dash-month-toggle" title="Выбрать месяц для расчёта КПД и графика по дням" style="display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-weight:700;font-family:inherit;border-radius:9px;padding:5px 12px;cursor:pointer;font-size:12.5px;white-space:nowrap">📅 ' + esc(dashMonthLabel()) + '</button></div><div class="card-b" style="flex:1;display:flex;flex-direction:column;min-height:0">' + kpdBody +
         '<div style="margin-top:14px;padding-top:11px;border-top:1px dashed var(--line);flex:1;display:flex;flex-direction:column;min-height:0">' +
           '<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px;flex:none"><span style="font-size:13.5px;font-weight:800;color:var(--ink)">📈 Выполнение по дням</span><span style="font-size:12.5px;color:var(--muted);font-weight:600">' + MON_NOM[cmy.m] + ' ' + cmy.y + ' · <span style="color:#2563eb;font-weight:700">■ план</span> <span style="color:#16a34a;font-weight:700">■ выполнено</span></span></div>' +
           chart1 +
@@ -2202,8 +2202,8 @@
     var mastersDay = mastersToday.filter(function (m) { return dayTask.some(function (t) { return String(t.m) === String(m.id); }); }); // 22.09-187: только мастера С задачами; 22.09-188: id — строками
     var overloadsDay = mastersDay.filter(function (m) { return loadForDay(m.id, dayOff) > masterCapacity(m.id, dayOff); }).length;
 
-    html += '<div class="dash-grid">';
-    html += '<div class="card"><div class="card-h"><h2>' + (dayOff === 0 ? 'Сегодня' : esc(fmt(dayDate))) + '</h2><span class="sub" style="display:flex;align-items:center;gap:6px"><input type="date" id="dash-day-sel" value="' + key(dayDate) + '" title="Выбрать дату для просмотра работ" style="padding:4px 8px;border:1px solid var(--line);border-radius:8px;font-size:12px;font-family:inherit;background:var(--card);color:var(--ink)">' + (dayOff !== 0 ? '<button type="button" class="btn sm" data-action="dash-day-today" title="Вернуться на сегодня">Сегодня</button>' : '') + '</span><div class="spacer"></div><span class="badge tag ' + (overloadsDay ? 'over' : 'ok') + '">' + (overloadsDay ? 'Есть перегрузки' : 'Без перегрузок') + '</span></div><div class="card-b">';
+    html += '<div class="dash-grid" data-dw="grid">'; // 22.09-269: контейнер «Сегодня + графики»
+    html += '<div class="card" data-dw="today"><div class="card-h"><h2>' + (dayOff === 0 ? 'Сегодня' : esc(fmt(dayDate))) + '</h2><span class="sub" style="display:flex;align-items:center;gap:6px"><input type="date" id="dash-day-sel" value="' + key(dayDate) + '" title="Выбрать дату для просмотра работ" style="padding:4px 8px;border:1px solid var(--line);border-radius:8px;font-size:12px;font-family:inherit;background:var(--card);color:var(--ink)">' + (dayOff !== 0 ? '<button type="button" class="btn sm" data-action="dash-day-today" title="Вернуться на сегодня">Сегодня</button>' : '') + '</span><div class="spacer"></div><span class="badge tag ' + (overloadsDay ? 'over' : 'ok') + '">' + (overloadsDay ? 'Есть перегрузки' : 'Без перегрузок') + '</span></div><div class="card-b">';
     if (!dayTask.length) html += '<div class="empty">' + (dayOff === 0 ? 'На сегодня задач нет' : 'На ' + esc(fmt(dayDate)) + ' задач нет') + '</div>';
     mastersDay.forEach(function (m) {
       var mt = dayTask.filter(function (t) { return String(t.m) === String(m.id); }); // 22.09-188: id — строками

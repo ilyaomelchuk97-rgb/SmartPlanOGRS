@@ -143,21 +143,4 @@
     } catch (e) { return false; }
   }
 
-  // ---------- Печать ----------
-  function uiPrintFill() {
-    try {
-      var h = document.getElementById('print-head');
-      if (!h) return;
-      var who = (S.user && S.user.full_name) ? (' · ' + S.user.full_name) : '';
-      var scr = (document.getElementById('screen-title') || {}).textContent || '';
-      h.innerHTML = '<div class="ph-t">SmartPlan · УП «МИНГАЗ»</div>' +
-        '<div class="ph-s">' + esc(scr) + who + ' · ' + new Date().toLocaleString('ru-RU') + ' · сборка ' + SP_BUILD + '</div>';
-    } catch (e) {}
-  }
-  function uiPrint() {
-    try { uiPrintFill(); } catch (e) {}
-    setTimeout(function () { try { window.print(); } catch (e) {} }, 60);
-  }
-  window.addEventListener('beforeprint', uiPrintFill);
-  // доступ из других частей и автотестов
-  window.SP_UI = { enhance: uiEnhance, print: uiPrint, printFill: uiPrintFill, skeleton: uiSkeletonMaybe, empty: uiEmpty, ready: uiDataReady };
+  window.SP_UI = { enhance: uiEnhance, skeleton: uiSkeletonMaybe, empty: uiEmpty, ready: uiDataReady };
