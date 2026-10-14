@@ -61,7 +61,8 @@
       : '<div style="color:var(--green);font-size:12.5px;margin-top:10px">✅ Все открытые сессии — на свежей версии сайта (' + esc(d.newest_build || '—') + ')</div>';
     var bks = (d.backups || []).filter(function (b) { return !b.skipped && b.file; });
     var bkRows = bks.map(function (b) {
-      return '<tr><td style="white-space:nowrap">' + esc(new Date(b.ts).toLocaleString('ru-RU')) + '</td><td style="font-family:monospace;font-size:12px">' + esc(b.file) + '</td><td style="text-align:right">' + b.size_kb + ' КБ</td><td style="text-align:right">' + b.records + '</td></tr>';
+      return '<tr><td style="white-space:nowrap">' + esc(new Date(b.ts).toLocaleString('ru-RU')) + '</td><td style="font-family:monospace;font-size:12px">' + esc(b.file) + '</td><td style="text-align:right">' + b.size_kb + ' КБ</td><td style="text-align:right">' + b.records + '</td>' +
+        '<td style="text-align:right;white-space:nowrap"><button class="btn sm" data-action="bk-restore" data-name="' + esc(b.file) + '" title="Восстановить все данные из этой копии (записи из копии заменят текущие)">↩ Восстановить</button></td></tr>';
     }).join('');
     box.innerHTML =
       '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">' +
@@ -76,7 +77,7 @@
         '<a class="btn" href="https://drive.google.com/drive/search?q=SmartPlan%20backups" target="_blank" rel="noopener">Открыть папку на Диске</a>' +
       '</div>' +
       (bkRows ? ('<div style="font-size:12.5px;color:var(--muted);margin-bottom:4px">Последние копии (журнал):</div>' +
-        '<table class="dt" data-nosort="0" data-nosticky="1"><thead><tr><th>Когда</th><th>Файл</th><th style="text-align:right">Размер</th><th style="text-align:right">Записей</th></tr></thead><tbody>' + bkRows + '</tbody></table>')
+        '<table class="dt" data-nosort="0" data-nosticky="1"><thead><tr><th>Когда</th><th>Файл</th><th style="text-align:right">Размер</th><th style="text-align:right">Записей</th><th style="width:130px"></th></tr></thead><tbody>' + bkRows + '</tbody></table>')
         : '<div style="font-size:12.5px;color:var(--muted)">Копий пока нет.</div>');
   }
   function sysBackupNow() {
@@ -221,4 +222,26 @@
     var n = document.getElementById('bulk-pass-n');
     if (n) n.textContent = bulkSelected().length + ' чел.';
   }
+  // 22.09-275: восстановление из копии на Google Диске
+  function bkRestore(name) {
+    if (!name) return;
+    if (!S.user || S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
+    spConfirm('Восстановить данные из копии «' + name + '»?\n\nВсе текущие записи будут заменены данными из копии (данные копии надёжнее — свежих правок в них нет). Если сомневаетесь — сначала сделайте копию кнопкой «Сделать бэкап сейчас».', { title: 'Восстановление из копии', ok: 'Восстановить', danger: true }, function () {
+      toast('ok', '⏳ Читаю копию с Google Диска и восстанавливаю…');
+      SP_API.restoreFrom(name).then(function (r) {
+        if (r && r.ok) {
+          var sum = 0, det = r.restored && r.restored.sections ? r.restored.sections : {};
+          Object.keys(det).forEach(function (k) { sum += det[k] || 0; });
+          logAction('Восстановление из копии Google Диска', name + (r.hash_ok === false ? ' (хеш не совпал!)' : ''));
+          toast((r.hash_ok === false ? 'warn' : 'ok'), (r.hash_ok === false ? '⚠ Хеш копии не совпал, но данные загружены: ' : '✓ Восстановлено: ') + sum + ' записей, пользователей: ' + ((r.restored && r.restored.users) || 0) + '. Обновляю страницу…');
+          try { if (SP_SYNC_POLL && SP_SYNC_POLL.kick) SP_SYNC_POLL.kick(); } catch (e) {}
+          setTimeout(function () { location.reload(); }, 1600);
+        } else {
+          toast('err', 'Не удалось восстановить: ' + ((r && r.err) || 'нет связи'));
+        }
+      })['catch'](function (e) { toast('err', 'Не удалось восстановить: ' + String((e && e.message) || e)); });
+    });
+  }
+  window.bkRestore = bkRestore;
+
   window.SP_ADMINX = { status: sysStatusLoad, backupNow: sysBackupNow, history: taskHistoryShow, bulkToggleAll: bulkToggleAll, bulkPanelSync: bulkPanelSync, bulkPassCount: bulkPassCount };

@@ -72,16 +72,32 @@
       // 22.09-270: пока панель не настроена — оставляем её ровно как раньше (только кнопка настройки)
       if (!dwIsCustom()) return;   // 22.09-270: пока панель не настроена — стандартный вид
 
-      // 1) видимость: скрыть/показать все узлы каждого виджета
+      // 1) видимость: скрыть/показать узлы виджета.
+      // 22.09-274: НЕ трогаем display у видимых блоков — иначе теряется их собственная
+      // вёрстка (например, у фильтра участка и блока погоды он задан как flex)
       DW_LIST.forEach(function (w) {
+        var hide = hidden.indexOf(w.key) >= 0;
         (map[w.key] || []).forEach(function (n) {
-          n.style.display = (hidden.indexOf(w.key) >= 0) ? 'none' : '';
+          if (hide) {
+            if (n.getAttribute('data-dw-disp') === null) n.setAttribute('data-dw-disp', n.style.display || '');
+            n.style.display = 'none';
+          } else if (n.getAttribute('data-dw-disp') !== null) {
+            n.style.display = n.getAttribute('data-dw-disp');
+            n.removeAttribute('data-dw-disp');
+          }
         });
       });
-      // 2) порядок карточек ВНУТРИ «Сегодня + графики» (по относительному порядку)
+      // 2) порядок карточек ВНУТРИ «Сегодня + графики».
+      // 22.09-274: ширина блока едет ВМЕСТЕ с блоком — если «Графики» встают первыми,
+      // колонки сетки зеркалятся (1fr + 1.4fr), поэтому «Сегодня» остаётся широкой
       var chartsFirst = order.indexOf('charts') < order.indexOf('today');
+      var todayHidden = hidden.indexOf('today') >= 0, chartsHidden = hidden.indexOf('charts') >= 0;
       var seqIn = chartsFirst ? [map.charts[0], map.today[0]] : [map.today[0], map.charts[0]];
-      if (grid) seqIn.forEach(function (n) { if (n && n.parentNode) n.parentNode.appendChild(n); });
+      if (grid) {
+        seqIn.forEach(function (n) { if (n && n.parentNode) n.parentNode.appendChild(n); });
+        grid.classList.toggle('dw-inv', chartsFirst && !(todayHidden || chartsHidden));   // зеркалим колонки
+        grid.classList.toggle('dw-one', todayHidden || chartsHidden);                    // остался один блок — на всю ширину
+      }
 
       // 3) порядок блоков на странице: собираем по списку, «сетка» встаёт
       //    на месте первого из «Сегодня»/«графиков»

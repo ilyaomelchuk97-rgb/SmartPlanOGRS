@@ -310,6 +310,9 @@ window.SP_API = (function () {
   // 22.09-267: инструменты администратора
   function adminStatus() { return request('GET', '/admin/status'); }
   function backupNow() { return request('POST', '/admin/backup', {}); }
+  // 22.09-275: копии на Google Диске и восстановление из копии
+  function driveList() { return request('GET', '/admin/drive-list'); }
+  function restoreFrom(name) { return request('POST', '/admin/restore', { name: name }); }
   function auditByObject(objectId, limit) {
     return request('GET', '/audit?object_id=' + encodeURIComponent(objectId) + '&limit=' + (limit || 50));
   }
@@ -370,6 +373,8 @@ window.SP_API = (function () {
     sync: sync,
     status: adminStatus,            // 22.09-267
     backupNow: backupNow,           // 22.09-267
+    driveList: driveList,           // 22.09-275
+    restoreFrom: restoreFrom,       // 22.09-275
     auditByObject: auditByObject,   // 22.09-267
     audit: audit,
     errorsPush: errorsPush,
