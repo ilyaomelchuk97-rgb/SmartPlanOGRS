@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-281';
+  var SP_BUILD = '22.09-284';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -10900,8 +10900,8 @@
       if (_ef.telemetry_type) attr += ' <span class="equipment-badge" title="Автоподбор: только объекты с телеметрией «' + esc(_ef.telemetry_type) + '»">📡 ' + esc(_ef.telemetry_type) + '</span>'; // 22.09-115
       else if (_ef.telemetry_req === 'equipped') attr += ' <span class="equipment-badge" title="Автоподбор: только объекты с телеметрией">📡 ТМ</span>';
       else if (_ef.telemetry_req === 'not_equipped') attr += ' <span class="equipment-badge" title="Автоподбор: только объекты без телеметрии">🚫📡 без ТМ</span>';
-      if (_ef.diag_equipment) attr += ' <span class="permit-badge" title="Автоподбор: приборная диагностика — только объектам с видом обслуживания Region-gaz; у таких объектов строятся ТОЛЬКО диагностика и телеметрия">🧪 диагностика</span>';
-      if (_ef.heating_req || _ef.heating_kind) attr += ' <span class="weather-badge" title="Автоподбор: только объекты с отоплением' + (_ef.heating_kind ? ' — ' + esc(_ef.heating_kind) : ' (ГРП)') + '">🔥 ' + (_ef.heating_kind ? esc(_ef.heating_kind) : 'отопление') + '</span>';
+      if (_ef.diag_equipment) attr += ' <span class="permit-badge" title="Автоподбор: приборная диагностика — только объектам с видом обслуживания REGION-gaz (остальные работы REGION-gaz подбирает как обычно)">🧪 диагностика</span>';
+      if (_ef.heating_req || _ef.heating_kind) attr += ' <span class="weather-badge" title="Автоподбор: только объектам с котлом — «Вид отопления» = «Газовое»' + (_ef.heating_kind && _ef.heating_kind.toLowerCase() !== 'газовое' ? ' (у работы указано: ' + esc(_ef.heating_kind) + ')' : '') + '">🔥 ' + (_ef.heating_kind ? esc(_ef.heating_kind) : 'котёл (газ)') + '</span>';
       if (w.equipment && w.equipment !== '—') attr += ' <span class="equipment-badge">' + esc(w.equipment) + '</span>';
       if (w.object_categories && w.object_categories.length) {
         attr += ' <span class="equipment-badge" title="Категория объекта: ' + esc(w.object_categories.join(', ')) + '">' + esc(w.object_categories[0]) + (w.object_categories.length > 1 ? ' +' + (w.object_categories.length - 1) : '') + '</span>';
@@ -13035,8 +13035,8 @@
     if (w && w.telemetry_type && telNames.indexOf(w.telemetry_type) < 0) h += '<option value="' + esc(w.telemetry_type) + '" selected>' + esc(w.telemetry_type) + ' ⚠ (нет в списке)</option>';
     h += '</select></div></div>';
     h += '<div class="attr-row"><div class="fld"><label class="cb"><input type="checkbox" id="wm-diag" ' + (w && w.diag_equipment ? 'checked' : '') + '> С использованием приборного диагностического оборудования <span style="color:#94a3b8;font-weight:500">(добавляется объектам с видом обслуживания «Region-gas»)</span></label></div>';
-    h += '<div class="fld"><label class="cb"><input type="checkbox" id="wm-heatreq" ' + (w && w.heating_req ? 'checked' : '') + '> ТО отопительного оборудования <span style="color:#94a3b8;font-weight:500">(только объектам с отоплением — ГРП)</span></label>' +
-      '<label style="font-size:12.5px;font-weight:600;color:#475569;margin-top:6px;display:block">Вид отопления объекта <span style="color:#94a3b8;font-weight:500">(уточняет автоподбор; пусто — любое отопление)</span></label>' +
+    h += '<div class="fld"><label class="cb"><input type="checkbox" id="wm-heatreq" ' + (w && w.heating_req ? 'checked' : '') + '> ТО отопительного оборудования <span style="color:#94a3b8;font-weight:500">(только объектам с котлом — «Вид отопления» = «Газовое»)</span></label>' +
+      '<label style="font-size:12.5px;font-weight:600;color:#475569;margin-top:6px;display:block">Вид отопления объекта <span style="color:#94a3b8;font-weight:500">(для автоподбора: работы «ТО отопительного» — только при «Газовое»)</span></label>' +
       '<select id="wm-heatkind" style="max-width:280px">' +
         '<option value=""' + (!w || !w.heating_kind ? ' selected' : '') + '>— любое отопление —</option>' +
         '<option value="Газовое"' + (w && w.heating_kind === 'Газовое' ? ' selected' : '') + '>Газовое (газовые котлы/аппараты)</option>' +
@@ -18104,6 +18104,7 @@
     reconcileFiredResponsibles(); // 22.09-161: уволенных мастеров снять с объектов по дате увольнения
     // Мягкое обновление при синхронизации — только данные, без мигания экрана
     window.onSyncUpdate = function() {
+      try { if (window.bellSync) bellSync(); } catch (eB) {} // 22.09-284: счётчики колокольчика после синхронизации
       // 22.09-268: могли прийти права доступа с сервера — обновить меню/видимость страниц
       try { if (S.user && typeof applyUser === 'function') applyUser(); } catch (ePU) {}
       if (window.SP_TASKS) S.tasks = window.SP_TASKS.getTasks();
@@ -18430,6 +18431,8 @@
     else if (a === 'graphs-excel-go') { graphsExportExcel(graphPrintOpts()); }
     else if (a === 'graphs-period-save') { graphsPeriodSave(); }
     else if (a === 'gpr-help') { openAutoPickScheme(); } // 22.09-281: схема автоподбора работ (кнопка «i»)
+    else if (a === 'gs-open') { gsOpen(); }              // 22.09-284: глобальный поиск (Ctrl+K)
+    else if (a === 'bell-toggle') { bellToggle(); }      // 22.09-284: колокольчик уведомлений
     /* 22.09-278: статусы объектов графика — работы строятся только «В эксплуатации» */
     else if (a === 'graphs-status-fill') { openGraphStatusModal(); }
     else if (a === 'graphs-status-all') {
@@ -20276,23 +20279,28 @@
       } else if (eff.telemetry_req === 'equipped' && !objTel) return false;
       else if (eff.telemetry_req === 'not_equipped' && objTel) return false;
     }
-    // 22.09-278: ВИД ОБСЛУЖИВАНИЯ (Region-gaz).
-    //  · работа «с приборным диагностическим оборудованием» — только объектам Region-gaz;
-    //  · у объектов Region-gaz работы строятся ТОЛЬКО двух видов: приборная
-    //    диагностика и телеметрия — остальные (ремонты, тех. осмотры и пр.) не назначаются.
+    /* 22.09-283: ВИД ОБСЛУЖИВАНИЯ (REGION-gaz — приборно-диагностический комплекс).
+       · работа с отметкой «диагностика» (приборное диагностическое оборудование)
+         подбирается ТОЛЬКО объектам с видом обслуживания REGION-gaz;
+       · REGION-gaz НЕ ограничивает остальные работы: текущий ремонт, техническое
+         обслуживание, тех. осмотры и прочие подбираются такому объекту как обычно.
+         Диагностика — это просто ДОПОЛНИТЕЛЬНАЯ работа к остальным. */
     if (rules.service !== false) {
       var sk = String(attrs && attrs.serviceKind || '').trim().toLowerCase();
       var isRg = (sk === 'region-gaz' || sk === 'region-gas');
-      if (eff.diag_equipment) { if (!isRg) return false; }
-      else if (isRg && !eff.tm_like) return false;
+      if (eff.diag_equipment && !isRg) return false; // диагностика — только REGION-gaz
     }
-    // 22.09-278: ОТОПЛЕНИЕ — работы «по отопительному» только объектам с отоплением,
-    // и если у работы задан вид отопления (газовое/электрическое) — он должен совпадать
+    /* 22.09-282: ОТОПЛЕНИЕ — работы «ТО отопительного оборудования» подбираются
+       ТОЛЬКО объектам с котлом, то есть там, где «Вид отопления» = «Газовое».
+       Объектам без отопления и объектам с «Электрическое» такие работы не назначаются.
+       Если у самой работы явно указан вид отопления (газовое/электрическое) —
+       он должен совпадать с видом отопления объекта. */
     if (rules.heating !== false) {
-      var hkObj = String(attrs && attrs.heating || '').trim();
+      var hkObj = String(attrs && attrs.heating || '').trim().toLowerCase();
       if (eff.heating_req || eff.heating_kind) {
+        var needKind = String(eff.heating_kind || 'Газовое').trim().toLowerCase(); // по умолчанию — газовый котёл
         if (!hkObj) return false;
-        if (eff.heating_kind && hkObj.toLowerCase() !== eff.heating_kind.toLowerCase()) return false;
+        if (hkObj !== needKind) return false;
       }
     }
     return true;
@@ -20574,8 +20582,8 @@
       '<label class="cb" style="font-size:12px;color:#166534"><input type="checkbox" id="gpr-crit-type" checked> по типу объекта ► «Категория объекта» в карточке работы</label>' +
       '<label class="cb" style="font-size:12px;color:#166534"><input type="checkbox" id="gpr-crit-lines" checked> по линиям редуцирования ► «Линий редуцирования» у работы = параметру объекта</label>' +
       '<label class="cb" style="font-size:12px;color:#166534"><input type="checkbox" id="gpr-crit-telemetry" checked> по телеметрии ► наличие/тип ТМ объекта и работы</label>' +
-      '<label class="cb" style="font-size:12px;color:#166534"><input type="checkbox" id="gpr-crit-service" checked> по виду обслуживания ► Region-gaz: только диагностика и телеметрия; диагностика — только Region-gaz</label>' +
-      '<label class="cb" style="font-size:12px;color:#166534"><input type="checkbox" id="gpr-crit-heating" checked> по отоплению ► работы по отопительному — только объектам с отоплением, с учётом вида (газовое/электрическое)</label>' +
+      '<label class="cb" style="font-size:12px;color:#166534"><input type="checkbox" id="gpr-crit-service" checked> по виду обслуживания ► диагностические работы — только объектам REGION-gaz (остальные работы REGION-gaz подбирает как обычно)</label>' +
+      '<label class="cb" style="font-size:12px;color:#166534"><input type="checkbox" id="gpr-crit-heating" checked> по отоплению ► «ТО отопительного оборудования» — только объектам с котлом («Вид отопления» = «Газовое»)</label>' +
       '<div style="font-size:11.5px;color:#166534;opacity:.85">Всегда включено: работы строятся только по объектам «В эксплуатации» (статус — в карточке объекта); сезон — летние работы и работы без сезона идут весь год, кроме зимнего периода графика, зимние — только внутри него («Сезоны» на панели графика); «+ работа» и «🎯» — ручное назначение в обход правил.</div>' +
       '<details style="font-size:11.5px;color:#166534;background:#fff;border:1px solid #bbf7d0;border-radius:6px;padding:5px 8px;max-width:100%">' +
         '<summary style="cursor:pointer;font-weight:700">📋 Что сравнивается у работы и объекта (сверка атрибутов)</summary>' +
@@ -20583,8 +20591,8 @@
         '1) <b>Тип объекта</b>: у работы «Категория объекта обслуживания» (ГРП/ШРП/ПГРП) ↔ тип объекта; пусто — работа подходит всем.<br>' +
         '2) <b>Линии редуцирования</b>: «Кол-во линий» у работы ↔ «Кол-во линий редуцирования» объекта (если у объекта не заполнено — работы «по линиям» не подбираются).<br>' +
         '3) <b>Телеметрия</b>: наличие и тип ТМ у работы ↔ «Тип телеметрии» объекта; работы по ТМ (телеметрия/телемеханика/АСУТП — по полю или названию) — только объектам с телеметрией.<br>' +
-        '4) <b>Вид обслуживания</b>: приборная диагностика ↔ «REGION-gaz» у объекта; у объектов REGION-gaz подбираются только диагностика и работы по телеметрии.<br>' +
-        '5) <b>Отопление</b>: работы «по отопительному» ↔ «Вид отопления» объекта (Газовое/Электрическое); у ШРП отопления нет.<br>' +
+        '4) <b>Вид обслуживания</b>: работа с отметкой «диагностика» (приборное диагностическое оборудование) подбирается только объектам с видом обслуживания «REGION-gaz»; REGION-gaz НЕ ограничивает остальные работы — текущий ремонт, тех. обслуживание и прочее такому объекту подбираются как обычно (диагностика — дополнительная работа).<br>' +
+        '5) <b>Отопление</b>: работы «ТО отопительного оборудования» подбираются только объектам с котлом — «Вид отопления» = «Газовое» (у объектов без отопления и с «Электрическое» такие работы не назначаются); если у работы явно указан вид отопления — он должен совпадать. У ШРП отопления нет.<br>' +
         '6) <b>Статус</b>: работы строятся только объектам «В эксплуатации»; выведенным — задачи снимаются, периодичность сохраняется, после возврата — новый отсчёт.<br>' +
         '7) <b>Сезон и группы</b>: в группе работ объекту назначается ОДНА работа — первая подходящая по характеристикам. Сезон: «Лето», «Весна-осень» и работы без сезона («» или «Круглый год») выполняются весь год, КРОМЕ зимнего периода графика (окно «Сезоны»); работы с сезоном «Зима» — ТОЛЬКО внутри зимнего периода. Внутри группы версия работы МЕНЯЕТСЯ по датам: в зимний период — зимняя версия, в остальное время — летняя/обычная. Если зимний период в графике не задан — зимних работ нет вовсе.<br>' +
         '8) <b>Групповые пометки</b> (🏷 у группы работ): «Работы с ТМ» / «Без телеметрии».<br>' +
@@ -20596,7 +20604,7 @@
       '</div>';
     h += '<div class="gpr-cols"><span>Вид работы</span><span></span><span>Период., мес</span><span>Откл., дн</span><span>Дата первого проведения</span><span></span></div>';
     h += '<div id="gpr-list" style="display:flex;flex-direction:column;gap:10px;padding:2px"></div>';
-    h += '<div class="calc" style="align-items:flex-start;font-size:12.5px;line-height:1.5"><b>В списке каждой строки — ОДНА строка на ГРУППУ работ (раскройте список — в скобках число видов работ в группе): конкретный вид работ внутри группы подбирается под объект автоматически по тем же правилам, что «⚡», ручной точный выбор — кнопкой 🎯; какой вид работ выбран — видно при наведении на строку.</b> Шаг серии = периодичность МИНУС отклонение (1 мес и отклонение 2 дн: работа 18 числа → следующая 16 числа следующего месяца). У каждого объекта может быть несколько работ — «+ работа». Работы появляются в «Планировании»; перемещение задачи там переносит её и последующие по шагу серии. <b>Даты, попавшие на день, когда мастер графика не работает (выходные 5/2 и 2/2, отсутствия — график смен на вкладке «Работники»), автоматически переносятся на ближайший предыдущий рабочий день; шаг серии считается от своих исходных дат.</b> <b>⚡ Автоподбор (кнопка сверху или «⚡» у объекта) добавляет объектам работы из справочника по их параметрам: тип объекта ↔ «Категория объекта обслуживания», линии редуцирования объекта ↔ «Кол-во линий редуцирования» в карточке работы. Периодичность и отклонение подставляются из справочника; дата первого проведения — из «Даты ввода в эксплуатацию» объекта, если у работы выбран реквизит отсчёта «Дата ввода в эксплуатацию». Критерии оборудования: телеметрия (работы «с ТМ» не попадут на объект без ТМ; выбран тип — совпадение по типу и наличию), приборная диагностика только при виде обслуживания «Region-gas», ТО отопительного оборудования только ГРП с отоплением. Если поля в карточке работы не заполнены, связь распознаётся по названию работы/группы («ИНДЕЛ», «оборудованных/не оборудованных системой телеметрии», «приборного диагностического оборудования», «отопительного»). В ГРУППЕ РАБОТ объекту назначается ОДНА работа — первая подходящая по характеристикам (в списке строка одна на группу). СЕЗОН: работы с сезоном «Лето», «Весна-осень» и работы БЕЗ сезона («» или «Круглый год») выполняются весь год, КРОМЕ зимнего периода графика (окно «Сезоны»); работы с сезоном «Зима» («…обхода зимой…» — в поле или в названии) — ТОЛЬКО внутри зимнего периода. Внутри одной группы версия работы меняется по датам: в зимний период — зимняя версия, в остальное время — летняя/обычная. Если зимний период в графике не задан — зимние работы не назначаются вовсе. Работа, выбранная вручную кнопкой 🎯, по сезону НЕ переключается. Пометки групп (кнопка 🏷 у группы в справочнике «Виды работ», участок ГРП): «Работы с ТМ» — только объектам с телеметрией; «Без телеметрии» — только объектам без телеметрии; остальные пометки — просто метки. Работа «Текущий ремонт оборудования шкафных газорегуляторных пунктов без опрессовки» автоподбором НЕ назначается. <b>Набор работ объекта — ОБЩИЙ для всех графиков: добавленный в другой график объект приходит со своими работами; правки набора видны во всех графиках. Уже рассчитанные даты других графиков при этом НЕ меняются — пересчёт только в сохраняемом графике; серии всегда продолжаются от даты первого проведения (без перезапуска в новом году).</b></b></div>';
+    h += '<div class="calc" style="align-items:flex-start;font-size:12.5px;line-height:1.5"><b>В списке каждой строки — ОДНА строка на ГРУППУ работ (раскройте список — в скобках число видов работ в группе): конкретный вид работ внутри группы подбирается под объект автоматически по тем же правилам, что «⚡», ручной точный выбор — кнопкой 🎯; какой вид работ выбран — видно при наведении на строку.</b> Шаг серии = периодичность МИНУС отклонение (1 мес и отклонение 2 дн: работа 18 числа → следующая 16 числа следующего месяца). У каждого объекта может быть несколько работ — «+ работа». Работы появляются в «Планировании»; перемещение задачи там переносит её и последующие по шагу серии. <b>Даты, попавшие на день, когда мастер графика не работает (выходные 5/2 и 2/2, отсутствия — график смен на вкладке «Работники»), автоматически переносятся на ближайший предыдущий рабочий день; шаг серии считается от своих исходных дат.</b> <b>⚡ Автоподбор (кнопка сверху или «⚡» у объекта) добавляет объектам работы из справочника по их параметрам: тип объекта ↔ «Категория объекта обслуживания», линии редуцирования объекта ↔ «Кол-во линий редуцирования» в карточке работы. Периодичность и отклонение подставляются из справочника; дата первого проведения — из «Даты ввода в эксплуатацию» объекта, если у работы выбран реквизит отсчёта «Дата ввода в эксплуатацию». Критерии оборудования: телеметрия (работы «с ТМ» не попадут на объект без ТМ; выбран тип — совпадение по типу и наличию), приборная диагностика — только объектам с видом обслуживания «REGION-gaz» (остальные работы такому объекту подбираются как обычно), ТО отопительного оборудования — только объектам с котлом, где «Вид отопления» = «Газовое» (объектам без отопления и с электрическим отоплением такие работы не назначаются). Если поля в карточке работы не заполнены, связь распознаётся по названию работы/группы («ИНДЕЛ», «оборудованных/не оборудованных системой телеметрии», «приборного диагностического оборудования», «отопительного»). В ГРУППЕ РАБОТ объекту назначается ОДНА работа — первая подходящая по характеристикам (в списке строка одна на группу). СЕЗОН: работы с сезоном «Лето», «Весна-осень» и работы БЕЗ сезона («» или «Круглый год») выполняются весь год, КРОМЕ зимнего периода графика (окно «Сезоны»); работы с сезоном «Зима» («…обхода зимой…» — в поле или в названии) — ТОЛЬКО внутри зимнего периода. Внутри одной группы версия работы меняется по датам: в зимний период — зимняя версия, в остальное время — летняя/обычная. Если зимний период в графике не задан — зимние работы не назначаются вовсе. Работа, выбранная вручную кнопкой 🎯, по сезону НЕ переключается. Пометки групп (кнопка 🏷 у группы в справочнике «Виды работ», участок ГРП): «Работы с ТМ» — только объектам с телеметрией; «Без телеметрии» — только объектам без телеметрии; остальные пометки — просто метки. Работа «Текущий ремонт оборудования шкафных газорегуляторных пунктов без опрессовки» автоподбором НЕ назначается. <b>Набор работ объекта — ОБЩИЙ для всех графиков: добавленный в другой график объект приходит со своими работами; правки набора видны во всех графиках. Уже рассчитанные даты других графиков при этом НЕ меняются — пересчёт только в сохраняемом графике; серии всегда продолжаются от даты первого проведения (без перезапуска в новом году).</b></b></div>';
     h += '</div>';
     h += '<div class="modal-f"><button type="button" class="btn ok" data-action="graphs-period-save">Сохранить</button><button type="button" class="btn danger" data-action="close-modal">Отменить</button></div>';
     modal.innerHTML = h;
@@ -27787,4 +27795,424 @@
   }
   // Доступ из других частей и автотестов
   window.SP_SELFTEST = { card: stCard, run: stRun };
+  /* ── часть 26 · app/26_notify.js — колокольчик уведомлений в шапке (22.09-284) ── */
+/* ============================================================
+   22.09-284: КОЛОКОЛЬЧИК УВЕДОМЛЕНИЙ в шапке.
+   Показывает:
+   · новые объявления администратора, адресованные мне (или всем) —
+     те, которые ещё не отмечены прочитанными (общий список
+     «прочитано» с всплывающим окном: smartplan_msg_seen_v1);
+   · сводку по задачам: сколько просрочено и сколько на сегодня
+     (мастер — свои, слесарь — где он в исполнителях, руководство — все).
+   На кнопке — красный кружок с числом непрочитанных объявлений.
+   Клик по объявлению — «прочитано» (и подтверждение уходит на сервер —
+   запись mack_…, как при нажатии «ОК» в окне объявления).
+   ============================================================ */
+  var BELL_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>';
+
+  function bellSeen() {
+    try { return (window.SP_ANN && SP_ANN.seen) ? (SP_ANN.seen() || {}) : {}; } catch (e) { return {}; }
+  }
+  /* Объявления, адресованные мне и ещё не прочитанные */
+  function bellUnread() {
+    var out = [];
+    try {
+      if (!S.user || !S.user.id) return out;
+      var seen = bellSeen();
+      var list = (window.SP_ANN && SP_ANN.list) ? (SP_ANN.list() || []) : [];
+      list.forEach(function (m) {
+        if (!m || !m.id || m.kind === 'ack') return;
+        if (m.from_id && String(m.from_id) === String(S.user.id)) return;   // свои не показываем
+        if (!(m.to === 'all' || String(m.to) === String(S.user.id))) return; // не мне
+        if (seen[m.id]) return;                                              // уже прочитано
+        out.push(m);
+      });
+      out.sort(function (a, b) { return (b.ts || 0) - (a.ts || 0); });
+    } catch (e) {}
+    return out;
+  }
+  /* Отметить объявление прочитанным: локально + запись-подтверждение на сервер */
+  function bellMarkRead(m, silent) {
+    if (!m || !m.id) return false;
+    try {
+      var seen = bellSeen(); seen[m.id] = Date.now();
+      localStorage.setItem('smartplan_msg_seen_v1', JSON.stringify(seen));
+    } catch (e) {}
+    try {
+      if (window.SP_API && SP_API.syncPush && S.user && S.user.id) {
+        SP_API.syncPush('messages', {
+          id: 'mack_' + m.id + '_' + S.user.id, kind: 'ack', ref: m.id,
+          by: S.user.id, name: S.user.full_name || '', ts: Date.now()
+        });
+      }
+    } catch (e) {}
+    if (!silent) { try { toast('ok', 'Объявление отмечено прочитанным'); } catch (e2) {} }
+    return true;
+  }
+  function bellMarkAll() {
+    var n = 0;
+    bellUnread().forEach(function (m) { if (bellMarkRead(m, true)) n++; });
+    return n;
+  }
+  /* Задачи: просрочено / на сегодня (по роли) */
+  function bellMyTasks() {
+    var my = (S.user && S.user.id) ? String(S.user.id) : '';
+    var role = S.role || '';
+    var all = (window.SP_TASKS ? SP_TASKS.getTasks() : (S.tasks || [])) || [];
+    var mine = all.filter(function (t) {
+      if (!t || !t.id || t.id === 't_day_anchor' || isDone(t)) return false;
+      if (typeof t.d !== 'number') return false;
+      if (role === 'slesar') return Array.isArray(t.slesari) && t.slesari.some(function (id) { return String(id) === my; });
+      if (role === 'master' || role === 'smaster') return String(t.m) === my;
+      return true; // администратор, начальник участка, инженер — все задачи
+    });
+    var overdue = mine.filter(function (t) { return t.d < 0; });
+    var today = mine.filter(function (t) { return t.d === 0; });
+    return { overdue: overdue.length, today: today.length, total: mine.length };
+  }
+  function bellTaskScreen() { return (S.role === 'slesar') ? 'map' : 'calendar'; } // слесарю — «Карта маршрутов», остальным — планирование
+  /* Красный кружок на кнопке */
+  function bellBadgeSync() {
+    try {
+      var n = bellUnread().length;
+      var b = document.getElementById('sp-bell-badge');
+      var btn = document.getElementById('sp-bell');
+      if (b) {
+        if (n > 0) { b.textContent = (n > 99 ? '99+' : String(n)); b.style.display = 'flex'; }
+        else b.style.display = 'none';
+      }
+      if (btn) {
+        var tt = bellHoverTitle(n);
+        btn.setAttribute('title', tt);
+        btn.setAttribute('aria-label', tt);
+      }
+    } catch (e) {}
+  }
+  function bellHoverTitle(n) {
+    var t = bellMyTasks();
+    var parts = [];
+    if (n > 0) parts.push('объявлений: ' + n);
+    if (t.overdue) parts.push('просрочено задач: ' + t.overdue);
+    if (t.today) parts.push('на сегодня: ' + t.today);
+    return 'Уведомления' + (parts.length ? ' — ' + parts.join(', ') : ' — новых нет');
+  }
+  function bellSync() { bellBadgeSync(); try { if (bellOpen) bellRender(); } catch (e) {} }
+  window.bellSync = bellSync;
+
+  /* ===== Окошко со списком уведомлений ===== */
+  var bellOpen = false;
+  function bellPopEl() {
+    var el = document.getElementById('sp-bell-pop');
+    if (el) return el;
+    el = document.createElement('div');
+    el.id = 'sp-bell-pop';
+    el.style.display = 'none';
+    document.body.appendChild(el);
+    return el;
+  }
+  function bellToggle() { bellOpen ? bellClose() : bellOpenPanel(); }
+  function bellClose() {
+    bellOpen = false;
+    try { var el = document.getElementById('sp-bell-pop'); if (el) el.style.display = 'none'; } catch (e) {}
+  }
+  function bellOpenPanel() {
+    var el = bellPopEl();
+    bellOpen = true;
+    bellRender();
+    el.style.display = 'block';
+    bellPlace(el);
+  }
+  function bellPlace(el) {
+    try {
+      var btn = document.getElementById('sp-bell');
+      if (!btn) return;
+      var r = btn.getBoundingClientRect();
+      var w = el.offsetWidth || 380;
+      var left = Math.max(8, Math.min(Math.round(r.right - w), (window.innerWidth || 1200) - w - 8));
+      el.style.left = left + 'px';
+      el.style.top = Math.round(r.bottom + 8) + 'px';
+    } catch (e) {}
+  }
+  function bellItemHtml(m) {
+    var high = (m.prio === 'high');
+    var from = m.from || 'Администратор';
+    var when = '';
+    try { when = m.ts ? new Date(m.ts).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''; } catch (e) {}
+    var text = String(m.text || '');
+    if (text.length > 240) text = text.slice(0, 240) + '…';
+    return '<div class="bl-item' + (high ? ' bl-high' : '') + '" data-bell-msg="' + esc(m.id) + '" title="Нажмите — отметить прочитанным">' +
+      '<div class="bl-top">' + (high ? '<span class="bl-prio">важное</span>' : '<span class="bl-prio bl-prio-n">объявление</span>') +
+      '<span class="bl-from">' + esc(from) + '</span><span class="bl-when">' + esc(when) + '</span></div>' +
+      '<div class="bl-text">' + esc(text) + '</div></div>';
+  }
+  function bellRender() {
+    var el = bellPopEl();
+    var unread = bellUnread();
+    var t = bellMyTasks();
+    var h = '<div class="bl-head"><span>Уведомления</span>' +
+      (unread.length ? '<button type="button" class="bl-all" data-bell-readall="1" title="Отметить все объявления прочитанными">✓ Прочитать все</button>' : '') +
+      '<button type="button" class="bl-x" data-bell-close="1" title="Закрыть">×</button></div>';
+    h += '<div class="bl-body">';
+    h += '<div class="bl-sec">Объявления</div>';
+    if (unread.length) h += unread.slice(0, 20).map(bellItemHtml).join('');
+    else h += '<div class="bl-empty">Новых объявлений нет</div>';
+    if (unread.length > 20) h += '<div class="bl-empty">…и ещё ' + (unread.length - 20) + '</div>';
+    h += '<div class="bl-sec">Задачи</div>';
+    h += '<div class="bl-tasks">' +
+      '<button type="button" class="bl-task' + (t.overdue ? ' bl-task-red' : '') + '" data-bell-tasks="1" title="Открыть ' + (S.role === 'slesar' ? '«Карту маршрутов»' : '«Планирование»') + '">' +
+        '<b>' + t.overdue + '</b> просрочено</button>' +
+      '<button type="button" class="bl-task bl-task-blue" data-bell-tasks="1" title="Открыть ' + (S.role === 'slesar' ? '«Карту маршрутов»' : '«Планирование»') + '">' +
+        '<b>' + t.today + '</b> на сегодня</button></div>';
+    if (S.role === 'admin') h += '<div class="bl-foot"><button type="button" class="bl-all" data-bell-admin="1">Объявления и управление →</button></div>';
+    h += '</div>';
+    el.innerHTML = h;
+  }
+  /* Нажатия внутри окошка (делегирование) */
+  function bellWirePanel() {
+    var el = bellPopEl();
+    el.addEventListener('click', function (e) {
+      var t = e.target;
+      if (!t || !t.closest) return;
+      var x = t.closest('[data-bell-close]');
+      if (x) { bellClose(); return; }
+      var all = t.closest('[data-bell-readall]');
+      if (all) {
+        var n = bellMarkAll();
+        if (n) toast('ok', 'Отмечено прочитанными: ' + n);
+        bellSync();
+        return;
+      }
+      var item = t.closest('[data-bell-msg]');
+      if (item) {
+        var id = item.getAttribute('data-bell-msg');
+        var m = null;
+        bellUnread().forEach(function (x) { if (x.id === id) m = x; });
+        if (m) { bellMarkRead(m, true); bellSync(); }
+        return;
+      }
+      var tk = t.closest('[data-bell-tasks]');
+      if (tk) { bellClose(); try { setScreen(bellTaskScreen()); } catch (e2) {} return; }
+      var ad = t.closest('[data-bell-admin]');
+      if (ad) { bellClose(); try { setScreen('adminctl'); } catch (e3) {} return; }
+    });
+    /* клик вне окошка — закрыть */
+    document.addEventListener('click', function (e) {
+      if (!bellOpen) return;
+      var el2 = document.getElementById('sp-bell-pop');
+      var btn = document.getElementById('sp-bell');
+      if (el2 && el2.contains(e.target)) return;
+      if (btn && btn.contains(e.target)) return;
+      bellClose();
+    }, true);
+    window.addEventListener('resize', function () { if (bellOpen) bellClose(); });
+    window.addEventListener('scroll', function () { if (bellOpen) bellClose(); }, true);
+  }
+  function bellInit() {
+    try {
+      var btn = document.getElementById('sp-bell');
+      if (!btn) return;
+      if (!btn.getAttribute('data-bell-wired')) {
+        btn.setAttribute('data-bell-wired', '1');
+        btn.addEventListener('click', function (e) { e.stopPropagation(); bellToggle(); });
+      }
+      bellWirePanel();
+      bellSync();
+      setInterval(bellSync, 45000); // тихое обновление счётчиков
+    } catch (e) {}
+  }
+  window.SP_BELL = { unread: bellUnread, markRead: bellMarkRead, markAll: bellMarkAll, tasks: bellMyTasks, sync: bellSync, toggle: bellToggle, hover: bellHoverTitle };
+
+  /* 22.09-284: запуск после построения всего приложения */
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bellInit);
+  else bellInit();
+  /* ── часть 27 · app/27_search.js — глобальный поиск по системе (Ctrl+K) (22.09-284) ── */
+/* ============================================================
+   22.09-284: ГЛОБАЛЬНЫЙ ПОИСК (Ctrl+K или кнопка-лупа в шапке).
+   Ищет сразу по: страницам системы, объектам (адрес/номер), видам
+   работ (название/группа) и пользователям (ФИО/логин — у кого есть
+   доступ к странице «Пользователи»).
+   Управление: ↑ ↓ — выбор, Enter — открыть, Esc — закрыть.
+   ============================================================ */
+  function gsNorm(s) { return String(s == null ? '' : s).toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ').trim(); }
+  function gsHit(text, q) {
+    var t = gsNorm(text), words = q.split(' ');
+    for (var i = 0; i < words.length; i++) if (words[i] && t.indexOf(words[i]) < 0) return false;
+    return true;
+  }
+  /* ─── источники результатов ─── */
+  function gsScreens(q) {
+    var out = [];
+    try {
+      Object.keys(TITLES).forEach(function (scr) {
+        if (/^(testmap|testdep)$/.test(scr)) return; // служебные — не показываем
+        if (gsHit(TITLES[scr], q)) out.push({ kind: 'Страница', title: TITLES[scr], sub: 'перейти на страницу', act: function () { setScreen(scr); } });
+      });
+    } catch (e) {}
+    return out;
+  }
+  function gsObjects(q) {
+    var out = [], seen = {};
+    try {
+      var all = (window.SP_OBJECTS && SP_OBJECTS.getObjects) ? (SP_OBJECTS.getObjects() || []) : [];
+      all.forEach(function (o) {
+        if (!o || !o.id || seen[o.id]) return;
+        var full = objFullAddr(o);
+        if (!gsHit(full + ' ' + (o.type || ''), q)) return;
+        seen[o.id] = 1;
+        out.push({ kind: 'Объект', title: full, sub: (o.type || '') + ' — открыть список объектов с поиском',
+          act: (function (addr) { return function () { gsGoObjects(addr); }; })(full) });
+      });
+      out.sort(function (a, b) { return String(a.title).localeCompare(String(b.title), 'ru'); });
+    } catch (e) {}
+    return out.slice(0, 8);
+  }
+  function gsGoObjects(addr) {
+    try {
+      setScreen('refs');
+      S.refsTab = 'objects';
+      try { renderRefs(); } catch (e) {}
+      setTimeout(function () {
+        var inp = null, boxes = document.querySelectorAll('#view .ui-search input');
+        for (var i = 0; i < boxes.length && !inp; i++) inp = boxes[i];
+        if (inp) {
+          var tail = String(addr).replace(/^[^,]*,?\s*/, '').trim();
+          inp.value = (/^\d+$/.test(tail) ? tail : (tail.split(',')[0] || addr));
+          inp.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        toast('ok', 'Объект: ' + addr);
+      }, 260);
+    } catch (e) {}
+  }
+  function gsWorks(q) {
+    var out = [];
+    try {
+      var areas = (typeof areasList === 'function') ? (areasList() || []) : [];
+      areas.forEach(function (area) {
+        var ws = [];
+        try { ws = WORK.getWorks(area) || []; } catch (e) {}
+        ws.forEach(function (w) {
+          if (!w || !w.id || w._deleted) return;
+          if (!gsHit(String(w.name || '') + ' ' + String(w.group || ''), q)) return;
+          out.push({ kind: 'Вид работы', title: String(w.name || ''), sub: area + ' · ' + String(w.group || 'без группы'),
+            act: (function (a2, nm) { return function () { gsGoWorks(a2, nm); }; })(area, w.name) });
+        });
+      });
+    } catch (e) {}
+    return out.slice(0, 8);
+  }
+  function gsGoWorks(area, name) {
+    try {
+      setScreen('refs');
+      S.workArea = area;
+      S.refsTab = 'works';
+      try { renderRefs(); } catch (e) {}
+      setTimeout(function () {
+        var inp = null, boxes = document.querySelectorAll('#view .ui-search input');
+        for (var i = 0; i < boxes.length && !inp; i++) inp = boxes[i];
+        if (inp) { inp.value = String(name).slice(0, 24); inp.dispatchEvent(new Event('input', { bubbles: true })); }
+        toast('ok', 'Раздел «Виды работ», участок ' + area);
+      }, 260);
+    } catch (e) {}
+  }
+  function gsUsers(q) {
+    var out = [];
+    try {
+      if (S.role !== 'admin') return out; // страница «Пользователи» — только администратору
+      var us = (window.SP_USERS_DB ? SP_USERS_DB.getUsers() : DB.getUsers()) || [];
+      us.forEach(function (u) {
+        if (!u || !u.id) return;
+        if (!gsHit(String(u.full_name || '') + ' ' + String(u.login || ''), q)) return;
+        out.push({ kind: 'Пользователь', title: String(u.full_name || u.login || ''), sub: (u.login || '') + ' · ' + (u.role || ''),
+          act: function () { setScreen('users'); } });
+      });
+    } catch (e) {}
+    return out.slice(0, 6);
+  }
+  function gsAll(q) {
+    q = gsNorm(q);
+    if (q.length < 2) return [];
+    var res = gsScreens(q).concat(gsObjects(q), gsWorks(q), gsUsers(q));
+    return res.slice(0, 30);
+  }
+  /* ─── окно поиска ─── */
+  var gsSel = 0, gsList = [], gsEl = null;
+  function gsPop() {
+    if (gsEl) return gsEl;
+    gsEl = document.createElement('div');
+    gsEl.id = 'gs-overlay';
+    gsEl.style.display = 'none';
+    gsEl.innerHTML = '<div id="gs-box" role="dialog" aria-label="Глобальный поиск по системе">' +
+      '<div class="gs-in"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>' +
+      '<input id="gs-input" type="text" placeholder="Поиск по системе: объект, вид работ, страница, пользователь…" autocomplete="off" spellcheck="false">' +
+      '<span id="gs-hint">Ctrl+K</span></div>' +
+      '<div id="gs-res"></div></div>';
+    document.body.appendChild(gsEl);
+    gsEl.addEventListener('mousedown', function (e) { if (e.target === gsEl) gsClose(); });
+    var inp = gsEl.querySelector('#gs-input');
+    inp.addEventListener('input', function () { gsRender(inp.value); });
+    inp.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); gsMove(1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); gsMove(-1); }
+      else if (e.key === 'Enter') { e.preventDefault(); gsPick(gsSel); }
+      else if (e.key === 'Escape') { e.preventDefault(); gsClose(); }
+    });
+    gsEl.querySelector('#gs-res').addEventListener('click', function (e) {
+      var row = e.target && e.target.closest ? e.target.closest('[data-gs-i]') : null;
+      if (row) gsPick(parseInt(row.getAttribute('data-gs-i'), 10) || 0);
+    });
+    return gsEl;
+  }
+  function gsOpen() {
+    var el = gsPop();
+    el.style.display = 'flex';
+    gsRender('');
+    try { el.querySelector('#gs-input').focus(); el.querySelector('#gs-input').select(); } catch (e) {}
+  }
+  function gsClose() {
+    try { if (gsEl) gsEl.style.display = 'none'; } catch (e) {}
+  }
+  function gsRender(q) {
+    var box = gsEl.querySelector('#gs-res');
+    gsList = gsAll(q);
+    gsSel = 0;
+    if (gsNorm(q).length < 2) {
+      box.innerHTML = '<div class="gs-empty">Введите минимум 2 буквы. Ищет по объектам, видам работ, страницам' + (S.role === 'admin' ? ' и пользователям' : '') + '.<br><span class="gs-k">↑ ↓</span> выбор · <span class="gs-k">Enter</span> открыть · <span class="gs-k">Esc</span> закрыть</div>';
+      return;
+    }
+    if (!gsList.length) { box.innerHTML = '<div class="gs-empty">Ничего не найдено по запросу «' + esc(q) + '»</div>'; return; }
+    var h = '', lastKind = '';
+    gsList.forEach(function (r, i) {
+      if (r.kind !== lastKind) { h += '<div class="gs-sec">' + esc(r.kind) + (r.kind === 'Объект' ? 'ы' : (r.kind === 'Страница' ? 'ы' : (r.kind === 'Вид работы' ? 'ы' : 'и'))) + '</div>'; lastKind = r.kind; }
+      h += '<div class="gs-row' + (i === gsSel ? ' gs-on' : '') + '" data-gs-i="' + i + '" title="' + esc(r.sub || '') + '">' +
+        '<span class="gs-kind">' + esc(r.kind) + '</span>' +
+        '<span class="gs-t">' + esc(r.title) + '</span>' +
+        '<span class="gs-s">' + esc(r.sub || '') + '</span></div>';
+    });
+    box.innerHTML = h;
+  }
+  function gsMove(d) {
+    if (!gsList.length) return;
+    gsSel = (gsSel + d + gsList.length) % gsList.length;
+    var rows = gsEl.querySelectorAll('.gs-row');
+    for (var i = 0; i < rows.length; i++) rows[i].classList.toggle('gs-on', i === gsSel);
+    try { if (rows[gsSel]) rows[gsSel].scrollIntoView({ block: 'nearest' }); } catch (e) {}
+  }
+  function gsPick(i) {
+    var r = gsList[i];
+    if (!r || typeof r.act !== 'function') return;
+    gsClose();
+    try { r.act(); } catch (e) { try { toast('err', 'Не удалось открыть: ' + String(e && e.message || e)); } catch (e2) {} }
+  }
+  /* Горячие клавиши: Ctrl+K (Cmd+K) — открыть, Esc — закрыть.
+     22.09-284: обработчик стоит в ПЕРЕХВАТЫВАЮЩЕЙ фазе (capture) — иначе
+     открытое окно объявления/подтверждения перехватывало Escape раньше
+     (оно тоже слушает Escape в capture и останавливает событие), и поиск
+     не закрывался. Теперь поиск реагирует первым и сам останавливает событие. */
+  document.addEventListener('keydown', function (e) {
+    var k = String(e.key || '').toLowerCase();
+    var opened = !!(gsEl && gsEl.style.display !== 'none');
+    if ((e.ctrlKey || e.metaKey) && k === 'k') { e.preventDefault(); e.stopPropagation(); gsOpen(); return; }
+    if (e.key === 'Escape' && opened) { e.preventDefault(); e.stopPropagation(); gsClose(); }
+  }, true);
+  window.SP_SEARCH = { open: gsOpen, close: gsClose, all: gsAll, pick: gsPick, norm: gsNorm };
 })();
