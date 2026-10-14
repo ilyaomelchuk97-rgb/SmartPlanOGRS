@@ -169,6 +169,7 @@ window.SP_OBJECTS = (function () {
     };
     // Применить атрибуты (если переданы и тип поддерживает)
     if (data.attrs) applyAttrs(o, data.attrs);
+    if (data.statusFrom !== undefined) o.statusFrom = String(data.statusFrom || ''); // 22.09-278
     else if (window.SP_OBJ_ATTRS && SP_OBJ_ATTRS.supportsAttrs(o.type)) {
       o.attrs = SP_OBJ_ATTRS.defaultAttrs();
     } else {
@@ -203,6 +204,9 @@ window.SP_OBJECTS = (function () {
         if (data.color !== undefined) db.objects[i].color = (data.color && /^#[0-9a-fA-F]{3,8}$/.test(data.color)) ? data.color : '';
         if (data.respId !== undefined) db.objects[i].respId = data.respId || '';
         if (data.respName !== undefined) db.objects[i].respName = data.respName || '';
+        // 22.09-278: дата последнего изменения статуса эксплуатации (для графиков:
+        // после возврата в эксплуатацию серия работ начинается заново от этой даты)
+        if (data.statusFrom !== undefined) db.objects[i].statusFrom = String(data.statusFrom || '');
         if (data.zu !== undefined) db.objects[i].zu = data.zu;
         if (data.area_obj !== undefined) db.objects[i].area_obj = data.area_obj;
         if (data.length_km !== undefined) db.objects[i].length_km = data.length_km;

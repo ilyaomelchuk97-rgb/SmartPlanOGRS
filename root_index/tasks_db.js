@@ -102,6 +102,15 @@ window.SP_TASKS = (function () {
     var db = init();
     db.tasks = db.tasks.filter(function (t) { return t.id !== id; });
     save(db);
+    /* 22.09-278: удаление сообщаем серверу — раньше задача оставалась в базе и
+       могла «вернуться» после перезагрузки или на другом устройстве. Так
+       убираются снятые задачи серий графика, дубли и задачи выведенных
+       из эксплуатации объектов. */
+    if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
+      window.SP_API.del('tasks', id).catch(function (e) {
+        try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log('warn', 'sync', 'hardDeleteTask sync failed', { err: String(e && e.err || e), where: 'tasks_db.js' }); } catch (_) {}
+      });
+    }
   }
   function resetSeed() { localStorage.removeItem(KEY); memoryDB = null; return ensureSeed(); }
 

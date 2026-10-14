@@ -237,6 +237,7 @@ window.SP_WORK = (function () {
       telemetry_type:       '',          // 22.09-115: конкретный тип телеметрии (из списка видов ТМ)
       diag_equipment:       false,       // 22.09-115: с приборным диагност. оборудованием (нужен вид обслуживания Region-gas)
       heating_req:          false,       // 22.09-115: ТО отопительного оборудования (объект с отоплением — ГРП)
+      heating_kind:         '',          // 22.09-278: вид отопления объекта для автоподбора: '' | 'Газовое' | 'Электрическое'
       group_flags:          []           // 22.09-137: свойства ГРУППЫ работ («Телеметрия», «ГРП», произвольные метки)
     };
   }
@@ -291,6 +292,7 @@ window.SP_WORK = (function () {
       telemetry_type:          String(d.telemetry_type || '').trim(),
       diag_equipment:          toBool(d.diag_equipment),
       heating_req:             toBool(d.heating_req),
+      heating_kind:            (['Газовое', 'Электрическое'].indexOf(d.heating_kind) >= 0 ? d.heating_kind : ''), // 22.09-278
       group_flags:             toArr(d.group_flags) // 22.09-137: свойства группы работ
     };
   }

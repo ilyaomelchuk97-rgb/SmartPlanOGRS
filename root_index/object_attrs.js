@@ -193,6 +193,13 @@ window.SP_OBJ_ATTRS = (function () {
         out += renderField(f, attrs[f.key], users, o);
         if (f.hint) out += '<div style="font-size:11px;color:var(--muted);margin-top:3px">' + esc(f.hint) + '</div>';
         out += '</div>';
+        // 22.09-278: пояснение к статусу — графики строятся только для «В эксплуатации»
+        if (f.key === 'status') {
+          var _sf = String((o && o.statusFrom) || '');
+          out += '<div style="grid-column:1/-1;font-size:11.5px;color:var(--muted);margin:-4px 0 2px">' +
+            (_sf ? ('Статус изменён: <b>' + esc(_sf) + '</b>. ') : '') +
+            'Графики работ строятся только по объектам «В эксплуатации». Если объект выведен из эксплуатации, его периодичность сохраняется, а после возврата отсчёт работ начинается заново.</div>';
+        }
       });
       out += '</div></fieldset>';
     });

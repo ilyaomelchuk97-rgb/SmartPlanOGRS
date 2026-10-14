@@ -177,6 +177,48 @@
     var n = objNumOf(o);
     return n ? (o.type || 'ГРП') + ' №' + n : objFullAddr(o);
   }
+
+  /* ===== 22.09-278: ЭКСПЛУАТАЦИЯ ОБЪЕКТА (правила графиков работ) =====
+     Графики работ строятся только по объектам «В эксплуатации».
+     · Явные «неэксплуатационные» статусы (OBJ_OFF_STATUSES) = объект выведен:
+       новые работы не строятся, НЕВЫПОЛНЕННЫЕ задачи графика убираются,
+       выполненные остаются в истории. Периодичность (набор работ объекта)
+       при этом сохраняется — вернув объект в эксплуатацию, вы задаёте
+       новый отсчёт (дату первого проведения).
+     · Пустой статус = «статус не задан»: новые работы не строятся, но уже
+       поставленные задачи НЕ удаляются — на странице графика показывается
+       список таких объектов с кнопкой «Заполнить статусы».
+     · Возврат в эксплуатацию: серия начинается ЗАНОВО от даты изменения
+       статуса (или от новой «Даты ввода в эксплуатацию»), шаг серии
+       (периодичность/отклонение) сохраняется. */
+  var OBJ_OFF_STATUSES = { 'Проектируется': 1, 'Строится': 1, 'Реконструкция': 1, 'Консервация': 1, 'Ликвидирован': 1 };
+  function objStatusOf(o) { try { return String(((o && o.attrs) || {}).status || '').trim(); } catch (e) { return ''; } }
+  function objStatusFrom(o) { try { return String((o && o.statusFrom) || '').trim(); } catch (e) { return ''; } }
+  /* Сведения о статусе: ok — работы строятся; off — объект выведен; known — статус задан.
+     Правила статуса действуют для типов, у которых есть атрибут «Статус»
+     (ГРП / ШРП / ПГРП). Для прочих типов (Трасса, Просека, Область, ГРС и т.п.)
+     они не применяются — работы строятся как раньше. */
+  function objOpInfo(o) {
+    if (!o) return { status: '', known: false, off: false, ok: true, from: '', na: true }; // записи нет — правила статуса не применяем
+    var st = objStatusOf(o);
+    var hasAttr = false;
+    try { hasAttr = !!(window.SP_OBJ_ATTRS && SP_OBJ_ATTRS.supportsAttrs && SP_OBJ_ATTRS.supportsAttrs(o.type)); } catch (e) {}
+    if (!hasAttr) return { status: st, known: !!st, off: false, ok: true, from: objStatusFrom(o), na: true };
+    return { status: st, known: !!st, off: !!OBJ_OFF_STATUSES[st], ok: st === 'В эксплуатации', from: objStatusFrom(o) };
+  }
+  function objInOperation(o) { return objStatusOf(o) === 'В эксплуатации'; }
+  /* Запись объекта по id — в строках графиков хранится только oid */
+  function objRecOf(oid) {
+    try { if (window.SP_OBJECTS && SP_OBJECTS.getObject) { var r = SP_OBJECTS.getObject(oid); if (r) return r; } } catch (e) {}
+    try { if (typeof OBJ_MAP !== 'undefined' && OBJ_MAP && OBJ_MAP[oid]) return OBJ_MAP[oid]; } catch (e2) {}
+    return null;
+  }
+  function objOpInfoOf(oid) { return objOpInfo(objRecOf(oid)); }
+  function objOpLabel(info) {
+    if (!info) return '';
+    if (info.ok) return 'В эксплуатации';
+    return info.off ? info.status : 'статус не задан';
+  }
   // Поиск объекта справочника по адресу (поддерживает старый формат «ГРП-3, ул. …»
   // и новый — addr хранит только улицу, полный адрес собирается как «ГРП-3, улица»)
   function findObjectByAddr(addr) {
@@ -887,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-277';
+  var SP_BUILD = '22.09-279';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -10851,11 +10893,15 @@
       if (w.depends_on_snow) attr += ' <span class="snow-badge">❄️ Снег</span>';
       if (w.min_temp > -50) attr += ' <span class="weather-badge">🌡️ t≥' + w.min_temp + '°</span>';
       if (w.season && w.season !== 'Круглый год') attr += ' <span class="weather-badge" title="Сезон проведения">' + (w.season === 'Зима' ? '❄️' : w.season === 'Лето' ? '☀️' : '🍂') + ' ' + esc(w.season) + '</span>'; // 22.09-113
-      if (w.telemetry_type) attr += ' <span class="equipment-badge" title="Автоподбор: только объекты с телеметрией «' + esc(w.telemetry_type) + '»">📡 ' + esc(w.telemetry_type) + '</span>'; // 22.09-115
-      else if (w.telemetry_req === 'equipped') attr += ' <span class="equipment-badge" title="Автоподбор: только объекты с телеметрией">📡 ТМ</span>';
-      else if (w.telemetry_req === 'not_equipped') attr += ' <span class="equipment-badge" title="Автоподбор: только объекты без телеметрии">🚫📡 без ТМ</span>';
-      if (w.diag_equipment) attr += ' <span class="permit-badge" title="Автоподбор: вид обслуживания Region-gas">🧪 диагностика</span>';
-      if (w.heating_req) attr += ' <span class="weather-badge" title="Автоподбор: только объекты с отоплением (ГРП)">🔥 отопление</span>';
+      // 22.09-278: связи с оборудованием объекта — как их видит автоподбор графиков
+      // (поля карточки + распознавание по названию работы/группы)
+      var _ef = w;
+      try { if (window.SP_WORK_EFF) _ef = SP_WORK_EFF(w); } catch (eEf) { _ef = w; }
+      if (_ef.telemetry_type) attr += ' <span class="equipment-badge" title="Автоподбор: только объекты с телеметрией «' + esc(_ef.telemetry_type) + '»">📡 ' + esc(_ef.telemetry_type) + '</span>'; // 22.09-115
+      else if (_ef.telemetry_req === 'equipped') attr += ' <span class="equipment-badge" title="Автоподбор: только объекты с телеметрией">📡 ТМ</span>';
+      else if (_ef.telemetry_req === 'not_equipped') attr += ' <span class="equipment-badge" title="Автоподбор: только объекты без телеметрии">🚫📡 без ТМ</span>';
+      if (_ef.diag_equipment) attr += ' <span class="permit-badge" title="Автоподбор: приборная диагностика — только объектам с видом обслуживания Region-gaz; у таких объектов строятся ТОЛЬКО диагностика и телеметрия">🧪 диагностика</span>';
+      if (_ef.heating_req || _ef.heating_kind) attr += ' <span class="weather-badge" title="Автоподбор: только объекты с отоплением' + (_ef.heating_kind ? ' — ' + esc(_ef.heating_kind) : ' (ГРП)') + '">🔥 ' + (_ef.heating_kind ? esc(_ef.heating_kind) : 'отопление') + '</span>';
       if (w.equipment && w.equipment !== '—') attr += ' <span class="equipment-badge">' + esc(w.equipment) + '</span>';
       if (w.object_categories && w.object_categories.length) {
         attr += ' <span class="equipment-badge" title="Категория объекта: ' + esc(w.object_categories.join(', ')) + '">' + esc(w.object_categories[0]) + (w.object_categories.length > 1 ? ' +' + (w.object_categories.length - 1) : '') + '</span>';
@@ -12505,6 +12551,14 @@
     }
     var data = { type: type, num: num, addr: addr, lat: lat, lng: lng, poly: poly, respId: respId, respName: respName };
     if (attrs) data.attrs = attrs;
+    // 22.09-278: смена статуса эксплуатации — запоминаем дату (после возврата
+    // в эксплуатацию серия работ объекта начинается заново от этой даты)
+    if (attrs) {
+      var _oldStRec = (S.objModalMode === 'edit') ? OBJ_MAP[S.objModalOid] : null;
+      var _oldSt = String(((_oldStRec && _oldStRec.attrs) || {}).status || '').trim();
+      var _newSt = String(attrs.status || '').trim();
+      if (_oldSt !== _newSt && _newSt) data.statusFrom = new Date().toISOString().slice(0, 10);
+    }
     if (respHistory) data.respHistory = respHistory;
     if (S.objModalMode === 'edit') {
       var old = OBJ_MAP[S.objModalOid];
@@ -12981,7 +13035,13 @@
     if (w && w.telemetry_type && telNames.indexOf(w.telemetry_type) < 0) h += '<option value="' + esc(w.telemetry_type) + '" selected>' + esc(w.telemetry_type) + ' ⚠ (нет в списке)</option>';
     h += '</select></div></div>';
     h += '<div class="attr-row"><div class="fld"><label class="cb"><input type="checkbox" id="wm-diag" ' + (w && w.diag_equipment ? 'checked' : '') + '> С использованием приборного диагностического оборудования <span style="color:#94a3b8;font-weight:500">(добавляется объектам с видом обслуживания «Region-gas»)</span></label></div>';
-    h += '<div class="fld"><label class="cb"><input type="checkbox" id="wm-heatreq" ' + (w && w.heating_req ? 'checked' : '') + '> ТО отопительного оборудования <span style="color:#94a3b8;font-weight:500">(только объектам с отоплением — ГРП)</span></label></div></div>';
+    h += '<div class="fld"><label class="cb"><input type="checkbox" id="wm-heatreq" ' + (w && w.heating_req ? 'checked' : '') + '> ТО отопительного оборудования <span style="color:#94a3b8;font-weight:500">(только объектам с отоплением — ГРП)</span></label>' +
+      '<label style="font-size:12.5px;font-weight:600;color:#475569;margin-top:6px;display:block">Вид отопления объекта <span style="color:#94a3b8;font-weight:500">(уточняет автоподбор; пусто — любое отопление)</span></label>' +
+      '<select id="wm-heatkind" style="max-width:280px">' +
+        '<option value=""' + (!w || !w.heating_kind ? ' selected' : '') + '>— любое отопление —</option>' +
+        '<option value="Газовое"' + (w && w.heating_kind === 'Газовое' ? ' selected' : '') + '>Газовое (газовые котлы/аппараты)</option>' +
+        '<option value="Электрическое"' + (w && w.heating_kind === 'Электрическое' ? ' selected' : '') + '>Электрическое (электрокотлы)</option>' +
+      '</select></div></div>';
     h += '</div>';
 
     // 8.5. Исполнители: общее количество + состав бригады по профессиям (Сборка 22.09-85)
@@ -13116,6 +13176,7 @@
       data.telemetry_type = val('wm-tel-type');
       data.diag_equipment = chk('wm-diag');
       data.heating_req = chk('wm-heatreq');
+      data.heating_kind = val('wm-heatkind'); // 22.09-278: вид отопления объекта (газовое/электрическое)
       // Сборка 22.09-85: исполнители — общее количество + состав по профессиям
       data.crew = crewCollect();
       if (data.crew.skipped) toast('warn', '⚠️ Строк с количеством, но без профессии не сохранено: ' + data.crew.skipped);
@@ -13130,7 +13191,7 @@
       ['object_categories', 'departments', 'periodicity_value', 'periodicity_unit',
         'periodicity_depends_on', 'periodicity_basis', 'joint_with', 'operations', 'periodicity_dev',
         'indicators', 'print_forms', 'op_journal', 'passport_entry', 'scan_attach',
-        'crew_size', 'crew', 'lines_count', 'telemetry_req', 'telemetry_type', 'diag_equipment', 'heating_req']
+        'crew_size', 'crew', 'lines_count', 'telemetry_req', 'telemetry_type', 'diag_equipment', 'heating_req', 'heating_kind']
         .forEach(function (k) { if (oldW[k] !== undefined) data[k] = oldW[k]; });
     } // при создании на прочих участках — пропуск: work_db сам поставит дефолты
     var savedW = null;
@@ -13747,7 +13808,7 @@
     ['object_categories', 'категории объектов'], ['lines_count', 'линий редуцирования'], ['periodicity_value', 'периодичность'],
     ['periodicity_unit', 'единица периодичности'], ['periodicity_dev', 'отклонение, дн.'], ['periodicity_basis', 'отсчёт периодичности'],
     ['periodicity_depends_on', 'зависит от работ'], ['joint_with', 'проводится совместно'], ['telemetry_req', 'телеметрия'],
-    ['telemetry_type', 'тип телеметрии'], ['heating_req', 'отопление'], ['diag_equipment', 'приборная диагностика'],
+    ['telemetry_type', 'тип телеметрии'], ['heating_req', 'отопление'], ['heating_kind', 'вид отопления объекта'], ['diag_equipment', 'приборная диагностика'],
     ['group_flags', 'свойства группы'], ['operations', 'операции'], ['indicators', 'показатели'], ['departments', 'подразделения'],
     ['print_forms', 'печатные формы'], ['op_journal', 'оперативный журнал'], ['passport_entry', 'эксплуатационный паспорт'], ['scan_attach', 'сканы']
   ];
@@ -18368,6 +18429,16 @@
     else if (a === 'graphs-print-go') { graphsPrintGo(); }
     else if (a === 'graphs-excel-go') { graphsExportExcel(graphPrintOpts()); }
     else if (a === 'graphs-period-save') { graphsPeriodSave(); }
+    /* 22.09-278: статусы объектов графика — работы строятся только «В эксплуатации» */
+    else if (a === 'graphs-status-fill') { openGraphStatusModal(); }
+    else if (a === 'graphs-status-all') {
+      var _nSt = graphStatusAllOper();
+      if (_nSt) toast('ok', '✓ Статусов проставлено: ' + _nSt + ' — работы построятся при сохранении графика');
+      else toast('warn', 'Изменений нет: у всех объектов графика статус уже «В эксплуатации»');
+      try { if (typeof refreshObjects === 'function') refreshObjects(); } catch (eRO2) {}
+      openGraphStatusModal();
+      if (S.screen === 'graphs') renderGraphs();
+    }
     else if (a === 'graphs-labor-objs') { openGraphLaborObjsModal(); } // 22.09-196: окно «Трудоёмкость по объектам»
     else if (a === 'graphs-labor-obj') { S.gloRi = parseInt(el.dataset.ri, 10); gloRender(); } // 22.09-196: внутрь карточки объекта
     else if (a === 'graphs-labor-back') { S.gloRi = -1; gloRender(); } // 22.09-196: назад к списку объектов
@@ -18886,7 +18957,13 @@
     }
     (g.objs || []).forEach(function (ob, ri) {
       if (!ob || ob.hide) return; // фильтр графика: скрытые объекты не показываются
-      h += '<div class="gw-obj"><span class="chip ' + esc(ob.type) + '">' + esc(ob.type) + '</span><span class="gw-obj-nm" title="' + esc(ob.name) + '">' + esc(ob.name) + '</span></div>';
+      // 22.09-278: значок «не в эксплуатации» / «статус не задан» в строке объекта
+      var _oInf = objOpInfoOf(ob.oid);
+      var _oTip = _oInf.ok ? '' : (_oInf.off
+        ? ('Объект не в эксплуатации (' + _oInf.status + '): работы не строятся, невыполненные задачи убраны, выполненные остались в истории. Периодичность сохранена — после возврата в эксплуатацию серия начнётся заново от даты возврата.')
+        : 'Статус объекта не задан: новые работы не строятся. Поставьте статус в карточке объекта или кнопкой «Статусы объектов» на панели.');
+      var _oBadge = _oInf.ok ? '' : ('<span class="gw-off' + (_oInf.off ? '' : ' warn') + '" title="' + esc(_oTip) + '">' + (_oInf.off ? '⛔' : '❓') + '</span>');
+      h += '<div class="gw-obj"><span class="chip ' + esc(ob.type) + '">' + esc(ob.type) + '</span><span class="gw-obj-nm" title="' + esc(ob.name) + '">' + esc(ob.name) + '</span>' + _oBadge + '</div>';
       for (var ci = 0; ci < 12; ci++) {
         h += '<div class="gw-c"' + (winterM[ci] ? ' style="background:#e0f0fb"' : '') +
           (ro ? '' : ' data-action="graphs-obj-month" data-ri="' + ri + '" data-mi="' + ci + '" title="График объекта · ' + MONTHS_RU[ci] + '"') +
@@ -18915,7 +18992,7 @@
     if (g.objs && g.objs.length) {
       // ни у одного объекта нет работ — заметная подсказка вместо «пустых» ячеек
       var anyWork = g.objs.some(function (ob) { return !ob.hide && gwObjWorks(ob).some(function (w) { return w.wid; }); });
-      var h = (anyWork ? '' : '<div class="calc" style="margin-bottom:10px;align-items:flex-start;border-left:4px solid var(--yellow)">⚠ Работы не заданы ни у одного объекта — треугольников нет. Нажмите «Настроить периодичность» на панели слева, выберите вид работы, периодичность и дату первого проведения.</div>') +
+      var h = graphsNonOpBannerHtml(g) + (anyWork ? '' : '<div class="calc" style="margin-bottom:10px;align-items:flex-start;border-left:4px solid var(--yellow)">⚠ Работы не заданы ни у одного объекта — треугольников нет. Нажмите «Настроить периодичность» на панели слева, выберите вид работы, периодичность и дату первого проведения.</div>') +
         gwYearGridHtml(g, false);
       body.innerHTML = h;
       return;
@@ -19054,6 +19131,14 @@
       toast('ok', '📅 Работы пересчитаны на ' + year + ' год — серии продолжаются от дат первого проведения: серий ' + rs.series + ', задач создано ' + rs.created + (rs.removed ? ', убрано прежних ' + rs.removed : '') + (rs.kept ? ', сохранено выполненных ' + rs.kept : '') + (rs.dup ? ', уже были в планировании (без дублей): ' + rs.dup : ''));
       if (rs.yaw) toast('warn', '⚠ У ' + rs.yaw + ' работ дата первого проведения позже ' + year + ' года — они не попадут в график.');
       if (rs.shifted) toast('ok', '⏮ По графику смен мастера: ' + rs.shifted + ' вхождений перенесено на ближайший предыдущий рабочий день.');
+      if (rs.off || rs.noStatus) { // 22.09-278
+        toast('warn', '⛔ Работы строятся только по объектам «В эксплуатации». Пропущено: ' +
+          (rs.noStatus ? 'без статуса — ' + rs.noStatus + ', ' : '') + (rs.off ? 'не в эксплуатации — ' + rs.off : '') +
+          '. У выведенных объектов невыполненные задачи убраны, выполненные остались в истории. Статусы — кнопка «Статусы объектов».');
+      }
+      if (rs.restarted) toast('ok', '🔄 Объекты вернулись в эксплуатацию: ' + rs.restarted + ' серия(й) начинается заново от даты возврата (шаг серии сохранён).');
+      if (rs.season) toast('ok', '☀❄ По сезону в группах работ выбраны другие версии: ' + rs.season + ' вхождений.');          // 22.09-279
+      if (rs.seasonSkip) toast('warn', '☀❄ Пропущено вхождений по сезону: ' + rs.seasonSkip + ' — версии для этого периода в группе нет.');
       if (rs.fail) toast('warn', '⚠ Не удалось создать задач: ' + rs.fail + ' (возможно, память браузера переполнена). Треугольники выставлены.');
     }
     if (S.screen === 'graphs' && GS.cur === gid) renderGraphs(); // шапка в панели обновится
@@ -19553,19 +19638,22 @@
     } else {
       rules = { type: false, lines: false, telemetry: false, service: false, heating: false };
     }
-    var firstOk = null, firstNoWin = null, firstAny = null;
+    /* 22.09-279: берём ПЕРВУЮ подходящую по характеристикам работу группы;
+       предпочитаем работу без сезона (или «Круглый год») — тогда серия
+       нейтральна, а зимние/летние версии подставляются по датам (gwOccWorkId). */
+    var firstOk = null, firstNeutral = null, firstAny = null;
     for (var i = 0; i < works.length; i++) {
       var w = works[i];
-      if (!w || gwWorkGroup(w) !== gp) continue;
+      if (!w || w._deleted || gwWorkGroup(w) !== gp) continue;
       if (!firstAny) firstAny = w;
       if (autopickExcludedName(w.name)) continue;
-      var winter = String(w.season || '').toLowerCase() === 'зима';
-      if (!winter && !firstNoWin) firstNoWin = w;
-      if (winter) continue; // как «⚡ Автоподбор»: зимние работы — вручную через 🎯
-      if (ob && workMatchesObjectParams(w, attrs, objType, rules)) return w;
+      var fits = !ob || workMatchesObjectParams(w, attrs, objType, rules);
+      if (!fits) continue;
+      if (!gwWorkSeasonKind(w) && !firstNeutral) firstNeutral = w;
       if (!firstOk) firstOk = w;
+      if (!gwWorkSeasonKind(w)) return w;
     }
-    return firstOk || firstNoWin || firstAny;
+    return firstOk || firstNeutral || firstAny;
   }
   /* 22.09-157: подпись группы в списках выбора работ. Закрытый список —
      просто название группы; РАСКРЫТЫЙ — «Группа (число работ)». Текст опций
@@ -19607,8 +19695,11 @@
       var chosen = null;
       ws.forEach(function (w) { if (w.id === sel) chosen = w; }); // выбранную ранее — сохраняем
       var w0 = chosen || gprGroupAutopick(area, gp, ri) || ws[0];
+      // 22.09-279: у сезонных групп в названии видно, какая версия выбрана (❄/☀)
+      var _sl = gwSeasonLabel(w0);
+      var gpLbl = gp + (_sl ? ' ' + _sl : '');
       // 22.09-157: закрытый список — название группы; раскрытый — «Группа (N)»
-      h += '<option value="' + esc(w0.id) + '"' + (chosen ? ' selected' : '') + ' title="' + esc(w0.name) + '" data-grp="' + esc(gp) + '"' + (ws.length > 1 ? ' data-cnt="' + ws.length + '"' : '') + '>' + esc(gp) + '</option>';
+      h += '<option value="' + esc(w0.id) + '"' + (chosen ? ' selected' : '') + ' title="' + esc(w0.name + (_sl ? ' · ' + _sl : '')) + '" data-grp="' + esc(gpLbl) + '"' + (ws.length > 1 ? ' data-cnt="' + ws.length + '"' : '') + '>' + esc(gpLbl) + '</option>';
     });
     works.forEach(function (w) {
       if (gwWorkGroup(w)) return; // работы с группой — выше, одна строка на группу
@@ -19699,7 +19790,7 @@
      даты каждого графика НЕ меняются — пересчёт выполняется только в том
      графике, который сохраняет пользователь. Серии всегда продолжаются от
      даты отсчёта сквозь года (без перезапуска в новом году). */
-  function gowRowCfg(w) { return { wid: w.wid, period: w.period || 0, dev: w.dev || 0, first: w.first || '' }; }
+  function gowRowCfg(w) { return { wid: w.wid, period: w.period || 0, dev: w.dev || 0, first: w.first || '', manual: !!w.manual }; } // 22.09-279: manual — работа выбрана вручную (🎯)
   /* Общий набор работ объекта: 1) o.plan_works; 2) запасной вариант — строки
      из самого свежего (старший год) графика, где объект уже настроен. */
   function graphObjWorksCfg(oid) {
@@ -19728,7 +19819,7 @@
     if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
     for (var i = 0; i < a.length; i++) {
       var x = a[i], y = b[i];
-      if (!x || !y || x.wid !== y.wid || (x.period || 0) !== (y.period || 0) || (x.dev || 0) !== (y.dev || 0) || (x.first || '') !== (y.first || '')) return false;
+      if (!x || !y || x.wid !== y.wid || (x.period || 0) !== (y.period || 0) || (x.dev || 0) !== (y.dev || 0) || (x.first || '') !== (y.first || '') || !!x.manual !== !!y.manual) return false;
     }
     return true;
   }
@@ -19769,7 +19860,7 @@
             w.period = r.period || 0; w.dev = r.dev || 0; w.first = r.first || '';
             kept.push(w);
           } else {
-            kept.push({ sid: gwNewSid(), wid: r.wid, period: r.period || 0, dev: r.dev || 0, first: r.first || '', occs: [] });
+            kept.push({ sid: gwNewSid(), wid: r.wid, period: r.period || 0, dev: r.dev || 0, first: r.first || '', manual: !!r.manual, occs: [] });
             st.added++;
           }
         });
@@ -19838,10 +19929,124 @@
     return found;
   }
 
+  /* ===== 22.09-279: СЕЗОН РАБОТ И ОДНА РАБОТА НА ГРУППУ =====
+     · В группе работ объекту назначается ОДНА работа — первая подходящая по
+       характеристикам (тип, линии, телеметрия, вид обслуживания, отопление).
+     · Сезон работы: не задан («» или «Круглый год») — сезон НЕ учитывается;
+       задан («Зима», «Лето», «Весна-осень» — в поле или в названии работы:
+       «…обхода летом…», «…обхода зимой…») — работа проводится только в свой сезон.
+     · Работы одной группы при наступлении сезона МЕНЯЮТСЯ: летняя дата —
+       летняя версия работы группы, зимняя дата — зимняя версия (например,
+       «Тех. осмотр ГРП 2-ниточного путем обхода летом тел.» ↔ «…зимой тел.»). */
+  var GW_WINTER_MONTHS = { 12: 1, 1: 1, 2: 1 }; // зимние месяцы, если зимний период графика не задан
+
+  /* Вид сезона работы: '' (не задан) | 'winter' | 'nowinter' */
+  function gwWorkSeasonKind(w) {
+    if (!w) return '';
+    var s = String(w.season || '').trim().toLowerCase();
+    if (s === 'зима' || s === 'зимний' || s === 'зимняя') return 'winter';
+    if (s === 'лето' || s === 'летний' || s === 'летняя' || s === 'весна-осень' || s === 'весна' || s === 'осень') return 'nowinter';
+    /* «Круглый год» — это значение по умолчанию, сезон оно НЕ задаёт: у таких
+       работ сезон часто указан в НАЗВАНИИ («…путем обхода зимой тел.»),
+       поэтому смотрим название и для «Круглого года». */
+    var fieldNeutral = (s === '' || s === 'круглый год' || s === 'круглогодичная' || s === 'круглогодичный');
+    if (!fieldNeutral) return '';
+    // поле сезон не задаёт — распознаём по названию работы (как «индел» и др.)
+    // ищем слово с началом «зим…» / «лет…» и типичным окончанием: «зимой»,
+    // «зимний», «летом», «летняя»… После окончания не должно быть буквы
+    // (кириллический \b в JS не работает — используем (?![а-яё]))
+    var t = ' ' + String(w.name || '').toLowerCase().replace(/\s+/g, ' ') + ' ';
+    if (/(?:^|[^а-яё])зим(?:ой|а|у|ы|е|ний|няя|нее|ние|нюю|них|ним|него|нему)(?![а-яё])/.test(t)) return 'winter';
+    if (/(?:^|[^а-яё])лет(?:ом|а|у|ы|е|ний|няя|нее|ние|нюю|них|ним|него|нему)(?![а-яё])/.test(t)) return 'nowinter';
+    return '';
+  }
+  /* Зимняя ли дата: зимний период графика (окно «Сезоны»), иначе календарь 12–2 */
+  function gwDateIsWinter(g, iso) {
+    if (g && g.winter && g.winter.from && g.winter.to) { try { return !!gwIsWinter(g, iso); } catch (e) {} }
+    var mo = parseInt(String(iso).slice(5, 7), 10) || 0;
+    return !!GW_WINTER_MONTHS[mo];
+  }
+  /* Подходит ли работа этой дате по сезону */
+  function gwSeasonFits(w, isWin) {
+    var k = gwWorkSeasonKind(w);
+    if (!k) return true;                       // сезон не задан — не учитываем
+    return k === 'winter' ? isWin : !isWin;    // задан — только в свой сезон
+  }
+  /* Работы ТОЙ ЖЕ ГРУППЫ, подходящие объекту (в порядке справочника) */
+  function gwGroupCandidates(area, baseW, ob, g) {
+    var out = [];
+    if (!baseW || !baseW.id) return out;
+    var gp = gwWorkGroup(baseW);
+    if (!gp) return [baseW];
+    var works = [];
+    try { works = WORK.getWorks(area) || []; } catch (e) {}
+    var attrs = {}, objType = (ob && ob.type) || '';
+    try {
+      var rec = (window.SP_OBJECTS && ob && ob.oid) ? SP_OBJECTS.getObject(ob.oid) : null;
+      if (rec && window.SP_OBJ_ATTRS) attrs = SP_OBJ_ATTRS.getAttrs(rec) || {};
+    } catch (e2) {}
+    works.forEach(function (w) {
+      if (!w || !w.id || w._deleted) return;
+      if (gwWorkGroup(w) !== gp) return;
+      if (autopickExcludedName(w.name)) return;
+      if (!workMatchesObjectParams(w, attrs, objType, {})) return; // все правила включены
+      out.push(w);
+    });
+    if (!out.length) out.push(baseW); // не нашлось подходящих — серия остаётся на своей работе
+    return out;
+  }
+  /* Работа для КОНКРЕТНОГО вхождения серии: своя или сезонная версия из группы.
+     Возвращает { wid, switched, skipped, season } — skipped: в этот сезон работа
+     не проводится (сезон задан, подходящей версии в группе нет). */
+  function gwOccWorkId(area, wrk, occIso, ob, g) {
+    var base = null;
+    try { base = WORK.getWork(area, wrk && wrk.wid); } catch (e) {}
+    if (!base) return { wid: (wrk && wrk.wid) || '' };
+    if (wrk && wrk.manual) return { wid: wrk.wid, manual: 1 }; // 🎯 ручной точный выбор — не меняем
+    var isWin = gwDateIsWinter(g, occIso);
+    var cands = gwGroupCandidates(area, base, ob, g);
+    /* Приоритет версий под эту дату:
+       1) работа, у которой сезон ЯВНО совпадает с датой (зимой — зимняя,
+          летом — летняя): она побеждает даже работу без сезона;
+       2) работа без сезона («» или «Круглый год») — подходит всегда;
+       3) ничего не подошло (у работ задан сезон, версии для этого периода
+          в группе нет) — в этот сезон работа НЕ проводится. */
+    var explicit = [], neutral = [];
+    cands.forEach(function (w2) {
+      var k = gwWorkSeasonKind(w2);
+      if (k === 'winter') { if (isWin) explicit.push(w2); return; }
+      if (k === 'nowinter') { if (!isWin) explicit.push(w2); return; }
+      neutral.push(w2);
+    });
+    function pickFrom(arr) {
+      for (var i = 0; i < arr.length; i++) if (arr[i].id === wrk.wid) return arr[i]; // своя работа — в приоритете
+      return arr[0];
+    }
+    var best = null;
+    if (explicit.length) best = pickFrom(explicit);
+    else if (neutral.length) best = pickFrom(neutral);
+    if (!best) return { wid: wrk.wid, skipped: 1, season: gwWorkSeasonKind(base) };
+    return best.id === wrk.wid ? { wid: wrk.wid } : { wid: best.id, switched: 1 };
+  }
+  /* Показ сезона работы для интерфейса: '' | '❄ Зима' | '☀ Лето' */
+  function gwSeasonLabel(w) {
+    var k = gwWorkSeasonKind(w);
+    return k === 'winter' ? '❄ Зима' : (k === 'nowinter' ? '☀ Лето' : '');
+  }
+
   function gwGenObjSeries(g, ri, area, ob, wrk, pastOn) {
     var st = { created: 0, shifted: 0, fail: 0, dup: 0 }; // 22.09-227: dup — вхождения, привязанные к уже существующим задачам (не дублируем)
     wrk.occs = [];
     if (!(g && wrk && wrk.wid && wrk.first && wrk.period > 0)) return st;
+    /* 22.09-278: работы строятся только объектам «В эксплуатации».
+       Объект выведен или статус не задан — новые задачи не создаются
+       (набор работ и периодичность сохраняются). */
+    var _oi = objOpInfoOf(ob && ob.oid);
+    if (!_oi.ok) { st.blocked = 1; st.off = _oi.off ? 1 : 0; return st; }
+    /* 22.09-278: объект вернулся в эксплуатацию — серия начинается заново от
+       даты возврата (старая периодичность/шаг сохраняется) */
+    var _effA = gwSeriesEffFirst(ob, wrk);
+    if (_effA.restarted) { wrk.first = _effA.first; st.restarted = 1; }
     // 22.09-189: якорь серии обязан быть валидной датой не позже года графика
     // (опечатка вида «20039-08-01» строковым сравнением «проходила»: '20039' < '2026' —
     // и цикл наставлял сотни задач на десятки тысяч лет вперёд)
@@ -19863,17 +20068,24 @@
     while (iso <= endISO && gwFromISO(iso).getFullYear() <= g.year && guard < 400) { // 22.09-189: стоп по году числом
       var occIso = gwOccDate(g.respId, iso, g.year);
       if (occIso !== iso) st.shifted++;
+      /* 22.09-279: сезон — в группе работ берётся версия под эту дату
+         (летом — летняя, зимой — зимняя); если подходящей версии нет,
+         в этот сезон работа не проводится (вхождение не создаётся) */
+      var _pick = gwOccWorkId(area, wrk, occIso, ob, g);
+      if (_pick.skipped) { wrk.skippedSeason = true; st.seasonSkip = (st.seasonSkip || 0) + 1; iso = gwNextISO(iso, wrk.period, wrk.dev); guard++; continue; }
+      var widOcc = _pick.wid || wrk.wid;
+      if (_pick.switched) st.season = (st.season || 0) + 1;
       var isPast = gwFromISO(occIso) < TODAY;
       var tk = null;
       if (!isPast || pastOn) {
         var dlIso = gwAddDaysISO(occIso, wrk.dev || 0);
         // 22.09-227: такой же объект+работа+дата уже в планировании (другой
         // график) — вторую задачу НЕ создаём, серия привязывается к имеющейся
-        var dupT = gwFindPlanTask(ob.oid, wrk.wid, occIso);
+        var dupT = gwFindPlanTask(ob.oid, widOcc, occIso);
         if (dupT) { tk = dupT; st.dup++; }
         else try {
           tk = TASKS_DB.addTask({
-            m: g.respId, d: dateToOff(gwFromISO(occIso)), o: ob.oid, w: wrk.wid, garea: area,
+            m: g.respId, d: dateToOff(gwFromISO(occIso)), o: ob.oid, w: widOcc, garea: area,
             s: 'plan', status: 'plan', volume: 1,
             slesari: brigIds,
             dl_date: dlIso, dl: dateToOff(gwFromISO(dlIso)),
@@ -19882,7 +20094,7 @@
           st.created++;
         } catch (eTask) { tk = null; st.fail++; }
       }
-      wrk.occs.push({ date: occIso, tid: tk ? tk.id : null, wid: wrk.wid });
+      wrk.occs.push({ date: occIso, tid: tk ? tk.id : null, wid: widOcc });
       iso = gwNextISO(iso, wrk.period, wrk.dev);
       guard++;
     }
@@ -19905,6 +20117,18 @@
     var endISO = g.year + '-12-31';
     g.objs.forEach(function (ob, ri) {
       var pastOn = !!ob.pastTasks;
+      /* 22.09-278: объект не в эксплуатации — невыполненные задачи графика
+         убираем (выполненные остаются в истории), новые серии не строим;
+         статус не задан — новые работы не строим, уже поставленные задачи
+         НЕ удаляем (показывается список «Статусы объектов»). */
+      var _oi = objOpInfoOf(ob && ob.oid);
+      if (_oi.off) {
+        gwObjWorks(ob).forEach(function (wrk) { if (wrk && wrk.wid) gwDropSeriesTasks(g, wrk, st); });
+        st.off = (st.off || 0) + 1;
+        return;
+      }
+      if (!_oi.known && !_oi.na) { st.noStatus = (st.noStatus || 0) + 1; return; } // статус не задан (у типов ГРП/ШРП/ПГРП)
+      var _restartedObj = 0;
       gwObjWorks(ob).forEach(function (wrk) {
         if (!wrk || !wrk.wid) return;
         var occs = wrk.occs || [];
@@ -19919,24 +20143,21 @@
           }
           if (hasYear) return; // серия уже на текущем году — не трогаем
         }
-        (occs || []).forEach(function (oc) {
-          if (!oc || !oc.tid) return;
-          var tk = null; try { tk = TASKS_DB.getTask(oc.tid); } catch (e) {}
-          if (!tk) return;
-          // 22.09-227: задача принадлежит ДРУГОМУ графику (привязана при
-          // защите от дублей) — не удаляем и не отвязываем от его серии,
-          // только снимаем привязку в ЭТОМ графике
-          if (tk.graphId && tk.graphId !== g.id) { oc.tid = null; st.kept++; return; }
-          if (isDone(tk)) { // выполненная — отвязать от серии, сохранить историю
-            try { TASKS_DB.updateTask(tk.id, { graphId: '', graphRi: null, graphSid: '' }); st.kept++; } catch (e2) {}
-          } else {
-            try { TASKS_DB.hardDeleteTask(tk.id); st.removed++; } catch (e3) { st.fail++; }
-          }
-        });
+        gwDropSeriesTasks(g, wrk, st); // 22.09-278: единый съём задач серии (выполненные остаются)
         if (wrk.first && !canHave) st.yaw++;
         var s2 = gwGenObjSeries(g, ri, area, ob, wrk, pastOn);
         st.series++; st.created += s2.created; st.shifted += s2.shifted; st.fail += s2.fail; st.dup = (st.dup || 0) + s2.dup; // 22.09-227
+        st.season = (st.season || 0) + (s2.season || 0); st.seasonSkip = (st.seasonSkip || 0) + (s2.seasonSkip || 0); // 22.09-279
+        if (s2.restarted) { st.restarted = (st.restarted || 0) + 1; _restartedObj = 1; } // 22.09-278: новый цикл после возврата в эксплуатацию
       });
+      // 22.09-278: серия перезапущена — новый отсчёт сохраняем и в общем наборе
+      // работ объекта (действует во всех графиках)
+      if (_restartedObj) {
+        try {
+          var _rowsRst = gwObjWorks(ob).filter(function (x) { return x && x.wid; }).map(gowRowCfg);
+          graphObjWorksCfgSave(ob.oid, _rowsRst);
+        } catch (eRst) {}
+      }
       // 22.09-159: после перегенерации года совместные работы снова в один день
       try { st.joint = (st.joint || 0) + gwJointAlign(ob.works || [], area); } catch (eJ) {}
     });
@@ -20005,8 +20226,25 @@
     if (!tType && !tReq && workGroupHasNoTmFlag(w)) tReq = 'not_equipped';
     if (!diag && txt.indexOf('приборного диагностического оборудования') !== -1) diag = true;
     if (!heat && txt.indexOf('отопительн') !== -1) heat = true;
-    return { telemetry_req: tReq, telemetry_type: tType, diag_equipment: diag, heating_req: heat };
+    /* 22.09-278: «работы по телеметрии» — ТМ/телемеханика/АСУТП (по названию или
+       группе). Такие работы не назначаются объектам без телеметрии; для объектов
+       Region-gaz это разрешённый вид работ наравне с приборной диагностикой. */
+    var tmLike = /телеметр|телемехан|асутп|\(тм\)/.test(txt);
+    if (!tReq && !tType && tmLike) tReq = 'equipped';
+    if (tReq === 'equipped' || tType || tmLike) tmLike = true;
+    if (tReq === 'not_equipped') tmLike = false;
+    /* 22.09-278: вид отопления объекта — из карточки работы, иначе по названию
+       (газовые котлы/аппараты → «Газовое»; электрокотлы → «Электрическое»). */
+    var hkind = String(w.heating_kind || '').trim();
+    if (!hkind) {
+      if (/электро(котл|отоплен|нагревате|водонагрев)/.test(txt)) hkind = 'Электрическое';
+      else if (/газов(ых|ого|ому|ый|ое)\s+(котл|аппарат|водонагрев)/.test(txt)) hkind = 'Газовое';
+    }
+    return { telemetry_req: tReq, telemetry_type: tType, diag_equipment: diag, heating_req: heat, heating_kind: hkind, tm_like: tmLike };
   }
+  // 22.09-278: связи работы с оборудованием объекта — доступны справочнику
+  // «Виды работ» (бейджи) и тестам
+  window.SP_WORK_EFF = workEffAttrs;
   function workMatchesObjectParams(w, attrs, objType, rules) {
     rules = rules || {};
     // 22.09-144: пометка группы «ГРП» УПРАЗДНЕНА — это название участка
@@ -20035,18 +20273,161 @@
       } else if (eff.telemetry_req === 'equipped' && !objTel) return false;
       else if (eff.telemetry_req === 'not_equipped' && objTel) return false;
     }
-    // 22.09-115: приборное диагностическое оборудование — только вид обслуживания Region-gas
+    // 22.09-278: ВИД ОБСЛУЖИВАНИЯ (Region-gaz).
+    //  · работа «с приборным диагностическим оборудованием» — только объектам Region-gaz;
+    //  · у объектов Region-gaz работы строятся ТОЛЬКО двух видов: приборная
+    //    диагностика и телеметрия — остальные (ремонты, тех. осмотры и пр.) не назначаются.
     if (rules.service !== false) {
-      if (eff.diag_equipment) {
-        var sk = String(attrs && attrs.serviceKind || '').trim().toLowerCase();
-        if (sk !== 'region-gaz' && sk !== 'region-gas') return false;
+      var sk = String(attrs && attrs.serviceKind || '').trim().toLowerCase();
+      var isRg = (sk === 'region-gaz' || sk === 'region-gas');
+      if (eff.diag_equipment) { if (!isRg) return false; }
+      else if (isRg && !eff.tm_like) return false;
+    }
+    // 22.09-278: ОТОПЛЕНИЕ — работы «по отопительному» только объектам с отоплением,
+    // и если у работы задан вид отопления (газовое/электрическое) — он должен совпадать
+    if (rules.heating !== false) {
+      var hkObj = String(attrs && attrs.heating || '').trim();
+      if (eff.heating_req || eff.heating_kind) {
+        if (!hkObj) return false;
+        if (eff.heating_kind && hkObj.toLowerCase() !== eff.heating_kind.toLowerCase()) return false;
       }
     }
-    // 22.09-115: ТО отопительного оборудования — только объектам с отоплением (у ШРП его нет → только ГРП)
-    if (rules.heating !== false) {
-      if (eff.heating_req && !String(attrs && attrs.heating || '').trim()) return false;
-    }
     return true;
+  }
+  /* ===== 22.09-278: СТАТУС ОБЪЕКТА И ГРАФИКИ =====
+     Работы строятся только по объектам «В эксплуатации». Ниже — сбор сведений,
+     значок в строке графика, предупреждение на странице и окно «Статусы объектов». */
+  function graphsNonOpList(g) {
+    var res = { off: [], noStatus: [] };
+    ((g && g.objs) || []).forEach(function (ob, ri) {
+      if (!ob || !ob.oid) return;
+      var info = objOpInfoOf(ob.oid);
+      if (info.ok) return;
+      var item = { ri: ri, oid: ob.oid, name: ob.name || '', type: ob.type || '', status: info.status, from: info.from };
+      if (info.off) res.off.push(item); else res.noStatus.push(item);
+    });
+    return res;
+  }
+  function graphsNonOpBannerHtml(g) {
+    var l = graphsNonOpList(g);
+    if (!l.off.length && !l.noStatus.length) return '';
+    var parts = [];
+    if (l.noStatus.length) parts.push('<b>' + l.noStatus.length + '</b> без статуса');
+    if (l.off.length) parts.push('<b>' + l.off.length + '</b> не в эксплуатации');
+    return '<div class="calc" style="margin-bottom:10px;align-items:flex-start;gap:10px;border-left:4px solid var(--red)">' +
+      '<div>⛔ Работы строятся только по объектам «В эксплуатации». В этом графике: ' + parts.join(' и ') + '. Новые задачи им не создаются' +
+      (l.off.length ? '; у выведенных объектов невыполненные задачи убираются из графика (выполненные остаются в истории), а периодичность работ сохраняется' : ' — уже поставленные задачи сохраняются, пока статус не проставлен') +
+      '.</div>' +
+      '<button type="button" class="btn sm" data-action="graphs-status-fill" style="background:#b91c1c;color:#fff;border-color:#991b1b;font-weight:700">Статусы объектов</button></div>';
+  }
+  /* Окно «Статусы объектов графика»: список объектов без статуса и выведенных из
+     эксплуатации; статус ставится в один клик. Статус пишется в карточку объекта,
+     синхронизируется с сервером; дата изменения запоминается (новый отсчёт работ). */
+  function openGraphStatusModal() {
+    var g = graphsFind(GS.cur);
+    if (!g) { toast('err', 'Сначала выберите график'); return; }
+    var l = graphsNonOpList(g);
+    var rows = l.noStatus.concat(l.off);
+    var opts = ['В эксплуатации', 'Проектируется', 'Строится', 'Реконструкция', 'Консервация', 'Ликвидирован'];
+    var h = '<div class="modal-h"><h3>Статусы объектов графика</h3><button class="x" data-action="close-modal2">×</button></div>';
+    h += '<div class="modal-b">';
+    h += '<div class="calc" style="align-items:flex-start;font-size:12.5px;line-height:1.5;margin-bottom:10px">' +
+      'Графики работ строятся только по объектам «В эксплуатации». Поставьте статус — он сохранится в карточке объекта и синхронизируется с сервером. ' +
+      'Дата изменения запоминается: после возврата в эксплуатацию отсчёт работ начнётся заново от этой даты (шаг серии — старая периодичность, пока не зададите новую в «Настроить периодичность»).</div>';
+    if (!rows.length) {
+      h += '<div class="empty" style="padding:22px 14px;font-size:13px">✅ Все объекты этого графика «В эксплуатации» — заполнять нечего.</div>';
+    } else {
+      h += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">' +
+        '<button type="button" class="btn sm" data-action="graphs-status-all" style="background:#16a34a;color:#fff;border-color:#15803d;font-weight:700">✓ Всем без статуса — «В эксплуатации»</button>' +
+        '<span style="font-size:12.5px;color:var(--muted);font-weight:700">строк: ' + rows.length + ' (без статуса: ' + l.noStatus.length + ', не в эксплуатации: ' + l.off.length + ')</span></div>';
+      h += '<div style="display:flex;flex-direction:column;gap:6px;max-height:52vh;overflow-y:auto;padding:2px">';
+      rows.forEach(function (r) {
+        h += '<div class="gao-row" style="cursor:default">' +
+          '<span class="chip ' + esc(r.type) + '">' + esc(r.type) + '</span>' +
+          '<span style="min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(r.name) + '">' + esc(r.name) + '</span>' +
+          '<select data-graph-status="' + esc(r.oid) + '" style="flex:0 0 auto;min-width:200px">' +
+            '<option value="">' + esc(r.status || '— статус не задан —') + '</option>' +
+            opts.filter(function (o) { return o !== r.status; }).map(function (o) { return '<option value="' + esc(o) + '">' + esc(o) + '</option>'; }).join('') +
+          '</select></div>';
+      });
+      h += '</div>';
+    }
+    h += '</div>';
+    h += '<div class="modal-f"><button type="button" class="btn" data-action="close-modal2">Закрыть</button></div>';
+    modal.innerHTML = h;
+    modal.style.maxWidth = '760px';
+    overlay.classList.add('show');
+    var sels = modal.querySelectorAll('select[data-graph-status]');
+    for (var i = 0; i < sels.length; i++) {
+      sels[i].addEventListener('change', function () {
+        var oid = this.getAttribute('data-graph-status');
+        var st = this.value;
+        if (!st) return;
+        if (graphStatusSet(oid, st)) {
+          toast('ok', '✓ Статус сохранён: ' + st + '. Задачи пересчитаются при сохранении графика.');
+          try { if (typeof refreshObjects === 'function') refreshObjects(); } catch (eRO) {}
+          openGraphStatusModal();
+          if (S.screen === 'graphs') renderGraphs();
+        } else toast('warn', 'Статус не изменился');
+      });
+    }
+  }
+  /* Запись статуса объекта: карточка объекта + дата изменения + журнал действий */
+  function graphStatusSet(oid, status) {
+    var rec = objRecOf(oid);
+    if (!rec) return false;
+    if (objStatusOf(rec) === status) return false;
+    var today = gwToISO(new Date());
+    try {
+      var attrs = (window.SP_OBJ_ATTRS && SP_OBJ_ATTRS.getAttrs) ? SP_OBJ_ATTRS.getAttrs(rec) : Object.assign({}, rec.attrs || {});
+      attrs.status = status;
+      if (!(window.SP_OBJECTS && SP_OBJECTS.updateObject)) return false;
+      SP_OBJECTS.updateObject(oid, { attrs: attrs, statusFrom: today });
+      try { if (rec.attrs) rec.attrs.status = status; rec.statusFrom = today; } catch (e2) {}
+    } catch (e) { return false; }
+    try { logAction('Статус объекта', (objFullAddr(rec) || oid) + ' → ' + status); } catch (e3) {}
+    return true;
+  }
+  /* «Всем без статуса — В эксплуатации» (кнопка в окне статусов) */
+  function graphStatusAllOper() {
+    var g = graphsFind(GS.cur);
+    if (!g) return 0;
+    var n = 0;
+    graphsNonOpList(g).noStatus.forEach(function (r) { if (graphStatusSet(r.oid, 'В эксплуатации')) n++; });
+    return n;
+  }
+  /* 22.09-278: дата старта серии с учётом вывода/возврата объекта в эксплуатацию.
+     Объект вернулся в эксплуатацию (дата изменения статуса или новая «дата ввода
+     в эксплуатацию» позже даты первого проведения) — серия начинается ЗАНОВО от
+     этой даты; шаг серии (старая периодичность) сохраняется. */
+  function gwSeriesEffFirst(ob, wrk) {
+    var first = String((wrk && wrk.first) || '');
+    var out = { first: first, restarted: 0 };
+    if (!first) return out;
+    var rec = objRecOf(ob && ob.oid);
+    if (!rec) return out;
+    var info = objOpInfo(rec);
+    if (!info.ok) return out;
+    var cand = '';
+    if (info.from && info.from > first) cand = info.from;
+    var cd = String((rec.attrs && rec.attrs.commissionDate) || '');
+    if (/^\d{4}-\d{2}-\d{2}$/.test(cd) && cd > first && cd > cand) cand = cd;
+    if (!cand) return out;
+    out.first = cand; out.restarted = 1;
+    return out;
+  }
+  /* 22.09-278: снять невыполненные задачи серии (выполненные отвязываются от
+     серии и остаются в истории) — при выводе объекта из эксплуатации */
+  function gwDropSeriesTasks(g, wrk, st) {
+    (wrk && wrk.occs || []).forEach(function (oc) {
+      if (!oc || !oc.tid) return;
+      var tk = null; try { tk = TASKS_DB.getTask(oc.tid); } catch (e) {}
+      if (!tk) return;
+      if (tk.graphId && tk.graphId !== g.id) { oc.tid = null; st.kept++; return; }
+      if (isDone(tk)) { try { TASKS_DB.updateTask(tk.id, { graphId: '', graphRi: null, graphSid: '' }); st.kept++; } catch (e2) {} }
+      else { try { TASKS_DB.hardDeleteTask(tk.id); st.removed++; } catch (e3) { st.fail++; } }
+    });
+    wrk.occs = [];
   }
   // Дата первого проведения из «Даты ввода в эксплуатацию»: переносится в год графика
   function gprFirstFromCommission(attrs, year) {
@@ -20076,9 +20457,26 @@
      Периодичность/отклонение — из карточки работы; дата первой — из даты ввода
      в эксплуатацию объекта (если у работы реквизит отсчёта «Дата ввода...»).
      Возвращает число добавленных строк. В график попадает по кнопке «Сохранить». */
+  /* 22.09-278: сведения о пропущенных объектах автоподбора (не в эксплуатации) */
+  var _gprSkip = { off: [], noStatus: [] };
+  function gprSkipReset() { _gprSkip = { off: [], noStatus: [] }; }
+  function gprSkipInfoHtml() {
+    var p = [];
+    if (_gprSkip.noStatus.length) p.push('без статуса: ' + _gprSkip.noStatus.length);
+    if (_gprSkip.off.length) p.push('не в эксплуатации: ' + _gprSkip.off.length);
+    return p.join(', ');
+  }
   function gprAutofill(area, ri, g, mode) {
     if (!g || !g.objs || !g.objs[ri]) return 0;
     var ob = g.objs[ri];
+    /* 22.09-278: работы не назначаются объектам, которые не «В эксплуатации» */
+    var _oi = objOpInfoOf(ob.oid);
+    if (!_oi.ok) {
+      var nm = ob.name || ob.oid || ('строка ' + (ri + 1));
+      if (_oi.off) { if (_gprSkip.off.indexOf(nm) < 0) _gprSkip.off.push(nm); }
+      else if (_gprSkip.noStatus.indexOf(nm) < 0) _gprSkip.noStatus.push(nm);
+      return 0;
+    }
     var attrs = {};
     try {
       var rec = (window.SP_OBJECTS && ob.oid) ? SP_OBJECTS.getObject(ob.oid) : null;
@@ -20090,16 +20488,26 @@
     var empty = box.querySelector('.gpr-empty');
     if (empty) empty.parentNode.removeChild(empty);
     var have = {};
-    box.querySelectorAll('select[data-gpr-w]').forEach(function (s) { if (s.value) have[s.value] = 1; });
+    var haveGroups = {};
+    box.querySelectorAll('select[data-gpr-w]').forEach(function (s) {
+      if (!s.value) return;
+      have[s.value] = 1;
+      // 22.09-279: группа уже есть в списке — вторую работу той же группы не добавляем
+      try { var w0 = WORK.getWork(area, s.value); var g0 = w0 ? gwWorkGroup(w0) : ''; if (g0) haveGroups[g0] = 1; } catch (e0) {}
+    });
+    var addedGroups = {}; // 22.09-279: одна работа на группу
     var works = [];
     try { works = WORK.getWorks(area) || []; } catch (e) {}
     var added = 0;
     works.forEach(function (w) {
-      if (!w || !w.id || have[w.id]) return;
+      if (!w || !w.id || w._deleted || have[w.id]) return;
       // 22.09-137: исключённые названия не подбираются НИКОГДА (все режимы)
       if (autopickExcludedName(w.name)) return;
-      // 22.09-121: зимние работы (сезон «Зима» в карточке работы) автоподбором не добавляются
-      if (String(w.season || '').toLowerCase() === 'зима') return;
+      /* 22.09-279: ОДНА работа на группу — первая подходящая по характеристикам.
+         Сезон здесь НЕ отсекает работу: в группе могут быть зимняя и летняя
+         версии — график сам возьмёт нужную по дате (см. gwOccWorkId). */
+      var gp = gwWorkGroup(w);
+      if (gp && (haveGroups[gp] || addedGroups[gp])) return;
       // 22.09-118: режимы подбора — 'tm' только работы с телеметрией, 'notm' только без ТМ
       if (mode === 'tm' || mode === 'notm') {
         var ef = workEffAttrs(w);
@@ -20122,7 +20530,9 @@
       var div = document.createElement('div');
       div.innerHTML = gprRowHtml(area, ri, wi, { sid: '', wid: w.id, period: per, dev: dev, first: first }, true);
       box.appendChild(div.firstChild);
-      have[w.id] = 1; added++;
+      have[w.id] = 1;
+      if (gp) addedGroups[gp] = 1;
+      added++;
     });
     return added;
   }
@@ -20144,8 +20554,22 @@
       '<label class="cb" style="font-size:12px;color:#166534"><input type="checkbox" id="gpr-crit-type" checked> по типу объекта ► «Категория объекта» в карточке работы</label>' +
       '<label class="cb" style="font-size:12px;color:#166534"><input type="checkbox" id="gpr-crit-lines" checked> по линиям редуцирования ► «Линий редуцирования» у работы = параметру объекта</label>' +
       '<label class="cb" style="font-size:12px;color:#166534"><input type="checkbox" id="gpr-crit-telemetry" checked> по телеметрии ► наличие/тип ТМ объекта и работы</label>' +
-      '<label class="cb" style="font-size:12px;color:#166534"><input type="checkbox" id="gpr-crit-service" checked> по виду обслуживания ► приборная диагностика только при Region-gas</label>' +
-      '<label class="cb" style="font-size:12px;color:#166534"><input type="checkbox" id="gpr-crit-heating" checked> по отоплению ► ТО отопит. оборудования только ГРП с отоплением</label>' +
+      '<label class="cb" style="font-size:12px;color:#166534"><input type="checkbox" id="gpr-crit-service" checked> по виду обслуживания ► Region-gaz: только диагностика и телеметрия; диагностика — только Region-gaz</label>' +
+      '<label class="cb" style="font-size:12px;color:#166534"><input type="checkbox" id="gpr-crit-heating" checked> по отоплению ► работы по отопительному — только объектам с отоплением, с учётом вида (газовое/электрическое)</label>' +
+      '<div style="font-size:11.5px;color:#166534;opacity:.85">Всегда включено: работы строятся только по объектам «В эксплуатации» (статус — в карточке объекта); «+ работа» и «🎯» — ручное назначение в обход правил.</div>' +
+      '<details style="font-size:11.5px;color:#166534;background:#fff;border:1px solid #bbf7d0;border-radius:6px;padding:5px 8px;max-width:100%">' +
+        '<summary style="cursor:pointer;font-weight:700">📋 Что сравнивается у работы и объекта (сверка атрибутов)</summary>' +
+        '<div style="margin-top:5px;line-height:1.5">' +
+        '1) <b>Тип объекта</b>: у работы «Категория объекта обслуживания» (ГРП/ШРП/ПГРП) ↔ тип объекта; пусто — работа подходит всем.<br>' +
+        '2) <b>Линии редуцирования</b>: «Кол-во линий» у работы ↔ «Кол-во линий редуцирования» объекта (если у объекта не заполнено — работы «по линиям» не подбираются).<br>' +
+        '3) <b>Телеметрия</b>: наличие и тип ТМ у работы ↔ «Тип телеметрии» объекта; работы по ТМ (телеметрия/телемеханика/АСУТП — по полю или названию) — только объектам с телеметрией.<br>' +
+        '4) <b>Вид обслуживания</b>: приборная диагностика ↔ «REGION-gaz» у объекта; у объектов REGION-gaz подбираются только диагностика и работы по телеметрии.<br>' +
+        '5) <b>Отопление</b>: работы «по отопительному» ↔ «Вид отопления» объекта (Газовое/Электрическое); у ШРП отопления нет.<br>' +
+        '6) <b>Статус</b>: работы строятся только объектам «В эксплуатации»; выведенным — задачи снимаются, периодичность сохраняется, после возврата — новый отсчёт.<br>' +
+        '7) <b>Сезон и группы</b>: в группе работ объекту назначается ОДНА работа — первая подходящая по характеристикам; сезон не задан («» или «Круглый год») — не учитывается, задан («Зима», «Лето», «Весна-осень» — в поле или в названии: «…обхода летом/зимой…») — работа проводится только в свой сезон, причём внутри группы версия МЕНЯЕТСЯ по датам (зимняя дата — зимняя версия, летняя — летняя).<br>' +
+        '8) <b>Групповые пометки</b> (🏷 у группы работ): «Работы с ТМ» / «Без телеметрии».<br>' +
+        '<span style="opacity:.85">Правила включаются галочками выше; сверка идёт по полям карточки работы, а если они пусты — по названию работы и группы (ИНДЕЛ, «оборудованных/не оборудованных системой телеметрии», «приборного диагностического оборудования», «отопительного», «газовых котлов»).</span>' +
+        '</div></details>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
       '<button type="button" class="btn sm" id="gpr-auto-all" style="background:#16a34a;color:#fff;border-color:#15803d;font-weight:700">⚡ Подобрать всем объектам</button>' +
       '<button type="button" class="btn sm" id="gpr-auto-tm" title="Добавляются только работы, связанные с телеметрией («с ТМ» по полю карточки или названию), и только объектам с телеметрией" style="background:#0369a1;color:#fff;border-color:#075985;font-weight:700">📡 Только работы с ТМ</button>' +
@@ -20154,7 +20578,7 @@
       '</div>';
     h += '<div class="gpr-cols"><span>Вид работы</span><span></span><span>Период., мес</span><span>Откл., дн</span><span>Дата первого проведения</span><span></span></div>';
     h += '<div id="gpr-list" style="display:flex;flex-direction:column;gap:10px;padding:2px"></div>';
-    h += '<div class="calc" style="align-items:flex-start;font-size:12.5px;line-height:1.5"><b>В списке каждой строки — ОДНА строка на ГРУППУ работ (раскройте список — в скобках число видов работ в группе): конкретный вид работ внутри группы подбирается под объект автоматически по тем же правилам, что «⚡», ручной точный выбор — кнопкой 🎯; какой вид работ выбран — видно при наведении на строку.</b> Шаг серии = периодичность МИНУС отклонение (1 мес и отклонение 2 дн: работа 18 числа → следующая 16 числа следующего месяца). У каждого объекта может быть несколько работ — «+ работа». Работы появляются в «Планировании»; перемещение задачи там переносит её и последующие по шагу серии. <b>Даты, попавшие на день, когда мастер графика не работает (выходные 5/2 и 2/2, отсутствия — график смен на вкладке «Работники»), автоматически переносятся на ближайший предыдущий рабочий день; шаг серии считается от своих исходных дат.</b> <b>⚡ Автоподбор (кнопка сверху или «⚡» у объекта) добавляет объектам работы из справочника по их параметрам: тип объекта ↔ «Категория объекта обслуживания», линии редуцирования объекта ↔ «Кол-во линий редуцирования» в карточке работы. Периодичность и отклонение подставляются из справочника; дата первого проведения — из «Даты ввода в эксплуатацию» объекта, если у работы выбран реквизит отсчёта «Дата ввода в эксплуатацию». Критерии оборудования: телеметрия (работы «с ТМ» не попадут на объект без ТМ; выбран тип — совпадение по типу и наличию), приборная диагностика только при виде обслуживания «Region-gas», ТО отопительного оборудования только ГРП с отоплением. Если поля в карточке работы не заполнены, связь распознаётся по названию работы/группы («ИНДЕЛ», «оборудованных/не оборудованных системой телеметрии», «приборного диагностического оборудования», «отопительного»). Режимы: «📡 Только работы с ТМ» — одни телеметрические работы, «🚫📡 Только без ТМ» — одни работы без привязки к телеметрии. Зимние работы (сезон «Зима» в карточке работы) автоподбором не добавляются — назначьте их вручную кнопкой «+ работа». Пометки групп (кнопка 🏷 у группы в справочнике «Виды работ», участок ГРП): «Работы с ТМ» — только объектам с телеметрией; «Без телеметрии» — только объектам без телеметрии; остальные пометки — просто метки. Работа «Текущий ремонт оборудования шкафных газорегуляторных пунктов без опрессовки» автоподбором НЕ назначается. <b>Набор работ объекта — ОБЩИЙ для всех графиков: добавленный в другой график объект приходит со своими работами; правки набора видны во всех графиках. Уже рассчитанные даты других графиков при этом НЕ меняются — пересчёт только в сохраняемом графике; серии всегда продолжаются от даты первого проведения (без перезапуска в новом году).</b></b></div>';
+    h += '<div class="calc" style="align-items:flex-start;font-size:12.5px;line-height:1.5"><b>В списке каждой строки — ОДНА строка на ГРУППУ работ (раскройте список — в скобках число видов работ в группе): конкретный вид работ внутри группы подбирается под объект автоматически по тем же правилам, что «⚡», ручной точный выбор — кнопкой 🎯; какой вид работ выбран — видно при наведении на строку.</b> Шаг серии = периодичность МИНУС отклонение (1 мес и отклонение 2 дн: работа 18 числа → следующая 16 числа следующего месяца). У каждого объекта может быть несколько работ — «+ работа». Работы появляются в «Планировании»; перемещение задачи там переносит её и последующие по шагу серии. <b>Даты, попавшие на день, когда мастер графика не работает (выходные 5/2 и 2/2, отсутствия — график смен на вкладке «Работники»), автоматически переносятся на ближайший предыдущий рабочий день; шаг серии считается от своих исходных дат.</b> <b>⚡ Автоподбор (кнопка сверху или «⚡» у объекта) добавляет объектам работы из справочника по их параметрам: тип объекта ↔ «Категория объекта обслуживания», линии редуцирования объекта ↔ «Кол-во линий редуцирования» в карточке работы. Периодичность и отклонение подставляются из справочника; дата первого проведения — из «Даты ввода в эксплуатацию» объекта, если у работы выбран реквизит отсчёта «Дата ввода в эксплуатацию». Критерии оборудования: телеметрия (работы «с ТМ» не попадут на объект без ТМ; выбран тип — совпадение по типу и наличию), приборная диагностика только при виде обслуживания «Region-gas», ТО отопительного оборудования только ГРП с отоплением. Если поля в карточке работы не заполнены, связь распознаётся по названию работы/группы («ИНДЕЛ», «оборудованных/не оборудованных системой телеметрии», «приборного диагностического оборудования», «отопительного»). Режимы: «📡 Только работы с ТМ» — одни телеметрические работы, «🚫📡 Только без ТМ» — одни работы без привязки к телеметрии. В ГРУППЕ РАБОТ объекту назначается ОДНА работа — первая подходящая по характеристикам (в списке строка одна на группу). СЕЗОН: если у работы сезон не задан («» или «Круглый год») — он не учитывается; если задан («Зима», «Лето», «Весна-осень» — в карточке или в названии работы: «…обхода летом…» / «…обхода зимой…») — работа проводится только в свой сезон, а внутри группы версия работы меняется по дате: на зимние даты — зимняя, на остальные — летняя/обычная (зимний период — из окна «Сезоны»; если он не задан, зимой считаются декабрь–февраль). Работа, выбранная вручную кнопкой 🎯, по сезону НЕ переключается. Пометки групп (кнопка 🏷 у группы в справочнике «Виды работ», участок ГРП): «Работы с ТМ» — только объектам с телеметрией; «Без телеметрии» — только объектам без телеметрии; остальные пометки — просто метки. Работа «Текущий ремонт оборудования шкафных газорегуляторных пунктов без опрессовки» автоподбором НЕ назначается. <b>Набор работ объекта — ОБЩИЙ для всех графиков: добавленный в другой график объект приходит со своими работами; правки набора видны во всех графиках. Уже рассчитанные даты других графиков при этом НЕ меняются — пересчёт только в сохраняемом графике; серии всегда продолжаются от даты первого проведения (без перезапуска в новом году).</b></b></div>';
     h += '</div>';
     h += '<div class="modal-f"><button type="button" class="btn ok" data-action="graphs-period-save">Сохранить</button><button type="button" class="btn danger" data-action="close-modal">Отменить</button></div>';
     modal.innerHTML = h;
@@ -20178,9 +20602,14 @@
       listEl.addEventListener('click', function (e) {
         var auto1 = e.target.closest('[data-gpr-auto]'); // 22.09-114: автоподбор одному объекту
         if (auto1) {
+          gprSkipReset(); // 22.09-278
           var nA = gprAutofill(area, parseInt(auto1.getAttribute('data-gpr-auto'), 10), g);
           if (nA) toast('ok', '⚡ Подобрано работ: ' + nA + ' — проверьте и нажмите «Сохранить»');
-          else toast('warn', '⚡ Новых работ не подобрано: всё уже назначено или нет совпадений по параметрам объекта');
+          else {
+            var sk1 = gprSkipInfoHtml();
+            if (sk1) toast('warn', '⛔ Работы не назначаются: объект ' + ((_gprSkip.off.length) ? 'не в эксплуатации' : 'без статуса') + ' (' + sk1 + '). Поставьте статус «В эксплуатации» — или назначайте работы вручную кнопкой «+ работа».');
+            else toast('warn', '⚡ Новых работ не подобрано: всё уже назначено или нет совпадений по параметрам объекта');
+          }
           return;
         }
         var add = e.target.closest('[data-gpr-add]');
@@ -20198,6 +20627,7 @@
                выбранную вручную работу (иначе option со старым id не совпадёт) */
             pSel.innerHTML = gprWorkOptions(area, newWid, isNaN(pRi) ? -1 : pRi);
             pSel.value = newWid;
+            try { if (pRow) pRow.setAttribute('data-manual', '1'); } catch (eM) {} // 22.09-279: точный выбор — сезон не переключает
             try { var wN = WORK.getWork(area, newWid); pSel.title = wN ? wN.name : ''; } catch (errN) {}
             try { pSel.dispatchEvent(new Event('change', { bubbles: true })); } catch (errD) {} // подтянуть периодичность из карточки
           });
@@ -20225,7 +20655,9 @@
       var w = null;
       try { w = WORK.getWork(area, sel.value); } catch (err) {}
       if (!w) return;
-      sel.title = w.name || ''; // 22.09-145: подсказка строки — полный вид работ
+      var _slc = gwSeasonLabel(w); // 22.09-279
+      sel.title = (w.name || '') + (_slc ? ' · ' + _slc : ''); // 22.09-145: подсказка строки — полный вид работ
+      try { var _rw = sel.closest('.gpr-wrow'); if (_rw) _rw.removeAttribute('data-manual'); } catch (eRM) {} // выбор из списка — снова автоматический режим группы
       var id = sel.getAttribute('data-idx');
       // В графике шаг задаётся в месяцах: значение «в днях» не конвертируем
       var per = (w.periodicity_unit === 'дней') ? 0 : (parseInt(w.periodicity_value, 10) || 0);
@@ -20272,10 +20704,14 @@
     // 22.09-114: кнопки автоподбора — всем / 22.09-118: только с ТМ / только без ТМ
     function gprAutoAllRun(mode) {
       var tot = 0, objs = 0;
+      gprSkipReset(); // 22.09-278
       g.objs.forEach(function (ob, ri) { var n = gprAutofill(area, ri, g, mode); if (n > 0) objs++; tot += n; });
       var what = mode === 'tm' ? 'работ с ТМ' : (mode === 'notm' ? 'работ без ТМ' : 'работ');
       if (tot) toast('ok', '⚡ Подобрано ' + what + ': ' + tot + ' (объектов затронуто: ' + objs + ') — проверьте и нажмите «Сохранить»');
-      else toast('warn', '⚡ Новых ' + what + ' не подобрано: либо всё уже назначено, либо работы не совпадают с параметрами объектов (проверьте тип, линии, телеметрию, вид обслуживания и отопление)');
+      else toast('warn', '⚡ Новых ' + what + ' не подобрано: либо всё уже назначено, либо работы не совпадают с параметрами объектов (проверьте статус, тип, линии, телеметрию, вид обслуживания и отопление)');
+      // 22.09-278: объектам не «В эксплуатации» работы не назначаются — говорим об этом прямо
+      var sk = gprSkipInfoHtml();
+      if (sk) toast('warn', '⛔ Пропущены объекты, которым работы не строятся — ' + sk + '. Поставьте им статус (кнопка «Статусы объектов» на панели графика или карточка объекта).');
     }
     var autoAll = document.getElementById('gpr-auto-all');
     if (autoAll) autoAll.addEventListener('click', function () { gprAutoAllRun(null); });
@@ -20292,11 +20728,18 @@
     var h = '';
     g.objs.forEach(function (ob, ri) {
       var works = gwObjWorks(ob);
+      // 22.09-278: статус эксплуатации в строке объекта (работы — только «В эксплуатации»)
+      var _gi = objOpInfoOf(ob.oid);
+      var _gchip = _gi.na ? '' : (_gi.ok
+        ? '<span class="chip" style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;flex:0 0 auto" title="Объект в эксплуатации — работы строятся">✓ в экспл.</span>'
+        : (_gi.off
+          ? '<span class="chip" style="background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;flex:0 0 auto" title="Объект не в эксплуатации (' + esc(_gi.status) + '): новые работы не строятся, невыполненные задачи убираются, выполненные остаются в истории. Периодичность сохраняется.">⛔ ' + esc(_gi.status) + '</span>'
+          : '<span class="chip" style="background:#fffbeb;color:#b45309;border:1px solid #fde68a;flex:0 0 auto" title="Статус объекта не задан: новые работы не строятся. Поставьте статус «В эксплуатации» в карточке объекта или кнопкой «Статусы объектов».">❓ статус не задан</span>'));
       h += '<div class="gpr-obj" data-obj="' + ri + '">' +
         '<div class="gpr-obj-h"><span class="chip ' + esc(ob.type) + '">' + esc(ob.type) + '</span>' +
-        '<span class="gpr-obj-nm" title="' + esc(ob.name) + '">' + esc(ob.name) + '</span>' +
+        '<span class="gpr-obj-nm" title="' + esc(ob.name) + '">' + esc(ob.name) + '</span>' + _gchip +
         '<label class="gpr-past" title="Включено: задачи создаются и на прошедшие даты года (январь, февраль и т.д.). Выключено: только с сегодняшнего дня и дальше"><input type="checkbox" data-gpr-past="' + ri + '"' + (ob.pastTasks ? ' checked' : '') + '> Добавлять задачи на прошедшие дни</label>' +
-        '<button type="button" class="btn sm" data-gpr-auto="' + ri + '" title="⚡ Подобрать работы автоматически по параметрам объекта (тип, линии редуцирования)" style="flex:0 0 auto;background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;font-weight:700">⚡</button>' +
+        '<button type="button" class="btn sm" data-gpr-auto="' + ri + '" title="⚡ Подобрать работы автоматически по параметрам объекта (тип, линии, телеметрия, вид обслуживания, отопление). Работает только для объектов «В эксплуатации»." style="flex:0 0 auto;background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;font-weight:700">⚡</button>' +
         '<button type="button" class="btn sm" data-gpr-add="' + ri + '" style="flex:0 0 auto">+ работа</button></div>';
       h += '<div class="gpr-works" data-wl="' + ri + '">';
       if (!works.length) h += gprRowHtml(area, ri, 0, { sid: '', wid: '', period: 0, dev: 0, first: '' }); // сразу одна пустая строка
@@ -20309,8 +20752,9 @@
     var id = ri + '-' + wi;
     var _selW = null; // 22.09-145: подсказка списка — полный вид работ
     if (wrk.wid) { try { _selW = WORK.getWork(area, wrk.wid); } catch (eW) {} }
-    return '<div class="gpr-wrow" data-sid="' + esc(wrk.sid || '') + '"' + (auto ? ' style="background:#f0fdf4;outline:1px solid #bbf7d0;outline-offset:-1px;border-radius:6px" title="⚡ Работа подобрана автоматически по параметрам объекта"' : '') + '>' +
-      '<select class="gpr-inp" data-gpr-w="' + id + '" data-idx="' + id + '" title="' + esc(_selW ? _selW.name : '') + '">' + gprWorkOptions(area, wrk.wid, ri) + '</select>' +
+    var _sLabel = gwSeasonLabel(_selW); // 22.09-279: сезон выбранной работы
+    return '<div class="gpr-wrow" data-sid="' + esc(wrk.sid || '') + '"' + (wrk.manual ? ' data-manual="1"' : '') + (auto ? ' style="background:#f0fdf4;outline:1px solid #bbf7d0;outline-offset:-1px;border-radius:6px" title="⚡ Работа подобрана автоматически по параметрам объекта"' : '') + '>' +
+      '<select class="gpr-inp" data-gpr-w="' + id + '" data-idx="' + id + '" title="' + esc((_selW ? _selW.name : '') + (_sLabel ? ' · ' + _sLabel : '')) + '">' + gprWorkOptions(area, wrk.wid, ri) + '</select>' +
       '<button type="button" class="gpr-del" data-gpr-pick="' + id + '" title="Точный выбор работы в этой группе: весь список работ группы с полными названиями" style="color:var(--blue)">🎯</button>' +
       '<input class="gpr-inp" type="text" inputmode="decimal" placeholder="—" value="' + (wrk.period ? String(wrk.period).replace('.', ',') : '') + '" data-gpr-p="' + id + '" title="Периодичность, месяцев — целое или дробное с одним знаком (например 0,5)">' +
       '<input class="gpr-inp" type="number" min="0" step="1" placeholder="—" value="' + (wrk.dev || '') + '" data-gpr-d="' + id + '" title="Отклонение, дней (шаг = периодичность − отклонение)">' +
@@ -20343,6 +20787,8 @@
     var areaSel = document.getElementById('gpr-area');
     var area = areaSel ? areaSel.value : graphAreaDefault(g);
     var created = 0, removed = 0, yearWarn = 0, taskFail = 0, shiftedCnt = 0, dupCnt = 0; // 22.09-227: dupCnt — привязанные к существующим (не дубли)
+    var blockedOff = 0, blockedNoStatus = 0; // 22.09-278: объекты, которым работы не строятся
+    var seasonSwitch = 0, seasonSkip = 0;    // 22.09-279: сезонные версии работ и пропуски по сезону
     var jointMoved = 0; // 22.09-159: перенесённые совместные проведения
     var propStat = { updated: 0, added: 0, removed: 0 }; // 22.09-138: распространение на другие графики
     g.objs.forEach(function (ob, ri) {
@@ -20351,6 +20797,10 @@
       var pastOn = !!(pastEl && pastEl.checked);
       var oldPast = !!ob.pastTasks;
       ob.pastTasks = pastOn;
+      // 22.09-278: работы строятся только объектам «В эксплуатации»
+      var _pInfo = objOpInfoOf(ob.oid);
+      var _operOk = _pInfo.ok;
+      if (!_operOk) { if (_pInfo.off) blockedOff++; else blockedNoStatus++; }
       var oldWorks = gwObjWorks(ob).slice();
       var rowEls = document.querySelectorAll('.gpr-obj[data-obj="' + ri + '"] .gpr-wrow');
       var newRows = [];
@@ -20374,7 +20824,8 @@
           wid: wSel ? wSel.value : '',
           period: _perParsed,
           dev: _devParsed,
-          first: fInp ? fInp.value : ''
+          first: fInp ? fInp.value : '',
+          manual: row.getAttribute('data-manual') === '1' // 22.09-279: ручной точный выбор (🎯)
         });
       });
       var newWorks = [];
@@ -20386,13 +20837,19 @@
           // при защите от дублей) — не удаляем, только снимаем привязку
           var _kt = null; try { _kt = TASKS_DB.getTask(oc.tid); } catch (eK) {}
           if (_kt && _kt.graphId && _kt.graphId !== g.id) { oc.tid = null; return; }
+          // 22.09-278: выполненная задача — это история: не удаляем, только
+          // отвязываем от серии (важно при выводе объекта из эксплуатации)
+          if (_kt && isDone(_kt)) {
+            try { TASKS_DB.updateTask(_kt.id, { graphId: '', graphRi: null, graphSid: '' }); } catch (eD) {}
+            oc.tid = null; return;
+          }
           TASKS_DB.hardDeleteTask(oc.tid); removed++;
         });
       }
       newRows.forEach(function (r) {
         var old = null;
         if (r.sid) { for (var i = 0; i < oldWorks.length; i++) if (oldWorks[i].sid === r.sid) { old = oldWorks[i]; break; } }
-        var unchanged = old && old.wid === r.wid && (old.period || 0) === r.period && (old.dev || 0) === r.dev && (old.first || '') === r.first && oldPast === pastOn && old.occs && old.occs.length;
+        var unchanged = old && old.wid === r.wid && (old.period || 0) === r.period && (old.dev || 0) === r.dev && (old.first || '') === r.first && !!old.manual === !!r.manual && oldPast === pastOn && old.occs && old.occs.length; // 22.09-279: + manual
         if (unchanged) {
           usedSids[r.sid] = 1;
           // 22.09-81: серия не изменилась — её даты НЕ трогаем (в т.ч. ручные переносы
@@ -20409,8 +20866,12 @@
           newWorks.push(old); return;
         }
         if (old) killSeries(old); // серия изменилась — старые задачи убираем
-        var w = { sid: r.sid || gwNewSid(), wid: r.wid, period: r.period, dev: r.dev, first: r.first, occs: [] };
+        var w = { sid: r.sid || gwNewSid(), wid: r.wid, period: r.period, dev: r.dev, first: r.first, manual: !!r.manual, occs: [] };
         if (r.wid && r.first && r.period > 0) {
+          // 22.09-278: объект не в эксплуатации — набор работ и периодичность
+          // сохраняются, но задачи НЕ создаются
+          if (!_operOk) { /* новые задачи не создаём */ }
+          else {
           var firstYear = gwFromISO(r.first).getFullYear();
           // 22.09-189: якорь вне года графика (опечатка вида «20039-08-01») — серию
           // НЕ рассчитываем: раньше строковое сравнение ('20039' < '2026') пускало
@@ -20428,6 +20889,11 @@
             // считается ОТ ЯКОРЯ — периодичность (минус отклонение) не плывёт.
             var occIso = gwOccDate(g.respId, iso, g.year);
             if (occIso !== iso) shiftedCnt++;
+            /* 22.09-279: сезон — версия работы группы под эту дату */
+            var _pick2 = gwOccWorkId(area, r, occIso, ob, g);
+            if (_pick2.skipped) { seasonSkip++; iso = gwNextISO(iso, r.period, r.dev); guard++; continue; }
+            var widOcc2 = _pick2.wid || r.wid;
+            if (_pick2.switched) seasonSwitch++;
             // ПРОШЕДШИЕ даты: в графике остаются треугольниками. Задачи в
             // планировании создаются, только если у объекта включено
             // «Добавлять задачи на прошедшие дни»
@@ -20438,11 +20904,11 @@
               var dlIso = gwAddDaysISO(occIso, r.dev || 0);
               // 22.09-227: объект+работа+дата уже есть в планировании (другой
               // график) — задачу не дублируем, серия привязывается к имеющейся
-              var dupT2 = gwFindPlanTask(ob.oid, r.wid, occIso);
+              var dupT2 = gwFindPlanTask(ob.oid, widOcc2, occIso);
               if (dupT2) { tk = dupT2; dupCnt++; }
               else try {
                 tk = TASKS_DB.addTask({
-                  m: g.respId, d: dateToOff(gwFromISO(occIso)), o: ob.oid, w: r.wid, garea: area,
+                  m: g.respId, d: dateToOff(gwFromISO(occIso)), o: ob.oid, w: widOcc2, garea: area,
                   s: 'plan', status: 'plan', volume: 1,
                   slesari: brigIds, // слесаря, указанные у мастера во вкладке «Работники»
                   dl_date: dlIso, dl: dateToOff(gwFromISO(dlIso)),
@@ -20456,17 +20922,22 @@
                 taskFail++;
               }
             }
-            w.occs.push({ date: occIso, tid: tk ? tk.id : null, wid: r.wid });
+            w.occs.push({ date: occIso, tid: tk ? tk.id : null, wid: widOcc2 });
             iso = gwNextISO(iso, r.period, r.dev); // шаг = периодичность − отклонение
             guard++;
           }
           }
+          } // 22.09-278: конец ветки «объект в эксплуатации»
         }
         if (r.sid) usedSids[r.sid] = 1;
         newWorks.push(w);
       });
       // строки, удалённые из окна: задачи их серий убираем
       oldWorks.forEach(function (ow) { if (ow.sid && !usedSids[ow.sid]) killSeries(ow); });
+      // 22.09-278: объект выведен из эксплуатации — невыполненные задачи его
+      // серий убираем из графика (выполненные остаются в истории); набор работ
+      // и периодичность сохраняются — вернув объект, вы задаёте новый отсчёт
+      if (_pInfo.off) { newWorks.forEach(function (w2) { killSeries(w2); w2.occs = []; }); }
       // 22.09-159: совместные работы ЭТОГО объекта — проведения в одном месяце → в один день
       jointMoved += gwJointAlign(newWorks, area);
       ob.works = newWorks;
@@ -20493,8 +20964,19 @@
     if (yearWarn) toast('warn', '⚠ У ' + yearWarn + ' работ дата первого проведения позже ' + g.year + ' года — они не попадут в график.');
     if (created || removed || dupCnt) toast('ok', 'Работы в планировании: создано ' + created + (removed ? ', удалено старых ' + removed : '') + (dupCnt ? ', уже были в планировании (привязаны из другого графика, не дублируются): ' + dupCnt : '') + '. Треугольники выставлены в графике.');
     if (shiftedCnt) toast('ok', '⏮ По графику смен мастера: ' + shiftedCnt + ' вхождений перенесено на ближайший предыдущий рабочий день.');
+    // 22.09-279: сезон — в группе работ выбраны версии под даты
+    if (seasonSwitch) toast('ok', '☀❄ По сезону в группах работ выбраны другие версии: ' + seasonSwitch + ' вхождений (зимой — зимняя работа, летом — летняя).');
+    if (seasonSkip) toast('warn', '☀❄ Пропущено вхождений по сезону: ' + seasonSkip + ' — у работ задан сезон, и версии для этого периода в их группе нет.');
     if (jointMoved) toast('ok', '🤝 Совместные работы: ' + jointMoved + ' проведений совмещены в один день с более ранней совместной работой того же месяца');
     if (taskFail) toast('warn', '⚠ Не удалось создать задач: ' + taskFail + ' (возможно, память браузера переполнена). Треугольники в графике выставлены.');
+    // 22.09-278: объекты не в эксплуатации — работы им не строятся
+    if (blockedOff || blockedNoStatus) {
+      toast('warn', '⛔ Работы не строятся (только объекты «В эксплуатации»): ' +
+        (blockedNoStatus ? 'без статуса — ' + blockedNoStatus + ' объект(ов)' : '') +
+        (blockedNoStatus && blockedOff ? ', ' : '') +
+        (blockedOff ? 'не в эксплуатации — ' + blockedOff + ' объект(ов), их невыполненные задачи убраны' : '') +
+        '. Периодичность сохранена. Статусы — кнопка «Статусы объектов» на панели графика.');
+    }
     else if (!yearWarn) toast('ok', 'Периодичность сохранена');
     if (S.screen === 'graphs') renderGraphs();
     else if (S.screen === 'calendar') drawCalendarGrid();
@@ -20733,6 +21215,40 @@
     overlay.classList.add('show');
   }
 
+  /* 22.09-278: точка доступа к правилам графиков — для самопроверки, тестов и
+     других частей приложения (статусы объектов, автоподбор работ по атрибутам). */
+  window.SP_GRAPH_AUTO = {
+    eff: workEffAttrs,              // связи работы с оборудованием объекта
+    match: workMatchesObjectParams, // подходит ли работа объекту
+    objInfo: objOpInfoOf,           // статус объекта по oid
+    nonOp: graphsNonOpList,         // объекты графика не «В эксплуатации»
+    statusModal: openGraphStatusModal,
+    statusSet: graphStatusSet,
+    statusAll: graphStatusAllOper,
+    seriesFirst: gwSeriesEffFirst,
+    resync: graphYearResync,
+    rules: gprAutofillRules,
+    // доступ к самому графику (самопроверка «Проверить систему», тесты)
+    find: graphsFind,
+    load: graphsLoad,
+    saveList: graphsSaveList,
+    pick: graphsPick,
+    cur: function () { return GS.cur; },
+    works: gwObjWorks,
+    body: drawGraphsBody,
+    repaint: function () { try { if (S.screen === 'graphs') renderGraphs(); } catch (e) {} },
+    autofill: gprAutofill,
+    skipReset: gprSkipReset,
+    skipInfo: gprSkipInfoHtml,
+    // 22.09-279: сезон и выбор работы в группе
+    seasonKind: gwWorkSeasonKind,
+    seasonFits: gwSeasonFits,
+    seasonLabel: gwSeasonLabel,
+    dateIsWinter: gwDateIsWinter,
+    groupCandidates: gwGroupCandidates,
+    occWork: gwOccWorkId,
+    seasonSync: gwSeasonSync
+  };
   /* ── часть 15 · app/15_graphs_more.js — график работ: трудоёмкость, сезоны, копии графика, печать, Excel ── */
   /* =====================================================================
      22.09-196: ТРУДОЁМКОСТЬ ПО ОБЪЕКТАМ
@@ -21022,7 +21538,7 @@
     h += '<div class="fld"><label>Дата по</label><input type="date" id="gw-winter-to"' + (wt ? ' value="' + wt + '"' : '') + '></div>';
     h += '</div>';
     h += '<label class="cb" style="font-size:12.5px;color:#0369a1;margin-top:4px;align-items:flex-start"><input type="checkbox" id="gw-season-sync" checked style="margin-top:2px"> Привести сезон работ графика к периоду: на зимние даты — зимние версии работ (то же название и сезон «Зима» в справочнике), на остальные даты — обычные версии. Уже выполненные работы не затрагиваются.</label>';
-    h += '<div class="calc" style="font-size:12px;align-items:flex-start">Учитываются только день и месяц — период повторяется каждый год. Допускается переход через Новый год: например, с 15.10 по 15.04 — это 15.10–31.12 и 01.01–15.04. Дни периода подсвечиваются голубым в таблице графика и в таблице по дням месяца. Зимние работы (сезон «Зима» в карточке работы) в автоподбор не попадают — их можно назначить вручную кнопкой «+ работа».</div>';
+    h += '<div class="calc" style="font-size:12px;align-items:flex-start">Учитываются только день и месяц — период повторяется каждый год. Допускается переход через Новый год: например, с 15.10 по 15.04 — это 15.10–31.12 и 01.01–15.04. Дни периода подсвечиваются голубым в таблице графика и в таблице по дням месяца.<br>Сезон работ учитывается автоматически: если у работы сезон не задан («» или «Круглый год») — он не учитывается вовсе; если задан («Зима», «Лето», «Весна-осень» — в карточке или в названии: «…обхода летом…» / «…обхода зимой…») — работа проводится только в свой сезон. Внутри одной группы работ версия работы МЕНЯЕТСЯ по дате: на зимние даты — зимняя, на остальные — летняя/обычная. Если зимний период не задан, зимой считаются декабрь–февраль.</div>';
     h += '</div>';
     h += '<div class="modal-f"><button type="button" class="btn ok" data-action="graphs-winter-save">Сохранить</button><button type="button" class="btn" data-action="graphs-winter-clear">Очистить период</button><button type="button" class="btn danger" data-action="close-modal">Отмена</button></div>';
     modal.innerHTML = h;
@@ -21064,6 +21580,8 @@
     list.forEach(function (x) { if (x.id === GS.cur) g = x; });
     if (!g) { overlay.classList.remove('show'); modal.style.maxWidth = ''; return; }
     delete g.winter;
+    // 22.09-279: зимний период убран — сезонные версии пересчитываем по календарю
+    try { gwSeasonSync(g, g.area || graphAreaDefault(g)); } catch (eSY) {}
     graphsSaveList(list);
     overlay.classList.remove('show');
     modal.style.maxWidth = '';
@@ -21916,62 +22434,41 @@
     return out;
   }
 
-  /* 22.09-122: сезонная замена работ по датам графика. У одинаковых по
-     названию работ в справочнике бывают сезонные версии («Зима»/«Лето»/
-     «Круглый год» — например, техосмотр летом и зимой). После задания
-     зимнего периода каждое вхождение в графике переводится на нужную версию:
-     зимняя дата — зимняя версия, остальные — обычная; выполненные вхождения
-     не трогаем. У связанной задачи планирования меняется вид работы (w). */
+  /* 22.09-122/279: СЕЗОННАЯ ЗАМЕНА РАБОТ ГРАФИКА.
+     Каждое вхождение серии переводится на версию работы СВОЕЙ ГРУППЫ, подходящую
+     по сезону даты: зимняя дата — зимняя версия, остальные — обычная/летняя
+     (например, «Тех. осмотр ГРП 2-ниточного путем обхода летом тел.» ↔
+     «…зимой тел.»). Работа с незаданным сезоном и «Круглый год» подходит всегда,
+     поэтому сезон НЕ учитывается; работа с сезоном — только в свой сезон.
+     У связанной задачи планирования меняется вид работы (w). Работы, выбранные
+     вручную кнопкой 🎯, не переключаются. Выполненные вхождения не трогаем.
+     Вызывается при сохранении зимнего периода (окно «Сезоны») и его очистке. */
   function gwSeasonSync(g, area) {
-    var res = { toWinter: 0, toSummer: 0, tasks: 0 };
+    var res = { toWinter: 0, toSummer: 0, tasks: 0, skipped: 0 };
     if (!g || !g.objs || !area) return res;
-    if (!g.winter || !g.winter.from || !g.winter.to) return res;
-    var works = [];
-    try { works = WORK.getWorks(area) || []; } catch (e) {}
-    function nrm(n) { return String(n || '').replace(/\s+/g, ' ').trim().toLowerCase(); }
-    function isWinterW(w) { return String(w && w.season || '').toLowerCase() === 'зима'; }
-    var byName = {};
-    works.forEach(function (w) {
-      if (!w || !w.id) return;
-      var k = nrm(w.name);
-      (byName[k] = byName[k] || []).push(w);
-    });
     function getW(id) { var x = null; try { x = WORK.getWork(area, id); } catch (e) {} return x; }
-    function winterTwin(w) {
-      var arr = byName[nrm(w.name)] || [];
-      for (var i = 0; i < arr.length; i++) if (arr[i].id !== w.id && isWinterW(arr[i])) return arr[i];
-      return null;
-    }
-    function usualTwin(w) {
-      var arr = byName[nrm(w.name)] || [];
-      var best = null;
-      for (var i = 0; i < arr.length; i++) {
-        if (arr[i].id === w.id || isWinterW(arr[i])) continue;
-        if (String(arr[i].season || '') === 'Лето') return arr[i];
-        if (!best) best = arr[i];
-      }
-      return best;
-    }
     g.objs.forEach(function (ob) {
       gwObjWorks(ob).forEach(function (wrk) {
+        if (!wrk || !wrk.wid || wrk.manual) return; // 🎯 ручной выбор — не меняем
         var baseW = getW(wrk.wid);
         if (!baseW) return;
         (wrk.occs || []).forEach(function (oc) {
           var curId = oc.wid || wrk.wid;
           var curW = (curId === wrk.wid) ? baseW : (getW(curId) || baseW);
-          var curWinter = isWinterW(curW);
-          var target = null;
-          if (gwIsWinter(g, oc.date)) { if (!curWinter) target = winterTwin(curW); }
-          else if (curWinter) target = usualTwin(curW);
-          if (!target || target.id === curId) return;
+          var pick = null;
+          try { pick = gwOccWorkId(area, wrk, oc.date, ob, g); } catch (eP) {}
+          if (!pick || pick.skipped) { if (pick && pick.skipped) res.skipped++; return; }
+          var targetId = pick.wid;
+          if (!targetId || targetId === curId) return;
+          var targetW = getW(targetId) || curW;
           if (oc.tid && typeof TASKS_DB !== 'undefined' && TASKS_DB) {
             var tk = null;
             try { tk = TASKS_DB.getTask(oc.tid); } catch (e) {}
-            if (tk && typeof isDone === 'function' && isDone(tk)) return; // выполненные не трогаем — история
-            if (tk) { try { TASKS_DB.updateTask(tk.id, { w: target.id }); res.tasks++; } catch (e) {} }
+            if (tk && typeof isDone === 'function' && isDone(tk)) return; // выполненные — история
+            if (tk) { try { TASKS_DB.updateTask(tk.id, { w: targetId }); res.tasks++; } catch (e) {} }
           }
-          oc.wid = target.id;
-          if (curWinter) res.toSummer++; else res.toWinter++;
+          oc.wid = targetId;
+          if (gwWorkSeasonKind(targetW) === 'winter') res.toWinter++; else res.toSummer++;
         });
       });
     });
