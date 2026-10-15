@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-287';
+  var SP_BUILD = '22.09-288';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -10902,7 +10902,8 @@
       if (_ef.telemetry_type) attr += ' <span class="equipment-badge" title="Автоподбор: только объекты с телеметрией «' + esc(_ef.telemetry_type) + '»">📡 ' + esc(_ef.telemetry_type) + '</span>'; // 22.09-115
       else if (_ef.telemetry_req === 'equipped') attr += ' <span class="equipment-badge" title="Автоподбор: только объекты с телеметрией">📡 ТМ</span>';
       else if (_ef.telemetry_req === 'not_equipped') attr += ' <span class="equipment-badge" title="Автоподбор: только объекты без телеметрии">🚫📡 без ТМ</span>';
-      if (_ef.diag_equipment) attr += ' <span class="permit-badge" title="Автоподбор: приборная диагностика — только объектам с видом обслуживания REGION-gaz (остальные работы REGION-gaz подбирает как обычно)">🧪 диагностика</span>';
+      if (_ef.diag_equipment) attr += ' <span class="permit-badge" title="Автоподбор: приборная диагностика — только объектам с видом обслуживания REGION-gaz">🧪 диагностика</span>';
+      if (_ef.region_gaz) attr += ' <span class="equipment-badge" title="Автоподбор: работа для объектов с видом обслуживания REGION-gaz (подбирается вместе с «диагностикой»)">🌐 REGION-gaz</span>'; // 22.09-288
       if (_ef.heating_req || _ef.heating_kind) attr += ' <span class="weather-badge" title="Автоподбор: только объектам с котлом — «Вид отопления» = «Газовое»' + (_ef.heating_kind && _ef.heating_kind.toLowerCase() !== 'газовое' ? ' (у работы указано: ' + esc(_ef.heating_kind) + ')' : '') + '">🔥 ' + (_ef.heating_kind ? esc(_ef.heating_kind) : 'котёл (газ)') + '</span>';
       if (w.equipment && w.equipment !== '—') attr += ' <span class="equipment-badge">' + esc(w.equipment) + '</span>';
       if (w.object_categories && w.object_categories.length) {
@@ -12783,16 +12784,17 @@
     // «Без телеметрии»; «ГРП» упразднена и в «Другие свойства» не поднимается
     var others = flags.filter(function (s) {
       var x = String(s || '').trim().toLowerCase();
-      return x !== 'телеметрия' && x !== 'работы с тм' && x !== 'без телеметрии' && s.trim() !== 'ГРП';
+      return x !== 'телеметрия' && x !== 'работы с тм' && x !== 'без телеметрии' && x !== 'region-gaz' && x !== 'region-gas' && s.trim() !== 'ГРП';
     });
     var affected = groupPathAffected(WORK.getWorks(area), p);
     S.grpPropsPath = p;
     var h = '<div class="modal-h"><h3>🏷 Свойства группы работ</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">';
     h += '<div style="font-size:14px;font-weight:700;margin-bottom:4px">' + esc(p) + '</div>';
     h += '<div style="font-size:12.5px;color:var(--muted);margin-bottom:12px">Свойства применятся ко всем работам группы и её подгрупп (затронуто работ: <b>' + affected + '</b>).</div>';
-    var tmOn = hasFlag('Работы с ТМ') || hasFlag('Телеметрия'), noTmOn = hasFlag('Без телеметрии');
+    var tmOn = hasFlag('Работы с ТМ') || hasFlag('Телеметрия'), noTmOn = hasFlag('Без телеметрии'), rgOn = hasFlag('REGION-gaz'); // 22.09-288
     h += '<label class="cb" style="display:block;font-size:12.5px;line-height:1.5;margin-bottom:10px"><input type="checkbox" id="gp-tm"' + (tmOn ? ' checked' : '') + '> 📡 <b>Работы с ТМ</b> — работы группы подбираются только объектам С телеметрией</label>';
     h += '<label class="cb" style="display:block;font-size:12.5px;line-height:1.5;margin-bottom:12px"><input type="checkbox" id="gp-notm"' + (noTmOn ? ' checked' : '') + '> 🚫📡 <b>Без телеметрии</b> — работы группы подбираются только объектам БЕЗ телеметрии</label>';
+    h += '<label class="cb" style="display:block;font-size:12.5px;line-height:1.5;margin-bottom:12px"><input type="checkbox" id="gp-rg"' + (rgOn ? ' checked' : '') + '> <b>REGION-gaz</b> — работы для объектов с приборно-диагностическим комплексом <span style="color:#475569">(все работы группы будут подбираться объектам REGION-gaz — вместе с работами «диагностика»)</span></label>';
     h += '<div class="fld"><label>Другие свойства (через запятую) <span style="color:#94a3b8;font-weight:500">— просто метки для наглядности, на автоподбор не влияют</span></label><input id="gp-other" value="' + esc(others.join(', ')) + '" placeholder="напр.: Зима, Капремонт" autocomplete="off"></div>';
     h += '</div><div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="grp-props-save">Сохранить</button></div>';
     modal.innerHTML = h; overlay.classList.add('show');
@@ -12811,6 +12813,7 @@
     var flags = [];
     if (chk('gp-tm')) flags.push('Работы с ТМ');
     if (chk('gp-notm')) flags.push('Без телеметрии');
+    if (chk('gp-rg')) flags.push('REGION-gaz'); // 22.09-288
     var oEl = document.getElementById('gp-other');
     var extra = (oEl ? oEl.value : '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
     extra.forEach(function (s) {
@@ -12821,6 +12824,10 @@
       }
       if (x === 'без телеметрии') {
         if (flags.indexOf('Без телеметрии') === -1) flags.push('Без телеметрии');
+        return;
+      }
+      if (x === 'region-gas' || x === 'region-gaz') { // 22.09-288: нормализуем написание
+        if (flags.indexOf('REGION-gaz') === -1) flags.push('REGION-gaz');
         return;
       }
       if (flags.indexOf(s) === -1) flags.push(s);
@@ -13064,7 +13071,8 @@
     if (w && w.telemetry_type && telNames.indexOf(w.telemetry_type) < 0) h += '<option value="' + esc(w.telemetry_type) + '" selected>' + esc(w.telemetry_type) + ' ⚠ (нет в списке)</option>';
     h += '</select></div></div>';
     h += '<div class="attr-row"><div class="fld"><label class="cb"><input type="checkbox" id="wm-diag" ' + (w && w.diag_equipment ? 'checked' : '') + '> С использованием приборного диагностического оборудования <span style="color:#94a3b8;font-weight:500">(добавляется объектам с видом обслуживания «Region-gas»)</span></label></div>';
-    h += '<div class="fld"><label class="cb"><input type="checkbox" id="wm-heatreq" ' + (w && w.heating_req ? 'checked' : '') + '> ТО отопительного оборудования <span style="color:#94a3b8;font-weight:500">(только объектам с котлом — «Вид отопления» = «Газовое»)</span></label>' +
+    h += '<div class="fld"><label class="cb"><input type="checkbox" id="wm-rg" ' + (w && w.region_gaz ? 'checked' : '') + '> Работа для объектов <b>REGION-gaz</b> <span style="color:#94a3b8;font-weight:500">(подбирается объектам с приборно-диагностическим комплексом — вместе с работами «диагностика»)</span></label></div></div>' +
+    '<div class="attr-row"><div class="fld"><label class="cb"><input type="checkbox" id="wm-heatreq" ' + (w && w.heating_req ? 'checked' : '') + '> ТО отопительного оборудования <span style="color:#94a3b8;font-weight:500">(только объектам с котлом — «Вид отопления» = «Газовое»)</span></label>' +
       '<label style="font-size:12.5px;font-weight:600;color:#475569;margin-top:6px;display:block">Вид отопления объекта <span style="color:#94a3b8;font-weight:500">(для автоподбора: работы «ТО отопительного» — только при «Газовое»)</span></label>' +
       '<select id="wm-heatkind" style="max-width:280px">' +
         '<option value=""' + (!w || !w.heating_kind ? ' selected' : '') + '>— любое отопление —</option>' +
@@ -13204,6 +13212,7 @@
       data.telemetry_req = val('wm-tel-req');
       data.telemetry_type = val('wm-tel-type');
       data.diag_equipment = chk('wm-diag');
+      data.region_gaz = chk('wm-rg'); // 22.09-288: работа для объектов REGION-gaz
       data.heating_req = chk('wm-heatreq');
       data.heating_kind = val('wm-heatkind'); // 22.09-278: вид отопления объекта (газовое/электрическое)
       // Сборка 22.09-85: исполнители — общее количество + состав по профессиям
@@ -13220,7 +13229,7 @@
       ['object_categories', 'departments', 'periodicity_value', 'periodicity_unit',
         'periodicity_depends_on', 'periodicity_basis', 'joint_with', 'operations', 'periodicity_dev',
         'indicators', 'print_forms', 'op_journal', 'passport_entry', 'scan_attach',
-        'crew_size', 'crew', 'lines_count', 'telemetry_req', 'telemetry_type', 'diag_equipment', 'heating_req', 'heating_kind']
+        'crew_size', 'crew', 'lines_count', 'telemetry_req', 'telemetry_type', 'diag_equipment', 'region_gaz', 'heating_req', 'heating_kind']
         .forEach(function (k) { if (oldW[k] !== undefined) data[k] = oldW[k]; });
     } // при создании на прочих участках — пропуск: work_db сам поставит дефолты
     var savedW = null;
@@ -18590,6 +18599,8 @@
     else if (a === 'ann-del') { annDel(el.dataset.mid); } // 22.09-264: удалить объявление
     else if (a === 'ann-remind') { annRemind(el.dataset.mid); } // 22.09-267: напомнить непрочитавшим
     else if (a === 'ann-tpl-apply') { annApplyTemplate(); }
+    else if (a === 'rg-save') { rgSaveMarks(); }   // 22.09-288: сохранить отметки «работы для REGION-gaz»
+    else if (a === 'rg-clear') { rgClearMarks(); } // 22.09-288: снять все отметки
     else if (a === 'new-user') { openUserModal('new'); }
     else if (a === 'edit-user') { openUserModal('edit', el.dataset.uid); }
     else if (a === 'pwd-user') { openUserModal('pwd', el.dataset.uid); }
@@ -20238,6 +20249,7 @@
   /* 22.09-144: групповые метки телеметрии; «Телеметрия» переименована в
      «Работы с ТМ» — распознаются оба написания (старые записи работают). */
   function workGroupHasTmFlag(w) { return workGroupHasFlag(w, 'Работы с ТМ') || workGroupHasFlag(w, 'Телеметрия'); }
+  function workGroupHasRgFlag(w) { return workGroupHasFlag(w, 'REGION-gaz') || workGroupHasFlag(w, 'REGION-gas') || workGroupHasFlag(w, 'Region-gaz'); } // 22.09-288
   function workGroupHasNoTmFlag(w) { return workGroupHasFlag(w, 'Без телеметрии'); }
   /* 22.09-137: работы, которые автоподбор НЕ назначает НИКОГДА (ни в одном
      режиме). Совпадение — по подстроке названия (нижний регистр, пробелы слиты). */
@@ -20288,7 +20300,11 @@
       if (/электро(котл|отоплен|нагревате|водонагрев)/.test(txt)) hkind = 'Электрическое';
       else if (/газов(ых|ого|ому|ый|ое)\s+(котл|аппарат|водонагрев)/.test(txt)) hkind = 'Газовое';
     }
-    return { telemetry_req: tReq, telemetry_type: tType, diag_equipment: diag, heating_req: heat, heating_kind: hkind, tm_like: tmLike };
+    /* 22.09-288: работа «для объектов REGION-gaz» — по галочке в карточке работы
+       или по метке всей группы (🏷 «REGION-gaz»). */
+    var rgFlag = !!w.region_gaz;
+    if (!rgFlag && workGroupHasRgFlag(w)) rgFlag = true;
+    return { telemetry_req: tReq, telemetry_type: tType, diag_equipment: diag, heating_req: heat, heating_kind: hkind, tm_like: tmLike, region_gaz: rgFlag };
   }
   // 22.09-278: связи работы с оборудованием объекта — доступны справочнику
   // «Виды работ» (бейджи) и тестам
@@ -20321,16 +20337,19 @@
       } else if (eff.telemetry_req === 'equipped' && !objTel) return false;
       else if (eff.telemetry_req === 'not_equipped' && objTel) return false;
     }
-    /* 22.09-283: ВИД ОБСЛУЖИВАНИЯ (REGION-gaz — приборно-диагностический комплекс).
-       · работа с отметкой «диагностика» (приборное диагностическое оборудование)
-         подбирается ТОЛЬКО объектам с видом обслуживания REGION-gaz;
-       · REGION-gaz НЕ ограничивает остальные работы: текущий ремонт, техническое
-         обслуживание, тех. осмотры и прочие подбираются такому объекту как обычно.
-         Диагностика — это просто ДОПОЛНИТЕЛЬНАЯ работа к остальным. */
+    /* 22.09-288: ВИД ОБСЛУЖИВАНИЯ (REGION-gaz — приборно-диагностический комплекс).
+       · работа «диагностика» (приборное диагностическое оборудование) подбирается
+         ТОЛЬКО объектам с видом обслуживания REGION-gaz;
+       · объекту с REGION-gaz подбираются только работы «диагностика» и работы
+         с галочкой «Работа для объектов REGION-gaz» (в карточке работы или меткой
+         группы 🏷 «REGION-gaz»). Остальные работы такому объекту автоподбор
+         НЕ назначает — их список задаёте вы сами (отметить можно в «Параметрах»
+         → «Работы для объектов REGION-gaz»). */
     if (rules.service !== false) {
       var sk = String(attrs && attrs.serviceKind || '').trim().toLowerCase();
       var isRg = (sk === 'region-gaz' || sk === 'region-gas');
-      if (eff.diag_equipment && !isRg) return false; // диагностика — только REGION-gaz
+      if (eff.diag_equipment) { if (!isRg) return false; }   // диагностика — только REGION-gaz
+      else if (isRg && !eff.region_gaz) return false;        // REGION-gaz: диагностика и отмеченные работы
     }
     /* 22.09-282: ОТОПЛЕНИЕ — работы «ТО отопительного оборудования» подбираются
        ТОЛЬКО объектам с котлом, то есть там, где «Вид отопления» = «Газовое».
@@ -20632,7 +20651,7 @@
       '<label class="cb" style="font-size:12px;color:#166534"><input type="checkbox" id="gpr-crit-type" checked> по типу объекта ► «Категория объекта» в карточке работы</label>' +
       '<label class="cb" style="font-size:12px;color:#166534"><input type="checkbox" id="gpr-crit-lines" checked> по линиям редуцирования ► «Линий редуцирования» у работы = параметру объекта</label>' +
       '<label class="cb" style="font-size:12px;color:#166534"><input type="checkbox" id="gpr-crit-telemetry" checked> по телеметрии ► наличие/тип ТМ объекта и работы</label>' +
-      '<label class="cb" style="font-size:12px;color:#166534"><input type="checkbox" id="gpr-crit-service" checked> по виду обслуживания ► диагностические работы — только объектам REGION-gaz (остальные работы REGION-gaz подбирает как обычно)</label>' +
+      '<label class="cb" style="font-size:12px;color:#166534"><input type="checkbox" id="gpr-crit-service" checked> по виду обслуживания ► у объекта REGION-gaz — только «диагностика» и работы, отмеченные «для REGION-gaz»</label>' +
       '<label class="cb" style="font-size:12px;color:#166534"><input type="checkbox" id="gpr-crit-heating" checked> по отоплению ► «ТО отопительного оборудования» — только объектам с котлом («Вид отопления» = «Газовое»)</label>' +
       '<div style="font-size:11.5px;color:#166534;opacity:.85">Всегда включено: работы строятся только по объектам «В эксплуатации» (статус — в карточке объекта); сезон — летние работы и работы без сезона идут весь год, кроме зимнего периода графика, зимние — только внутри него («Сезоны» на панели графика); «+ работа» и «🎯» — ручное назначение в обход правил.</div>' +
       '<details style="font-size:11.5px;color:#166534;background:#fff;border:1px solid #bbf7d0;border-radius:6px;padding:5px 8px;max-width:100%">' +
@@ -20641,7 +20660,7 @@
         '1) <b>Тип объекта</b>: у работы «Категория объекта обслуживания» (ГРП/ШРП/ПГРП) ↔ тип объекта; пусто — работа подходит всем.<br>' +
         '2) <b>Линии редуцирования</b>: «Кол-во линий» у работы ↔ «Кол-во линий редуцирования» объекта (если у объекта не заполнено — работы «по линиям» не подбираются).<br>' +
         '3) <b>Телеметрия</b>: наличие и тип ТМ у работы ↔ «Тип телеметрии» объекта; работы по ТМ (телеметрия/телемеханика/АСУТП — по полю или названию) — только объектам с телеметрией.<br>' +
-        '4) <b>Вид обслуживания</b>: работа с отметкой «диагностика» (приборное диагностическое оборудование) подбирается только объектам с видом обслуживания «REGION-gaz»; REGION-gaz НЕ ограничивает остальные работы — текущий ремонт, тех. обслуживание и прочее такому объекту подбираются как обычно (диагностика — дополнительная работа).<br>' +
+        '4) <b>Вид обслуживания</b>: работа «диагностика» (приборное диагностическое оборудование) подбирается только объектам с видом обслуживания «REGION-gaz»; самому такому объекту автоподбор назначает только «диагностику» и работы с галочкой «Работа для объектов REGION-gaz» (её ставят в карточке работы или меткой группы 🏷 REGION-gaz; отметить сразу список работ — «Параметры» → «Работы для объектов REGION-gaz»).<br>' +
         '5) <b>Отопление</b>: работы «ТО отопительного оборудования» подбираются только объектам с котлом — «Вид отопления» = «Газовое» (у объектов без отопления и с «Электрическое» такие работы не назначаются); если у работы явно указан вид отопления — он должен совпадать. У ШРП отопления нет.<br>' +
         '6) <b>Статус</b>: работы строятся только объектам «В эксплуатации»; выведенным — задачи снимаются, периодичность сохраняется, после возврата — новый отсчёт.<br>' +
         '7) <b>Сезон и группы</b>: в группе работ объекту назначается ОДНА работа — первая подходящая по характеристикам. Сезон: «Лето», «Весна-осень» и работы без сезона («» или «Круглый год») выполняются весь год, КРОМЕ зимнего периода графика (окно «Сезоны»); работы с сезоном «Зима» — ТОЛЬКО внутри зимнего периода. Внутри группы версия работы МЕНЯЕТСЯ по датам: в зимний период — зимняя версия, в остальное время — летняя/обычная. Если зимний период в графике не задан — зимних работ нет вовсе.<br>' +
@@ -20654,7 +20673,7 @@
       '</div>';
     h += '<div class="gpr-cols"><span>Вид работы</span><span></span><span>Период., мес</span><span>Откл., дн</span><span>Дата первого проведения</span><span></span></div>';
     h += '<div id="gpr-list" style="display:flex;flex-direction:column;gap:10px;padding:2px"></div>';
-    h += '<div class="calc" style="align-items:flex-start;font-size:12.5px;line-height:1.5"><b>В списке каждой строки — ОДНА строка на ГРУППУ работ (раскройте список — в скобках число видов работ в группе): конкретный вид работ внутри группы подбирается под объект автоматически по тем же правилам, что «⚡», ручной точный выбор — кнопкой 🎯; какой вид работ выбран — видно при наведении на строку.</b> Шаг серии = периодичность МИНУС отклонение (1 мес и отклонение 2 дн: работа 18 числа → следующая 16 числа следующего месяца). У каждого объекта может быть несколько работ — «+ работа». Работы появляются в «Планировании»; перемещение задачи там переносит её и последующие по шагу серии. <b>Даты, попавшие на день, когда мастер графика не работает (выходные 5/2 и 2/2, отсутствия — график смен на вкладке «Работники»), автоматически переносятся на ближайший предыдущий рабочий день; шаг серии считается от своих исходных дат.</b> <b>⚡ Автоподбор (кнопка сверху или «⚡» у объекта) добавляет объектам работы из справочника по их параметрам: тип объекта ↔ «Категория объекта обслуживания», линии редуцирования объекта ↔ «Кол-во линий редуцирования» в карточке работы. Периодичность и отклонение подставляются из справочника; дата первого проведения — из «Даты ввода в эксплуатацию» объекта, если у работы выбран реквизит отсчёта «Дата ввода в эксплуатацию». Критерии оборудования: телеметрия (работы «с ТМ» не попадут на объект без ТМ; выбран тип — совпадение по типу и наличию), приборная диагностика — только объектам с видом обслуживания «REGION-gaz» (остальные работы такому объекту подбираются как обычно), ТО отопительного оборудования — только объектам с котлом, где «Вид отопления» = «Газовое» (объектам без отопления и с электрическим отоплением такие работы не назначаются). Если поля в карточке работы не заполнены, связь распознаётся по названию работы/группы («ИНДЕЛ», «оборудованных/не оборудованных системой телеметрии», «приборного диагностического оборудования», «отопительного»). В ГРУППЕ РАБОТ объекту назначается ОДНА работа — первая подходящая по характеристикам (в списке строка одна на группу). СЕЗОН: работы с сезоном «Лето», «Весна-осень» и работы БЕЗ сезона («» или «Круглый год») выполняются весь год, КРОМЕ зимнего периода графика (окно «Сезоны»); работы с сезоном «Зима» («…обхода зимой…» — в поле или в названии) — ТОЛЬКО внутри зимнего периода. Внутри одной группы версия работы меняется по датам: в зимний период — зимняя версия, в остальное время — летняя/обычная. Если зимний период в графике не задан — зимние работы не назначаются вовсе. Работа, выбранная вручную кнопкой 🎯, по сезону НЕ переключается. Пометки групп (кнопка 🏷 у группы в справочнике «Виды работ», участок ГРП): «Работы с ТМ» — только объектам с телеметрией; «Без телеметрии» — только объектам без телеметрии; остальные пометки — просто метки. Работа «Текущий ремонт оборудования шкафных газорегуляторных пунктов без опрессовки» автоподбором НЕ назначается. <b>Набор работ объекта — ОБЩИЙ для всех графиков: добавленный в другой график объект приходит со своими работами; правки набора видны во всех графиках. Уже рассчитанные даты других графиков при этом НЕ меняются — пересчёт только в сохраняемом графике; серии всегда продолжаются от даты первого проведения (без перезапуска в новом году).</b></b></div>';
+    h += '<div class="calc" style="align-items:flex-start;font-size:12.5px;line-height:1.5"><b>В списке каждой строки — ОДНА строка на ГРУППУ работ (раскройте список — в скобках число видов работ в группе): конкретный вид работ внутри группы подбирается под объект автоматически по тем же правилам, что «⚡», ручной точный выбор — кнопкой 🎯; какой вид работ выбран — видно при наведении на строку.</b> Шаг серии = периодичность МИНУС отклонение (1 мес и отклонение 2 дн: работа 18 числа → следующая 16 числа следующего месяца). У каждого объекта может быть несколько работ — «+ работа». Работы появляются в «Планировании»; перемещение задачи там переносит её и последующие по шагу серии. <b>Даты, попавшие на день, когда мастер графика не работает (выходные 5/2 и 2/2, отсутствия — график смен на вкладке «Работники»), автоматически переносятся на ближайший предыдущий рабочий день; шаг серии считается от своих исходных дат.</b> <b>⚡ Автоподбор (кнопка сверху или «⚡» у объекта) добавляет объектам работы из справочника по их параметрам: тип объекта ↔ «Категория объекта обслуживания», линии редуцирования объекта ↔ «Кол-во линий редуцирования» в карточке работы. Периодичность и отклонение подставляются из справочника; дата первого проведения — из «Даты ввода в эксплуатацию» объекта, если у работы выбран реквизит отсчёта «Дата ввода в эксплуатацию». Критерии оборудования: телеметрия (работы «с ТМ» не попадут на объект без ТМ; выбран тип — совпадение по типу и наличию), приборная диагностика — только объектам с видом обслуживания «REGION-gaz»; такому объекту автоподбор назначает только «диагностику» и работы, отмеченные «для REGION-gaz» (отметить список — «Параметры» → «Работы для объектов REGION-gaz»), ТО отопительного оборудования — только объектам с котлом, где «Вид отопления» = «Газовое» (объектам без отопления и с электрическим отоплением такие работы не назначаются). Если поля в карточке работы не заполнены, связь распознаётся по названию работы/группы («ИНДЕЛ», «оборудованных/не оборудованных системой телеметрии», «приборного диагностического оборудования», «отопительного»). В ГРУППЕ РАБОТ объекту назначается ОДНА работа — первая подходящая по характеристикам (в списке строка одна на группу). СЕЗОН: работы с сезоном «Лето», «Весна-осень» и работы БЕЗ сезона («» или «Круглый год») выполняются весь год, КРОМЕ зимнего периода графика (окно «Сезоны»); работы с сезоном «Зима» («…обхода зимой…» — в поле или в названии) — ТОЛЬКО внутри зимнего периода. Внутри одной группы версия работы меняется по датам: в зимний период — зимняя версия, в остальное время — летняя/обычная. Если зимний период в графике не задан — зимние работы не назначаются вовсе. Работа, выбранная вручную кнопкой 🎯, по сезону НЕ переключается. Пометки групп (кнопка 🏷 у группы в справочнике «Виды работ», участок ГРП): «Работы с ТМ» — только объектам с телеметрией; «Без телеметрии» — только объектам без телеметрии; остальные пометки — просто метки. Работа «Текущий ремонт оборудования шкафных газорегуляторных пунктов без опрессовки» автоподбором НЕ назначается. <b>Набор работ объекта — ОБЩИЙ для всех графиков: добавленный в другой график объект приходит со своими работами; правки набора видны во всех графиках. Уже рассчитанные даты других графиков при этом НЕ меняются — пересчёт только в сохраняемом графике; серии всегда продолжаются от даты первого проведения (без перезапуска в новом году).</b></b></div>';
     h += '</div>';
     h += '<div class="modal-f"><button type="button" class="btn ok" data-action="graphs-period-save">Сохранить</button><button type="button" class="btn danger" data-action="close-modal">Отменить</button></div>';
     modal.innerHTML = h;
@@ -26716,17 +26735,136 @@
           '<div id="ann-list"></div>' +
         '</div>' +
       '</div>' +
+      /* 22.09-288: РАБОТЫ ДЛЯ ОБЪЕКТОВ REGION-gaz — список всех работ
+         с галочками: отмеченные подбираются объектам с приборно-диагностическим
+         комплексом (вместе с работами «диагностика», которые включаются всегда). */
+      + '<div class="card" style="margin-top:14px">' +
+        '<div class="card-h"><h2>🌐 Работы для объектов REGION-gaz</h2>' +
+        '<span class="sub">Отметьте работы, которые выполняются на объектах с приборно-диагностическим комплексом</span></div>' +
+        '<div class="card-b">' +
+          '<div style="font-size:12.5px;line-height:1.55;margin-bottom:10px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:9px 12px">' +
+            'Объекту, у которого в карточке «Вид обслуживания» = <b>REGION-gaz</b>, автоподбор в графике назначает ' +
+            '<b>только работы «диагностика»</b> (они включаются всегда — их отмечать не нужно) ' +
+            '<b>и работы, отмеченные здесь</b>. Отметки можно ставить и иначе: галочкой «Работа для объектов REGION-gaz» ' +
+            'в карточке работы или меткой группы 🏷 <b>REGION-gaz</b> в справочнике «Виды работ» (тогда отметится вся группа сразу).' +
+          '</div>' +
+          '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px">' +
+            '<input id="rg-q" type="text" placeholder="🔍 Фильтр по названию или группе…" style="' + inputCss + ';flex:1;min-width:240px">' +
+            '<label style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)">' +
+              '<input type="checkbox" id="rg-only-picked"> показать только отмеченные</label>' +
+            '<span id="rg-count" style="font-size:12px;color:var(--muted);font-weight:700"></span>' +
+            '<button class="btn primary" data-action="rg-save" title="Сохранить отметки">Сохранить отметки</button>' +
+            '<button class="btn danger" data-action="rg-clear" title="Снять все отметки (работы «диагностика» останутся)">Снять все</button>' +
+          '</div>' +
+          '<div id="rg-list" style="max-height:52vh;overflow-y:auto;border:1px solid var(--line);border-radius:10px;padding:10px 12px"></div>' +
+        '</div>' +
+      '</div>' +
       // 22.09-264: страница — с запасом под будущие функции управления (ниже появятся другие карточки)
       '<div class="card" style="margin-top:14px;border-style:dashed"><div class="card-b" style="color:var(--muted);font-size:13px">Этот раздел будет пополняться: здесь появятся другие функции управления.</div></div>';
       view.innerHTML = html;
       annRenderList();
       try { var _tpl = document.getElementById('ann-tpl'); if (_tpl) _tpl.addEventListener('change', annApplyTemplate); } catch (eTpl) {}
       try { permRenderMatrix(); } catch (ePerm) {}   // 22.09-268: общая таблица прав
+      try { rgCardWire(); } catch (eRg) {}             // 22.09-288: работы для объектов REGION-gaz
       try { stCard(); } catch (eSt) {}                  // 22.09-276: «Проверить систему»
     } catch (e) {
       try { toast('err', 'Ошибка страницы «Управление администрированием»: ' + String(e && e.message || e)); } catch (e2) {}
     }
   }
+  /* ===== 22.09-288: Работы для объектов REGION-gaz ===== */
+  var _rgFilter = '', _rgOnlyPicked = false;
+  function rgWorkRows() {
+    var out = [];
+    try {
+      var areas = (typeof areasList === 'function') ? (areasList() || []) : [];
+      areas.forEach(function (a) {
+        var ws = [];
+        try { ws = WORK.getWorks(a) || []; } catch (e) {}
+        ws.forEach(function (w) {
+          if (!w || !w.id || w._deleted) return;
+          var ef = w;
+          try { if (window.SP_WORK_EFF) ef = SP_WORK_EFF(w); } catch (e2) { ef = w; }
+          out.push({ area: a, id: w.id, name: String(w.name || ''), group: String(w.group || ''),
+            diag: !!ef.diag_equipment, rg: !!ef.region_gaz, groupFlag: (function () {
+              try { return !!(WORK.groupFlagsOf && (WORK.groupFlagsOf(a, w.group) || []).some(function (f) { return /^region-?ga[sz]$/i.test(String(f || '').trim()); })); } catch (e3) { return false; }
+            })() });
+        });
+      });
+    } catch (e) {}
+    return out;
+  }
+  function rgListHtml() {
+    var rows = rgWorkRows();
+    var q = String(_rgFilter || '').trim().toLowerCase();
+    if (q) rows = rows.filter(function (r) { return (r.name + ' ' + r.group + ' ' + r.area).toLowerCase().indexOf(q) >= 0; });
+    if (_rgOnlyPicked) rows = rows.filter(function (r) { return r.rg || r.diag; });
+    if (!rows.length) return '<div class="empty" style="padding:18px 12px;font-size:13px">Ничего не найдено</div>';
+    var byArea = {}, order = [];
+    rows.forEach(function (r) { if (!byArea[r.area]) { byArea[r.area] = []; order.push(r.area); } byArea[r.area].push(r); });
+    var h = '';
+    order.forEach(function (a) {
+      h += '<div style="font-size:12px;font-weight:800;color:var(--muted);margin:10px 0 4px">Участок: ' + esc(a) + '</div>';
+      byArea[a].sort(function (x, y) { return String(x.group).localeCompare(String(y.group), 'ru') || String(x.name).localeCompare(String(y.name), 'ru'); });
+      byArea[a].forEach(function (r) {
+        var hard = r.diag || r.groupFlag;   // включается всегда: «диагностика» или метка группы
+        var note = r.diag ? ' <span style="color:#15803d;font-size:11.5px">— диагностика, включается всегда</span>'
+          : (r.groupFlag ? ' <span style="color:#15803d;font-size:11.5px">— вся группа отмечена</span>' : '');
+        h += '<label class="rg-row" data-rg-text="' + esc((r.name + ' ' + r.group).toLowerCase()) + '" style="display:flex;align-items:flex-start;gap:8px;padding:4px 0;font-size:12.5px;line-height:1.4">' +
+          '<input type="checkbox" data-rg-area="' + esc(r.area) + '" data-rg-wid="' + esc(r.id) + '"' + ((r.rg || hard) ? ' checked' : '') + (hard ? ' disabled' : '') + ' style="margin-top:2px;accent-color:#2563eb;width:15px;height:15px;flex:0 0 auto">' +
+          '<span style="min-width:0"><b>' + esc(r.name) + '</b><span style="color:var(--muted)"> · ' + esc(r.group || 'без группы') + '</span>' + note + '</span></label>';
+      });
+    });
+    return h;
+  }
+  function rgRenderList() {
+    var box = document.getElementById('rg-list');
+    if (!box) return;
+    box.innerHTML = rgListHtml();
+    var cnt = document.getElementById('rg-count');
+    if (cnt) {
+      var rows = rgWorkRows();
+      var picked = rows.filter(function (r) { return r.rg || r.diag || r.groupFlag; }).length;
+      cnt.textContent = 'отмечено: ' + picked + ' из ' + rows.length;
+    }
+  }
+  function rgCardWire() {
+    var q = document.getElementById('rg-q');
+    if (q) q.addEventListener('input', function () { _rgFilter = q.value; rgRenderList(); });
+    var only = document.getElementById('rg-only-picked');
+    if (only) only.addEventListener('change', function () { _rgOnlyPicked = !!only.checked; rgRenderList(); });
+    rgRenderList();
+  }
+  function rgSaveMarks() {
+    if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
+    var n = 0;
+    try {
+      var boxes = document.querySelectorAll('#rg-list input[data-rg-wid]:not([disabled])');
+      for (var i = 0; i < boxes.length; i++) {
+        var b = boxes[i];
+        var area = b.getAttribute('data-rg-area'), wid = b.getAttribute('data-rg-wid');
+        var w = null; try { w = WORK.getWork(area, wid); } catch (e) {}
+        if (!w) continue;
+        var want = !!b.checked, have = !!w.region_gaz;
+        if (want === have) continue;
+        try { WORK.updateWork(area, wid, { region_gaz: want }); n++; } catch (e2) {}
+      }
+    } catch (e3) {}
+    if (n) { toast('ok', '🌐 Отметки сохранены: изменено работ — ' + n); try { logAction('Работы для REGION-gaz', 'изменено работ: ' + n); } catch (eL) {} }
+    else toast('info', 'Изменений нет');
+    rgRenderList();
+  }
+  function rgClearMarks() {
+    if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
+    spConfirm('Снять все отметки «Работа для объектов REGION-gaz»? Работы «диагностика» останутся — они включаются автоматически.', { title: 'Снять отметки REGION-gaz', ok: 'Снять', danger: true }, function () {
+      var n = 0;
+      rgWorkRows().forEach(function (r) { if (r.rg && !r.diag) { try { WORK.updateWork(r.area, r.id, { region_gaz: false }); n++; } catch (e) {} } });
+      toast(n ? ('Отметки сняты: ' + n) : 'Отмеченных работ не было');
+      try { logAction('Работы для REGION-gaz', 'сняты отметки: ' + n); } catch (eL) {}
+      rgRenderList();
+    });
+  }
+  window.SP_RG_MARKS = { rows: rgWorkRows, list: rgListHtml, save: rgSaveMarks, clear: rgClearMarks, wire: rgCardWire };
+
   // Выбор шаблона — подставить текст в поле
   function annApplyTemplate() {
     try {
