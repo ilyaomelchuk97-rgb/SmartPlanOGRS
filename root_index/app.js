@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-296';
+  var SP_BUILD = '22.09-297';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -3821,6 +3821,16 @@
       });
     });
     grid.innerHTML = html;
+    /* 22.09-297: волна дней — только при смене периода (месяц/неделя/день) или при
+       открытии страницы. При обычном обновлении данных окно то же — анимации нет. */
+    try {
+      var _calKey = String((days[0] && days[0].getTime) ? days[0].getTime() : '') + '|' + days.length;
+      if (window.__spCalKey !== _calKey) {
+        window.__spCalKey = _calKey;
+        grid.classList.remove('sp-wave'); void grid.offsetWidth; grid.classList.add('sp-wave');
+        setTimeout(function () { try { grid.classList.remove('sp-wave'); } catch (eW) {} }, 900);
+      }
+    } catch (eW2) {}
     attachCalDnD();
   }
   function buildDayWindow() {
@@ -4076,6 +4086,18 @@
       dragId = tile.dataset.tid; tile.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
       try { e.dataTransfer.setData('text/plain', dragId); } catch (err) {}
+      /* 22.09-297: «летящая» карточка — аккуратная табличка с видом работы и адресом
+         вместо полупрозрачного снимка плитки. Показывается только во время перетаскивания. */
+      try {
+        var _t = null;
+        (S.tasks || []).some(function (x) { if (x && x.id === dragId) { _t = x; return true; } return false; });
+        var _w = _t ? workOf(_t) : null;
+        var g = document.getElementById('sp-drag-ghost');
+        if (!g) { g = document.createElement('div'); g.id = 'sp-drag-ghost'; document.body.appendChild(g); }
+        g.innerHTML = '<span>' + esc(_w ? _w.name : 'Задача') + '</span>' +
+          '<span class="sp-dg-sub">' + esc(_t ? addrOf(_t) : '') + ' · ' + fmtH(_t ? taskHours(_t) : 0) + ' ч</span>';
+        e.dataTransfer.setDragImage(g, 22, 18);
+      } catch (eG) {}
     });
     grid.addEventListener('dragend', function () {
       document.querySelectorAll('.tile.dragging').forEach(function (t) { t.classList.remove('dragging'); });
@@ -18185,6 +18207,13 @@
       v.classList.remove('page-in');
       void v.offsetWidth; // заставляем браузер заново запустить анимацию
       v.classList.add('page-in');
+      /* 22.09-297: списки и таблицы появляются коротким каскадом — и только при смене
+         страницы/вкладки (класс снимается через 0,7 с, поэтому обновление данных
+         строки заново не «мигают»). */
+      try {
+        v.classList.add('sp-cascade');
+        setTimeout(function () { try { v.classList.remove('sp-cascade'); } catch (e2) {} }, 700);
+      } catch (e3) {}
     } catch (e) {}
   }
   window.spAnimateView = spAnimateView;
@@ -18451,6 +18480,7 @@
       var tdTask = findTask(el.dataset.tid); if (!tdTask) return;
       if (!canEditTask(tdTask)) { toast('err', 'Нет прав на изменение этой задачи'); el.checked = !el.checked; return; }
       var nowDone = el.checked;
+      if (nowDone) { try { if (window.SPDonePop) window.SPDonePop(el); } catch (eP) {} } // 22.09-297: рисующаяся галочка
       tdTask.s = nowDone ? 'done' : 'plan';
       tdTask.status = nowDone ? 'done' : 'plan';
       stampTaskDoneDate(tdTask, nowDone); // 22.09-181: дата закрытия для страницы «Списания»
@@ -28197,16 +28227,22 @@
     try {
       var needle = gsNorm(text);
       if (needle.length < 3) return false;
-      var rows = document.querySelectorAll('#view table.dt tbody tr, #view .gl-row, #view tr');
+      /* 22.09-297: подсвечиваем и строки дерева справочника («Виды работ»), не только таблицы */
+      var rows = document.querySelectorAll('#view table.dt tbody tr, #view .gl-row, #view .tree li.w, #view tr');
       for (var i = 0; i < rows.length; i++) {
         var t = gsNorm(rows[i].textContent || '');
         if (t.indexOf(needle.slice(0, 40)) >= 0) {
           var r = rows[i];
           try { r.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (eS) { try { r.scrollIntoView(); } catch (eS2) {} }
-          var oldBg = r.style.background, oldTr = r.style.transition;
-          r.style.transition = 'background .3s';
-          r.style.background = '#fef08a';
-          setTimeout(function () { try { r.style.background = oldBg; r.style.transition = oldTr; } catch (eB) {} }, 2400);
+          /* 22.09-297: мягкая волна подсветки вместо резкой заливки (оформление — в index.html) */
+          try {
+            r.classList.remove('sp-flash'); void r.offsetWidth; r.classList.add('sp-flash');
+            setTimeout(function () { try { r.classList.remove('sp-flash'); } catch (eB) {} }, 2400);
+          } catch (eF) {
+            var oldBg = r.style.background;
+            r.style.background = '#fef08a';
+            setTimeout(function () { try { r.style.background = oldBg; } catch (eB2) {} }, 2400);
+          }
           found = true;
           break;
         }
@@ -29331,5 +29367,55 @@
   // модуль синхронизации создаётся раньше, но на всякий случай повторим после полной загрузки
   try { setTimeout(apply, 0); } catch (e) {}
   try { window.addEventListener('load', apply); } catch (e) {}
+})();
+  /* ── часть 32 · app/32_anim2.js — анимации, часть 2: галочка выполнения (22.09-297) ── */
+/* ============================================================
+   22.09-297: АНИМАЦИИ, ЧАСТЬ 2
+   ------------------------------------------------------------
+   Здесь — «галочка выполнения»: когда работу отмечают выполненной
+   в календаре (планирование), из плитки задачи вылетает рисующаяся
+   зелёная галочка. Показывается один раз в момент отметки, поэтому
+   при обновлении данных ничего не мигает.
+
+   Остальное из части 2 сделано оформлением (index.html) и вызовами
+   в нужных местах:
+     · строки списков и таблиц появляются коротким каскадом —
+       класс .sp-cascade на странице, ставится при смене страницы;
+     · календарь — волна дней при смене периода (класс .sp-wave);
+     · перетаскивание задачи — аккуратная «летящая» карточка
+       (#sp-drag-ghost) вместо полупрозрачного снимка плитки;
+     · найденная поиском строка подсвечивается мягкой волной (.sp-flash).
+   Все эти анимации выключаются галочкой «Выключить анимации»
+   (кнопка «Доступность») и системной настройкой «уменьшить движение».
+   ============================================================ */
+(function () {
+  'use strict';
+
+  var ID = 'sp-done-pop';
+
+  /* Галочка выполнения: показывается над плиткой задачи, которую только что отметили.
+     el — сама галочка (чекбокс) из плитки: берём её положение на экране. */
+  function pop(el) {
+    try {
+      var box = (el && el.closest) ? (el.closest('.tile') || el) : el;
+      if (!box || !box.getBoundingClientRect) return;
+      var r = box.getBoundingClientRect();
+      var old = document.getElementById(ID);
+      if (old) { try { old.remove(); } catch (e0) {} }
+      var d = document.createElement('div');
+      d.id = ID;
+      d.setAttribute('aria-hidden', 'true');
+      d.innerHTML = '<svg viewBox="0 0 44 44" width="34" height="34">' +
+        '<circle cx="22" cy="22" r="19" fill="rgba(22,163,74,.16)" stroke="#16a34a" stroke-width="2.6"/>' +
+        '<path class="sp-dp-tick" d="M13.6 22.6l5.9 5.9L30.6 16" fill="none" stroke="#16a34a" stroke-width="3.4" ' +
+        'stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      d.style.left = Math.round(r.left + r.width / 2) + 'px';
+      d.style.top = Math.round(r.top + 4) + 'px';
+      document.body.appendChild(d);
+      setTimeout(function () { try { d.remove(); } catch (e) {} }, 820);
+    } catch (e) {}
+  }
+
+  window.SPDonePop = pop;
 })();
 })();

@@ -286,6 +286,58 @@
   #net-banner.show{transform:translate(-50%,0);opacity:1}
   html.sp-oc-on #net-banner{transform:translate(-50%,-150%)!important;opacity:0!important} /* карточка на экране — плашка ждёт */
 
+  /* ===== 22.09-297: анимации, часть 2 — списки, таблицы, календарь, графики ===== */
+  /* Строки списков и таблиц появляются коротким каскадом. Класс sp-cascade живёт
+     недолго и ставится только при смене страницы/вкладки, поэтому при обновлении
+     данных строки не «мигают» заново. Задержки — только у первых строк (дальше сразу). */
+  @keyframes spRowIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  .sp-cascade .tree li.w,.sp-cascade #view table.dt tbody tr,.sp-cascade .gw-grid > *{animation:spRowIn .16s ease-out backwards}
+  .sp-cascade .tree li.w:nth-child(1),.sp-cascade #view table.dt tbody tr:nth-child(1),.sp-cascade .gw-grid > *:nth-child(1){animation-delay:0ms}
+  .sp-cascade .tree li.w:nth-child(2),.sp-cascade #view table.dt tbody tr:nth-child(2),.sp-cascade .gw-grid > *:nth-child(2){animation-delay:14ms}
+  .sp-cascade .tree li.w:nth-child(3),.sp-cascade #view table.dt tbody tr:nth-child(3),.sp-cascade .gw-grid > *:nth-child(3){animation-delay:28ms}
+  .sp-cascade .tree li.w:nth-child(4),.sp-cascade #view table.dt tbody tr:nth-child(4),.sp-cascade .gw-grid > *:nth-child(4){animation-delay:42ms}
+  .sp-cascade .tree li.w:nth-child(5),.sp-cascade #view table.dt tbody tr:nth-child(5),.sp-cascade .gw-grid > *:nth-child(5){animation-delay:56ms}
+  .sp-cascade .tree li.w:nth-child(6),.sp-cascade #view table.dt tbody tr:nth-child(6),.sp-cascade .gw-grid > *:nth-child(6){animation-delay:70ms}
+  .sp-cascade .tree li.w:nth-child(7),.sp-cascade #view table.dt tbody tr:nth-child(7),.sp-cascade .gw-grid > *:nth-child(7){animation-delay:84ms}
+  .sp-cascade .tree li.w:nth-child(8),.sp-cascade #view table.dt tbody tr:nth-child(8),.sp-cascade .gw-grid > *:nth-child(8){animation-delay:98ms}
+  .sp-cascade .tree li.w:nth-child(9),.sp-cascade #view table.dt tbody tr:nth-child(9),.sp-cascade .gw-grid > *:nth-child(9){animation-delay:112ms}
+  .sp-cascade .tree li.w:nth-child(10),.sp-cascade #view table.dt tbody tr:nth-child(10),.sp-cascade .gw-grid > *:nth-child(10){animation-delay:126ms}
+  /* Календарь: волна дней при смене периода (месяц/неделя/день) — и только тогда */
+  @keyframes spCellIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+  .cal-grid.sp-wave > *,.sp-cascade .cal-grid > *{animation:spCellIn .18s ease-out backwards}
+  .cal-grid.sp-wave > *:nth-child(1),.sp-cascade .cal-grid > *:nth-child(1){animation-delay:0ms}
+  .cal-grid.sp-wave > *:nth-child(2),.sp-cascade .cal-grid > *:nth-child(2){animation-delay:12ms}
+  .cal-grid.sp-wave > *:nth-child(3),.sp-cascade .cal-grid > *:nth-child(3){animation-delay:24ms}
+  .cal-grid.sp-wave > *:nth-child(4),.sp-cascade .cal-grid > *:nth-child(4){animation-delay:36ms}
+  .cal-grid.sp-wave > *:nth-child(5),.sp-cascade .cal-grid > *:nth-child(5){animation-delay:48ms}
+  .cal-grid.sp-wave > *:nth-child(6),.sp-cascade .cal-grid > *:nth-child(6){animation-delay:60ms}
+  .cal-grid.sp-wave > *:nth-child(7),.sp-cascade .cal-grid > *:nth-child(7){animation-delay:72ms}
+  .cal-grid.sp-wave > *:nth-child(8),.sp-cascade .cal-grid > *:nth-child(8){animation-delay:84ms}
+  .cal-grid.sp-wave > *:nth-child(9),.sp-cascade .cal-grid > *:nth-child(9){animation-delay:96ms}
+  .cal-grid.sp-wave > *:nth-child(10),.sp-cascade .cal-grid > *:nth-child(10){animation-delay:108ms}
+  .cal-grid.sp-wave > *:nth-child(11),.sp-cascade .cal-grid > *:nth-child(11){animation-delay:120ms}
+  .cal-grid.sp-wave > *:nth-child(12),.sp-cascade .cal-grid > *:nth-child(12){animation-delay:132ms}
+  /* Найденная поиском строка — мягкая волна подсветки (вместо резкой заливки) */
+  .sp-flash{animation:spFlash 2.4s ease-out 1}
+  @keyframes spFlash{0%{background-color:rgba(254,240,138,0)}12%{background-color:#fef08a}72%{background-color:#fef08a}100%{background-color:rgba(254,240,138,0)}}
+  /* Галочка выполнения «вылетает» из плитки задачи (показывается в момент отметки) */
+  #sp-done-pop{position:fixed;z-index:2147482900;pointer-events:none;transform:translate(-50%,0);animation:spDonePop .78s cubic-bezier(.2,.9,.3,1) forwards}
+  #sp-done-pop .sp-dp-tick{stroke-dasharray:34;stroke-dashoffset:34;animation:spTickDraw .3s ease-out .06s forwards}
+  @keyframes spDonePop{0%{opacity:0;transform:translate(-50%,6px) scale(.6)}35%{opacity:1;transform:translate(-50%,-14px) scale(1.06)}100%{opacity:0;transform:translate(-50%,-46px) scale(1)}}
+  /* «Летящая» карточка задачи при перетаскивании (вместо полупрозрачного снимка плитки) */
+  #sp-drag-ghost{position:fixed;left:-1200px;top:-1200px;z-index:2147483200;pointer-events:none;max-width:270px;
+    background:var(--card);border:1px solid var(--blue);border-radius:10px;box-shadow:0 12px 30px rgba(15,23,42,.3);
+    padding:8px 12px;font-size:12.5px;font-weight:700;color:var(--ink)}
+  #sp-drag-ghost .sp-dg-sub{display:block;font-weight:500;font-size:11px;color:var(--muted);margin-top:2px}
+  /* Ячейка, на которую можно бросить задачу, мягко «дышит» */
+  .cell.drop-on{animation:spDropPulse .9s ease-in-out infinite}
+  @keyframes spDropPulse{0%,100%{box-shadow:inset 0 0 0 0 rgba(37,99,235,0)}50%{box-shadow:inset 0 0 0 3px rgba(37,99,235,.3)}}
+  @media (prefers-reduced-motion:reduce){
+    .sp-cascade .tree li.w,.sp-cascade #view table.dt tbody tr,.sp-cascade .gw-grid > *,.cal-grid.sp-wave > *,.sp-cascade .cal-grid > *{animation:none}
+    .cell.drop-on{animation:none}
+    #sp-done-pop{animation-duration:.01s}#sp-done-pop .sp-dp-tick{animation-duration:.01s}
+  }
+
   /* ===== 22.09-292: живая полоска состояния сервера вверху экрана =====
      оранжевая — идёт подключение, зелёная — сервер в сети (гаснет сама),
      красная — сервера нет. По полоске бегает мягкий отсвет того же цвета. */
@@ -1692,7 +1744,7 @@
           <div style="margin-top:6px;font-size:12px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-296 · настройки автоподбора: группы работ по телеметрии и по отоплению</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-297 · анимации, часть 2: каскад списков, волна календаря, «летящая» карточка задачи</div>
         <div style="margin-top:6px;text-align:center"><a href="#" id="li-cookie-link" class="cookie-link" title="Посмотреть или изменить разрешение">🍪 Cookie и хранилище браузера</a></div>
     </div>
   </div>
@@ -1964,17 +2016,17 @@
      Сайт остаётся на Render, а API (сервер + данные) — на воркере Cloudflare.
      Чтобы вернуться к базе Render — удалить следующую строку. -->
 <script>window.SP_CONFIG_OVERRIDE = 'https://smartplanogrsdb.ilya-omelchuk97.workers.dev/api';</script>
-<script src="root_index/config.js?v=22.09-296"></script>
-<script src="root_index/data.js?v=22.09-296"></script>
-<script src="root_index/users_db.js?v=22.09-296"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-296"></script>
-<script src="root_index/areas_db.js?v=22.09-296"></script>
-<script src="root_index/professions_db.js?v=22.09-296"></script>
-<script src="root_index/work_db.js?v=22.09-296"></script>
-<script src="root_index/objects_db.js?v=22.09-296"></script>
-<script src="root_index/workers_db.js?v=22.09-296"></script>
-<script src="root_index/tasks_db.js?v=22.09-296"></script>
-<script src="root_index/db.js?v=22.09-296"></script>
+<script src="root_index/config.js?v=22.09-297"></script>
+<script src="root_index/data.js?v=22.09-297"></script>
+<script src="root_index/users_db.js?v=22.09-297"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-297"></script>
+<script src="root_index/areas_db.js?v=22.09-297"></script>
+<script src="root_index/professions_db.js?v=22.09-297"></script>
+<script src="root_index/work_db.js?v=22.09-297"></script>
+<script src="root_index/objects_db.js?v=22.09-297"></script>
+<script src="root_index/workers_db.js?v=22.09-297"></script>
+<script src="root_index/tasks_db.js?v=22.09-297"></script>
+<script src="root_index/db.js?v=22.09-297"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -1992,12 +2044,12 @@
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-296"></script>
-      <script src="root_index/error_log.js?v=22.09-296"></script>
-      <script src="root_index/api_client.js?v=22.09-296"></script>
-      <script src="root_index/sync_polling.js?v=22.09-296"></script>
-      <script src="root_index/zip_util.js?v=22.09-296"></script>
-      <script src="root_index/app.js?v=22.09-296"></script>
+<script src="root_index/object_attrs.js?v=22.09-297"></script>
+      <script src="root_index/error_log.js?v=22.09-297"></script>
+      <script src="root_index/api_client.js?v=22.09-297"></script>
+      <script src="root_index/sync_polling.js?v=22.09-297"></script>
+      <script src="root_index/zip_util.js?v=22.09-297"></script>
+      <script src="root_index/app.js?v=22.09-297"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {
