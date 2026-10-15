@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-292';
+  var SP_BUILD = '22.09-293';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -16941,13 +16941,35 @@
     setTimeout(function () { var f = ov.querySelector('[data-dlg="0"]'); if (f && f.focus) f.focus(); }, 30);
   }
 
+  /* 22.09-293: уведомление — аккуратная карточка: значок, который прорисовывается,
+     текст и полоска времени внизу. Выезжает снизу, при закрытии уезжает вниз,
+     нажатие убирает сразу. Одновременно показываем не больше четырёх —
+     самые старые уходят первыми, чтобы не закрывать экран. */
+  function toastIcon(type) {
+    if (type === 'ok') return '<svg viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path class="tst-tick" d="M4.6 12.7l4.7 4.7L19.4 7.2"/></svg>';
+    if (type === 'warn') return '<svg viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.4 2.9 19.6h18.2L12 4.4z"/><path d="M12 10.2v4.2"/><path d="M12 17.3h.01"/></svg>';
+    if (type === 'err') return '<svg viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="8.4"/><path d="M9.2 9.2l5.6 5.6M14.8 9.2l-5.6 5.6"/></svg>';
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="2.1" stroke-linecap="round"><circle cx="12" cy="12" r="8.6"/><path d="M12 11.2v5.2"/><path d="M12 7.6h.01"/></svg>';
+  }
   function toast(type, msg) {
     var box = document.getElementById('toasts');
+    if (!box) return;
     var el = document.createElement('div');
     el.className = 'toast ' + (type || '');
-    el.innerHTML = msg;
+    el.title = 'Нажмите, чтобы скрыть';
+    el.style.pointerEvents = 'auto';
+    el.innerHTML = '<span class="tst-ic">' + toastIcon(type) + '</span><span class="tst-tx">' + msg + '</span><span class="tst-bar"></span>';
     box.appendChild(el);
-    setTimeout(function () { el.style.opacity = '0'; el.style.transition = '.3s'; setTimeout(function () { el.remove(); }, 300); }, 4200);
+    try { while (box.children && box.children.length > 4 && box.firstChild && box.firstChild !== el) box.removeChild(box.firstChild); } catch (e0) {}
+    var gone = false;
+    function hide() {
+      if (gone) return;
+      gone = true;
+      try { el.classList.add('out'); } catch (e1) {}
+      setTimeout(function () { try { el.remove(); } catch (e2) {} }, 200);
+    }
+    setTimeout(hide, 4200);
+    try { el.addEventListener('click', hide); } catch (e3) {}
   }
   window.SP_toast = toast; // доступно для db.js (предупреждения о конфликтах синхронизации)
 
@@ -18154,6 +18176,18 @@
   }
 
   /* ── часть 13 · app/13_refresh_events.js — перерисовка, перехват ошибок, обработчик нажатий ── */
+  /* 22.09-293: мягкое появление содержимого страницы — используется и при смене
+     страницы, и при переключении вкладок (например, в «Справочниках»). */
+  function spAnimateView() {
+    try {
+      var v = document.getElementById('view');
+      if (!v) return;
+      v.classList.remove('page-in');
+      void v.offsetWidth; // заставляем браузер заново запустить анимацию
+      v.classList.add('page-in');
+    } catch (e) {}
+  }
+  window.spAnimateView = spAnimateView;
   function refresh() {
     window.reRenderCurrentScreen = refresh;
     try { if (rebaseAllowed()) rebaseTaskDaysToToday(); } catch (eRb2) {}
@@ -18260,8 +18294,7 @@
     try {
       if (window.__spLastAnimScreen !== S.screen) {
         window.__spLastAnimScreen = S.screen;
-        var _viewAnim = document.getElementById('view');
-        if (_viewAnim) { _viewAnim.classList.remove('page-in'); void _viewAnim.offsetWidth; _viewAnim.classList.add('page-in'); }
+        spAnimateView(); // 22.09-293
       }
     } catch (eV) {}
     uiEnhance();   // 22.09-266: поиск/сортировка таблиц текущей страницы
@@ -18665,7 +18698,7 @@
     else if (a === 'build-route-no-jam') { buildYandexRoute(true); }
     else if (a === 'map-off') { S.mapOff = parseInt(el.dataset.off, 10); renderMap(); }
     else if (a === 'open-route-yandex') { openMapRouteInYandex(); } // 22.09-177
-    else if (a === 'refs-tab') { S.refsTab = el.dataset.tab; renderRefs(); }
+    else if (a === 'refs-tab') { S.refsTab = el.dataset.tab; renderRefs(); spAnimateView(); } // 22.09-293: вкладка появляется мягко
     else if (a === 'obj-subtab') { S.objTab = el.dataset.sub; renderRefs(); }
     else if (a === 'dl-works-tpl') { downloadRefTemplate('works'); }
     else if (a === 'dl-norms-tpl') { downloadRefTemplate('norms'); }
@@ -28259,6 +28292,7 @@
   function gsOpen() {
     var el = gsPop();
     el.style.display = 'flex';
+    try { el.classList.remove('sp-in'); void el.offsetWidth; el.classList.add('sp-in'); } catch (eAn) {} // 22.09-293: окно поиска появляется плавно
     gsRender('');
     try { el.querySelector('#gs-input').focus(); el.querySelector('#gs-input').select(); } catch (e) {}
   }
@@ -28579,6 +28613,7 @@
     h += '</div>';
     ov.innerHTML = h;
     ov.style.display = 'flex';
+    try { ov.classList.remove('sp-in'); void ov.offsetWidth; ov.classList.add('sp-in'); } catch (eAn) {} // 22.09-293: окно появляется плавно
     apWire();
     apRenderCount();
   }

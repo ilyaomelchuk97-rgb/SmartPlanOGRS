@@ -930,8 +930,25 @@
   .wr-f s{color:#b91c1c}
   .wr-f b{color:#166534}
   #li-btn:disabled{opacity:.55;cursor:not-allowed}
-  .toast{background:var(--slate);color:#fff;padding:12px 15px;border-radius:10px;font-size:13px;box-shadow:var(--shadow-lg);max-width:340px;border-left:4px solid var(--blue);animation:in .2s ease;pointer-events:none}
-  .toast.ok{border-left-color:var(--green)} .toast.warn{border-left-color:var(--yellow)} .toast.err{border-left-color:var(--red)}
+  /* 22.09-293: уведомления — карточка со значком, который прорисовывается,
+     и полоской времени внизу; появляются снизу, уходят вниз при закрытии */
+  .toast{position:relative;display:flex;align-items:flex-start;gap:10px;overflow:hidden;background:var(--slate);color:#fff;
+    padding:12px 15px;border-radius:12px;font-size:13px;box-shadow:var(--shadow-lg);max-width:340px;
+    border-left:4px solid var(--blue);--tst:#93c5fd;animation:spToastIn .19s cubic-bezier(.22,.9,.3,1);pointer-events:none}
+  .toast.ok{border-left-color:var(--green);--tst:#4ade80}
+  .toast.warn{border-left-color:var(--yellow);--tst:#fbbf24}
+  .toast.err{border-left-color:var(--red);--tst:#f87171}
+  .toast.out{animation:spToastOut .16s ease-in forwards}
+  .tst-ic{flex:0 0 auto;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;margin-top:1px}
+  .tst-ic svg{display:block;width:18px;height:18px}
+  .tst-tx{min-width:0;line-height:1.4}
+  .tst-bar{position:absolute;left:0;bottom:0;height:2px;width:100%;transform-origin:left;background:var(--tst);opacity:.5;animation:spToastBar 4.2s linear both}
+  .tst-tick{stroke-dasharray:26;stroke-dashoffset:26;animation:spTickDraw .3s ease-out .06s forwards}
+  @keyframes spToastIn{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+  @keyframes spToastOut{from{opacity:1;transform:none}to{opacity:0;transform:translateY(6px) scale(.99)}}
+  @keyframes spToastBar{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+  @keyframes spTickDraw{to{stroke-dashoffset:0}}
+  @media (prefers-reduced-motion:reduce){.tst-bar{animation:none;opacity:.35}}
   @keyframes in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 
   @media(max-width:980px){
@@ -1164,19 +1181,27 @@
   @keyframes pulseSoft{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.07);opacity:.85}}
   @keyframes spinLoad{to{transform:rotate(360deg)}}
 
-  /* Появление контента при смене экрана */
-  #view{animation:fadeIn .3s ease}
-  #view > *{animation:fadeInUp .4s cubic-bezier(.4,0,.2,1) backwards}
-  #view > *:nth-child(1){animation-delay:.02s}
-  #view > *:nth-child(2){animation-delay:.08s}
-  #view > *:nth-child(3){animation-delay:.14s}
-  #view > *:nth-child(4){animation-delay:.2s}
+  /* Появление контента при смене экрана — 22.09-293: спокойно и быстро (не заставляет ждать) */
+  #view{animation:fadeIn .2s ease}
+  #view > *{animation:fadeInUp .22s cubic-bezier(.4,0,.2,1) backwards}
+  #view > *:nth-child(1){animation-delay:.01s}
+  #view > *:nth-child(2){animation-delay:.04s}
+  #view > *:nth-child(3){animation-delay:.07s}
+  #view > *:nth-child(4){animation-delay:.1s}
 
-  /* Кнопки */
-  .btn{transition:transform .18s cubic-bezier(.4,0,.2,1),background .18s,border-color .18s,box-shadow .18s,color .18s}
-  .btn:hover{transform:translateY(-2px)}
-  .btn:active{transform:translateY(0) scale(.97)}
-  .btn.primary:hover{box-shadow:0 8px 20px rgba(37,99,235,.32)}
+  /* Кнопки — 22.09-293: спокойный отклик на наведение и нажатие */
+  .btn{transition:transform .15s cubic-bezier(.4,0,.2,1),background .15s,border-color .15s,box-shadow .15s,color .15s}
+  .btn:hover{transform:translateY(-1px)}
+  .btn:active{transform:translateY(1px) scale(.98)}
+  .btn.primary:hover{box-shadow:0 6px 16px rgba(37,99,235,.26)}
+  /* Кнопки шапки, вкладки и переключатели — такой же отклик, чуть заметнее нажатие */
+  .tb-btn{transition:transform .14s ease,border-color .15s ease,background .15s ease,color .15s ease}
+  .tb-btn:hover{transform:translateY(-1px)}
+  .tb-btn:active{transform:translateY(1px) scale(.95)}
+  .tb-btn svg{transition:transform .16s ease}
+  .tb-btn:hover svg{transform:scale(1.08)}
+  .tabs button,.seg button{transition:color .15s,border-color .15s,background .15s,transform .13s ease}
+  .tabs button:active,.seg button:active{transform:scale(.97)}
 
   /* Навигация */
   .nav a{transition:all .2s cubic-bezier(.4,0,.2,1)}
@@ -1234,13 +1259,22 @@
   .fld input,.fld select{transition:border-color .2s,box-shadow .2s,background .2s}
   .fld input:hover,.fld select:hover{border-color:#cbd5e1;background:#fcfdff}
 
-  /* Модальное окно */
-  .overlay{transition:opacity .25s ease}
+  /* Модальное окно — 22.09-293: плавно появляется и так же плавно закрывается.
+     display переключается «плавно» там, где браузер это умеет (Chrome/Edge);
+     в остальных окно просто появляется и исчезает, как раньше. */
+  .overlay{opacity:0;transition:opacity .16s ease}
+  .overlay{transition:opacity .16s ease,display .16s allow-discrete}
+  .overlay.show{opacity:1}
   .modal{animation:popIn .3s cubic-bezier(.34,1.56,.64,1)}
-  .modal-h,.modal-f{animation:fadeIn .35s ease .05s backwards}
+  .overlay.show > .modal{animation:spModalIn .19s cubic-bezier(.22,.9,.3,1)}
+  @keyframes spModalIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .modal-h,.modal-f{animation:fadeIn .22s ease backwards}
+  /* окна, которые создаёт код: поиск по системе (Ctrl+K) и настройки автоподбора */
+  #ap-ov.sp-in{animation:fadeIn .14s ease}
+  #ap-ov.sp-in #ap-box{animation:spModalIn .19s cubic-bezier(.22,.9,.3,1)}
+  #gs-overlay.sp-in #gs-box{animation:spModalIn .19s cubic-bezier(.22,.9,.3,1)}
 
-  /* Toast — лёгкое подпрыгивание */
-  .toast{animation:fadeInUp .3s cubic-bezier(.34,1.56,.64,1)}
+  /* Toast — 22.09-293: анимация уведомлений задана выше (спокойный выезд снизу) */
 
   /* Бренд-логотип в сайдбаре */
   .brand .logo{transition:transform .3s}
@@ -1639,7 +1673,7 @@
           <div style="margin-top:6px;font-size:12px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-292 · живая полоска связи сверху; в справочнике убрана кнопка «Групповое изменение»</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-293 · плавные окна, страницы и уведомления — спокойные анимации, часть 1</div>
         <div style="margin-top:6px;text-align:center"><a href="#" id="li-cookie-link" class="cookie-link" title="Посмотреть или изменить разрешение">🍪 Cookie и хранилище браузера</a></div>
     </div>
   </div>
@@ -1769,7 +1803,7 @@
 
 <div id="tip"></div>
 <div id="net-banner">🌐 Нет соединения — изменения сохраняются локально и уйдут на сервер автоматически</div>
-<div id="toasts"></div>
+<div id="toasts" role="status" aria-live="polite"></div>
 <div id="report-month-dropdown" class="report-month-dropdown"></div>
 <div id="dash-month-dropdown" class="report-month-dropdown"></div>
 <div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
@@ -1911,17 +1945,17 @@
      Сайт остаётся на Render, а API (сервер + данные) — на воркере Cloudflare.
      Чтобы вернуться к базе Render — удалить следующую строку. -->
 <script>window.SP_CONFIG_OVERRIDE = 'https://smartplanogrsdb.ilya-omelchuk97.workers.dev/api';</script>
-<script src="root_index/config.js?v=22.09-292"></script>
-<script src="root_index/data.js?v=22.09-292"></script>
-<script src="root_index/users_db.js?v=22.09-292"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-292"></script>
-<script src="root_index/areas_db.js?v=22.09-292"></script>
-<script src="root_index/professions_db.js?v=22.09-292"></script>
-<script src="root_index/work_db.js?v=22.09-292"></script>
-<script src="root_index/objects_db.js?v=22.09-292"></script>
-<script src="root_index/workers_db.js?v=22.09-292"></script>
-<script src="root_index/tasks_db.js?v=22.09-292"></script>
-<script src="root_index/db.js?v=22.09-292"></script>
+<script src="root_index/config.js?v=22.09-293"></script>
+<script src="root_index/data.js?v=22.09-293"></script>
+<script src="root_index/users_db.js?v=22.09-293"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-293"></script>
+<script src="root_index/areas_db.js?v=22.09-293"></script>
+<script src="root_index/professions_db.js?v=22.09-293"></script>
+<script src="root_index/work_db.js?v=22.09-293"></script>
+<script src="root_index/objects_db.js?v=22.09-293"></script>
+<script src="root_index/workers_db.js?v=22.09-293"></script>
+<script src="root_index/tasks_db.js?v=22.09-293"></script>
+<script src="root_index/db.js?v=22.09-293"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -1939,12 +1973,12 @@
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-292"></script>
-      <script src="root_index/error_log.js?v=22.09-292"></script>
-      <script src="root_index/api_client.js?v=22.09-292"></script>
-      <script src="root_index/sync_polling.js?v=22.09-292"></script>
-      <script src="root_index/zip_util.js?v=22.09-292"></script>
-      <script src="root_index/app.js?v=22.09-292"></script>
+<script src="root_index/object_attrs.js?v=22.09-293"></script>
+      <script src="root_index/error_log.js?v=22.09-293"></script>
+      <script src="root_index/api_client.js?v=22.09-293"></script>
+      <script src="root_index/sync_polling.js?v=22.09-293"></script>
+      <script src="root_index/zip_util.js?v=22.09-293"></script>
+      <script src="root_index/app.js?v=22.09-293"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {
