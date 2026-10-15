@@ -113,7 +113,7 @@
   #dash-setup-btn{border-color:var(--blue);color:var(--blue);background:var(--card)}
   #dash-setup-btn:hover{background:var(--blue);border-color:var(--blue);color:#fff}
   #dash-setup-btn svg{width:15px;height:15px}
-  #sync-indicator{border:1px solid var(--line);background:var(--card);border-radius:9px;padding:0 9px;min-width:32px;height:32px;color:var(--txt);justify-content:center} /* 22.09-273: только мигающий кружок */
+  #sync-indicator{width:32px;height:32px;min-width:32px;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:0;color:var(--txt);display:inline-flex;align-items:center;justify-content:center;cursor:default;user-select:none;box-sizing:border-box} /* 22.09-287: квадрат как у соседних кнопок, без стрелки */
   #sync-indicator:hover{border-color:var(--blue);background:var(--panel-2)}
   .sp-dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:#94a3b8;animation:spBlink 1.7s ease-in-out infinite}
   @keyframes spBlink{0%,100%{opacity:1}50%{opacity:.28}}
@@ -1549,7 +1549,7 @@
           <div style="margin-top:6px;font-size:12px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-286 · участок выбирается один раз в шапке</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-287 · кнопки шапки в один ряд, индикатор сервера без стрелки</div>
         <div style="margin-top:6px;text-align:center"><a href="#" id="li-cookie-link" class="cookie-link" title="Посмотреть или изменить разрешение">🍪 Cookie и хранилище браузера</a></div>
     </div>
   </div>
@@ -1615,6 +1615,8 @@
       <select id="sp-area-sel" style="display:none" aria-label="Фильтр по участку"></select>
       <div id="topbar-date" style="font-size:13px;font-weight:700;color:var(--blue);white-space:nowrap;"></div>
       <div class="spacer"></div>
+      <!-- 22.09-287: все кнопки шапки справа — один ряд с одинаковым расстоянием (как у «Темы» и «Доступности») -->
+      <span class="tb-btns">
       <!-- 22.09-271: настройка панели — только на панели мониторинга, слева от индикатора сервера -->
       <button type="button" class="tb-btn" id="dash-setup-btn" data-action="dash-setup" style="display:none" title="Настройка панели мониторинга — какие блоки показывать и в каком порядке" aria-label="Настройка панели мониторинга">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6h.09A1.65 1.65 0 0 0 10.6 3V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -1627,11 +1629,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>
         <span id="sp-bell-badge" style="display:none">0</span>
       </button>
-      <span id="sync-indicator" style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;cursor:pointer;user-select:none" title="">
+      <!-- 22.09-287: индикатор сервера — квадрат как у соседних кнопок, без стрелки -->
+      <span id="sync-indicator" title="">
         <span id="sync-dot" class="sp-dot"></span>
-        <span id="sync-caret" style="display:none;font-size:10.5px;color:var(--muted);margin-left:1px">▾</span>
       </span>
-      <span class="tb-btns">
                 <button type="button" class="tb-btn" id="theme-toggle" title="Тема: переключить светлую ↔ тёмную" aria-label="Переключить тему (светлая/тёмная)">
           <svg class="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
           <svg class="ic-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
@@ -1814,17 +1815,17 @@
      Сайт остаётся на Render, а API (сервер + данные) — на воркере Cloudflare.
      Чтобы вернуться к базе Render — удалить следующую строку. -->
 <script>window.SP_CONFIG_OVERRIDE = 'https://smartplanogrsdb.ilya-omelchuk97.workers.dev/api';</script>
-<script src="root_index/config.js?v=22.09-286"></script>
-<script src="root_index/data.js?v=22.09-286"></script>
-<script src="root_index/users_db.js?v=22.09-286"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-286"></script>
-<script src="root_index/areas_db.js?v=22.09-286"></script>
-<script src="root_index/professions_db.js?v=22.09-286"></script>
-<script src="root_index/work_db.js?v=22.09-286"></script>
-<script src="root_index/objects_db.js?v=22.09-286"></script>
-<script src="root_index/workers_db.js?v=22.09-286"></script>
-<script src="root_index/tasks_db.js?v=22.09-286"></script>
-<script src="root_index/db.js?v=22.09-286"></script>
+<script src="root_index/config.js?v=22.09-287"></script>
+<script src="root_index/data.js?v=22.09-287"></script>
+<script src="root_index/users_db.js?v=22.09-287"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-287"></script>
+<script src="root_index/areas_db.js?v=22.09-287"></script>
+<script src="root_index/professions_db.js?v=22.09-287"></script>
+<script src="root_index/work_db.js?v=22.09-287"></script>
+<script src="root_index/objects_db.js?v=22.09-287"></script>
+<script src="root_index/workers_db.js?v=22.09-287"></script>
+<script src="root_index/tasks_db.js?v=22.09-287"></script>
+<script src="root_index/db.js?v=22.09-287"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -1842,12 +1843,12 @@
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-286"></script>
-      <script src="root_index/error_log.js?v=22.09-286"></script>
-      <script src="root_index/api_client.js?v=22.09-286"></script>
-      <script src="root_index/sync_polling.js?v=22.09-286"></script>
-      <script src="root_index/zip_util.js?v=22.09-286"></script>
-      <script src="root_index/app.js?v=22.09-286"></script>
+<script src="root_index/object_attrs.js?v=22.09-287"></script>
+      <script src="root_index/error_log.js?v=22.09-287"></script>
+      <script src="root_index/api_client.js?v=22.09-287"></script>
+      <script src="root_index/sync_polling.js?v=22.09-287"></script>
+      <script src="root_index/zip_util.js?v=22.09-287"></script>
+      <script src="root_index/app.js?v=22.09-287"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {

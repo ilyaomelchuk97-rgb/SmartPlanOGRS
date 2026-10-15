@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-286';
+  var SP_BUILD = '22.09-287';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -26348,13 +26348,12 @@
   function setupSyncDropdown() {
     var ind = document.getElementById('sync-indicator');
     var dd = document.getElementById('sync-dropdown');
-    var caret = document.getElementById('sync-caret');
     var list = document.getElementById('sync-dd-list');
     var ddCount = document.getElementById('sync-dd-count');
     if (!ind || !dd || !list) return;
 
     var isAdmin = (S && S.role === 'admin');
-    if (caret) caret.style.display = isAdmin ? 'inline' : 'none';
+    // 22.09-287: стрелка из шапки убрана; у админа иконка по-прежнему открывает список онлайн
     ind.style.cursor = isAdmin ? 'pointer' : 'default';
 
     function roleLabel(r) {
