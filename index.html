@@ -680,7 +680,13 @@
   @media(max-width:820px){#sp-area-sel{max-width:128px;font-size:12px}}
   /* 22.09-284: колокольчик уведомлений и глобальный поиск */
   #sp-search-btn svg, #sp-bell svg, #sp-ap-btn svg{width:16px;height:16px}
-  #sp-ap-btn:hover{border-color:#d97706;background:#d97706;color:#fff}
+  /* 22.09-291: кнопка настроек автоподбора — светлый фон, оранжевый контур (фон и контур поменяли местами).
+     Цвета заданы здесь, а не в разметке кнопки: запись цвета прямо в кнопке перебивает подсветку при наведении. */
+  #sp-ap-btn{border-color:#f59e0b;background:var(--card);color:#f59e0b}
+  #sp-ap-btn:hover{border-color:#d97706;background:#fff7ed;color:#d97706}
+  #sp-ap-btn:focus{outline:none;border-color:#d97706;box-shadow:0 0 0 3px rgba(245,158,11,.25)}
+  html.theme-dark #sp-ap-btn,html.a11y-contrast #sp-ap-btn{color:#f0c060!important;border-color:#d97706}
+  html.theme-dark #sp-ap-btn:hover,html.a11y-contrast #sp-ap-btn:hover{background:#3a2f14}
   /* 22.09-290: окно настроек автоподбора работ */
   #ap-ov{position:fixed;inset:0;z-index:9600;background:rgba(15,23,42,.45);display:flex;align-items:flex-start;justify-content:center;padding-top:6vh}
   #ap-box{width:720px;max-width:calc(100vw - 24px);max-height:86vh;display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 24px 60px rgba(15,23,42,.35);overflow:hidden}
@@ -1579,7 +1585,7 @@
           <div style="margin-top:6px;font-size:12px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-290 · настройки автоподбора — кнопка ⚙ в шапке справочника ГРП</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-291 · кнопка настроек автоподбора ⚙ — белая с оранжевым контуром</div>
         <div style="margin-top:6px;text-align:center"><a href="#" id="li-cookie-link" class="cookie-link" title="Посмотреть или изменить разрешение">🍪 Cookie и хранилище браузера</a></div>
     </div>
   </div>
@@ -1654,7 +1660,7 @@
       <!-- 22.09-284: глобальный поиск (Ctrl+K) и колокольчик уведомлений -->
       <!-- 22.09-290: настройки автоподбора работ — только на «Справочниках» участка ГРП -->
       
-      <button type="button" class="tb-btn" id="sp-ap-btn" data-action="ap-open" style="display:none;border-color:#f59e0b;background:#f59e0b;color:#fff"
+      <button type="button" class="tb-btn" id="sp-ap-btn" data-action="ap-open" style="display:none"
         title="Настройки автоподбора работ" aria-label="Настройки автоподбора работ">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6h.09A1.65 1.65 0 0 0 10.6 3V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       </button>
@@ -1851,17 +1857,17 @@
      Сайт остаётся на Render, а API (сервер + данные) — на воркере Cloudflare.
      Чтобы вернуться к базе Render — удалить следующую строку. -->
 <script>window.SP_CONFIG_OVERRIDE = 'https://smartplanogrsdb.ilya-omelchuk97.workers.dev/api';</script>
-<script src="root_index/config.js?v=22.09-290"></script>
-<script src="root_index/data.js?v=22.09-290"></script>
-<script src="root_index/users_db.js?v=22.09-290"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-290"></script>
-<script src="root_index/areas_db.js?v=22.09-290"></script>
-<script src="root_index/professions_db.js?v=22.09-290"></script>
-<script src="root_index/work_db.js?v=22.09-290"></script>
-<script src="root_index/objects_db.js?v=22.09-290"></script>
-<script src="root_index/workers_db.js?v=22.09-290"></script>
-<script src="root_index/tasks_db.js?v=22.09-290"></script>
-<script src="root_index/db.js?v=22.09-290"></script>
+<script src="root_index/config.js?v=22.09-291"></script>
+<script src="root_index/data.js?v=22.09-291"></script>
+<script src="root_index/users_db.js?v=22.09-291"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-291"></script>
+<script src="root_index/areas_db.js?v=22.09-291"></script>
+<script src="root_index/professions_db.js?v=22.09-291"></script>
+<script src="root_index/work_db.js?v=22.09-291"></script>
+<script src="root_index/objects_db.js?v=22.09-291"></script>
+<script src="root_index/workers_db.js?v=22.09-291"></script>
+<script src="root_index/tasks_db.js?v=22.09-291"></script>
+<script src="root_index/db.js?v=22.09-291"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -1879,12 +1885,12 @@
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-290"></script>
-      <script src="root_index/error_log.js?v=22.09-290"></script>
-      <script src="root_index/api_client.js?v=22.09-290"></script>
-      <script src="root_index/sync_polling.js?v=22.09-290"></script>
-      <script src="root_index/zip_util.js?v=22.09-290"></script>
-      <script src="root_index/app.js?v=22.09-290"></script>
+<script src="root_index/object_attrs.js?v=22.09-291"></script>
+      <script src="root_index/error_log.js?v=22.09-291"></script>
+      <script src="root_index/api_client.js?v=22.09-291"></script>
+      <script src="root_index/sync_polling.js?v=22.09-291"></script>
+      <script src="root_index/zip_util.js?v=22.09-291"></script>
+      <script src="root_index/app.js?v=22.09-291"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {
