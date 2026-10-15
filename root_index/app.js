@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-294';
+  var SP_BUILD = '22.09-295';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -28714,6 +28714,7 @@
   var CHECK_MS = 500;    // как часто сверяем состояние связи
   var WATCH_POLL = 20000; // обычный опрос идёт раз в секунду — 20 с молчания уже не норма
   var WATCH_LIVE = 45000; // при мгновенных уведомлениях опрос раз в 30 с — ждём дольше
+  var READY_GIVEUP = 30000; // 22.09-295: сколько ждать первого ответа сервера после входа
   var curState = '';
   var prevState = '';
   var lineEl = null;
@@ -28767,6 +28768,8 @@
           if (st.ready && hasToken()) {
             var since = Date.now() - Math.max(st.lastPoll || 0, bootTs);
             if (since > (st.live ? WATCH_LIVE : WATCH_POLL)) return 'offline';
+          } else if (hasToken() && (Date.now() - bootTs) > READY_GIVEUP) {
+            return 'offline'; // 22.09-295: сервер не ответил ни разу за 30 секунд — не притворяемся, что всё хорошо
           }
         } catch (e2) {}
         return mode;
@@ -28940,5 +28943,289 @@
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', check);
     else check();
   } catch (e) {}
+})();
+  /* ── часть 31 · app/31_perf.js — производительность связи с сервером: таймауты, разумная частота опроса, счётчики (22.09-295) ── */
+/* ============================================================
+   22.09-295: сайт не «зависает» из-за сервера
+   ------------------------------------------------------------
+   Замеры показали: сервер (база на Cloudflare) отвечает мгновенно
+   примерно в 3 случаях из 4, а иногда не отвечает совсем. Раньше в
+   этом случае запрос ждал ответа бесконечно: синхронизация вставала,
+   а интерфейс выглядел «живым», но ничего не обновлял.
+
+   Что делает эта часть:
+   1) ТАЙМАУТ. Любое обращение к нашему серверу прерывается, если ответа
+      нет 12 секунд (первая полная загрузка — 25 секунд, она тяжёлая).
+      После этого модуль синхронизации считает попытку неудачной и
+      повторяет её через 3 секунды; состояние связи честно показывают
+      полоска сверху, кружок в шапке и карточка «Сайт не в сети».
+      Запросы к маршрутам (они бывают долгими по своей природе) не трогаем.
+   2) РАЗУМНАЯ ЧАСТОТА. Опрос сервера идёт раз в секунду. Теперь настоящий
+      запрос уходит не чаще, чем раз в 4 секунды, а между ними отдаётся
+      только что полученный ответ из памяти — мгновенно и без сети.
+      Это вчетверо меньше нагрузки на базу и вчетверо меньше шансов
+      попасть на «зависший» запрос. Мгновенные обновления (когда сервер
+      сам сообщает об изменениях) работают как раньше.
+   3) БЕЗ ПОВТОРНОЙ ОТПРАВКИ ВСЕГО ПОДРЯД. В базах сайта сохранение любой
+      записи запускало «сверку» всего раздела: на сервер уходили ВСЕ записи
+      по одной. Только при входе это давало около 600 обращений (а каждая
+      правка задачи — заново весь раздел). Теперь запоминается, что уже
+      отправлено: уходят только действительно изменённые записи.
+      Правки разных разделов (задачи, объекты, работы, пользователи…) —
+      все идут через одно место, поэтому правило действует для всех.
+   4) СПРАВОЧНИК НЕ КОПИРУЕТСЯ СОТНИ РАЗ. Профиль показал: половина времени
+      отрисовки панели уходила на то, что «виды работ» копировались заново
+      при каждом обращении — а обращений за одну отрисовку около полутора сотен.
+      Теперь копия делается один раз и переиспользуется в пределах отрисовки
+      (доли секунды), а при любой записи в базу — сбрасывается. Это ускоряет
+      панель, справочники и другие места, которые читают работы, объекты, участки.
+   ============================================================ */
+(function () {
+  'use strict';
+
+  var TIMEOUT = 12000;        // обычное обращение к серверу
+  var TIMEOUT_FIRST = 25000;  // первая полная загрузка данных после входа
+  var SYNC_MIN_GAP = 4000;    // не чаще одного реального опроса в 4 секунды
+
+  var stats = { total: 0, slow: 0, timeout: 0, failed: 0, skipped: 0, lastMs: 0, pushSent: 0, pushSkipped: 0 };
+
+  function apiBase() {
+    try {
+      return String(window.SP_CONFIG_OVERRIDE || (window.SP_CONFIG && window.SP_CONFIG.serverUrl) || '').replace(/\/+$/, '');
+    } catch (e) { return ''; }
+  }
+  /* Наш ли это сервер (база на Cloudflare или её локальная копия в проверках).
+     Маршруты и погоду не трогаем — они и так могут отвечать долго. */
+  function isOurApi(url) {
+    url = String(url || '');
+    if (!url) return false;
+    if (url.indexOf('/route/') >= 0) return false;
+    var b = apiBase();
+    if (b && url.indexOf(b) === 0) return true;
+    return url.indexOf('/api/') >= 0;
+  }
+
+  /* ===== 1) таймаут на обращения к серверу ===== */
+  function patchFetch() {
+    if (window.__spFetchPatched || typeof window.fetch !== 'function') return;
+    var real = window.fetch.bind(window);
+    window.fetch = function (input, init) {
+      var url = '';
+      try { url = (typeof input === 'string') ? input : (input && input.url) || ''; } catch (e) {}
+      if (!isOurApi(url) || (init && init.signal)) return real(input, init);
+      var ms = (url.indexOf('since=0') >= 0) ? TIMEOUT_FIRST : TIMEOUT;
+      var ctl = null, timer = null, t0 = Date.now();
+      try {
+        if (typeof AbortController === 'function') {
+          ctl = new AbortController();
+          init = Object.assign({}, init || {}, { signal: ctl.signal });
+          timer = setTimeout(function () { try { ctl.abort(); } catch (e) {} }, ms);
+        }
+      } catch (e) {}
+      stats.total++;
+      var p = real(input, init);
+      if (!timer) return p;
+      var stop = function () { if (timer) { clearTimeout(timer); timer = null; } };
+      return p.then(function (r) {
+        stop();
+        var dt = Date.now() - t0;
+        stats.lastMs = dt;
+        if (dt > 3000) stats.slow++;
+        return r;
+      }, function (e) {
+        stop();
+        var aborted = !!(e && (e.name === 'AbortError' || String(e.message || '').indexOf('abort') >= 0));
+        if (aborted) stats.timeout++; else stats.failed++;
+        throw e;
+      });
+    };
+    window.__spFetchPatched = true;
+  }
+
+  /* ===== 2) не дёргать сервер чаще, чем нужно ===== */
+  function patchSync() {
+    try {
+      if (!window.SP_API || !window.SP_API.sync || window.SP_API.__spSyncPatched) return;
+      var real = window.SP_API.sync;
+      var lastOk = 0, lastStart = 0, lastRes = null;
+      window.SP_API.sync = function (since) {
+        var now = Date.now();
+        // первая загрузка (since = 0) всегда идёт в сеть; дальше — не чаще, чем раз в 4 секунды.
+        // Считаем и уже начатую отправку: если несколько обращений пришли одновременно,
+        // в сеть уйдёт только одно, остальные получат тот же ответ из памяти.
+        var last = Math.max(lastOk || 0, lastStart || 0);
+        if (since && lastRes && last && (now - last) < SYNC_MIN_GAP) {
+          stats.skipped++;
+          return Promise.resolve(lastRes);
+        }
+        lastStart = now;
+        return real.apply(this, arguments).then(function (r) {
+          try { if (r && r.ok) { lastOk = Date.now(); lastRes = r; } } catch (e) {}
+          return r;
+        });
+      };
+      window.SP_API.__spSyncPatched = true;
+    } catch (e) {}
+  }
+
+  /* ===== 3) не отправлять одно и то же по кругу ===== */
+  var PUSHED_KEY = 'smartplan_pushed_v1';   // что уже лежит на сервере (по содержимому записи)
+  var pushed = null, pushTimer = null;
+  function pushLoad() {
+    if (pushed) return pushed;
+    pushed = {};
+    try {
+      var raw = localStorage.getItem(PUSHED_KEY);
+      if (raw) { var o = JSON.parse(raw); if (o && typeof o === 'object') pushed = o; }
+    } catch (e) { pushed = {}; }
+    return pushed;
+  }
+  function pushScheduleSave() {
+    if (pushTimer) return;
+    pushTimer = setTimeout(function () {
+      pushTimer = null;
+      try {
+        var keys = Object.keys(pushed || {});
+        if (keys.length > 4000) pushed = {}; // защита от разрастания: раз в жизни отправим заново
+        localStorage.setItem(PUSHED_KEY, JSON.stringify(pushed));
+      } catch (e) {}
+    }, 1500);
+  }
+  /* устойчивая подпись содержимого записи (порядок полей не важен) */
+  function stableJson(v) {
+    if (v === null || typeof v !== 'object') return JSON.stringify(v);
+    if (Object.prototype.toString.call(v) === '[object Array]') {
+      var out = [];
+      for (var i = 0; i < v.length; i++) out.push(stableJson(v[i]));
+      return '[' + out.join(',') + ']';
+    }
+    var ks = Object.keys(v).sort(), parts = [];
+    for (var j = 0; j < ks.length; j++) parts.push(JSON.stringify(ks[j]) + ':' + stableJson(v[ks[j]]));
+    return '{' + parts.join(',') + '}';
+  }
+  function hashStr(s) {
+    var h = 2166136261;
+    for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = (h * 16777619) >>> 0; }
+    return h.toString(36);
+  }
+  function recordHash(sec, rec) {
+    try { return hashStr(stableJson(rec)); } catch (e) { return String(Math.random()); }
+  }
+  function patchSyncPush() {
+    try {
+      if (!window.SP_API || !window.SP_API.syncPush || window.SP_API.__spPushPatched) return;
+      var real = window.SP_API.syncPush;
+      /* 22.09-295: отправляем понемногу (не больше 4 запросов одновременно).
+         Раньше «сверка раздела» выстреливала сотнями запросов залпом — сервер
+         на Cloudflare от этого захлёбывался и переставал отвечать. */
+      window.SP_API.syncPush = function (section, rec) {
+        var id = rec && rec.id;
+        if (!id) return real.apply(this, arguments);
+        var map = pushLoad(), k = String(section) + '|' + String(id), h = recordHash(section, rec);
+        if (map[k] === h) { stats.pushSkipped++; return Promise.resolve({ ok: true, unchanged: true, skipped: true }); }
+        var args = arguments, self = this;
+        return pushQueue(function () {
+          stats.pushSent++;
+          return real.apply(self, args).then(function (r) {
+            try { if (r && (r.ok || r.unchanged)) { map[k] = h; pushScheduleSave(); } } catch (e) {}
+            return r;
+          });
+        });
+      };
+      window.SP_API.__spPushPatched = true;
+    } catch (e) {}
+  }
+
+  /* очередь отправки: не больше 4 запросов одновременно */
+  var MAX_PARALLEL = 4, running = 0, waiters = [];
+  function pushQueue(task) {
+    return new Promise(function (resolve, reject) {
+      waiters.push({ task: task, resolve: resolve, reject: reject });
+      pump();
+    });
+  }
+  function release() { running--; pump(); }
+  function runOne(w) {
+    var pr;
+    try { pr = Promise.resolve(w.task()); } catch (e) { pr = Promise.reject(e); }
+    pr.then(function (r) { release(); w.resolve(r); }, function (e) { release(); w.reject(e); });
+  }
+  function pump() {
+    while (running < MAX_PARALLEL && waiters.length) {
+      running++;
+      if (running > (stats.pushMaxParallel || 0)) stats.pushMaxParallel = running;
+      runOne(waiters.shift());
+    }
+  }
+
+  /* ===== 4) быстрый поиск работы по id =====
+     Профиль показал: половина времени отрисовки панели уходила на поиск вида работ,
+     а он каждый раз копировал ВЕСЬ справочник целиком (112 работ) — сотни копий за
+     одну отрисовку. Теперь справочник копируется раз в доли секунды и поиск идёт по
+     нему. Каждому обратившемуся по-прежнему отдаётся СВЕЖАЯ копия работы — правила
+     работы сайта не меняются, он может спокойно менять полученный объект.
+     Кэш сбрасывается сразу, как только справочник записали (см. patchStorage). */
+  var WORKS_CACHE = {}, WORKS_TTL = 400;
+  function patchGetWork() {
+    try {
+      if (!window.SP_WORK || !window.SP_WORK.getWork || window.SP_WORK.__spGetWorkPatched) return;
+      var real = window.SP_WORK.getWork;
+      window.SP_WORK.getWork = function (area, id) {
+        try {
+          var key = String(area || ''), now = Date.now(), c = WORKS_CACHE[key];
+          if (!c || (now - c.ts) > WORKS_TTL) {
+            c = WORKS_CACHE[key] = { arr: window.SP_WORK.getWorks(area) || [], ts: now };
+            stats.worksLoads = (stats.worksLoads || 0) + 1;
+          } else stats.worksHit = (stats.worksHit || 0) + 1;
+          for (var i = 0; i < c.arr.length; i++) {
+            if (c.arr[i] && c.arr[i].id === id) return Object.assign({}, c.arr[i]); // свежая копия
+          }
+        } catch (e) {}
+        return real.apply(this, arguments); // встроенный каталог и прочие случаи — как было
+      };
+      window.SP_WORK.__spGetWorkPatched = true;
+    } catch (e) {}
+  }
+
+  /* любая запись в базу сайта сбрасывает кэш: данные никогда не «залипнут» */
+  function patchStorage() {
+    try {
+      if (window.__spStoragePatched || !window.localStorage) return;
+      var real = window.localStorage.setItem;
+      if (typeof real !== 'function') return;
+      // 22.09-295: сбрасываем кэш только того раздела, который записали
+      // (погода, журнал и прочие записи больше не сбивают справочники)
+      window.localStorage.setItem = function (k, v) {
+        try { if (String(k) === 'smartplan_work_catalog') WORKS_CACHE = {}; } catch (e) {} // справочник записали — кэш долой
+        return real.apply(window.localStorage, arguments);
+      };
+      window.__spStoragePatched = true;
+    } catch (e) {}
+  }
+  function clearCache() { WORKS_CACHE = {}; }
+
+  function apply() { patchFetch(); patchSync(); patchSyncPush(); patchGetWork(); patchStorage(); }
+
+  window.SP_PERF = {
+    apply: apply,
+    clearCache: clearCache,
+    stats: function () {
+      var s = {};
+      for (var k in stats) s[k] = stats[k];
+      s.timeoutMs = TIMEOUT;
+      s.firstMs = TIMEOUT_FIRST;
+      s.syncGapMs = SYNC_MIN_GAP;
+      s.patched = { fetch: !!window.__spFetchPatched, sync: !!(window.SP_API && window.SP_API.__spSyncPatched),
+                    push: !!(window.SP_API && window.SP_API.__spPushPatched),
+                    getWork: !!(window.SP_WORK && window.SP_WORK.__spGetWorkPatched),
+                    storage: !!window.__spStoragePatched };
+      return s;
+    }
+  };
+
+  apply();
+  // модуль синхронизации создаётся раньше, но на всякий случай повторим после полной загрузки
+  try { setTimeout(apply, 0); } catch (e) {}
+  try { window.addEventListener('load', apply); } catch (e) {}
 })();
 })();
