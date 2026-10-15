@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-293';
+  var SP_BUILD = '22.09-294';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -28688,21 +28688,21 @@
   /* Кнопка появляется/прячется при входе на страницу и смене участка */
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apBtnSync);
   else apBtnSync();
-  /* ── часть 30 · app/30_conn_line.js — тонкая живая полоска состояния сервера вверху экрана + уведомление «Сайт в сети» (22.09-292) ── */
+  /* ── часть 30 · app/30_conn_line.js — живая полоска связи сверху, карточки «Сайт в сети / не в сети» и честный индикатор сервера (22.09-292, дополнено в 22.09-294) ── */
 /* ============================================================
-   22.09-292: «живая» полоска вверху экрана и уведомление о связи
+   22.09-292 (дополнено 22.09-294): связь видно всегда и честно
    ------------------------------------------------------------
-   Верхняя тонкая линия показывает состояние связи с сервером:
-     · оранжевая — идёт подключение (сайт просыпается, вход в систему);
-     · зелёная   — сервер в сети (держится несколько секунд и гаснет);
-     · красная   — сервер не в сети (висит, пока связи нет).
-   По линии «бегает» мягкий отсвет того же цвета.
-   Когда связь появляется — выезжает карточка «Сайт в сети» с галочкой,
-   которая рисуется по контуру; полоска внизу карточки показывает,
-   сколько она ещё провисит. Нажатие по карточке скрывает её сразу.
-
-   Состояние читается из SP_SYNC_POLL.status().mode (модуль синхронизации
-   не меняем) и navigator.onLine. Сам модуль — часть app.js.
+   · Живая полоска сверху: оранжевая — подключение, зелёная — сервер
+     в сети (гаснет сама), красная — связи нет. По полоске бегает отсвет.
+   · Карточка «Сайт в сети» при подключении и восстановлении связи и
+     ТАКАЯ ЖЕ карточка «Сайт не в сети» (красная) — когда связь пропала.
+     Одинаковое появление, значок, блик, полоска времени и самоскрытие.
+   · 22.09-294: сторож связи. Раньше кружок в шапке и подсказка при наведении
+     брали состояние у модуля синхронизации, а тот не замечает обрыв, если
+     запрос к серверу «завис»: кружок оставался зелёным и писал «в сети»,
+     хотя связи уже не было. Теперь состояние связи считает этот модуль:
+     нет сети у браузера ИЛИ сервер молчит дольше положенного — значит «не в сети».
+     Кружок, подпись и подсказка перекрашиваются сразу.
    ============================================================ */
 (function () {
   'use strict';
@@ -28710,25 +28710,66 @@
   var LINE_ID = 'sp-conn-line';
   var CARD_ID = 'sp-online-card';
   var GREEN_MS = 4200;   // сколько держится зелёная линия после подключения
-  var CARD_MS = 5000;    // сколько висит карточка «Сайт в сети»
+  var CARD_MS = 5000;    // сколько висит карточка (и «в сети», и «не в сети»)
   var CHECK_MS = 500;    // как часто сверяем состояние связи
+  var WATCH_POLL = 20000; // обычный опрос идёт раз в секунду — 20 с молчания уже не норма
+  var WATCH_LIVE = 45000; // при мгновенных уведомлениях опрос раз в 30 с — ждём дольше
   var curState = '';
   var prevState = '';
   var lineEl = null;
   var lineTimer = null;
   var cardTimer = null;
+  var bootTs = Date.now();
+  var origStatus = null;   // настоящий status() модуля синхронизации (до нашей обёртки)
+  var forcedMode = '';     // что мы показываем наружу вместо состояния модуля ('' — ничего)
+  var holdMode = '';       // 22.09-294: показать состояние вручную (для проверок и диагностики)
 
   var ST_CLS = { connected: 'cl-ok', connecting: 'cl-warn', warn: 'cl-warn', error: 'cl-bad', offline: 'cl-bad' };
   var ST_TXT = { connected: 'в сети', connecting: 'подключение…', warn: 'нет связи', error: 'сервер недоступен', offline: 'не в сети', idle: 'ожидание' };
 
+  /* ===== 22.09-294: наружу (кружок, подсказка, проверки) отдаём настоящее состояние связи ===== */
+  function statusRaw() {
+    try {
+      if (origStatus) return origStatus.apply(window.SP_SYNC_POLL, arguments) || {};
+      if (window.SP_SYNC_POLL && window.SP_SYNC_POLL.status) return window.SP_SYNC_POLL.status() || {};
+    } catch (e) {}
+    return null;
+  }
+  function wrapStatus() {
+    try {
+      if (!window.SP_SYNC_POLL || !window.SP_SYNC_POLL.status || window.SP_SYNC_POLL.__spWrapped) return;
+      origStatus = window.SP_SYNC_POLL.status;
+      window.SP_SYNC_POLL.status = function () {
+        var st = origStatus.apply(window.SP_SYNC_POLL, arguments) || {};
+        try { if (forcedMode) st.mode = forcedMode; } catch (e0) {}
+        return st;
+      };
+      window.SP_SYNC_POLL.__spWrapped = true;
+    } catch (e) {}
+  }
+  function hasToken() {
+    try { return !!(window.SP_API && window.SP_API.getToken && window.SP_API.getToken()); } catch (e) { return false; }
+  }
+  function modeOf(st) { return st.mode || 'connecting'; }
+
   /* ===== текущее состояние связи ===== */
   function readState() {
+    try { if (holdMode) return holdMode; } catch (eH) {}
     try {
       if (typeof navigator !== 'undefined' && navigator.onLine === false) return 'offline';
-      var st = (window.SP_SYNC_POLL && window.SP_SYNC_POLL.status) ? window.SP_SYNC_POLL.status() : null;
+      var st = statusRaw();
       if (st) {
         if (st.stopped) return 'idle';           // синхронизация выключена (экран входа / выход) — линию не показываем
-        return st.mode || 'connecting';
+        var mode = modeOf(st);
+        if (mode === 'error') return 'error';
+        // 22.09-294: сторож — сервер молчит дольше, чем должен, при живом интернете
+        try {
+          if (st.ready && hasToken()) {
+            var since = Date.now() - Math.max(st.lastPoll || 0, bootTs);
+            if (since > (st.live ? WATCH_LIVE : WATCH_POLL)) return 'offline';
+          }
+        } catch (e2) {}
+        return mode;
       }
     } catch (e) {}
     return 'connecting';
@@ -28763,63 +28804,101 @@
     } catch (e) {}
   }
 
+  /* ===== 22.09-294: кружок и подсказка в шапке — по настоящему состоянию ===== */
+  function paintIndicator(mode) {
+    try {
+      if (mode !== 'offline') return; // остальные состояния красит сам модуль синхронизации
+      var dot = document.getElementById('sync-dot');
+      if (dot && dot.style) { dot.style.background = '#dc2626'; dot.style.animationDuration = '1.2s'; }
+      var txt = document.getElementById('sync-text');
+      if (txt) { txt.textContent = 'Сервер: не в сети'; txt.style.color = 'var(--muted)'; }
+      var box = document.getElementById('sync-indicator');
+      if (box) box.title = '';
+      if (typeof window.spTipRefreshServer === 'function') window.spTipRefreshServer(); // открытая подсказка тоже обновится
+    } catch (e) {}
+  }
+
   function set(mode) {
     mode = mode || 'connecting';
     prevState = curState;
     curState = mode;
     if (lineTimer) { clearTimeout(lineTimer); lineTimer = null; }
     linePaint(mode);
+    paintIndicator(mode);
     // зелёная линия радуется подключению и через несколько секунд гаснет — она не мешает работе
     if (mode === 'connected') {
       lineTimer = setTimeout(function () { try { ensureLine().classList.remove('cl-on'); } catch (e) {} }, GREEN_MS);
-    }
-    // карточка «Сайт в сети» — при первом подключении и при каждом восстановлении связи
-    if (mode === 'connected' && prevState && prevState !== 'connected' && prevState !== 'idle') {
       var wasOff = (prevState === 'offline' || prevState === 'error' || prevState === 'warn');
-      showCard(wasOff);
+      // карточка «Сайт в сети» — при первом подключении и при каждом восстановлении связи
+      if (mode === 'connected' && prevState && prevState !== 'connected' && prevState !== 'idle') showCard('ok', wasOff);
+      try { if (wasOff && window.SP_SYNC_POLL && SP_SYNC_POLL.kick) SP_SYNC_POLL.kick(); } catch (ek) {}
+    } else if (mode === 'offline' || mode === 'error') {
+      // 22.09-294: связь пропала — ТАКАЯ ЖЕ карточка, только красная
+      var wasOn = (prevState === 'connected' || prevState === 'connecting' || prevState === 'warn');
+      if (wasOn || (prevState === '' && (Date.now() - bootTs) > 2500)) showCard(mode === 'error' ? 'error' : 'offline');
     }
   }
 
-  /* ===== карточка «Сайт в сети» ===== */
+  /* ===== карточки «Сайт в сети» / «Сайт не в сети» ===== */
+  function ringSvg(color) {
+    return '<circle cx="22" cy="22" r="19" fill="rgba(255,255,255,.10)" stroke="rgba(255,255,255,.28)" stroke-width="2.5"/>' +
+      '<circle id="sp-oc-ring" cx="22" cy="22" r="19" fill="none" stroke="' + color + '" stroke-width="3" stroke-linecap="round" ' +
+        'stroke-dasharray="119.4" stroke-dashoffset="119.4" transform="rotate(-90 22 22)"/>';
+  }
+  function icOk() {
+    return '<svg viewBox="0 0 44 44" width="30" height="30" aria-hidden="true">' + ringSvg('#4ade80') +
+      '<path id="sp-oc-tick" d="M13.6 22.6l5.9 5.9L30.6 16" fill="none" stroke="#ffffff" stroke-width="3.2" ' +
+        'stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="34" stroke-dashoffset="34"/></svg>';
+  }
+  function icBad() {
+    return '<svg viewBox="0 0 44 44" width="30" height="30" aria-hidden="true">' + ringSvg('#fca5a5') +
+      '<path class="sp-oc-x" d="M16 16l12 12" fill="none" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round"/>' +
+      '<path class="sp-oc-x" d="M28 16L16 28" fill="none" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round"/></svg>';
+  }
+  function cardSub(kind, wasOff) {
+    var q = 0;
+    try { q = (JSON.parse(localStorage.getItem('smartplan_outbox') || '[]') || []).length; } catch (e) {}
+    var text = '';
+    if (kind === 'ok') text = wasOff ? 'Связь с сервером восстановлена' : 'Соединение с сервером установлено';
+    else if (kind === 'error') text = 'Сервер не отвечает — изменения сохраняются на устройстве и уйдут сами';
+    else text = 'Нет связи — изменения сохраняются на устройстве и уйдут сами';
+    if (kind === 'ok') text += ' — данные синхронизируются';
+    return text + (q > 0 ? ' · изменений ждало отправки: ' + q : '');
+  }
   function hideCard() {
     if (cardTimer) { clearTimeout(cardTimer); cardTimer = null; }
     var el = document.getElementById(CARD_ID);
-    if (!el || !el.classList) return;
+    if (!el || !el.classList) { try { document.documentElement.classList.remove('sp-oc-on'); } catch (e0) {} return; }
     try {
       el.classList.remove('on');
       var old = el;
-      setTimeout(function () { try { if (old && old.parentNode) old.parentNode.removeChild(old); } catch (e) {} }, 350);
+      setTimeout(function () {
+        try { if (old && old.parentNode) old.parentNode.removeChild(old); } catch (e) {}
+        try { document.documentElement.classList.remove('sp-oc-on'); } catch (e2) {}
+      }, 350);
     } catch (e) {}
   }
 
-  function showCard(wasOff) {
+  function showCard(kind, wasOff) {
+    if (kind === true) kind = 'offline';       // совместимость с прежним вызовом show(true)
+    if (kind === false || !kind) kind = 'ok';
+    var bad = (kind !== 'ok');
     hideCard(); // прежняя карточка (если ещё висит) убирается — анимация всегда проигрывается заново
     var el;
     try {
       el = document.createElement('div');
       el.id = CARD_ID;
+      if (bad) el.className = 'oc-bad';
       el.setAttribute('role', 'status');
       el.innerHTML =
-        '<span id="sp-oc-ic">' +
-          '<svg viewBox="0 0 44 44" width="30" height="30" aria-hidden="true">' +
-            '<circle cx="22" cy="22" r="19" fill="rgba(255,255,255,.10)" stroke="rgba(255,255,255,.28)" stroke-width="2.5"/>' +
-            '<circle id="sp-oc-ring" cx="22" cy="22" r="19" fill="none" stroke="#4ade80" stroke-width="3" stroke-linecap="round" ' +
-              'stroke-dasharray="119.4" stroke-dashoffset="119.4" transform="rotate(-90 22 22)"/>' +
-            '<path id="sp-oc-tick" d="M13.6 22.6l5.9 5.9L30.6 16" fill="none" stroke="#ffffff" stroke-width="3.2" ' +
-              'stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="34" stroke-dashoffset="34"/>' +
-          '</svg>' +
-        '</span>' +
-        '<span id="sp-oc-tx"><b>Сайт в сети</b><span id="sp-oc-sub"></span></span>' +
+        '<span id="sp-oc-ic">' + (bad ? icBad() : icOk()) + '</span>' +
+        '<span id="sp-oc-tx"><b>' + (bad ? 'Сайт не в сети' : 'Сайт в сети') + '</b><span id="sp-oc-sub"></span></span>' +
         '<span id="sp-oc-bar"></span>';
       document.body.appendChild(el);
-      var sub = document.getElementById('sp-oc-sub');
-      if (sub) {
-        var q = 0;
-        try { q = (JSON.parse(localStorage.getItem('smartplan_outbox') || '[]') || []).length; } catch (e) {}
-        sub.textContent = (wasOff ? 'Связь с сервером восстановлена' : 'Соединение с сервером установлено')
-          + (q > 0 ? ' · изменений ждало отправки: ' + q : '') + ' — данные синхронизируются';
-      }
+      var sub = el.querySelector('#sp-oc-sub'); // 22.09-294: именно внутри ЭТОЙ карточки (прежняя может ещё уезжать)
+      if (sub) sub.textContent = cardSub(kind, wasOff);
       el.onclick = hideCard;
+      try { document.documentElement.classList.add('sp-oc-on'); } catch (e3) {}
       setTimeout(function () { try { el.classList.add('on'); } catch (e) {} }, 30);
       cardTimer = setTimeout(hideCard, CARD_MS);
     } catch (e) {}
@@ -28828,12 +28907,17 @@
   /* ===== проверка состояния ===== */
   function check() {
     var m = readState();
+    forcedMode = (m === 'offline') ? 'offline' : '';
     if (m !== curState) set(m);
+    else if (m === 'offline') paintIndicator(m); // держим кружок и подсказку честными, пока связи нет
   }
+
+  wrapStatus(); // до первого чтения состояния
 
   window.SP_CONN_LINE = {
     set: set,
     check: check,
+    force: function (m) { holdMode = m || ''; forcedMode = (holdMode === 'offline') ? 'offline' : ''; set(holdMode || readState()); }, // покажи такое состояние, пока не снимешь: force('')
     state: function () { return curState; },
     el: function () { return ensureLine(); },
     paint: linePaint

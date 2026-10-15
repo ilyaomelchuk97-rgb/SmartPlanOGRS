@@ -273,8 +273,18 @@
   html.theme-dark [style*="color:#c2410c"],html.a11y-contrast [style*="color:#c2410c"]{color:#f5cfa0!important}
   *{box-sizing:border-box}
   /* ===== Оффлайн-баннер ===== */
-  #net-banner{position:fixed;top:4px;left:50%;transform:translate(-50%,-120%);z-index:999990;background:#b45309;color:#fff;font-size:12.5px;font-weight:700;padding:8px 18px;border-radius:0 0 12px 12px;transition:transform .3s ease;max-width:92vw;text-align:center}
-  #net-banner.show{transform:translate(-50%,0)}
+  /* 22.09-294: плашка «Нет соединения» — в том же стиле, что карточки «Сайт в сети/не в сети»;
+     пока показывается карточка (html.sp-oc-on), плашка ждёт наверху и не мешает */
+  #net-banner{position:fixed;top:7px;left:50%;transform:translate(-50%,-150%);z-index:999990;display:inline-flex;align-items:center;gap:9px;
+    max-width:92vw;padding:9px 16px 9px 14px;border-radius:14px;font-size:12.5px;font-weight:700;color:#fee2e2;text-align:center;
+    background:linear-gradient(135deg,#3f1120 0%,#7f1d1d 55%,#b91c1c 100%);border:1px solid rgba(252,165,165,.42);
+    box-shadow:0 14px 32px rgba(127,29,29,.4),inset 0 1px 0 rgba(255,255,255,.16);pointer-events:none;
+    opacity:0;transition:transform .28s cubic-bezier(.22,.9,.3,1),opacity .28s ease}
+  #net-banner::before{content:"";flex:0 0 auto;width:9px;height:9px;border-radius:50%;background:#fca5a5;animation:netPulse 1.7s ease-out infinite}
+  @keyframes netPulse{0%{box-shadow:0 0 0 0 rgba(252,165,165,.65)}70%{box-shadow:0 0 0 10px rgba(252,165,165,0)}100%{box-shadow:0 0 0 0 rgba(252,165,165,0)}}
+  @media (prefers-reduced-motion:reduce){#net-banner::before{animation:none}}
+  #net-banner.show{transform:translate(-50%,0);opacity:1}
+  html.sp-oc-on #net-banner{transform:translate(-50%,-150%)!important;opacity:0!important} /* карточка на экране — плашка ждёт */
 
   /* ===== 22.09-292: живая полоска состояния сервера вверху экрана =====
      оранжевая — идёт подключение, зелёная — сервер в сети (гаснет сама),
@@ -303,6 +313,15 @@
     box-shadow:0 18px 40px rgba(6,78,59,.42),inset 0 1px 0 rgba(255,255,255,.20);
     opacity:0;pointer-events:none;transition:opacity .32s ease}
   #sp-online-card.on{opacity:1;pointer-events:auto;animation:spOcIn .5s cubic-bezier(.2,.9,.25,1.05)}
+  /* 22.09-294: потеря связи — та же карточка, только красная */
+  #sp-online-card.oc-bad{background:linear-gradient(135deg,#3f1120 0%,#7f1d1d 55%,#b91c1c 100%);border-color:rgba(252,165,165,.42);
+    box-shadow:0 18px 40px rgba(127,29,29,.44),inset 0 1px 0 rgba(255,255,255,.18)}
+  #sp-online-card.oc-bad #sp-oc-ring{stroke:#fca5a5}
+  #sp-online-card.oc-bad .sp-oc-x{stroke-dasharray:13;stroke-dashoffset:13;animation:spOcX .3s ease-out .42s both}
+  @keyframes spOcX{from{stroke-dashoffset:13}to{stroke-dashoffset:0}}
+  #sp-online-card.oc-bad #sp-oc-sub{color:#fecaca}
+  #sp-online-card.oc-bad #sp-oc-bar{background:linear-gradient(90deg,#f87171,#fca5a5)}
+  @media (prefers-reduced-motion:reduce){#sp-online-card.oc-bad .sp-oc-x{animation-duration:.01s}}
   @keyframes spOcIn{0%{opacity:0;transform:translate(-50%,-18px) scale(.95)}100%{opacity:1;transform:translate(-50%,0) scale(1)}}
   #sp-online-card::after{content:"";position:absolute;top:0;bottom:0;left:-45%;width:45%;pointer-events:none;
     background:linear-gradient(90deg,rgba(255,255,255,0) 0%,rgba(255,255,255,.17) 50%,rgba(255,255,255,0) 100%);
@@ -1673,7 +1692,7 @@
           <div style="margin-top:6px;font-size:12px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-293 · плавные окна, страницы и уведомления — спокойные анимации, часть 1</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-294 · карточка «Сайт не в сети» при потере связи и честный кружок связи в шапке</div>
         <div style="margin-top:6px;text-align:center"><a href="#" id="li-cookie-link" class="cookie-link" title="Посмотреть или изменить разрешение">🍪 Cookie и хранилище браузера</a></div>
     </div>
   </div>
@@ -1945,17 +1964,17 @@
      Сайт остаётся на Render, а API (сервер + данные) — на воркере Cloudflare.
      Чтобы вернуться к базе Render — удалить следующую строку. -->
 <script>window.SP_CONFIG_OVERRIDE = 'https://smartplanogrsdb.ilya-omelchuk97.workers.dev/api';</script>
-<script src="root_index/config.js?v=22.09-293"></script>
-<script src="root_index/data.js?v=22.09-293"></script>
-<script src="root_index/users_db.js?v=22.09-293"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-293"></script>
-<script src="root_index/areas_db.js?v=22.09-293"></script>
-<script src="root_index/professions_db.js?v=22.09-293"></script>
-<script src="root_index/work_db.js?v=22.09-293"></script>
-<script src="root_index/objects_db.js?v=22.09-293"></script>
-<script src="root_index/workers_db.js?v=22.09-293"></script>
-<script src="root_index/tasks_db.js?v=22.09-293"></script>
-<script src="root_index/db.js?v=22.09-293"></script>
+<script src="root_index/config.js?v=22.09-294"></script>
+<script src="root_index/data.js?v=22.09-294"></script>
+<script src="root_index/users_db.js?v=22.09-294"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-294"></script>
+<script src="root_index/areas_db.js?v=22.09-294"></script>
+<script src="root_index/professions_db.js?v=22.09-294"></script>
+<script src="root_index/work_db.js?v=22.09-294"></script>
+<script src="root_index/objects_db.js?v=22.09-294"></script>
+<script src="root_index/workers_db.js?v=22.09-294"></script>
+<script src="root_index/tasks_db.js?v=22.09-294"></script>
+<script src="root_index/db.js?v=22.09-294"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -1973,12 +1992,12 @@
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-293"></script>
-      <script src="root_index/error_log.js?v=22.09-293"></script>
-      <script src="root_index/api_client.js?v=22.09-293"></script>
-      <script src="root_index/sync_polling.js?v=22.09-293"></script>
-      <script src="root_index/zip_util.js?v=22.09-293"></script>
-      <script src="root_index/app.js?v=22.09-293"></script>
+<script src="root_index/object_attrs.js?v=22.09-294"></script>
+      <script src="root_index/error_log.js?v=22.09-294"></script>
+      <script src="root_index/api_client.js?v=22.09-294"></script>
+      <script src="root_index/sync_polling.js?v=22.09-294"></script>
+      <script src="root_index/zip_util.js?v=22.09-294"></script>
+      <script src="root_index/app.js?v=22.09-294"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {
