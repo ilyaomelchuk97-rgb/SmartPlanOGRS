@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-284';
+  var SP_BUILD = '22.09-285';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -26865,29 +26865,9 @@
     th.appendChild(ar);
     uiSortRows(table, idx, dir);
   }
-  function uiSearchAdd(table) {
-    if (table.dataset.uiSearch === '1') return;
-    var tb = table.tBodies[0];
-    if (!tb || tb.rows.length < 8) return; // короткие таблицы не засоряем
-    table.dataset.uiSearch = '1';
-    var box = document.createElement('div');
-    box.className = 'ui-search no-print';
-    box.innerHTML = '<input type="search" placeholder="Поиск по таблице…" aria-label="Поиск по таблице"><span class="ui-search-n"></span>';
-    table.parentNode.insertBefore(box, table);
-    var inp = box.querySelector('input'), cnt = box.querySelector('.ui-search-n');
-    inp.addEventListener('input', function () {
-      var words = String(inp.value || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
-      var shown = 0, total = 0;
-      Array.prototype.forEach.call(table.tBodies[0].rows, function (r) {
-        total++;
-        var txt = String(r.textContent || '').toLowerCase();
-        var ok = words.every(function (w) { return txt.indexOf(w) >= 0; });
-        r.style.display = ok ? '' : 'none';
-        if (ok) shown++;
-      });
-      cnt.textContent = words.length ? ('показано ' + shown + ' из ' + total) : '';
-    });
-  }
+  /* 22.09-285: поиск по таблицам УБРАН — вместо него общий поиск по системе
+     (Ctrl+K или кнопка-лупа в шапке: объекты, виды работ, страницы, пользователи).
+     Сортировка по клику на заголовок и «липкие» заголовки остаются. */
   function uiEnhance() {
     try {
       var view = document.getElementById('view');
@@ -26910,7 +26890,6 @@
             });
           });
         }
-        uiSearchAdd(table);
       });
     } catch (e) {}
   }
@@ -28066,21 +28045,40 @@
     } catch (e) {}
     return out.slice(0, 8);
   }
+  /* 22.09-285: поиска по таблицам больше нет — найденную строку подсвечиваем
+     и прокручиваем к ней (страница открывается своим обычным видом). */
+  function gsFlashRow(text, tries) {
+    tries = (tries == null) ? 6 : tries;
+    var found = false;
+    try {
+      var needle = gsNorm(text);
+      if (needle.length < 3) return false;
+      var rows = document.querySelectorAll('#view table.dt tbody tr, #view .gl-row, #view tr');
+      for (var i = 0; i < rows.length; i++) {
+        var t = gsNorm(rows[i].textContent || '');
+        if (t.indexOf(needle.slice(0, 40)) >= 0) {
+          var r = rows[i];
+          try { r.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (eS) { try { r.scrollIntoView(); } catch (eS2) {} }
+          var oldBg = r.style.background, oldTr = r.style.transition;
+          r.style.transition = 'background .3s';
+          r.style.background = '#fef08a';
+          setTimeout(function () { try { r.style.background = oldBg; r.style.transition = oldTr; } catch (eB) {} }, 2400);
+          found = true;
+          break;
+        }
+      }
+    } catch (e) {}
+    if (!found && tries > 0) { setTimeout(function () { gsFlashRow(text, tries - 1); }, 400); }
+    return found;
+  }
   function gsGoObjects(addr) {
     try {
       setScreen('refs');
       S.refsTab = 'objects';
       try { renderRefs(); } catch (e) {}
       setTimeout(function () {
-        var inp = null, boxes = document.querySelectorAll('#view .ui-search input');
-        for (var i = 0; i < boxes.length && !inp; i++) inp = boxes[i];
-        if (inp) {
-          var tail = String(addr).replace(/^[^,]*,?\s*/, '').trim();
-          inp.value = (/^\d+$/.test(tail) ? tail : (tail.split(',')[0] || addr));
-          inp.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-        toast('ok', 'Объект: ' + addr);
-      }, 260);
+        if (!gsFlashRow(addr)) toast('ok', 'Справочник «Объекты» — ищите: ' + addr);
+      }, 320);
     } catch (e) {}
   }
   function gsWorks(q) {
@@ -28107,11 +28105,8 @@
       S.refsTab = 'works';
       try { renderRefs(); } catch (e) {}
       setTimeout(function () {
-        var inp = null, boxes = document.querySelectorAll('#view .ui-search input');
-        for (var i = 0; i < boxes.length && !inp; i++) inp = boxes[i];
-        if (inp) { inp.value = String(name).slice(0, 24); inp.dispatchEvent(new Event('input', { bubbles: true })); }
-        toast('ok', 'Раздел «Виды работ», участок ' + area);
-      }, 260);
+        if (!gsFlashRow(String(name).slice(0, 40))) toast('ok', 'Виды работ, участок ' + area + ' — ищите: ' + String(name).slice(0, 40));
+      }, 320);
     } catch (e) {}
   }
   function gsUsers(q) {

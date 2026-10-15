@@ -532,10 +532,6 @@
   table.dt th.ui-sorted{color:var(--blue)}
   table.dt thead th{position:sticky;top:61px;z-index:3}
   table.dt[data-nosticky] thead th{position:static} /* 22.09-272: короткие таблицы — заголовок не «съезжает» при прокрутке */
-  .ui-search{display:flex;align-items:center;gap:9px;margin:0 0 10px}
-  .ui-search input{flex:1;max-width:340px;padding:8px 11px;border:1px solid var(--line);border-radius:9px;font-size:13px;font-family:inherit;color:var(--txt);background:var(--card)}
-  .ui-search input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
-  .ui-search-n{font-size:12px;color:var(--muted)}
   .ui-empty{text-align:center;padding:26px 14px;color:var(--muted)}
   .ui-empty-ic{font-size:34px;line-height:1;margin-bottom:8px}
   .ui-empty-t{font-size:15px;font-weight:700;color:var(--txt);margin-bottom:5px}
@@ -639,7 +635,6 @@
   html.theme-dark #date-popup .dp-actions button:hover{background:var(--panel-3)}
   html.theme-dark .wx-l-head .wx-l-toggle:hover{background:var(--panel-3);color:var(--txt)}
   html.theme-dark .wx-layer-item:hover{background:var(--panel-3)}
-  html.theme-dark .ui-search input:hover{background:var(--panel-2)}
   /* Панель инструментов графика — строка под шапкой страницы «Графики» */
   .gtb{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
   .gtb .spacer{flex:1}
@@ -1548,7 +1543,7 @@
           <div style="margin-top:6px;font-size:12px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-284 · колокольчик уведомлений и поиск по системе (Ctrl+K)</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-285 · поиск в таблицах убран — есть общий поиск (Ctrl+K)</div>
         <div style="margin-top:6px;text-align:center"><a href="#" id="li-cookie-link" class="cookie-link" title="Посмотреть или изменить разрешение">🍪 Cookie и хранилище браузера</a></div>
     </div>
   </div>
@@ -1811,17 +1806,17 @@
      Сайт остаётся на Render, а API (сервер + данные) — на воркере Cloudflare.
      Чтобы вернуться к базе Render — удалить следующую строку. -->
 <script>window.SP_CONFIG_OVERRIDE = 'https://smartplanogrsdb.ilya-omelchuk97.workers.dev/api';</script>
-<script src="root_index/config.js?v=22.09-284"></script>
-<script src="root_index/data.js?v=22.09-284"></script>
-<script src="root_index/users_db.js?v=22.09-284"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-284"></script>
-<script src="root_index/areas_db.js?v=22.09-284"></script>
-<script src="root_index/professions_db.js?v=22.09-284"></script>
-<script src="root_index/work_db.js?v=22.09-284"></script>
-<script src="root_index/objects_db.js?v=22.09-284"></script>
-<script src="root_index/workers_db.js?v=22.09-284"></script>
-<script src="root_index/tasks_db.js?v=22.09-284"></script>
-<script src="root_index/db.js?v=22.09-284"></script>
+<script src="root_index/config.js?v=22.09-285"></script>
+<script src="root_index/data.js?v=22.09-285"></script>
+<script src="root_index/users_db.js?v=22.09-285"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-285"></script>
+<script src="root_index/areas_db.js?v=22.09-285"></script>
+<script src="root_index/professions_db.js?v=22.09-285"></script>
+<script src="root_index/work_db.js?v=22.09-285"></script>
+<script src="root_index/objects_db.js?v=22.09-285"></script>
+<script src="root_index/workers_db.js?v=22.09-285"></script>
+<script src="root_index/tasks_db.js?v=22.09-285"></script>
+<script src="root_index/db.js?v=22.09-285"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -1839,12 +1834,12 @@
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-284"></script>
-      <script src="root_index/error_log.js?v=22.09-284"></script>
-      <script src="root_index/api_client.js?v=22.09-284"></script>
-      <script src="root_index/sync_polling.js?v=22.09-284"></script>
-      <script src="root_index/zip_util.js?v=22.09-284"></script>
-      <script src="root_index/app.js?v=22.09-284"></script>
+<script src="root_index/object_attrs.js?v=22.09-285"></script>
+      <script src="root_index/error_log.js?v=22.09-285"></script>
+      <script src="root_index/api_client.js?v=22.09-285"></script>
+      <script src="root_index/sync_polling.js?v=22.09-285"></script>
+      <script src="root_index/zip_util.js?v=22.09-285"></script>
+      <script src="root_index/app.js?v=22.09-285"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {
