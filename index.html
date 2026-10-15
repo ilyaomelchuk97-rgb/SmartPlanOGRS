@@ -273,8 +273,62 @@
   html.theme-dark [style*="color:#c2410c"],html.a11y-contrast [style*="color:#c2410c"]{color:#f5cfa0!important}
   *{box-sizing:border-box}
   /* ===== Оффлайн-баннер ===== */
-  #net-banner{position:fixed;top:0;left:50%;transform:translate(-50%,-120%);z-index:999990;background:#b45309;color:#fff;font-size:12.5px;font-weight:700;padding:8px 18px;border-radius:0 0 12px 12px;transition:transform .3s ease;max-width:92vw;text-align:center}
+  #net-banner{position:fixed;top:4px;left:50%;transform:translate(-50%,-120%);z-index:999990;background:#b45309;color:#fff;font-size:12.5px;font-weight:700;padding:8px 18px;border-radius:0 0 12px 12px;transition:transform .3s ease;max-width:92vw;text-align:center}
   #net-banner.show{transform:translate(-50%,0)}
+
+  /* ===== 22.09-292: живая полоска состояния сервера вверху экрана =====
+     оранжевая — идёт подключение, зелёная — сервер в сети (гаснет сама),
+     красная — сервера нет. По полоске бегает мягкий отсвет того же цвета. */
+  #sp-conn-line{position:fixed;left:0;right:0;top:0;height:3px;z-index:2147482998;pointer-events:none;opacity:0;transition:opacity .45s ease;overflow:hidden}
+  #sp-conn-line.cl-on{opacity:1}
+  #sp-conn-line .cl-base{position:absolute;left:0;right:0;top:0;bottom:0;opacity:.42}
+  #sp-conn-line .cl-run{position:absolute;top:0;bottom:0;left:0;width:32%;opacity:.95;animation:clRun var(--cl-dur,2.6s) linear infinite;will-change:transform}
+  #sp-conn-line .cl-run2{width:18%;opacity:.6;animation-delay:calc(var(--cl-dur,2.6s) / -2)}
+  @keyframes clRun{0%{transform:translateX(-120%)}100%{transform:translateX(340%)}}
+  #sp-conn-line.cl-ok{--cl-dur:3.4s}
+  #sp-conn-line.cl-ok .cl-base{background:#16a34a}
+  #sp-conn-line.cl-ok .cl-run{background:radial-gradient(closest-side,#bbf7d0 0%,rgba(34,197,94,.9) 48%,rgba(34,197,94,0) 100%);filter:drop-shadow(0 0 6px rgba(34,197,94,.9))}
+  #sp-conn-line.cl-warn{--cl-dur:2.1s}
+  #sp-conn-line.cl-warn .cl-base{background:#f59e0b}
+  #sp-conn-line.cl-warn .cl-run{background:radial-gradient(closest-side,#fde68a 0%,rgba(245,158,11,.92) 48%,rgba(245,158,11,0) 100%);filter:drop-shadow(0 0 6px rgba(245,158,11,.95))}
+  #sp-conn-line.cl-bad{--cl-dur:1.4s}
+  #sp-conn-line.cl-bad .cl-base{background:#dc2626}
+  #sp-conn-line.cl-bad .cl-run{background:radial-gradient(closest-side,#fecaca 0%,rgba(239,68,68,.95) 45%,rgba(239,68,68,0) 100%);filter:drop-shadow(0 0 7px rgba(239,68,68,.95))}
+  @media (prefers-reduced-motion:reduce){#sp-conn-line .cl-run{animation:none;opacity:0}#sp-conn-line .cl-base{opacity:.8}}
+  /* ===== 22.09-292: красивое уведомление «Сайт в сети» ===== */
+  #sp-online-card{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:2147482997;display:flex;align-items:center;gap:12px;max-width:min(92vw,470px);
+    padding:11px 16px;border-radius:15px;cursor:pointer;overflow:hidden;color:#f0fdf4;
+    background:linear-gradient(135deg,#04331f 0%,#0b5c3d 52%,#12805c 100%);
+    border:1px solid rgba(134,239,172,.42);
+    box-shadow:0 18px 40px rgba(6,78,59,.42),inset 0 1px 0 rgba(255,255,255,.20);
+    opacity:0;pointer-events:none;transition:opacity .32s ease}
+  #sp-online-card.on{opacity:1;pointer-events:auto;animation:spOcIn .5s cubic-bezier(.2,.9,.25,1.05)}
+  @keyframes spOcIn{0%{opacity:0;transform:translate(-50%,-18px) scale(.95)}100%{opacity:1;transform:translate(-50%,0) scale(1)}}
+  #sp-online-card::after{content:"";position:absolute;top:0;bottom:0;left:-45%;width:45%;pointer-events:none;
+    background:linear-gradient(90deg,rgba(255,255,255,0) 0%,rgba(255,255,255,.17) 50%,rgba(255,255,255,0) 100%);
+    animation:spOcShine 1.6s ease-out .35s 1 both}
+  @keyframes spOcShine{to{left:120%}}
+  #sp-oc-ic{flex:0 0 auto;display:inline-flex}
+  #sp-oc-ic svg{display:block}
+  #sp-oc-ring{animation:spOcRing .6s ease-out both}
+  @keyframes spOcRing{from{stroke-dashoffset:119.4}to{stroke-dashoffset:0}}
+  #sp-oc-tick{animation:spOcTick .34s ease-out .44s both}
+  @keyframes spOcTick{from{stroke-dashoffset:34}to{stroke-dashoffset:0}}
+  #sp-oc-tx{display:flex;flex-direction:column;gap:2px;min-width:0}
+  #sp-oc-tx b{font-size:13.5px;letter-spacing:.2px;color:#fff}
+  #sp-oc-sub{font-size:11.5px;line-height:1.35;color:#bbf7d0}
+  #sp-oc-bar{position:absolute;left:0;bottom:0;height:2px;width:100%;transform-origin:left;
+    background:linear-gradient(90deg,#4ade80,#86efac);animation:spOcBar 5s linear both}
+  @keyframes spOcBar{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+  @media (prefers-reduced-motion:reduce){#sp-online-card.on{animation:none}#sp-online-card::after{animation:none;opacity:0}#sp-oc-ring,#sp-oc-tick{animation-duration:.01s}#sp-oc-bar{animation-duration:5s}}
+  /* ===== 22.09-229/292: панель группового изменения внизу справочника =====
+     Появляется, когда отмечена хотя бы одна работа; при отметке следующих
+     работ не перерисовывается — меняется только счётчик. */
+  #wsel-bar{position:fixed;left:50%;transform:translateX(-50%);bottom:12px;z-index:90;display:flex;align-items:center;gap:8px;
+    background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 6px 18px rgba(0,0,0,.18);
+    padding:8px 12px;font-size:12.5px;font-weight:700;animation:wselIn .26s ease-out}
+  @keyframes wselIn{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}
+  @media (prefers-reduced-motion:reduce){#wsel-bar{animation:none}}
   /* ===== Скелетоны (shimmer) ===== */
   @keyframes skelShimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
   .skel{border-radius:10px;background:linear-gradient(90deg,var(--panel-3) 25%,var(--panel-2) 50%,var(--panel-3) 75%);background-size:800px 100%;animation:skelShimmer 1.3s linear infinite}
@@ -1585,7 +1639,7 @@
           <div style="margin-top:6px;font-size:12px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-291 · кнопка настроек автоподбора ⚙ — белая с оранжевым контуром</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-292 · живая полоска связи сверху; в справочнике убрана кнопка «Групповое изменение»</div>
         <div style="margin-top:6px;text-align:center"><a href="#" id="li-cookie-link" class="cookie-link" title="Посмотреть или изменить разрешение">🍪 Cookie и хранилище браузера</a></div>
     </div>
   </div>
@@ -1857,17 +1911,17 @@
      Сайт остаётся на Render, а API (сервер + данные) — на воркере Cloudflare.
      Чтобы вернуться к базе Render — удалить следующую строку. -->
 <script>window.SP_CONFIG_OVERRIDE = 'https://smartplanogrsdb.ilya-omelchuk97.workers.dev/api';</script>
-<script src="root_index/config.js?v=22.09-291"></script>
-<script src="root_index/data.js?v=22.09-291"></script>
-<script src="root_index/users_db.js?v=22.09-291"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-291"></script>
-<script src="root_index/areas_db.js?v=22.09-291"></script>
-<script src="root_index/professions_db.js?v=22.09-291"></script>
-<script src="root_index/work_db.js?v=22.09-291"></script>
-<script src="root_index/objects_db.js?v=22.09-291"></script>
-<script src="root_index/workers_db.js?v=22.09-291"></script>
-<script src="root_index/tasks_db.js?v=22.09-291"></script>
-<script src="root_index/db.js?v=22.09-291"></script>
+<script src="root_index/config.js?v=22.09-292"></script>
+<script src="root_index/data.js?v=22.09-292"></script>
+<script src="root_index/users_db.js?v=22.09-292"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-292"></script>
+<script src="root_index/areas_db.js?v=22.09-292"></script>
+<script src="root_index/professions_db.js?v=22.09-292"></script>
+<script src="root_index/work_db.js?v=22.09-292"></script>
+<script src="root_index/objects_db.js?v=22.09-292"></script>
+<script src="root_index/workers_db.js?v=22.09-292"></script>
+<script src="root_index/tasks_db.js?v=22.09-292"></script>
+<script src="root_index/db.js?v=22.09-292"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -1885,12 +1939,12 @@
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-291"></script>
-      <script src="root_index/error_log.js?v=22.09-291"></script>
-      <script src="root_index/api_client.js?v=22.09-291"></script>
-      <script src="root_index/sync_polling.js?v=22.09-291"></script>
-      <script src="root_index/zip_util.js?v=22.09-291"></script>
-      <script src="root_index/app.js?v=22.09-291"></script>
+<script src="root_index/object_attrs.js?v=22.09-292"></script>
+      <script src="root_index/error_log.js?v=22.09-292"></script>
+      <script src="root_index/api_client.js?v=22.09-292"></script>
+      <script src="root_index/sync_polling.js?v=22.09-292"></script>
+      <script src="root_index/zip_util.js?v=22.09-292"></script>
+      <script src="root_index/app.js?v=22.09-292"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {

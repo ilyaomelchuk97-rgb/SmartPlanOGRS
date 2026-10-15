@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-291';
+  var SP_BUILD = '22.09-292';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -10882,7 +10882,6 @@
       html += '<button class="btn ghost" data-action="' + dlAction + '" style="border:1px solid var(--line);background:var(--card);padding:7px 11px;font-size:12.5px;display:inline-flex;align-items:center;gap:6px;" title="Скачать шаблон Excel со списком колонок">' + dlText + '</button>';
       html += '<button class="btn ghost" data-action="' + ulAction + '" style="border:1px solid var(--line);background:var(--card);padding:7px 11px;font-size:12.5px;display:inline-flex;align-items:center;gap:6px;" title="Загрузить заполненный Excel файл в справочник">' + ulText + '</button>';
       if (admin) html += '<button class="btn primary" data-action="new-work">' + IC.plus + ' Добавить работу</button>';
-      if (admin && !isNorms) html += '<button class="btn ghost" data-action="wsel-open" style="border:1px solid var(--line);background:var(--card);padding:7px 11px;font-size:12.5px;display:inline-flex;align-items:center;gap:6px;" title="22.09-229: групповое изменение — отметьте работы галочками в списке (или всю группу кнопкой ☑ у её названия) и откройте окно правки сразу всех выбранных">☑ Групповое изменение</button>';
     }
     html += '</div>';
 
@@ -10978,7 +10977,7 @@
         ch.works.forEach(function (w) {
           var attr = workRefBadgesHtml(w);
           // 22.09-98: название слева, свойства (вид объекта, линии и др.) и кнопки — по правому краю
-          h += '<li class="w">' + (allowBulk ? '<input type="checkbox" data-area="' + esc(ar || area) + '" data-action="wsel-toggle" data-wid="' + esc(w.id) + '"' + (S.wsel && S.wsel[w.id] ? ' checked' : '') + ' title="22.09-229: отметить для группового изменения" style="flex:0 0 auto;margin:0 4px 0 0;cursor:pointer">' : '') + '<span style="color:var(--blue)">▪</span><span>' + esc(w.name) + '</span><span style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end;text-align:right">' + attr + '</span>';
+          h += '<li class="w">' + (allowBulk ? '<input type="checkbox" data-area="' + esc(ar || area) + '" data-action="wsel-toggle" data-wid="' + esc(w.id) + '"' + (S.wsel && S.wsel[w.id] ? ' checked' : '') + ' title="22.09-292: отметить для группового изменения — внизу появится панель «Изменить выбранные»; ☑ у названия группы отмечает всю группу" style="flex:0 0 auto;margin:0 4px 0 0;cursor:pointer">' : '') + '<span style="color:var(--blue)">▪</span><span>' + esc(w.name) + '</span><span style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end;text-align:right">' + attr + '</span>';
           if (admin) h += '<span style="margin-left:10px;white-space:nowrap"><button class="btn sm" data-area="' + esc(ar || area) + '" data-action="edit-work" data-wid="' + w.id + '">Изменить</button> <button class="btn sm" data-area="' + esc(ar || area) + '" data-action="del-work" data-wid="' + w.id + '" style="color:var(--red)">Удалить</button></span>';
           h += '</li>';
         });
@@ -11051,11 +11050,35 @@
   function wselBarHtml() {
     var n = wselSelCount();
     if (!n) return '';
-    return '<div id="wsel-bar" style="position:fixed;left:50%;transform:translateX(-50%);bottom:12px;z-index:90;display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 6px 18px rgba(0,0,0,.18);padding:8px 12px;font-size:12.5px;font-weight:700">' +
-      '<span>☑ Выбрано работ: ' + n + '</span>' +
+    return '<div id="wsel-bar">' +
+      '<span id="wsel-count">☑ Выбрано работ: ' + n + '</span>' +
       '<button type="button" class="btn primary sm" data-action="wsel-open" title="Открыть окно группового изменения выбранных работ">✏ Изменить выбранные</button>' +
       '<button type="button" class="btn sm" data-action="wsel-clear" title="Снять все галочки">✕ Снять выбор</button>' +
       '</div>';
+  }
+  /* 22.09-292: панель внизу НЕ перерисовывается, когда отмечают следующие работы.
+     Если она уже на экране — меняется только число выбранных работ (сама панель,
+     её место и кнопки остаются теми же). Появляется, когда отмечена первая работа,
+     и убирается, когда снята последняя. Справочник при этом не перерисовывается. */
+  function wselBarSync() {
+    var n = wselSelCount();
+    var bar = null, cnt = null;
+    try { bar = document.getElementById('wsel-bar'); } catch (e) {}
+    try { cnt = document.getElementById('wsel-count'); } catch (e) {}
+    if (!n) { // ничего не отмечено — панель убираем
+      try { if (bar && bar.parentNode) bar.parentNode.removeChild(bar); } catch (e2) {}
+      return;
+    }
+    if (bar && cnt) { // панель уже на экране — только счётчик
+      var txt = '☑ Выбрано работ: ' + n;
+      try { if (cnt.textContent !== txt) cnt.textContent = txt; } catch (e3) {}
+      return;
+    }
+    if (bar) return; // панель есть — второй раз не добавляем
+    try {
+      if (view && view.insertAdjacentHTML) view.insertAdjacentHTML('beforeend', wselBarHtml());
+      else if (view) view.innerHTML = (view.innerHTML || '') + wselBarHtml();
+    } catch (e4) {}
   }
   /* ☑ у группы: отметить (повторное нажатие — снять) все её работы
      вместе с подгруппами. Путь группы совпадает по префиксу «path» или
@@ -18703,16 +18726,16 @@
     else if (a === 'grp-rename-save') { saveGroupRename(); }
     else if (a === 'grp-newwork') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } S.workPresetGroup = el.dataset.path || ''; openWorkModal('new'); }
     else if (a === 'grp-selall') { grpSelAll(el.dataset.path); } // 22.09-229
-    else if (a === 'wsel-toggle') { // 22.09-229: галочка у работы — панель обновляем без полной перерисовки
+    else if (a === 'wsel-toggle') { // 22.09-292: отмечена ещё одна работа — список не перерисовываем, у панели меняется только счётчик
       S.wsel = S.wsel || {};
-      var _wselWid = el.dataset.wid;
-      var _cntBefore = wselSelCount();
-      if (el.checked) S.wsel[_wselWid] = 1; else delete S.wsel[_wselWid];
-      var _cntAfter = wselSelCount();
-      if ((_cntBefore === 0) !== (_cntAfter === 0)) renderRefs();
-      else { var _bar = document.getElementById('wsel-bar'); if (_bar) _bar.outerHTML = wselBarHtml(); }
+      if (el.checked) S.wsel[el.dataset.wid] = 1; else delete S.wsel[el.dataset.wid];
+      wselBarSync();
     }
-    else if (a === 'wsel-clear') { S.wsel = {}; renderRefs(); } // 22.09-229
+    else if (a === 'wsel-clear') { // 22.09-292: снять выбор — просто снимаем галочки, панель убираем (без перерисовки справочника)
+      S.wsel = {};
+      try { Array.prototype.forEach.call(document.querySelectorAll('input[data-action="wsel-toggle"]'), function (cb) { cb.checked = false; }); } catch (eC) {}
+      wselBarSync();
+    }
     else if (a === 'wsel-open') { openWorkBulkModal(); } // 22.09-229
     else if (a === 'wbulk-jt') { // 22.09-229: галочка группы «Проводится совместно» в окне групповой правки
       S.wmBulkJoint = S.wmBulkJoint || [];
@@ -28630,4 +28653,173 @@
   /* Кнопка появляется/прячется при входе на страницу и смене участка */
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apBtnSync);
   else apBtnSync();
+  /* ── часть 30 · app/30_conn_line.js — тонкая живая полоска состояния сервера вверху экрана + уведомление «Сайт в сети» (22.09-292) ── */
+/* ============================================================
+   22.09-292: «живая» полоска вверху экрана и уведомление о связи
+   ------------------------------------------------------------
+   Верхняя тонкая линия показывает состояние связи с сервером:
+     · оранжевая — идёт подключение (сайт просыпается, вход в систему);
+     · зелёная   — сервер в сети (держится несколько секунд и гаснет);
+     · красная   — сервер не в сети (висит, пока связи нет).
+   По линии «бегает» мягкий отсвет того же цвета.
+   Когда связь появляется — выезжает карточка «Сайт в сети» с галочкой,
+   которая рисуется по контуру; полоска внизу карточки показывает,
+   сколько она ещё провисит. Нажатие по карточке скрывает её сразу.
+
+   Состояние читается из SP_SYNC_POLL.status().mode (модуль синхронизации
+   не меняем) и navigator.onLine. Сам модуль — часть app.js.
+   ============================================================ */
+(function () {
+  'use strict';
+
+  var LINE_ID = 'sp-conn-line';
+  var CARD_ID = 'sp-online-card';
+  var GREEN_MS = 4200;   // сколько держится зелёная линия после подключения
+  var CARD_MS = 5000;    // сколько висит карточка «Сайт в сети»
+  var CHECK_MS = 500;    // как часто сверяем состояние связи
+  var curState = '';
+  var prevState = '';
+  var lineEl = null;
+  var lineTimer = null;
+  var cardTimer = null;
+
+  var ST_CLS = { connected: 'cl-ok', connecting: 'cl-warn', warn: 'cl-warn', error: 'cl-bad', offline: 'cl-bad' };
+  var ST_TXT = { connected: 'в сети', connecting: 'подключение…', warn: 'нет связи', error: 'сервер недоступен', offline: 'не в сети', idle: 'ожидание' };
+
+  /* ===== текущее состояние связи ===== */
+  function readState() {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) return 'offline';
+      var st = (window.SP_SYNC_POLL && window.SP_SYNC_POLL.status) ? window.SP_SYNC_POLL.status() : null;
+      if (st) {
+        if (st.stopped) return 'idle';           // синхронизация выключена (экран входа / выход) — линию не показываем
+        return st.mode || 'connecting';
+      }
+    } catch (e) {}
+    return 'connecting';
+  }
+
+  /* ===== сама линия ===== */
+  function ensureLine() {
+    if (lineEl && lineEl.parentNode) return lineEl;
+    lineEl = document.getElementById(LINE_ID);
+    if (!lineEl) {
+      try {
+        lineEl = document.createElement('div');
+        lineEl.id = LINE_ID;
+        lineEl.setAttribute('aria-hidden', 'true');
+        lineEl.innerHTML = '<span class="cl-base"></span><span class="cl-run"></span><span class="cl-run cl-run2"></span>';
+        document.body.appendChild(lineEl);
+      } catch (e) { lineEl = null; }
+    }
+    return lineEl;
+  }
+
+  function linePaint(mode) {
+    var el = ensureLine();
+    if (!el || !el.classList) return;
+    try {
+      el.classList.remove('cl-ok', 'cl-warn', 'cl-bad', 'cl-on');
+      var cls = ST_CLS[mode];
+      if (cls) {
+        el.classList.add(cls, 'cl-on');
+        el.setAttribute('title', 'Связь с сервером: ' + (ST_TXT[mode] || mode));
+      }
+    } catch (e) {}
+  }
+
+  function set(mode) {
+    mode = mode || 'connecting';
+    prevState = curState;
+    curState = mode;
+    if (lineTimer) { clearTimeout(lineTimer); lineTimer = null; }
+    linePaint(mode);
+    // зелёная линия радуется подключению и через несколько секунд гаснет — она не мешает работе
+    if (mode === 'connected') {
+      lineTimer = setTimeout(function () { try { ensureLine().classList.remove('cl-on'); } catch (e) {} }, GREEN_MS);
+    }
+    // карточка «Сайт в сети» — при первом подключении и при каждом восстановлении связи
+    if (mode === 'connected' && prevState && prevState !== 'connected' && prevState !== 'idle') {
+      var wasOff = (prevState === 'offline' || prevState === 'error' || prevState === 'warn');
+      showCard(wasOff);
+    }
+  }
+
+  /* ===== карточка «Сайт в сети» ===== */
+  function hideCard() {
+    if (cardTimer) { clearTimeout(cardTimer); cardTimer = null; }
+    var el = document.getElementById(CARD_ID);
+    if (!el || !el.classList) return;
+    try {
+      el.classList.remove('on');
+      var old = el;
+      setTimeout(function () { try { if (old && old.parentNode) old.parentNode.removeChild(old); } catch (e) {} }, 350);
+    } catch (e) {}
+  }
+
+  function showCard(wasOff) {
+    hideCard(); // прежняя карточка (если ещё висит) убирается — анимация всегда проигрывается заново
+    var el;
+    try {
+      el = document.createElement('div');
+      el.id = CARD_ID;
+      el.setAttribute('role', 'status');
+      el.innerHTML =
+        '<span id="sp-oc-ic">' +
+          '<svg viewBox="0 0 44 44" width="30" height="30" aria-hidden="true">' +
+            '<circle cx="22" cy="22" r="19" fill="rgba(255,255,255,.10)" stroke="rgba(255,255,255,.28)" stroke-width="2.5"/>' +
+            '<circle id="sp-oc-ring" cx="22" cy="22" r="19" fill="none" stroke="#4ade80" stroke-width="3" stroke-linecap="round" ' +
+              'stroke-dasharray="119.4" stroke-dashoffset="119.4" transform="rotate(-90 22 22)"/>' +
+            '<path id="sp-oc-tick" d="M13.6 22.6l5.9 5.9L30.6 16" fill="none" stroke="#ffffff" stroke-width="3.2" ' +
+              'stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="34" stroke-dashoffset="34"/>' +
+          '</svg>' +
+        '</span>' +
+        '<span id="sp-oc-tx"><b>Сайт в сети</b><span id="sp-oc-sub"></span></span>' +
+        '<span id="sp-oc-bar"></span>';
+      document.body.appendChild(el);
+      var sub = document.getElementById('sp-oc-sub');
+      if (sub) {
+        var q = 0;
+        try { q = (JSON.parse(localStorage.getItem('smartplan_outbox') || '[]') || []).length; } catch (e) {}
+        sub.textContent = (wasOff ? 'Связь с сервером восстановлена' : 'Соединение с сервером установлено')
+          + (q > 0 ? ' · изменений ждало отправки: ' + q : '') + ' — данные синхронизируются';
+      }
+      el.onclick = hideCard;
+      setTimeout(function () { try { el.classList.add('on'); } catch (e) {} }, 30);
+      cardTimer = setTimeout(hideCard, CARD_MS);
+    } catch (e) {}
+  }
+
+  /* ===== проверка состояния ===== */
+  function check() {
+    var m = readState();
+    if (m !== curState) set(m);
+  }
+
+  window.SP_CONN_LINE = {
+    set: set,
+    check: check,
+    state: function () { return curState; },
+    el: function () { return ensureLine(); },
+    paint: linePaint
+  };
+  window.SP_ONLINE_TOAST = {
+    show: showCard,
+    hide: hideCard,
+    el: function () { return document.getElementById(CARD_ID); },
+    visible: function () {
+      var el = document.getElementById(CARD_ID);
+      return !!(el && el.classList && el.classList.contains('on'));
+    }
+  };
+
+  // реагируем сразу на смену сети браузером, а состояние сервера сверяем мелкими шагами
+  try { window.addEventListener('online', check); } catch (e) {}
+  try { window.addEventListener('offline', check); } catch (e) {}
+  try { setInterval(check, CHECK_MS); } catch (e) {}
+  try {
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', check);
+    else check();
+  } catch (e) {}
+})();
 })();
