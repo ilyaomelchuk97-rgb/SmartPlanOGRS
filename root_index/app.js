@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-295';
+  var SP_BUILD = '22.09-296';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -20376,9 +20376,15 @@
     var eff = w._effAuto || (w._effAuto = workEffAttrs(w));
     if (rules.telemetry !== false) {
       var objTel = String(attrs && attrs.telemetry || '').trim();
+      /* 22.09-296: группы работ, отмеченные в настройках автоподбора (⚙ в справочнике ГРП),
+         считаются работами «по телеметрии» — подбираются только объектам с телеметрией.
+         Это ДОПОЛНЯЕТ карточку работы: если в карточке требование указано явно — оно главнее. */
+      var _tmSel = (window.SP_AUTOPICK && window.SP_AUTOPICK.tmGroups) ? window.SP_AUTOPICK.tmGroups() : [];
+      var _tmMarked = false;
+      try { _tmMarked = !!(window.SP_AUTOPICK && window.SP_AUTOPICK.workInGroups(w, _tmSel)); } catch (eTm) {}
       if (eff.telemetry_type) {
         if (objTel.toLowerCase() !== eff.telemetry_type.toLowerCase()) return false;
-      } else if (eff.telemetry_req === 'equipped' && !objTel) return false;
+      } else if ((eff.telemetry_req === 'equipped' || (_tmMarked && !eff.telemetry_req)) && !objTel) return false;
       else if (eff.telemetry_req === 'not_equipped' && objTel) return false;
     }
     /* 22.09-283: ВИД ОБСЛУЖИВАНИЯ (REGION-gaz — приборно-диагностический комплекс).
@@ -20408,7 +20414,13 @@
        он должен совпадать с видом отопления объекта. */
     if (rules.heating !== false) {
       var hkObj = String(attrs && attrs.heating || '').trim().toLowerCase();
-      if (eff.heating_req || eff.heating_kind) {
+      /* 22.09-296: группы работ, отмеченные в настройках автоподбора, считаются работами
+         по отоплению — подбираются только объектам с газовым котлом («Вид отопления» = «Газовое»).
+         Так же ДОПОЛНЯЕТ карточку работы. */
+      var _hSel = (window.SP_AUTOPICK && window.SP_AUTOPICK.heatGroups) ? window.SP_AUTOPICK.heatGroups() : [];
+      var _hMarked = false;
+      try { _hMarked = !!(window.SP_AUTOPICK && window.SP_AUTOPICK.workInGroups(w, _hSel)); } catch (eHt) {}
+      if (eff.heating_req || eff.heating_kind || _hMarked) {
         var needKind = String(eff.heating_kind || 'Газовое').trim().toLowerCase(); // по умолчанию — газовый котёл
         if (!hkObj) return false;
         if (hkObj !== needKind) return false;
@@ -28434,7 +28446,7 @@
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', areaFilterInit);
   else areaFilterInit();
-  /* ── часть 29 · app/29_autopick.js — настройки автоподбора работ (кнопка в шапке на «Справочниках») (22.09-290) ── */
+  /* ── часть 29 · app/29_autopick.js — настройки автоподбора работ (кнопка в шапке на «Справочниках») (22.09-290, дополнено в 22.09-296) ── */
 /* ============================================================
    22.09-290: НАСТРОЙКИ АВТОПОДБОРА РАБОТ.
    Кнопка ⚙ (оранжевый квадрат) появляется в шапке слева от поиска,
@@ -28448,6 +28460,15 @@
         что и в окне «Настроить периодичность» (теперь они сохраняются
         и действуют на всех устройствах).
    Хранение — раздел settings (запись autopick), как права доступа.
+
+   22.09-296: такими же списками групп можно отметить:
+     3) «Работы по телеметрии» — работы отмеченных групп подбираются только
+        объектам, у которых есть телеметрия (как работы «с ТМ»);
+     4) «Работы по отоплению» — работы отмеченных групп подбираются только
+        объектам с газовым котлом / отоплением («Вид отопления» = «Газовое»).
+   Отметки ДОПОЛНЯЮТ то, что уже написано в карточке вида работы и
+   распознаётся по названию: если в карточке всё указано явно — она главнее,
+   а отметки закрывают случаи, где в карточке ничего не задано.
    ============================================================ */
   var AP_RULES_DEF = { type: true, lines: true, telemetry: true, service: true, heating: true };
   var AP_DIAG_GROUP_NOTE = 'все работы группы — «диагностика», подбираются объектам REGION-gaz всегда';
@@ -28468,10 +28489,22 @@
     var c = apSettingsRec() || {};
     var rules = Object.assign({}, AP_RULES_DEF, (c.rules && typeof c.rules === 'object') ? c.rules : {});
     var groups = Array.isArray(c.regionGroups) ? c.regionGroups.slice() : [];
-    return { rules: rules, regionGroups: groups };
+    var tmGroups = Array.isArray(c.tmGroups) ? c.tmGroups.slice() : [];      // 22.09-296
+    var heatGroups = Array.isArray(c.heatGroups) ? c.heatGroups.slice() : []; // 22.09-296
+    return { rules: rules, regionGroups: groups, tmGroups: tmGroups, heatGroups: heatGroups };
   }
   function apRules() { return apCfg().rules; }
   function apGroups() { return apCfg().regionGroups; }
+  function apTmGroups() { return apCfg().tmGroups; }       // 22.09-296: группы работ по телеметрии
+  function apHeatGroups() { return apCfg().heatGroups; }   // 22.09-296: группы работ по отоплению
+  /* 22.09-296: признаки работы — из карточки/названия (та же логика, что при подборе) */
+  function apEff(w) {
+    try { if (window.SP_WORK_EFF) return SP_WORK_EFF(w) || {}; } catch (e) {}
+    try { if (window.SP_GRAPH_AUTO && SP_GRAPH_AUTO.eff) return SP_GRAPH_AUTO.eff(w) || {}; } catch (e2) {}
+    return {};
+  }
+  function apWorkIsTm(w) { return !!apEff(w).tm_like; }
+  function apWorkIsHeat(w) { var e = apEff(w); return !!(e.heating_req || e.heating_kind); }
   /* Подходит ли группа работы под выбранные (точное имя или вложенная подгруппа) */
   function apWorkInGroups(w, list) {
     if (!w || !Array.isArray(list) || !list.length) return false;
@@ -28527,8 +28560,11 @@
       var vis = apVisible();
       b.style.display = vis ? 'inline-flex' : 'none';
       if (vis) {
-        var n = (apGroups() || []).length;
-        b.setAttribute('title', 'Настройки автоподбора работ' + (n ? (' — групп REGION-gaz отмечено: ' + n) : ' — работы для объектов REGION-gaz, критерии сравнения'));
+        var c = apCfg();
+        var n = c.regionGroups.length + c.tmGroups.length + c.heatGroups.length; // 22.09-296
+        b.setAttribute('title', 'Настройки автоподбора работ' + (n
+          ? (' — отмечено групп: REGION-gaz ' + c.regionGroups.length + ', телеметрия ' + c.tmGroups.length + ', отопление ' + c.heatGroups.length)
+          : ' — группы работ (REGION-gaz, телеметрия, отопление) и критерии сравнения'));
       }
     } catch (e) {}
   }
@@ -28544,9 +28580,11 @@
       var g = '';
       try { g = String((typeof workGroupOf === 'function') ? workGroupOf(w) : (w.group || '')).replace(/\s+/g, ' ').trim(); } catch (e2) { g = String(w.group || '').trim(); }
       if (!g) g = 'Без группы';
-      if (!out.g[g]) { out.g[g] = { name: g, total: 0, diag: 0 }; out.order.push(g); }
+      if (!out.g[g]) { out.g[g] = { name: g, total: 0, diag: 0, tm: 0, heat: 0 }; out.order.push(g); }
       out.g[g].total++;
       if (apIsDiag(w)) out.g[g].diag++;
+      if (apWorkIsTm(w)) out.g[g].tm++;       // 22.09-296
+      if (apWorkIsHeat(w)) out.g[g].heat++;   // 22.09-296
     });
     out.order.sort(function (a, b) { return String(a).localeCompare(String(b), 'ru'); });
     return out;
@@ -28562,38 +28600,75 @@
     return ov;
   }
   function apClose() { try { var ov = document.getElementById('ap-ov'); if (ov) ov.style.display = 'none'; } catch (e) {} }
+  /* 22.09-296: раздел со списком групп — один и тот же вид для REGION-gaz,
+     телеметрии и отопления (у каждого свои галочки, фильтр и счётчик).
+     У каждой группы видно, сколько в ней работ и сколько из них «по ТМ»/«по отоплению». */
+  function apGroupSectionHTML(o) {
+    var data = apGroupsOfArea();
+    var picked = {};
+    (o.selected || []).forEach(function (g) { picked[g] = 1; });
+    var h = '<div class="ap-sec"><div class="ap-sec-h">' + o.title + ' <span class="ap-hint">' + o.hint + '</span></div>';
+    if (o.note) h += '<div class="ap-note">' + o.note + '</div>';
+    h += '<div class="ap-tools"><input id="' + o.inputId + '" type="text" placeholder="🔍 Фильтр по названию группы…">' +
+      '<button type="button" class="ap-mini" data-ap="' + o.key + '-all">Отметить все</button>' +
+      '<button type="button" class="ap-mini" data-ap="' + o.key + '-none">Снять все</button>' +
+      '<span id="' + o.countId + '" class="ap-cnt"></span></div>';
+    h += '<div id="' + o.listId + '" class="ap-groups" data-ap-list="' + o.key + '" data-ap-input="' + o.inputId + '" data-ap-count="' + o.countId + '">';
+    if (!data.order.length) h += '<div class="ap-empty">В справочнике участка ГРП нет видов работ</div>';
+    data.order.forEach(function (g) {
+      var it = data.g[g];
+      var extra = '', disabled = false, on = !!picked[g];
+      if (o.key === 'region') {
+        var allDiag = it.diag > 0 && it.diag === it.total;
+        var someDiag = it.diag > 0 && !allDiag;
+        on = on || allDiag; disabled = allDiag;
+        if (allDiag) extra = ' · ' + AP_DIAG_GROUP_NOTE;
+        else if (someDiag) extra = ' · есть «диагностика»';
+      } else if (o.key === 'tm') {
+        if (it.tm > 0) extra = ' · работ по ТМ: ' + it.tm;
+      } else if (o.key === 'heat') {
+        if (it.heat > 0) extra = ' · работ по отоплению: ' + it.heat;
+      }
+      h += '<label class="ap-row" data-ap-text="' + esc(String(g).toLowerCase()) + '">' +
+        '<input type="checkbox" ' + o.attr + '="' + esc(g) + '"' + (on ? ' checked' : '') + (disabled ? ' disabled' : '') + '>' +
+        '<span class="ap-g-name">' + esc(g) + '</span>' +
+        '<span class="ap-g-cnt">' + it.total + ' раб.' + extra + '</span>' +
+        '</label>';
+    });
+    h += '</div></div>';
+    return h;
+  }
   function apOpen() {
     if (S.role !== 'admin') { toast('err', 'Настройки автоподбора доступны администратору'); return; }
     var ov = apOv();
     var cfg = apCfg();
-    var data = apGroupsOfArea();
-    var picked = {};
-    cfg.regionGroups.forEach(function (g) { picked[g] = 1; });
     var h = '<div id="ap-box" role="dialog" aria-label="Настройки автоподбора работ">';
     h += '<div class="ap-h"><b>⚙ Настройки автоподбора работ</b><span class="ap-sub">участок ГРП · применяются при «⚡ Автоподборе» и при сохранении графика</span>' +
       '<button type="button" class="ap-x" data-ap="close" title="Закрыть">×</button></div>';
     h += '<div class="ap-b">';
     /* 1) REGION-gaz */
-    h += '<div class="ap-sec"><div class="ap-sec-h">🌐 Работы для объектов REGION-gaz <span class="ap-hint">отметьте группы работ, которые подбираются объектам с приборно-диагностическим комплексом</span></div>';
-    h += '<div class="ap-note">Объекту с «Вид обслуживания» = <b>REGION-gaz</b> автоподбор назначает работы <b>«диагностика»</b> (они включаются всегда, отмечать не нужно) и работы <b>отмеченных групп</b>. Если не отмечено ни одной группы — такому объекту подбирается только «диагностика».</div>';
-    h += '<div class="ap-tools"><input id="ap-q" type="text" placeholder="🔍 Фильтр по названию группы…">' +
-      '<button type="button" class="ap-mini" data-ap="all">Отметить все</button>' +
-      '<button type="button" class="ap-mini" data-ap="none">Снять все</button>' +
-      '<span id="ap-count" class="ap-cnt"></span></div>';
-    h += '<div id="ap-groups" class="ap-groups">';
-    if (!data.order.length) h += '<div class="ap-empty">В справочнике участка ГРП нет видов работ</div>';
-    data.order.forEach(function (g) {
-      var it = data.g[g];
-      var allDiag = it.diag > 0 && it.diag === it.total;
-      var someDiag = it.diag > 0 && !allDiag;
-      var on = !!picked[g] || allDiag;
-      h += '<label class="ap-row" data-ap-text="' + esc(String(g).toLowerCase()) + '">' +
-        '<input type="checkbox" data-ap-group="' + esc(g) + '"' + (on ? ' checked' : '') + (allDiag ? ' disabled' : '') + '>' +
-        '<span class="ap-g-name">' + esc(g) + '</span>' +
-        '<span class="ap-g-cnt">' + it.total + ' раб.' + (allDiag ? ' · ' + AP_DIAG_GROUP_NOTE : (someDiag ? ' · есть «диагностика»' : '')) + '</span>' +
-        '</label>';
+    h += apGroupSectionHTML({
+      key: 'region', selected: cfg.regionGroups,
+      title: '🌐 Работы для объектов REGION-gaz',
+      hint: 'отметьте группы работ, которые подбираются объектам с приборно-диагностическим комплексом',
+      note: 'Объекту с «Вид обслуживания» = <b>REGION-gaz</b> автоподбор назначает работы <b>«диагностика»</b> (они включаются всегда, отмечать не нужно) и работы <b>отмеченных групп</b>. Если не отмечено ни одной группы — такому объекту подбирается только «диагностика».',
+      inputId: 'ap-q', listId: 'ap-groups', attr: 'data-ap-group', countId: 'ap-count'
     });
-    h += '</div></div>';
+    /* 22.09-296: телеметрия и отопление — такие же списки групп */
+    h += apGroupSectionHTML({
+      key: 'tm', selected: cfg.tmGroups,
+      title: '📡 Работы по телеметрии',
+      hint: 'отметьте группы работ, которые подбираются только объектам с телеметрией',
+      note: 'Работы отмеченных групп подбираются <b>только объектам, у которых есть телеметрия</b> (как работы «с ТМ»). Это <b>дополняет</b> карточку работы: если телеметрия уже указана в карточке или в названии — работа и так учитывается, отметка нужна там, где в карточке ничего не задано.',
+      inputId: 'ap-q-tm', listId: 'ap-tm-groups', attr: 'data-ap-tmgroup', countId: 'ap-tm-count'
+    });
+    h += apGroupSectionHTML({
+      key: 'heat', selected: cfg.heatGroups,
+      title: '🔥 Работы по отоплению (котёл)',
+      hint: 'отметьте группы работ, которые подбираются только объектам с газовым отоплением',
+      note: 'Работы отмеченных групп подбираются <b>только объектам, у которых «Вид отопления» = «Газовое»</b> — то есть там, где есть газовый котёл. Объектам без отопления и с «Электрическое» такие работы не назначаются. Как и выше — это дополняет карточку работы.',
+      inputId: 'ap-q-heat', listId: 'ap-heat-groups', attr: 'data-ap-heatgroup', countId: 'ap-heat-count'
+    });
     /* 2) критерии */
     var R = cfg.rules;
     function cb(id, label, on, hint) {
@@ -28615,22 +28690,28 @@
     ov.style.display = 'flex';
     try { ov.classList.remove('sp-in'); void ov.offsetWidth; ov.classList.add('sp-in'); } catch (eAn) {} // 22.09-293: окно появляется плавно
     apWire();
-    apRenderCount();
+    AP_LISTS.forEach(function (id) { apRenderCount(id); }); // 22.09-296
   }
-  function apRenderCount() {
+  var AP_LISTS = ['ap-groups', 'ap-tm-groups', 'ap-heat-groups']; // 22.09-296: три списка групп
+  function apRenderCount(listId) {
     try {
-      var c = document.getElementById('ap-count');
+      var box = document.getElementById(listId || 'ap-groups');
+      if (!box) return;
+      var c = document.getElementById(box.getAttribute('data-ap-count') || 'ap-count');
       if (!c) return;
-      var boxes = document.querySelectorAll('#ap-groups input[data-ap-group]');
+      var boxes = box.querySelectorAll('input[type=checkbox]');
       var n = 0;
-      for (var i = 0; i < boxes.length; i++) if (boxes[i].checked) n++;
+      for (var i = 0; i < boxes.length; i++) if (boxes[i].checked && !boxes[i].disabled) n++;
       c.textContent = 'отмечено групп: ' + n + ' из ' + boxes.length;
     } catch (e) {}
   }
-  function apFilter() {
+  function apFilter(listId) {
     try {
-      var q = String((document.getElementById('ap-q') || {}).value || '').toLowerCase().trim();
-      var rows = document.querySelectorAll('#ap-groups .ap-row');
+      var box = document.getElementById(listId || 'ap-groups');
+      if (!box) return;
+      var inp = document.getElementById(box.getAttribute('data-ap-input') || 'ap-q');
+      var q = String((inp || {}).value || '').toLowerCase().trim();
+      var rows = box.querySelectorAll('.ap-row');
       for (var i = 0; i < rows.length; i++) {
         var t = rows[i].getAttribute('data-ap-text') || '';
         rows[i].style.display = (!q || t.indexOf(q) >= 0) ? '' : 'none';
@@ -28639,10 +28720,16 @@
   }
   function apWire() {
     var ov = apOv();
-    var inp = document.getElementById('ap-q');
-    if (inp) inp.addEventListener('input', apFilter);
-    var gbox = document.getElementById('ap-groups');
-    if (gbox) gbox.addEventListener('change', apRenderCount);
+    // фильтр и счётчик — у каждого из трёх списков свои (элементы пересоздаются при каждом открытии)
+    AP_LISTS.forEach(function (listId) {
+      var box = document.getElementById(listId);
+      if (!box) return;
+      var inp = document.getElementById(box.getAttribute('data-ap-input') || '');
+      if (inp) inp.addEventListener('input', function () { apFilter(listId); });
+      box.addEventListener('change', function () { apRenderCount(listId); });
+    });
+    if (ov.__apClickWired) return; // 22.09-296: обработчик нажатий вешаем один раз (окно переиспользуется)
+    ov.__apClickWired = true;
     ov.addEventListener('click', function (e) {
       var t = e.target;
       if (!t || !t.closest) return;
@@ -28650,22 +28737,38 @@
       if (!act) return;
       var what = act.getAttribute('data-ap');
       if (what === 'close') { apClose(); return; }
-      if (what === 'all' || what === 'none') {
-        var boxes = document.querySelectorAll('#ap-groups input[data-ap-group]:not([disabled])');
-        for (var i = 0; i < boxes.length; i++) boxes[i].checked = (what === 'all');
-        apRenderCount();
+      if (what === 'save') { apSaveFromModal(); return; }
+      if (what === 'all' || what === 'none') what = 'region-' + what; // прежние кнопки раздела REGION-gaz
+      var mAll = /^(region|tm|heat)-(all|none)$/.exec(what);
+      if (mAll) {
+        var listId = mAll[1] === 'region' ? 'ap-groups' : (mAll[1] === 'tm' ? 'ap-tm-groups' : 'ap-heat-groups');
+        var box = document.getElementById(listId);
+        if (box) {
+          var boxes = box.querySelectorAll('input[type=checkbox]:not([disabled])');
+          for (var i = 0; i < boxes.length; i++) boxes[i].checked = (mAll[2] === 'all');
+        }
+        apRenderCount(listId);
         return;
       }
-      if (what === 'save') { apSaveFromModal(); return; }
     });
+  }
+  /* 22.09-296: собрать отмеченные группы из любого из трёх списков */
+  function apCollect(listId, attr) {
+    var out = [];
+    try {
+      var box = document.getElementById(listId);
+      if (box) {
+        var boxes = box.querySelectorAll('input[' + attr + ']');
+        for (var i = 0; i < boxes.length; i++) if (boxes[i].checked && !boxes[i].disabled) out.push(boxes[i].getAttribute(attr));
+      }
+    } catch (e) {}
+    return out;
   }
   function apSaveFromModal() {
     var cfg = apCfg();
-    var groups = [];
-    try {
-      var boxes = document.querySelectorAll('#ap-groups input[data-ap-group]');
-      for (var i = 0; i < boxes.length; i++) if (boxes[i].checked && !boxes[i].disabled) groups.push(boxes[i].getAttribute('data-ap-group'));
-    } catch (e) {}
+    var groups = apCollect('ap-groups', 'data-ap-group');
+    var tmGroups = apCollect('ap-tm-groups', 'data-ap-tmgroup');     // 22.09-296
+    var heatGroups = apCollect('ap-heat-groups', 'data-ap-heatgroup'); // 22.09-296
     function chk(id, dflt) { var x = document.getElementById(id); return x ? !!x.checked : dflt; }
     var rules = {
       type: chk('ap-r-type', cfg.rules.type !== false),
@@ -28674,7 +28777,7 @@
       service: chk('ap-r-service', cfg.rules.service !== false),
       heating: chk('ap-r-heating', cfg.rules.heating !== false)
     };
-    apSave({ regionGroups: groups, rules: rules });
+    apSave({ regionGroups: groups, tmGroups: tmGroups, heatGroups: heatGroups, rules: rules });
     apClose();
     apBtnSync();
     try { if (S.screen === 'graphs') renderGraphs(); } catch (e2) {}
@@ -28682,8 +28785,9 @@
 
   window.SP_AUTOPICK = {
     open: apOpen, close: apClose, cfg: apCfg, rules: apRules, groups: apGroups,
+    tmGroups: apTmGroups, heatGroups: apHeatGroups,           // 22.09-296
     workInGroups: apWorkInGroups, isDiag: apIsDiag, save: apSave, groupsOfArea: apGroupsOfArea,
-    saveFromModal: apSaveFromModal, sync: apBtnSync, visible: apVisible
+    saveFromModal: apSaveFromModal, sync: apBtnSync, visible: apVisible, eff: apEff
   };
   /* Кнопка появляется/прячется при входе на страницу и смене участка */
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apBtnSync);
