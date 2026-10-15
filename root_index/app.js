@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-285';
+  var SP_BUILD = '22.09-286';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -3009,18 +3009,11 @@
 
     var html = '';
 
-    // === Селектор участка для админа, начальника участка и начальника СЭОГС ===
-    if (dashCanFilter) {
-      html += '<div data-dw="filter" style="margin-bottom:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">'; // 22.09-269: метка виджета
-      html += '<label style="font-size:12px;font-weight:600;color:var(--muted)">Участок:</label>';
-      html += '<select id="dash-area" style="padding:8px 12px;border:1px solid var(--line);border-radius:9px;font-size:13px;font-family:inherit;background:var(--card)">';
-      html += '<option value=""' + (!dashFilterArea ? ' selected' : '') + '>Все участки</option>';
-      var _dashAreas = areasList();
-      _dashAreas.forEach(function (a) { html += '<option value="' + esc(a) + '"' + (dashFilterArea === a ? ' selected' : '') + '>' + esc(a) + '</option>'; });
-      html += '</select>';
-      if (dashFilterArea) {
-        html += '<button class="btn sm" data-action="dash-area-clear">Сбросить</button>';
-      }
+    /* 22.09-286: свой список участков убран — участок выбирается один раз в шапке
+       (слева от даты), он же действует на всех вкладках. Здесь только подсказка. */
+    if (dashCanFilter && S.dashArea) {
+      html += '<div data-dw="filter" style="margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">';
+      html += '<span class="sub" style="font-size:12.5px;color:var(--muted)">Участок: <b style="color:var(--txt)">' + esc(S.dashArea) + '</b> · выбран в шапке (слева от даты) — нажмите «Все участки», чтобы показать все</span>';
       html += '</div>';
     }
 
@@ -3206,9 +3199,6 @@
     animKpiNumbers(); // цифры KPI «накручиваются»
     document.getElementById('rz-badge').textContent = redzone.length;
 
-    // привязка селектора участка (для админа)
-    var dashAreaSel = document.getElementById('dash-area');
-    if (dashAreaSel) dashAreaSel.addEventListener('change', function (e) { S.dashArea = e.target.value || null; renderDashboard(); });
     // 22.09-193: привязка селектора «КПД мастеров»
     var dashMasterSel = document.getElementById('dash-master');
     if (dashMasterSel) dashMasterSel.addEventListener('change', function (e) { S.dashMaster = e.target.value || null; renderDashboard(); });
@@ -10855,20 +10845,28 @@
       return;
     }
 
+    /* 22.09-286: участок берётся из шапки (общий фильтр слева от даты).
+       Если выбрано «Все участки» — показываем справочники ВСЕХ участков подряд
+       (добавление, Excel и групповое изменение требуют конкретного участка). */
     var areaOpts = admin ? areasList() : (S.user.area ? [S.user.area] : areasList());
     if (S.workArea && areaOpts.indexOf(S.workArea) === -1 && S.user.area) areaOpts.push(S.user.area);
     if (!S.workArea || areaOpts.indexOf(S.workArea) === -1) S.workArea = areaOpts[0];
+    var areaLocked = dashAreaActive() && areaOpts.indexOf(S.dashArea) >= 0;   // участок выбран в шапке
+    if (areaLocked) S.workArea = S.dashArea;
     var area = S.workArea;
+    var mergedAreas = (!areaLocked && admin) ? areaOpts.slice() : null;      // «Все участки» — справочники всех участков
+    var allowBulk = admin && !mergedAreas;                                   // групповые галочки — только на конкретном участке
     var works = WORK.getWorks(area);
+    var worksTotal = works.length;
+    if (mergedAreas) { worksTotal = 0; mergedAreas.forEach(function (a) { try { worksTotal += (WORK.getWorks(a) || []).length; } catch (e) {} }); }
     // 22.09-112: дерево «группа / подгруппа» вместо плоской карты групп
     var workTree = buildWorkTree(works);
 
     html += '<div style="margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">';
-    html += '<label style="font-size:12px;font-weight:600;color:var(--muted)">Участок:</label>';
-    html += '<select id="ref-area" style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;background:var(--card)">';
-    areaOpts.forEach(function (a) { html += '<option value="' + esc(a) + '"' + (a === area ? ' selected' : '') + '>' + esc(a) + '</option>'; });
-    html += '</select>';
-    html += '<span class="sub" style="font-size:12px;color:var(--muted)">Видов работ: ' + works.length + '</span>';
+    html += '<span style="font-size:12px;font-weight:600;color:var(--muted)" title="Участок выбирается в шапке — слева от даты, и действует на всех вкладках">Участок: <b style="color:var(--txt)">' +
+      (areaLocked ? esc(area) + ' (из шапки)' : (mergedAreas ? 'все участки' : esc(area))) + '</b></span>';
+    html += '<span class="sub" style="font-size:12px;color:var(--muted)">Видов работ: ' + worksTotal + '</span>';
+    html += '<div style="flex:1"></div>';
     html += '<div style="flex:1"></div>';
 
     var isNorms = S.refsTab === 'norms';
@@ -10877,11 +10875,15 @@
     var ulAction = isNorms ? 'ul-norms-excel' : 'ul-works-excel';
     var ulText = isNorms ? '📤 Загрузить нормы (Excel)' : '📤 Загрузить работы (Excel)';
 
-    html += '<button class="btn ghost" data-action="' + dlAction + '" style="border:1px solid var(--line);background:var(--card);padding:7px 11px;font-size:12.5px;display:inline-flex;align-items:center;gap:6px;" title="Скачать шаблон Excel со списком колонок">' + dlText + '</button>';
-    html += '<button class="btn ghost" data-action="' + ulAction + '" style="border:1px solid var(--line);background:var(--card);padding:7px 11px;font-size:12.5px;display:inline-flex;align-items:center;gap:6px;" title="Загрузить заполненный Excel файл в справочник">' + ulText + '</button>';
-
-    if (admin) html += '<button class="btn primary" data-action="new-work">' + IC.plus + ' Добавить работу</button>';
-    if (admin && !isNorms) html += '<button class="btn ghost" data-action="wsel-open" style="border:1px solid var(--line);background:var(--card);padding:7px 11px;font-size:12.5px;display:inline-flex;align-items:center;gap:6px;" title="22.09-229: групповое изменение — отметьте работы галочками в списке (или всю группу кнопкой ☑ у её названия) и откройте окно правки сразу всех выбранных">☑ Групповое изменение</button>';
+    if (mergedAreas) {
+      // «Все участки»: правки (добавление, Excel, групповое изменение) делаются на конкретном участке
+      html += '<span class="sub" style="font-size:12px;color:var(--muted)">Показаны справочники всех участков. Чтобы добавлять работы, менять нормы или загружать Excel — выберите участок в шапке (слева от даты).</span>';
+    } else {
+      html += '<button class="btn ghost" data-action="' + dlAction + '" style="border:1px solid var(--line);background:var(--card);padding:7px 11px;font-size:12.5px;display:inline-flex;align-items:center;gap:6px;" title="Скачать шаблон Excel со списком колонок">' + dlText + '</button>';
+      html += '<button class="btn ghost" data-action="' + ulAction + '" style="border:1px solid var(--line);background:var(--card);padding:7px 11px;font-size:12.5px;display:inline-flex;align-items:center;gap:6px;" title="Загрузить заполненный Excel файл в справочник">' + ulText + '</button>';
+      if (admin) html += '<button class="btn primary" data-action="new-work">' + IC.plus + ' Добавить работу</button>';
+      if (admin && !isNorms) html += '<button class="btn ghost" data-action="wsel-open" style="border:1px solid var(--line);background:var(--card);padding:7px 11px;font-size:12.5px;display:inline-flex;align-items:center;gap:6px;" title="22.09-229: групповое изменение — отметьте работы галочками в списке (или всю группу кнопкой ☑ у её названия) и откройте окно правки сразу всех выбранных">☑ Групповое изменение</button>';
+    }
     html += '</div>';
 
     html += refsTabsHtml;
@@ -10934,11 +10936,11 @@
     // работы, и подгруппы — собственные работы рисуются первыми, затем подгруппы.
     // У админа у каждой группы: «＋» — новая работа прямо в эту группу,
     // «✏️» — переименование сразу для всех работ группы.
-    function grpHeadHtml(ch, depth) {
+    function grpHeadHtml(ch, depth, ar) {   // 22.09-286: ar — участок этой ветки (в режиме «все участки» их несколько)
       var open = !!(S.refsOpen && S.refsOpen[ch.path]);
       var g = '<div class="grp' + (open ? '' : ' closed') + '" data-action="toggle-tree" data-grp="' + esc(ch.path) + '"' + (depth ? ' style="font-weight:600;font-size:12.5px"' : '') + '><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>' + esc(ch.name);
       // 22.09-137: бейджи свойств группы (🏷); наследуются от родительских групп
-      var _gf = []; try { _gf = (WORK.groupFlagsOf && WORK.groupFlagsOf(area, ch.path)) || []; } catch (e) {}
+      var _gf = []; try { _gf = (WORK.groupFlagsOf && WORK.groupFlagsOf(ar || area, ch.path)) || []; } catch (e) {}
       _gf.forEach(function (f) {
         var _fx = String(f || '').trim(), _fl = _fx.toLowerCase();
         // 22.09-144: «Телеметрия» → «Работы с ТМ»; «ГРП» упразднена — просто метка
@@ -10948,17 +10950,18 @@
           'Свойство группы (метка, на автоподбор не влияет)');
         g += ' <span class="equipment-badge" style="font-size:11.5px" title="' + _tip + '">' + (_isTel ? '📡 ' : _isNoTm ? '🚫📡 ' : '🏷 ') + esc(_isTel ? 'Работы с ТМ' : _fx) + '</span>';
       });
+      var _ar = ' data-area="' + esc(ar || area) + '"';   // 22.09-286: кнопки знают свой участок
       if (admin) g += '<span style="margin-left:auto;display:inline-flex;gap:4px;flex-shrink:0">' +
-        (!isNorms ? '<button type="button" class="btn sm ghost" data-action="grp-selall" data-path="' + esc(ch.path) + '" title="22.09-229: отметить/снять все работы этой группы (вместе с подгруппами) для группового изменения" style="padding:2px 8px;font-size:12px;line-height:1.4">☑</button>' : '') +
-        '<button type="button" class="btn sm ghost" data-action="grp-newwork" data-path="' + esc(ch.path) + '" title="Добавить работу в эту группу (подгруппа задаётся в карточке работы)" style="padding:2px 8px;font-size:12px;line-height:1.4">＋</button>' +
-        (area === 'ГРП' ? '<button type="button" class="btn sm ghost" data-action="grp-props" data-path="' + esc(ch.path) + '" title="Свойства группы (только участок ГРП): «Работы с ТМ» — только объектам с телеметрией, «Без телеметрии» — только объектам без ТМ; применяются ко всем работам группы и её подгрупп" style="padding:2px 8px;font-size:12px;line-height:1.4">🏷</button>' : '') +
-        '<button type="button" class="btn sm ghost" data-action="grp-rename" data-path="' + esc(ch.path) + '" title="Переименовать группу для всех работ сразу" style="padding:2px 8px;font-size:12px;line-height:1.4">✏️</button></span>';
+        (!isNorms ? '<button type="button" class="btn sm ghost" data-action="grp-selall"' + _ar + ' data-path="' + esc(ch.path) + '" title="22.09-229: отметить/снять все работы этой группы (вместе с подгруппами) для группового изменения" style="padding:2px 8px;font-size:12px;line-height:1.4">☑</button>' : '') +
+        '<button type="button" class="btn sm ghost" data-action="grp-newwork"' + _ar + ' data-path="' + esc(ch.path) + '" title="Добавить работу в эту группу (подгруппа задаётся в карточке работы)" style="padding:2px 8px;font-size:12px;line-height:1.4">＋</button>' +
+        (area === 'ГРП' ? '<button type="button" class="btn sm ghost" data-action="grp-props"' + _ar + ' data-path="' + esc(ch.path) + '" title="Свойства группы (только участок ГРП): «Работы с ТМ» — только объектам с телеметрией, «Без телеметрии» — только объектам без ТМ; применяются ко всем работам группы и её подгрупп" style="padding:2px 8px;font-size:12px;line-height:1.4">🏷</button>' : '') +
+        '<button type="button" class="btn sm ghost" data-action="grp-rename"' + _ar + ' data-path="' + esc(ch.path) + '" title="Переименовать группу для всех работ сразу" style="padding:2px 8px;font-size:12px;line-height:1.4">✏️</button></span>';
       return g + '</div>';
     }
-    function workNodeLi(ch, depth) {
+    function workNodeLi(ch, depth, ar) {   // 22.09-286: ar — участок этой ветки
       // 22.09-96: группы свёрнуты при входе; раскрытые запоминаются (S.refsOpen) до ухода со страницы
       var open = !!(S.refsOpen && S.refsOpen[ch.path]);
-      var h = '<li>' + grpHeadHtml(ch, depth) + '<ul' + (open ? '' : ' style="display:none"') + '>';
+      var h = '<li>' + grpHeadHtml(ch, depth, ar) + '<ul' + (open ? '' : ' style="display:none"') + '>';
       if (isNorms) {
         // 22.09-97: раскрывающиеся группы остаются, внутри — таблица (вид как раньше)
         if (ch.works.length) {
@@ -10966,7 +10969,7 @@
           ch.works.forEach(function (w) {
             // 22.09-99: свойства (🌡️, техника и т.д.) в нормах времени не показываем
             h += '<tr><td><b>' + esc(w.name) + '</b></td><td>' + fmtH(w.norm) + '</td><td>' + esc(w.unit) + '</td>';
-            if (admin) h += '<td style="text-align:right;white-space:nowrap"><button class="btn sm" data-action="edit-work" data-wid="' + w.id + '">Изменить</button> <button class="btn sm" data-action="del-work" data-wid="' + w.id + '" style="color:var(--red)">Удалить</button></td>';
+            if (admin) h += '<td style="text-align:right;white-space:nowrap"><button class="btn sm" data-area="' + esc(ar || area) + '" data-action="edit-work" data-wid="' + w.id + '">Изменить</button> <button class="btn sm" data-area="' + esc(ar || area) + '" data-action="del-work" data-wid="' + w.id + '" style="color:var(--red)">Удалить</button></td>';
             h += '</tr>';
           });
           h += '</tbody></table></li>';
@@ -10975,33 +10978,49 @@
         ch.works.forEach(function (w) {
           var attr = workRefBadgesHtml(w);
           // 22.09-98: название слева, свойства (вид объекта, линии и др.) и кнопки — по правому краю
-          h += '<li class="w">' + (admin ? '<input type="checkbox" data-action="wsel-toggle" data-wid="' + esc(w.id) + '"' + (S.wsel && S.wsel[w.id] ? ' checked' : '') + ' title="22.09-229: отметить для группового изменения" style="flex:0 0 auto;margin:0 4px 0 0;cursor:pointer">' : '') + '<span style="color:var(--blue)">▪</span><span>' + esc(w.name) + '</span><span style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end;text-align:right">' + attr + '</span>';
-          if (admin) h += '<span style="margin-left:10px;white-space:nowrap"><button class="btn sm" data-action="edit-work" data-wid="' + w.id + '">Изменить</button> <button class="btn sm" data-action="del-work" data-wid="' + w.id + '" style="color:var(--red)">Удалить</button></span>';
+          h += '<li class="w">' + (allowBulk ? '<input type="checkbox" data-area="' + esc(ar || area) + '" data-action="wsel-toggle" data-wid="' + esc(w.id) + '"' + (S.wsel && S.wsel[w.id] ? ' checked' : '') + ' title="22.09-229: отметить для группового изменения" style="flex:0 0 auto;margin:0 4px 0 0;cursor:pointer">' : '') + '<span style="color:var(--blue)">▪</span><span>' + esc(w.name) + '</span><span style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end;text-align:right">' + attr + '</span>';
+          if (admin) h += '<span style="margin-left:10px;white-space:nowrap"><button class="btn sm" data-area="' + esc(ar || area) + '" data-action="edit-work" data-wid="' + w.id + '">Изменить</button> <button class="btn sm" data-area="' + esc(ar || area) + '" data-action="del-work" data-wid="' + w.id + '" style="color:var(--red)">Удалить</button></span>';
           h += '</li>';
         });
       }
-      ch.order.forEach(function (k) { h += workNodeLi(ch.children[k], depth + 1); });
+      ch.order.forEach(function (k) { h += workNodeLi(ch.children[k], depth + 1, ar); });
       return h + '</ul></li>';
     }
 
-    html += '<div class="card"><div class="card-b"><div class="tree">';
-    if (!works.length) html += isNorms
-      ? '<div class="empty">На участке пока нет работ</div>'
-      : '<div class="empty">На участке «' + esc(area) + '» пока нет видов работ. ' + (admin ? 'Нажмите «Добавить работу».' : '') + '</div>';
-    if (workTree.order.length) {
-      html += '<ul style="padding-left:0">';
-      workTree.order.forEach(function (k) { html += workNodeLi(workTree.children[k], 0); });
-      html += '</ul>';
+    /* 22.09-286: секция дерева для одного участка; в режиме «все участки» —
+       подряд секции всех участков справочника */
+    function refsTreeSectionHtml(a) {
+      var ws = [], tr = null;
+      try { ws = WORK.getWorks(a) || []; } catch (e) {}
+      try { tr = buildWorkTree(ws); } catch (e2) { tr = { order: [], children: {} }; }
+      var h = '';
+      if (mergedAreas) {
+        h += '<div style="margin:16px 0 6px;font-size:12.5px;font-weight:800;color:var(--muted)" data-refs-area="' + esc(a) + '">Участок: ' + esc(a) + ' · видов работ: ' + ws.length + '</div>';
+      }
+      h += '<div class="card"><div class="card-b"><div class="tree">';
+      if (!ws.length) h += isNorms
+        ? '<div class="empty">На участке пока нет работ</div>'
+        : '<div class="empty">На участке «' + esc(a) + '» пока нет видов работ. ' + (admin ? 'Нажмите «Добавить работу».' : '') + '</div>';
+      if (tr && tr.order.length) {
+        h += '<ul style="padding-left:0">';
+        tr.order.forEach(function (k) { h += workNodeLi(tr.children[k], 0, a); });
+        h += '</ul>';
+      }
+      h += '</div></div></div>';
+      return h;
     }
-    html += '</div></div></div>';
+    if (mergedAreas) {
+      mergedAreas.forEach(function (a) { html += refsTreeSectionHtml(a); });
+    } else {
+      html += refsTreeSectionHtml(area);
+    }
     // 22.09-229: выбор галочек — убрать удалённые работы и дорисовать панель группового изменения
     if (S.wsel) { var _wsKeep = {}; works.forEach(function (w) { _wsKeep[w.id] = 1; }); Object.keys(S.wsel).forEach(function (id) { if (!_wsKeep[id]) delete S.wsel[id]; }); }
-    if (admin && !isNorms) html += wselBarHtml();
+    if (!allowBulk) S.wsel = null; // 22.09-286: в режиме «все участки» групповые галочки не нужны
+    if (allowBulk && !isNorms) html += wselBarHtml();
     html += '<input type="file" id="ref-excel-file" accept=".xlsx,.xls,.csv" style="display:none">';
     view.innerHTML = html;
 
-    var refArea = document.getElementById('ref-area');
-    if (refArea) refArea.addEventListener('change', function (e) { S.workArea = e.target.value; S.wsel = {}; renderRefs(); }); // 22.09-229: сменили участок — галочки группового изменения сброшены
     bindRefExcelFile();
   }
   // Привязка скрытого input файла (импорт Excel) — общая для всех вкладок справочников
@@ -12213,6 +12232,16 @@
   function renderObjectsRefTab(admin, tabsHtml) {
     refreshObjects();
     var objs = OBJECTS.slice();
+    /* 22.09-286: если в шапке выбран участок — показываем объекты этого участка
+       (участок объекта = участок ответственного); объекты без ответственного
+       видны только в режиме «Все участки». */
+    if (dashAreaActive()) {
+      objs = objs.filter(function (o) {
+        var u = null;
+        try { u = DB.getUser(o.respId); } catch (e) {}
+        return !!(u && u.area === S.dashArea);
+      });
+    }
     var grp = S.objTab || 'grp'; // grp | shrp | other
     var hasPoly = function (o) { return !!(o.poly && o.poly.length >= 3); };
     // Вкладка «Области» — только объекты ТИПА «Область». Нарисованное во вкладке
@@ -12230,7 +12259,7 @@
     grps.sort(byNum); shrps.sort(byNum); grss.sort(byNum); pgrps.sort(byNum); others.sort(function (a, b) { return String(a.addr || '').localeCompare(String(b.addr || ''), 'ru'); });
 
     var html = '<div style="margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">';
-    html += '<span class="sub" style="font-size:12px;color:var(--muted)">ГРП: ' + grps.length + ' · ШРП: ' + shrps.length + ' · ГРС: ' + grss.length + ' · ПГРП: ' + pgrps.length + ' · Прочих: ' + others.length + ' · Областей: ' + areasL.length + '</span>';
+    html += '<span class="sub" style="font-size:12px;color:var(--muted)">' + (dashAreaActive() ? ('Участок: <b style="color:var(--txt)">' + esc(S.dashArea) + '</b> (из шапки) · ') : '') + 'ГРП: ' + grps.length + ' · ШРП: ' + shrps.length + ' · ГРС: ' + grss.length + ' · ПГРП: ' + pgrps.length + ' · Прочих: ' + others.length + ' · Областей: ' + areasL.length + '</span>';
     html += '<div style="flex:1"></div>';
     html += '<button class="btn ghost" data-action="dl-objects-excel" style="border:1px solid var(--line);background:var(--card);padding:7px 11px;font-size:12.5px;display:inline-flex;align-items:center;gap:6px;" title="Скачать справочник объектов (ГРП/ШРП) в Excel">📥 Экспорт объектов (Excel)</button>';
     html += '<button class="btn ghost" data-action="ul-objects-excel" style="border:1px solid var(--line);background:var(--card);padding:7px 11px;font-size:12.5px;display:inline-flex;align-items:center;gap:6px;" title="Загрузить объекты из Excel (новые добавятся, существующие обновятся)">📤 Импорт объектов (Excel)</button>';
@@ -17062,7 +17091,10 @@
   }
   function enterApp(u) {
     S.user = u; S.role = u.role; S.curMaster = u.id;
-    S.dashArea = null; // фильтр участка не должен «протекать» между пользователями
+    // 22.09-286: участок-фильтр берётся из шапки и сохраняется в браузере
+    S.dashArea = null;
+    try { if (window.SP_AREA_FILTER && SP_AREA_FILTER.restore) SP_AREA_FILTER.restore(); } catch (eAF) {}
+    try { if (window.SP_AREA_FILTER && SP_AREA_FILTER.render) SP_AREA_FILTER.render(); } catch (eAF2) {}
     S.dashMaster = null; // 22.09-193: и выбор мастера в «КПД мастеров» — тоже
     // 22.09-189: автоочистка «битых» задач (дата дальше 3 лет — след опечатки в якоре серии графика)
     // 22.09-254: автоочистка — только по актуальным данным с сервера (не по устаревшей копии браузера)
@@ -18296,11 +18328,14 @@
     }
     var el = e.target.closest('[data-action]'); if (!el) return;
     var a = el.dataset.action;
+    /* 22.09-286: в справочнике может быть показан «Все участки» — у кнопок строк
+       и групп есть data-area; переключаем рабочий участок на участок строки,
+       чтобы правка/удаление/переименование попали в нужный справочник. */
+    try { if (el.dataset && el.dataset.area) S.workArea = el.dataset.area; } catch (eDA) {}
     if (a === 'cal-mode') { S.calMode = el.dataset.mode; renderCalendar(); }
     else if (a === 'cal-prev') { shiftCal(-1); }
     else if (a === 'cal-next') { shiftCal(1); }
     else if (a === 'cal-today') { S.weekShift = 0; S.monthShift = 0; S.dayShift = 0; renderCalendar(); }
-    else if (a === 'dash-area-clear') { S.dashArea = null; renderDashboard(); }
     else if (a === 'dash-master-clear') { S.dashMaster = null; renderDashboard(); } // 22.09-193: сброс «КПД мастеров»
     else if (a === 'dash-day-today') { S.dashDayOff = 0; renderDashboard(); } // 22.09-171
     else if (a === 'open-weather') { toggleWeatherDropdown(); }
@@ -19531,13 +19566,20 @@
     list.forEach(function (x) { if (x.id === GS.cur) g = x; });
     if (!g) { toast('err', 'Сначала создайте или выберите график'); return; }
     if (!g.workColors) g.workColors = {};
-    var area = graphAreaDefault(g);
+    /* 22.09-286: участок выбран в шапке — берём его */
+    var area = (dashAreaActive() && areasList().indexOf(S.dashArea) >= 0) ? S.dashArea : graphAreaDefault(g);
     var areas = areasList();
     var areaOpts = '';
     areas.forEach(function (a) { areaOpts += '<option value="' + esc(a) + '"' + (a === area ? ' selected' : '') + '>' + esc(a) + '</option>'; });
     var h = '<div class="modal-h"><h3>Обозначения работ</h3><button class="x" data-action="close-modal">×</button></div>';
     h += '<div class="modal-b">';
-    h += '<div class="fld" style="max-width:320px"><label>Участок</label><select id="gl-area">' + areaOpts + '</select></div>';
+    if (dashAreaActive() && areasList().indexOf(S.dashArea) >= 0) {
+      h += '<div class="fld" style="max-width:320px"><label>Участок</label>' +
+        '<div style="font-size:13px;font-weight:700;color:var(--txt);padding:6px 0" title="Участок выбирается в шапке — слева от даты">' + esc(area) + ' <span style="font-weight:500;color:var(--muted)">(из шапки)</span></div>' +
+        '<select id="gl-area" style="display:none">' + areaOpts + '</select></div>';
+    } else {
+      h += '<div class="fld" style="max-width:320px"><label>Участок</label><select id="gl-area">' + areaOpts + '</select></div>';
+    }
     h += '<div id="gl-rows"></div>';
     h += '</div>';
     h += '<div class="modal-f"><button type="button" class="btn ok" data-action="close-modal">Готово</button></div>';
@@ -20565,7 +20607,8 @@
     var g = graphsFind(GS.cur);
     if (!g) { toast('err', 'Сначала создайте или выберите график'); return; }
     if (!g.objs || !g.objs.length) { toast('err', 'Добавьте объекты в график'); return; }
-    var area = graphAreaDefault(g);
+    /* 22.09-286: участок выбран в шапке — берём его (список участков не показываем) */
+    var area = (dashAreaActive() && areasList().indexOf(S.dashArea) >= 0) ? S.dashArea : graphAreaDefault(g);
     var areas = areasList();
     var areaOpts = '';
     areas.forEach(function (a) { areaOpts += '<option value="' + esc(a) + '"' + (a === area ? ' selected' : '') + '>' + esc(a) + '</option>'; });
@@ -20575,7 +20618,14 @@
       '<button type="button" class="sp-info-btn" data-action="gpr-help" aria-label="Схема автоподбора работ" title="Схема автоподбора работ: как программа подбирает работы объекту и расставляет даты">i</button>' +
       '</h3><button class="x" data-action="close-modal">×</button></div>';
     h += '<div class="modal-b">';
-    h += '<div class="fld" style="max-width:320px"><label>Участок (виды работ из справочника)</label><select id="gpr-area">' + areaOpts + '</select></div>';
+    if (dashAreaActive() && areasList().indexOf(S.dashArea) >= 0) {
+      // участок выбран в шапке: список скрыт, но значение читается сохранением
+      h += '<div class="fld" style="max-width:320px"><label>Участок</label>' +
+        '<div style="font-size:13px;font-weight:700;color:var(--txt);padding:6px 0" title="Участок выбирается в шапке — слева от даты">' + esc(area) + ' <span style="font-weight:500;color:var(--muted)">(из шапки)</span></div>' +
+        '<select id="gpr-area" style="display:none">' + areaOpts + '</select></div>';
+    } else {
+      h += '<div class="fld" style="max-width:320px"><label>Участок (виды работ из справочника)</label><select id="gpr-area">' + areaOpts + '</select></div>';
+    }
     // 22.09-114: панель автоподбора работ по параметрам объектов
     h += '<div style="display:flex;flex-direction:column;align-items:flex-start;gap:10px;margin-bottom:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 10px">' +
       '<span style="font-size:12px;font-weight:700;color:#166534">⚡ Автоподбор работ:</span>' +
@@ -27207,7 +27257,6 @@
   // ================= 1. Настройка панели =================
   var DW_KEY = 'smartplan_dash_widgets_v1';
   var DW_LIST = [
-    { key: 'filter',  label: 'Фильтр по участку' },
     { key: 'kpi',     label: 'Показатели (плитки КPI)' },
     { key: 'warn',    label: 'Предупреждения (ордера, погода)' },
     { key: 'weather', label: 'Погода' },
@@ -28210,4 +28259,94 @@
     if (e.key === 'Escape' && opened) { e.preventDefault(); e.stopPropagation(); gsClose(); }
   }, true);
   window.SP_SEARCH = { open: gsOpen, close: gsClose, all: gsAll, pick: gsPick, norm: gsNorm };
+  /* ── часть 28 · app/28_area_filter.js — общий выбор участка в шапке (22.09-286) ── */
+/* ============================================================
+   22.09-286: ОДИН ВЫБОР УЧАСТКА НА ВСЮ СИСТЕМУ.
+   Список стоит в шапке слева от даты («Сегодня …»). Выбрали участок —
+   ВСЕ вкладки показывают только его: панель мониторинга, планирование,
+   карты, работники, списания, отчёты, справочники, графики.
+   «Все участки» — без фильтра.
+   Выбор сохраняется в браузере (на следующий вход подставляется сам).
+   Право выбирать — как и раньше у фильтра панели: администратор,
+   начальник участка, начальник СЭОГС (у остальных ролей фильтр берётся
+   из их собственного участка).
+   Технически фильтр — тот же S.dashArea, что и раньше (dashAreaActive()),
+   поэтому все страницы, которые уже его учитывали, работают без правок.
+   ============================================================ */
+  var AREA_FILTER_KEY = 'smartplan_area_filter';
+
+  function areaFilterCan() { return S.role === 'admin' || S.role === 'nach' || S.role === 'viewer'; }
+  function areaFilterSaved() { try { return String(localStorage.getItem(AREA_FILTER_KEY) || ''); } catch (e) { return ''; } }
+  function areaFilterSave(v) { try { localStorage.setItem(AREA_FILTER_KEY, String(v || '')); } catch (e) {} }
+
+  /* Нарисовать список в шапке (и показать/скрыть его по роли) */
+  function areaFilterRender() {
+    try {
+      var sel = document.getElementById('sp-area-sel');
+      if (!sel) return;
+      if (!areaFilterCan()) { sel.style.display = 'none'; return; }
+      var areas = areasList();
+      var cur = S.dashArea || '';
+      var h = '<option value="">Все участки</option>';
+      areas.forEach(function (a) { h += '<option value="' + esc(a) + '"' + (a === cur ? ' selected' : '') + '>' + esc(a) + '</option>'; });
+      sel.innerHTML = h;
+      if (areas.indexOf(cur) < 0) { sel.value = ''; }
+      sel.style.display = '';
+      sel.setAttribute('title', cur
+        ? ('Фильтр по участку: ' + cur + ' — все вкладки показывают только его. Нажмите, чтобы изменить')
+        : 'Фильтр по участку: сейчас показаны все участки. Выберите участок — все вкладки будут показывать только его');
+    } catch (e) {}
+  }
+  /* Применить выбор: S.dashArea + сохранение + перерисовка текущей страницы */
+  function areaFilterApply(v, silent) {
+    S.dashArea = v ? String(v) : null;
+    try { S.wsel = null; } catch (eWs) {}   // 22.09-286: смена участка сбрасывает галочки группового выбора
+    areaFilterSave(S.dashArea || '');
+    areaFilterRender();
+    if (!silent) {
+      try {
+        toast(S.dashArea ? 'info' : 'ok', S.dashArea
+          ? ('Показан участок: ' + S.dashArea + ' — все вкладки показывают только его')
+          : 'Показаны все участки');
+      } catch (e) {}
+    }
+    try {
+      if (typeof window.reRenderCurrentScreen === 'function') window.reRenderCurrentScreen();
+      else if (S.screen === 'dashboard') renderDashboard();
+    } catch (e2) {}
+  }
+  /* Восстановить сохранённый выбор при входе (роли без права — без фильтра) */
+  function areaFilterRestore() {
+    try {
+      S.dashArea = null;
+      if (areaFilterCan()) {
+        var v = areaFilterSaved();
+        if (v && areasList().indexOf(v) >= 0) S.dashArea = v;
+      }
+      areaFilterRender();
+    } catch (e) {}
+  }
+  /* Подключение списка (один раз) */
+  function areaFilterInit() {
+    try {
+      var sel = document.getElementById('sp-area-sel');
+      if (sel && !sel.getAttribute('data-af-wired')) {
+        sel.setAttribute('data-af-wired', '1');
+        sel.addEventListener('change', function (e) { areaFilterApply(e.target.value); });
+      }
+      areaFilterRender();
+    } catch (e) {}
+  }
+  window.SP_AREA_FILTER = {
+    render: areaFilterRender, apply: areaFilterApply, restore: areaFilterRestore,
+    init: areaFilterInit, can: areaFilterCan, saved: areaFilterSaved,
+    /* для «Проверить систему» и автотестов: что сейчас выбрано и что из-за этого видно */
+    cur: function () { return S.dashArea || ''; },
+    masters: function () {
+      try { var l = (typeof visibleMasters === 'function') ? visibleMasters() : []; return l.map(function (m) { return { id: m.id, name: m.full_name || m.name || '', area: m.area || '' }; }); } catch (e) { return []; }
+    },
+    tasks: function () { try { return (typeof visibleTasks === 'function') ? visibleTasks() : []; } catch (e) { return []; } }
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', areaFilterInit);
+  else areaFilterInit();
 })();

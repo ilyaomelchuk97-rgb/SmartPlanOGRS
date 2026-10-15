@@ -672,6 +672,12 @@
   .gw-h.gw-corner{text-align:left;border-left:none;padding:8px 11px}
   .gw-h.gw-corner span{display:block;font-size:11.5px;color:var(--blue);font-weight:800;letter-spacing:.4px}
   .gw-h.gw-m{white-space:nowrap}
+  /* 22.09-286: общий выбор участка в шапке (слева от даты) */
+  #sp-area-sel{max-width:230px;padding:7px 10px;border:1px solid var(--line);border-radius:9px;font-size:12.5px;font-weight:700;font-family:inherit;background:var(--card);color:var(--txt);cursor:pointer;margin-right:10px}
+  #sp-area-sel:hover{border-color:var(--blue);background:var(--panel-2)}
+  #sp-area-sel:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+  html.theme-dark #sp-area-sel{background:var(--panel-2);color:var(--txt)}
+  @media(max-width:820px){#sp-area-sel{max-width:128px;font-size:12px}}
   /* 22.09-284: колокольчик уведомлений и глобальный поиск */
   #sp-search-btn svg, #sp-bell svg{width:16px;height:16px}
   #sp-bell-badge{position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;border-radius:9px;background:#dc2626;color:#fff;font-size:10.5px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 4px;line-height:1;box-shadow:0 0 0 2px var(--card)}
@@ -1543,7 +1549,7 @@
           <div style="margin-top:6px;font-size:12px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-285 · поиск в таблицах убран — есть общий поиск (Ctrl+K)</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-286 · участок выбирается один раз в шапке</div>
         <div style="margin-top:6px;text-align:center"><a href="#" id="li-cookie-link" class="cookie-link" title="Посмотреть или изменить разрешение">🍪 Cookie и хранилище браузера</a></div>
     </div>
   </div>
@@ -1605,6 +1611,8 @@
         <div class="crumb" id="screen-crumb">Рабочий стол</div>
       </div>
       <div class="spacer"></div>
+      <!-- 22.09-286: общий выбор участка — все вкладки показывают выбранный участок -->
+      <select id="sp-area-sel" style="display:none" aria-label="Фильтр по участку"></select>
       <div id="topbar-date" style="font-size:13px;font-weight:700;color:var(--blue);white-space:nowrap;"></div>
       <div class="spacer"></div>
       <!-- 22.09-271: настройка панели — только на панели мониторинга, слева от индикатора сервера -->
@@ -1806,17 +1814,17 @@
      Сайт остаётся на Render, а API (сервер + данные) — на воркере Cloudflare.
      Чтобы вернуться к базе Render — удалить следующую строку. -->
 <script>window.SP_CONFIG_OVERRIDE = 'https://smartplanogrsdb.ilya-omelchuk97.workers.dev/api';</script>
-<script src="root_index/config.js?v=22.09-285"></script>
-<script src="root_index/data.js?v=22.09-285"></script>
-<script src="root_index/users_db.js?v=22.09-285"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-285"></script>
-<script src="root_index/areas_db.js?v=22.09-285"></script>
-<script src="root_index/professions_db.js?v=22.09-285"></script>
-<script src="root_index/work_db.js?v=22.09-285"></script>
-<script src="root_index/objects_db.js?v=22.09-285"></script>
-<script src="root_index/workers_db.js?v=22.09-285"></script>
-<script src="root_index/tasks_db.js?v=22.09-285"></script>
-<script src="root_index/db.js?v=22.09-285"></script>
+<script src="root_index/config.js?v=22.09-286"></script>
+<script src="root_index/data.js?v=22.09-286"></script>
+<script src="root_index/users_db.js?v=22.09-286"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-286"></script>
+<script src="root_index/areas_db.js?v=22.09-286"></script>
+<script src="root_index/professions_db.js?v=22.09-286"></script>
+<script src="root_index/work_db.js?v=22.09-286"></script>
+<script src="root_index/objects_db.js?v=22.09-286"></script>
+<script src="root_index/workers_db.js?v=22.09-286"></script>
+<script src="root_index/tasks_db.js?v=22.09-286"></script>
+<script src="root_index/db.js?v=22.09-286"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -1834,12 +1842,12 @@
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-285"></script>
-      <script src="root_index/error_log.js?v=22.09-285"></script>
-      <script src="root_index/api_client.js?v=22.09-285"></script>
-      <script src="root_index/sync_polling.js?v=22.09-285"></script>
-      <script src="root_index/zip_util.js?v=22.09-285"></script>
-      <script src="root_index/app.js?v=22.09-285"></script>
+<script src="root_index/object_attrs.js?v=22.09-286"></script>
+      <script src="root_index/error_log.js?v=22.09-286"></script>
+      <script src="root_index/api_client.js?v=22.09-286"></script>
+      <script src="root_index/sync_polling.js?v=22.09-286"></script>
+      <script src="root_index/zip_util.js?v=22.09-286"></script>
+      <script src="root_index/app.js?v=22.09-286"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {
