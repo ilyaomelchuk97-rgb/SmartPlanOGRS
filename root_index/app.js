@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-304';
+  var SP_BUILD = '22.09-305';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -22011,7 +22011,14 @@
     var g = graphsFind(GS.cur);
     if (!g) return;
     var h = '<div class="modal-h"><h3>Удалить работы?</h3><button class="x" data-action="close-modal">×</button></div>';
-    h += '<div class="modal-b"><div style="font-size:13px;color:var(--ink);line-height:1.6">Вы точно хотите удалить все запланированные работы по данному графику?</div></div>';
+    /* 22.09-305: приводим к тому же правилу, что и удаление графика (сборка 303):
+       убираем только невыполненные работы на сегодня и будущее, а выполненные и
+       прошедшие (просроченные) остаются в истории. */
+    h += '<div class="modal-b"><div style="font-size:13px;color:var(--ink);line-height:1.6">Вы точно хотите снять с графика все запланированные работы?</div>' +
+      '<div class="note" style="margin-top:10px;font-size:12.5px;line-height:1.6;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:9px 11px">' +
+      'Уберутся <b>невыполненные работы на сегодня и будущее</b>. ' +
+      '<b>Выполненные</b> работы и <b>прошедшие</b> (просроченные) останутся в истории и в планировании. ' +
+      'Набор работ у объектов тоже очищается — объекты остаются в графике.</div></div>';
     h += '<div class="modal-f"><button type="button" class="btn" data-action="close-modal">Отмена</button><button type="button" class="btn danger" data-action="graphs-delworks-confirm">Удалить</button></div>';
     modal.innerHTML = h;
     modal.style.maxWidth = '460px';
@@ -22022,10 +22029,27 @@
     var g = null;
     list.forEach(function (x) { if (x.id === GS.cur) g = x; });
     if (!g || !g.objs) { overlay.classList.remove('show'); modal.style.maxWidth = ''; return; }
-    var removed = 0;
+    var removed = 0, keptDone = 0, keptPast = 0;
     g.objs.forEach(function (ob) {
       gwObjWorks(ob).forEach(function (wrk) {
-        (wrk.occs || []).forEach(function (oc) { if (oc.tid && TASKS_DB) { TASKS_DB.hardDeleteTask(oc.tid); removed++; } });
+        (wrk.occs || []).forEach(function (oc) {
+          if (!oc || !oc.tid || !TASKS_DB) return;
+          var tk = null; try { tk = TASKS_DB.getTask(oc.tid); } catch (eT) {}
+          if (!tk) { oc.tid = null; return; }
+          /* 22.09-305: выполненные и прошедшие (просроченные) — в историю: снимаем
+             только привязку к серии, сами задачи не удаляем */
+          if (isDone(tk)) {
+            try { TASKS_DB.updateTask(tk.id, { graphId: '', graphRi: null, graphSid: '' }); } catch (eD) {}
+            keptDone++; oc.tid = null; return;
+          }
+          if (typeof tk.d === 'number' && tk.d < 0) {
+            try { TASKS_DB.updateTask(tk.id, { graphId: '', graphRi: null, graphSid: '' }); } catch (eP) {}
+            keptPast++; oc.tid = null; return;
+          }
+          try { TASKS_DB.hardDeleteTask(tk.id); removed++; } catch (e3) {}
+          oc.tid = null;
+        });
+        wrk.occs = [];
       });
       ob.works = [];
       // 22.09-138: общий набор работ объекта тоже очищаем — работы сняты с
@@ -22037,8 +22061,10 @@
     if (TASKS_DB) S.tasks = TASKS_DB.getTasks();
     overlay.classList.remove('show');
     modal.style.maxWidth = '';
-    logAction('Удалены работы графика', g.name + ': задач ' + removed);
-    toast('ok', 'Все запланированные работы графика удалены (задач: ' + removed + '). Объекты сохранены в графике.');
+    try { if (TASKS_DB) S.tasks = TASKS_DB.getTasks(); } catch (eS) {} // 22.09-305: список задач обновляем сразу
+    logAction('Удалены работы графика', g.name + ': убрано невыполненных ' + removed + ', осталось в истории ' + (keptDone + keptPast));
+    toast('ok', 'Работы сняты с графика: убрано невыполненных — ' + removed +
+      ((keptDone + keptPast) ? (', выполненных и прошедших осталось в истории — ' + (keptDone + keptPast)) : '') + '. Объекты сохранены в графике.');
     if (S.screen === 'graphs') renderGraphs();
     else if (S.screen === 'calendar') drawCalendarGrid();
   }
