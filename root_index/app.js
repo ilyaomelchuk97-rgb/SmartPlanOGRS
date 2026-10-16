@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-300';
+  var SP_BUILD = '22.09-301';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -14761,6 +14761,27 @@
   }
 
   /* ---------- ПЕЧАТЬ ОТЧЁТА (открывает окно печати браузера) ---------- */
+  /* 22.09-301: участок, к которому относится отчёт — тот, что выбран в шапке
+     (у администратора и начальника участка), иначе участок пользователя. '' = «Все участки». */
+  function reportAreaNow() {
+    try {
+      var a = '';
+      if (dashAreaActive()) a = String(S.dashArea || '');
+      else if (S.role === 'admin' || S.role === 'viewer') a = '';
+      else a = String((S.user && S.user.area) || '');
+      /* 22.09-301: если в фильтре оказалось неизвестное значение (например, осталось
+         от старой версии) — считаем, что выбран вариант «Все участки» */
+      if (a && typeof areasList === 'function') { try { if (areasList().indexOf(a) < 0) a = ''; } catch (e2) {} }
+      return a;
+    } catch (e) { return ''; }
+  }
+  /* 22.09-301: спецотчёты (ордера, снегоуборка) — это атрибуты работ УБиРОГС.
+     Показываем их только когда выбран участок УБиРОГС или «Все участки»: раньше
+     при выбранном ГРП они висели пустыми и мешали. */
+  function reportShowUbirogs() {
+    var a = reportAreaNow();
+    return !a || a === 'УБиРОГС';
+  }
   function printReport(title, bodyHtml) {
     var w = window.open('', '_blank', 'width=900,height=700');
     if (!w) { toast('err', 'Разрешите всплывающие окна для печати'); return; }
@@ -14786,7 +14807,7 @@
       '.footer{margin-top:20pt;font-size:10pt;color:#888;text-align:center;border-top:1px solid #ccc;padding-top:6pt}' +
       '@media print{.noprint{display:none}}' +
       '</style></head><body>' +
-      '<div class="hdr"><div class="org">УП «МИНГАЗ» · УБиРОГС</div><h1>' + title + '</h1><div class="date">Период: ' + reportPeriodStr() + ' · Сформирован: ' + fmt(TODAY) + '</div></div>' +
+      '<div class="hdr"><div class="org">УП «МИНГАЗ»' + (reportAreaNow() ? ' · ' + esc(reportAreaNow()) : '') + '</div><h1>' + title + '</h1><div class="date">Период: ' + reportPeriodStr() + ' · Сформирован: ' + fmt(TODAY) + '</div></div>' +
       bodyHtml +
       '<div class="footer">SmartPlan · ' + key(TODAY) + '</div>' +
       '<div class="noprint" style="text-align:center;margin-top:16pt"><button onclick="window.print()" style="padding:8pt 24pt;font-size:12pt;cursor:pointer;background:#2563eb;color:#fff;border:none;border-radius:6pt">🖨 Печать</button></div>' +
@@ -15607,7 +15628,9 @@
     html += '</tbody></table></div>';
     html += '</div>';
 
-    // === СПЕЦОТЧЁТЫ УБиРОГС ===
+    // === СПЕЦОТЧЁТЫ УБиРОГС === (22.09-301: только когда участок УБиРОГС или «Все участки»)
+    var showUbirogs = reportShowUbirogs();
+    if (showUbirogs) {
     html += '<div style="margin-top:20px;font-size:14px;font-weight:700;color:var(--ink);">📋 Спецотчёты УБиРОГС</div>';
 
     // Контроль ордеров
@@ -15631,7 +15654,10 @@
     });
     html += '</div></div>';
 
-    // Контроль погоды
+    } // конец блока «Спецотчёты УБиРОГС»
+
+    // Контроль погоды — не привязан к УБиРОГС: работы с минимальной температурой есть
+    // и у ГРП, поэтому этот отчёт показывается всегда (22.09-301)
     html += '<div class="card" style="margin-top:10px;margin-bottom:0;"><div class="card-h"><h2 style="font-size:13px;">🌡️ Ожидание погоды</h2><div class="spacer"></div><div style="display:flex;gap:6px"><button class="btn sm" data-action="print-weather" style="background:#2563eb;color:#fff;border-color:#2563eb">' + printIcon + ' Печать</button><button class="btn sm" data-action="excel-weather" style="background:#10b981;color:#fff;border-color:#10b981">' + IC.download + ' Excel</button></div></div><div class="card-b">';
     if (!weatherBlocked.length) html += '<div class="empty">Нет задач в ожидании погоды</div>';
     weatherBlocked.forEach(function (t) {
