@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-299';
+  var SP_BUILD = '22.09-300';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -20707,17 +20707,50 @@
     return added;
   }
 
-  /* 22.09-281: открыть страницу-схему автоподбора работ (новая вкладка;
-     если браузер блокирует новую вкладку — открываем в текущей) */
-  function openAutoPickScheme() {
-    var url = 'root_index/auto_pick_scheme.html';
+  /* 22.09-281 (обновлено в 22.09-300): схема автоподбора открывается ОКНОМ ПОВЕРХ СТРАНИЦЫ,
+     как остальные окна сайта, а не в новой вкладке. Внутри окна — прокручиваемая схема
+     (страница root_index/auto_pick_scheme.html). Закрыть: кнопка ×, клавиша Esc
+     или щелчок мимо окна. Окно переиспользуется — второй раз создавать не нужно. */
+  function spSchemeOv() {
+    var ov = document.getElementById('sp-scheme-ov');
+    if (ov) return ov;
+    ov = document.createElement('div');
+    ov.id = 'sp-scheme-ov';
+    ov.style.display = 'none';
+    ov.innerHTML = '<div id="sp-scheme-box" role="dialog" aria-label="Схема автоподбора работ">' +
+      '<div class="sps-h"><b>📋 Схема автоподбора работ</b>' +
+      '<span class="sps-sub">как программа подбирает работы объекту — схема прокручивается внутри окна</span>' +
+      '<button type="button" class="sps-x" data-sps="close" title="Закрыть (Esc)">×</button></div>' +
+      '<iframe id="sp-scheme-frame" title="Схема автоподбора работ" src="about:blank"></iframe></div>';
+    document.body.appendChild(ov);
+    ov.addEventListener('mousedown', function (e) { if (e.target === ov) spSchemeClose(); }); // щелчок мимо окна
+    ov.addEventListener('click', function (e) {
+      var t = e.target;
+      if (t && t.closest && t.closest('[data-sps="close"]')) spSchemeClose();
+    });
+    return ov;
+  }
+  function spSchemeClose() {
+    try { var ov = document.getElementById('sp-scheme-ov'); if (ov) ov.style.display = 'none'; } catch (e) {}
+  }
+  function spSchemeEsc(e) {
     try {
-      var w = window.open(url, '_blank');
-      if (!w) { window.location.href = url; return; }
-      try { w.focus(); } catch (eF) {}
-    } catch (e) {
-      try { window.location.href = url; }
-      catch (e2) { try { toast('err', 'Не удалось открыть схему: файл root_index/auto_pick_scheme.html'); } catch (e3) {} }
+      if (!e || e.key !== 'Escape') return;
+      var ov = document.getElementById('sp-scheme-ov');
+      if (!ov || ov.style.display === 'none') return;
+      e.preventDefault(); e.stopPropagation();   // чтобы Esc не закрыл заодно окно «Настроить периодичность»
+      spSchemeClose();
+    } catch (err) {}
+  }
+  function openAutoPickScheme() {
+    var ov = spSchemeOv();
+    var fr = document.getElementById('sp-scheme-frame');
+    if (fr) { try { fr.src = 'root_index/auto_pick_scheme.html'; } catch (e1) {} } // всегда свежая схема
+    ov.style.display = 'flex';
+    try { ov.classList.remove('sp-in'); void ov.offsetWidth; ov.classList.add('sp-in'); } catch (e2) {}
+    if (!window.__spSpsEscWired) { // обработчик Esc вешаем один раз, в перехватывающей фазе
+      window.__spSpsEscWired = true;
+      try { document.addEventListener('keydown', spSchemeEsc, true); } catch (e3) {}
     }
   }
   function openGraphPeriodModal() {

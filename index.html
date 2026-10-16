@@ -1376,6 +1376,17 @@
   #ap-ov.sp-in{animation:fadeIn .14s ease}
   #ap-ov.sp-in #ap-box{animation:spModalIn .19s cubic-bezier(.22,.9,.3,1)}
   #gs-overlay.sp-in #gs-box{animation:spModalIn .19s cubic-bezier(.22,.9,.3,1)}
+  /* 22.09-300: окно схемы автоподбора работ (открывается кнопкой «i» поверх страницы) */
+  #sp-scheme-ov{position:fixed;inset:0;z-index:9650;background:rgba(15,23,42,.5);display:flex;align-items:flex-start;justify-content:center;padding:4vh 12px}
+  #sp-scheme-box{width:min(1040px,96vw);height:88vh;display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 24px 60px rgba(15,23,42,.35)}
+  .sps-h{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--line)}
+  .sps-h b{white-space:nowrap;font-size:14px;color:var(--ink)}
+  .sps-sub{font-size:12px;color:var(--muted);flex:1 1 auto;line-height:1.3}
+  .sps-x{margin-left:auto;border:0;background:transparent;color:var(--muted);font-size:20px;line-height:1;cursor:pointer;padding:0 4px}
+  .sps-x:hover{color:var(--txt)}
+  #sp-scheme-frame{flex:1 1 auto;width:100%;border:0;background:#fff}
+  #sp-scheme-ov.sp-in{animation:fadeIn .14s ease}
+  #sp-scheme-ov.sp-in #sp-scheme-box{animation:spModalIn .19s cubic-bezier(.22,.9,.3,1)}
 
   /* Toast — 22.09-293: анимация уведомлений задана выше (спокойный выезд снизу) */
 
@@ -1776,7 +1787,7 @@
           <div style="margin-top:6px;font-size:12px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-299 · в журнале изменений шапка таблицы закреплена и не уезжает при прокрутке</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-300 · схема автоподбора обновлена и открывается окном поверх страницы</div>
         <div style="margin-top:6px;text-align:center"><a href="#" id="li-cookie-link" class="cookie-link" title="Посмотреть или изменить разрешение">🍪 Cookie и хранилище браузера</a></div>
     </div>
   </div>
@@ -2048,17 +2059,17 @@
      Сайт остаётся на Render, а API (сервер + данные) — на воркере Cloudflare.
      Чтобы вернуться к базе Render — удалить следующую строку. -->
 <script>window.SP_CONFIG_OVERRIDE = 'https://smartplanogrsdb.ilya-omelchuk97.workers.dev/api';</script>
-<script src="root_index/config.js?v=22.09-299"></script>
-<script src="root_index/data.js?v=22.09-299"></script>
-<script src="root_index/users_db.js?v=22.09-299"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-299"></script>
-<script src="root_index/areas_db.js?v=22.09-299"></script>
-<script src="root_index/professions_db.js?v=22.09-299"></script>
-<script src="root_index/work_db.js?v=22.09-299"></script>
-<script src="root_index/objects_db.js?v=22.09-299"></script>
-<script src="root_index/workers_db.js?v=22.09-299"></script>
-<script src="root_index/tasks_db.js?v=22.09-299"></script>
-<script src="root_index/db.js?v=22.09-299"></script>
+<script src="root_index/config.js?v=22.09-300"></script>
+<script src="root_index/data.js?v=22.09-300"></script>
+<script src="root_index/users_db.js?v=22.09-300"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-300"></script>
+<script src="root_index/areas_db.js?v=22.09-300"></script>
+<script src="root_index/professions_db.js?v=22.09-300"></script>
+<script src="root_index/work_db.js?v=22.09-300"></script>
+<script src="root_index/objects_db.js?v=22.09-300"></script>
+<script src="root_index/workers_db.js?v=22.09-300"></script>
+<script src="root_index/tasks_db.js?v=22.09-300"></script>
+<script src="root_index/db.js?v=22.09-300"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -2076,12 +2087,12 @@
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-299"></script>
-      <script src="root_index/error_log.js?v=22.09-299"></script>
-      <script src="root_index/api_client.js?v=22.09-299"></script>
-      <script src="root_index/sync_polling.js?v=22.09-299"></script>
-      <script src="root_index/zip_util.js?v=22.09-299"></script>
-      <script src="root_index/app.js?v=22.09-299"></script>
+<script src="root_index/object_attrs.js?v=22.09-300"></script>
+      <script src="root_index/error_log.js?v=22.09-300"></script>
+      <script src="root_index/api_client.js?v=22.09-300"></script>
+      <script src="root_index/sync_polling.js?v=22.09-300"></script>
+      <script src="root_index/zip_util.js?v=22.09-300"></script>
+      <script src="root_index/app.js?v=22.09-300"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {
