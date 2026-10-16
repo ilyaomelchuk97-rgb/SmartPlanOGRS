@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-307';
+  var SP_BUILD = '22.09-308';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -21389,6 +21389,95 @@
     } catch (eU) {}
     return true;
   }
+  /* 22.09-308: СЛИЯНИЕ ГРУПП. Правило пользователя: если ОДНА работа из одной группы помечена
+     «совместно» с работой из ДРУГОЙ группы, то эти две ГРУППЫ сливаются — все работы обеих групп
+     проводятся в один день (самый ранний в месяце). Здесь строим «блоки групп»: какие группы
+     оказались связаны через свои работы (по отметкам на конкретных видах работ и по отметкам на группах). */
+  var _gwJB = {};   // area → { sig, b } — кэш блоков (пересобирается, если справочник изменился)
+  function gwJointBlocksGet(area) {
+    var list = [];
+    try { list = WORK.getWorks(area) || []; } catch (e) { list = []; }
+    var sig = list.length;
+    for (var i = 0; i < list.length; i++) {
+      var w = list[i]; if (!w) continue;
+      var j = w.joint_with; sig += (Array.isArray(j) ? j.length : (j ? 1 : 0));
+      sig += String(w.group != null ? w.group : '').length;   // группа тоже влияет — учитываем в подписи
+    }
+    var c = _gwJB[area];
+    if (c && c.sig === sig) return c.b;
+    var b = gwJointBlocksBuild(list, area);
+    _gwJB[area] = { sig: sig, b: b };
+    return b;
+  }
+  function gwJointBlocksBuild(list, area) {
+    var parent = {};
+    function find(x) {
+      if (parent[x] === undefined) parent[x] = x;
+      while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; }
+      return x;
+    }
+    function union(a1, b1) {
+      a1 = String(a1 == null ? '' : a1).replace(/\s+/g, ' ').trim();
+      b1 = String(b1 == null ? '' : b1).replace(/\s+/g, ' ').trim();
+      if (!a1 || !b1) return;
+      var ra = find(a1), rb = find(b1);
+      if (ra !== rb) parent[rb] = ra;
+    }
+    var byId = {};
+    (list || []).forEach(function (w) { if (w && w.id) byId[w.id] = w; });
+    function gOf(w) { return (w && w.group != null) ? String(w.group).replace(/\s+/g, ' ').trim() : ''; }
+    (list || []).forEach(function (w) {
+      var gw = gOf(w);
+      if (!gw) return;
+      var j = w.joint_with; j = Array.isArray(j) ? j : (j ? [j] : []);
+      (j || []).forEach(function (e) {
+        if (!e) return;
+        var eg = '';
+        var other = byId[e];
+        if (other) eg = gOf(other);                       // отметка по конкретному виду работ (старый формат)
+        else eg = String(e).replace(/\s+/g, ' ').trim();  // отметка по группе работ
+        if (eg) union(gw, eg);                            // ГРУППЫ сливаются
+      });
+    });
+    var blocks = {};
+    Object.keys(parent).forEach(function (pt) { var r = find(pt); (blocks[r] = blocks[r] || []).push(pt); });
+    function inPath(path, sel) {
+      path = String(path == null ? '' : path).trim(); sel = String(sel == null ? '' : sel).trim();
+      if (!path || !sel) return false;
+      return path === sel || path.indexOf(sel + ' / ') === 0;   // «Группа / Подгруппа» внутри «Группы»
+    }
+    /* Совместны ли две группы «по блокам» (с учётом вложенных подгрупп) */
+    function hit(g1, g2) {
+      if (!g1 || !g2) return false;
+      var r1 = (parent[g1] !== undefined) ? find(g1) : null;
+      var r2 = (parent[g2] !== undefined) ? find(g2) : null;
+      if (r1 && r2 && r1 === r2) return true;
+      var b1 = r1 ? (blocks[r1] || []) : [g1];
+      var b2 = r2 ? (blocks[r2] || []) : [g2];
+      for (var i = 0; i < b1.length; i++) if (inPath(g2, b1[i])) return true;   // группа второй работы внутри группы из блока первой
+      for (var k = 0; k < b2.length; k++) if (inPath(g1, b2[k])) return true;
+      return false;
+    }
+    return { hit: hit, size: Object.keys(blocks).length };
+  }
+  /* Пара работ «совместная»: отметка по видам работ, по группам (с вложенными подгруппами)
+     и по СЛИЯНИЮ ГРУПП (сборка 308). Одна функция на всю программу — поведение одинаково везде. */
+  function gwIsJointPairAreaArea(area, wa, wb) {
+    if (!wa || !wb || String(wa) === String(wb)) return false;
+    try {
+      var w1 = WORK.getWork(area, wa), w2 = WORK.getWork(area, wb);
+      if (!w1 || !w2) return false;
+      var j1 = w1.joint_with || [], j2 = w2.joint_with || [];
+      j1 = Array.isArray(j1) ? j1 : (j1 ? [j1] : []);
+      j2 = Array.isArray(j2) ? j2 : (j2 ? [j2] : []);
+      if (j1.indexOf(wb) >= 0 || j2.indexOf(wa) >= 0) return true;               // отметка на конкретный вид работ
+      var g1 = w1.group ? String(w1.group) : '', g2 = w2.group ? String(w2.group) : '';
+      if (gwGroupHit(j1, g2) || gwGroupHit(j2, g1)) return true;                 // отметка на группу (с вложенными)
+      if (gwJointBlocksGet(area).hit(g1, g2)) return true;                       // 22.09-308: группы слиты через свои работы
+      return false;
+    } catch (e) { return false; }
+  }
+
   /* 22.09-306: совпадает ли группа работы с отметкой в списке «Проводится совместно».
      ВАЖНО: отметка — это ГРУППА (путь), а работа может лежать во ВЛОЖЕННОЙ подгруппе
      («Группа / Подгруппа»). Раньше сравнение было ТОЧНЫМ, и такие работы не соединялись:
@@ -21473,19 +21562,6 @@
     });
     return moved;
   }
-  /* пара «совместная» по двум видам работ (общая проверка для модуля, вне gwJointAlign) */
-  function gwIsJointPairAreaArea(area, wa, wb) {
-    try {
-      var w1 = WORK.getWork(area, wa), w2 = WORK.getWork(area, wb);
-      var j1 = (w1 && w1.joint_with) || [], j2 = (w2 && w2.joint_with) || [];
-      j1 = Array.isArray(j1) ? j1 : (j1 ? [j1] : []);
-      j2 = Array.isArray(j2) ? j2 : (j2 ? [j2] : []);
-      if (j1.indexOf(wb) >= 0 || j2.indexOf(wa) >= 0) return true;
-      var g1 = w1 && w1.group ? String(w1.group) : '', g2 = w2 && w2.group ? String(w2.group) : '';
-      return gwGroupHit(j1, g2) || gwGroupHit(j2, g1);
-    } catch (e) { return false; }
-  }
-
   /* 22.09-159: ВЫРАВНИВАНИЕ СОВМЕСТНЫХ РАБОТ (joint_with) ОДНОГО объекта.
      Если у двух совместных серий есть проведения в ОДНОМ месяце — более
      позднее (первое в месяце) переносится на день более раннего (тот же день;
@@ -21508,14 +21584,10 @@
     function groupOf(wid2) {
       try { var w = WORK.getWork(area, wid2); return (w && w.group) ? String(w.group).trim() : ''; } catch (e) { return ''; }
     }
-    // 22.09-206: пара совместная, если id или группа есть в списке совместных друг друга
-    // 22.09-306: учитываем ВЛОЖЕННЫЕ подгруппы (отметка родительской группы действует и на подгруппы)
-    function isJointPair(wa, wb) {
-      var ja = jointsOf(wa), jb = jointsOf(wb);
-      if (ja.indexOf(wb) >= 0 || jb.indexOf(wa) >= 0) return true; // старый формат — по id видов работ
-      var ga = groupOf(wa), gb = groupOf(wb);
-      return gwGroupHit(ja, gb) || gwGroupHit(jb, ga); // по группам работ (с вложенными подгруппами)
-    }
+    // 22.09-206/306/308: одна общая проверка — отметка по видам работ, по группам (с вложенными
+    // подгруппами) и СЛИЯНИЕ ГРУПП: если работа одной группы совместна с работой другой —
+    // все работы обеих групп проводятся в один день.
+    function isJointPair(wa, wb) { return gwIsJointPairAreaArea(area, wa, wb); }
     function monthOf(iso) { return +String(iso).slice(5, 7) - 1; }
     function firstOccOf(wrk, mi) {
       var o = null;
@@ -21779,7 +21851,8 @@
     seasonSync: gwSeasonSync,
     helpScheme: openAutoPickScheme, // 22.09-281: страница-схема автоподбора
     jointAlign: gwJointAlign, // 22.09-304: выравнивание совместных работ (для проверок)
-    jointRunAll: gwJointRunAll, jointFollow: gwJointFollowMoved, jointPair: gwIsJointPairAreaArea, groupHit: gwGroupHit // 22.09-306
+    jointRunAll: gwJointRunAll, jointFollow: gwJointFollowMoved, jointPair: gwIsJointPairAreaArea, groupHit: gwGroupHit, // 22.09-306
+    jointBlocks: gwJointBlocksGet, jointBlocksReset: function () { _gwJB = {}; } // 22.09-308: блоки групп (для проверок)
   };
   /* ── часть 15 · app/15_graphs_more.js — график работ: трудоёмкость, сезоны, копии графика, печать, Excel ── */
   /* =====================================================================
