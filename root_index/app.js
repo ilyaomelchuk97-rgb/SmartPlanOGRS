@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-308';
+  var SP_BUILD = '22.09-309';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -13267,7 +13267,8 @@
       var _normV = parseFloat(_normRaw);
       data.norm = (_normRaw !== '' && isFinite(_normV) && _normV >= 0) ? _normV : (oldW ? oldW.norm : 1);
       data.unit = val('wm-unit') || (oldW ? oldW.unit : 'объект');
-      data.periodicity_value = parseInt(val('wm-period-value')) || 0;
+      // 22.09-309: периодичность может быть дробной (0,5 — дважды в месяц)
+      data.periodicity_value = (function () { var v = parseFloat(String(val('wm-period-value') || '').replace(',', '.')); return (isFinite(v) && v > 0) ? Math.round(v * 100) / 100 : 0; })();
       data.periodicity_dev = parseInt(val('wm-period-dev'), 10);
       if (!isFinite(data.periodicity_dev) || data.periodicity_dev < 0) data.periodicity_dev = 0;
       data.periodicity_unit = val('wm-period-unit') || 'мес';
@@ -20847,7 +20848,8 @@
           if (sel && !sel.value && !row.getAttribute('data-sid')) row.parentNode.removeChild(row);
         });
       }
-      var per = (w.periodicity_unit === 'дней') ? 0 : (parseInt(w.periodicity_value, 10) || 0);
+      // 22.09-309: периодичность из карточки работы — с дробной частью (0,5)
+      var per = (w.periodicity_unit === 'дней') ? 0 : (function () { var v = parseFloat(String(w.periodicity_value != null ? w.periodicity_value : '').replace(',', '.')); return (isFinite(v) && v > 0) ? Math.round(v * 100) / 100 : 0; })();
       var dev = parseInt(w.periodicity_dev, 10) || 0;
       var first = (w.periodicity_basis === 'commissioning_date') ? gprFirstFromCommission(attrs, g.year)
         : (w.periodicity_basis === 'service_life_end') ? gprFirstFromServiceLife(attrs) : ''; // 22.09-209
@@ -21049,7 +21051,8 @@
       try { var _rw = sel.closest('.gpr-wrow'); if (_rw) _rw.removeAttribute('data-manual'); } catch (eRM) {} // выбор из списка — снова автоматический режим группы
       var id = sel.getAttribute('data-idx');
       // В графике шаг задаётся в месяцах: значение «в днях» не конвертируем
-      var per = (w.periodicity_unit === 'дней') ? 0 : (parseInt(w.periodicity_value, 10) || 0);
+      // 22.09-309: периодичность из карточки работы — с дробной частью (0,5)
+      var per = (w.periodicity_unit === 'дней') ? 0 : (function () { var v = parseFloat(String(w.periodicity_value != null ? w.periodicity_value : '').replace(',', '.')); return (isFinite(v) && v > 0) ? Math.round(v * 100) / 100 : 0; })();
       var dev = parseInt(w.periodicity_dev, 10) || 0;
       if (per > 0) { var pInp = listEl.querySelector('[data-gpr-p="' + id + '"]'); if (pInp) pInp.value = per; }
       if (dev > 0) { var dInp = listEl.querySelector('[data-gpr-d="' + id + '"]'); if (dInp) dInp.value = dev; }
@@ -21622,27 +21625,40 @@
     Object.keys(groups).forEach(function (k) {
       var members = groups[k];
       if (members.length < 2) return;                       // одиночная работа — нечего выравнивать
+      /* 22.09-309: в месяце у работы может быть НЕСКОЛЬКО проведений (например, периодичность
+         «1 месяц с отклонением 5 дней» → 05 и 30 числа), а первое проведение может быть уже
+         ВЫПОЛНЕНО (история). Раньше соединялось только ПЕРВОЕ проведение месяца — из-за этого
+         «в одном месяце соединились, в другом нет». Теперь перебираем проведения ПО ПОРЯДКУ:
+         1-е с 1-м, 2-е со 2-м и так далее — и соединяем все, где есть пара. */
+      var MAX_RUNS = 6;                                     // больше шести проведений в месяце не бывает
       for (var mi = 0; mi < 12; mi++) {
-        var list = [];
-        members.forEach(function (wrk) { var oc = firstOccOf(wrk, mi); if (oc) list.push({ wrk: wrk, oc: oc }); });
-        if (list.length < 2) continue;
-        /* 22.09-306: цель — самая ранняя «живая» дата месяца, НО из сегодняшних и будущих:
-           иначе будущие работы подтягивались к прошедшему дню партнёра (а у прошедших задач
-           сайт убирает незакрытые — получалось, что совместная работа «теряла» задачу). */
-        var todayIso = gwToISO(offToDate(0));
-        var target = null, targetFuture = null;
-        list.forEach(function (x) {
-          if (isHistoryOcc(x.oc)) return;
-          if (target === null || x.oc.date < target) target = x.oc.date;
-          if (x.oc.date >= todayIso && (targetFuture === null || x.oc.date < targetFuture)) targetFuture = x.oc.date;
+        var runs = [];                                      // runs[k] = список {wrk, oc} по порядку
+        members.forEach(function (wrk) {
+          var list = [];
+          (wrk.occs || []).forEach(function (oc) { if (oc && oc.date && monthOf(oc.date) === mi) list.push(oc); });
+          list.sort(function (x, y) { return String(x.date) < String(y.date) ? -1 : (String(x.date) > String(y.date) ? 1 : 0); });
+          list.forEach(function (oc, k) { (runs[k] = runs[k] || []).push({ wrk: wrk, oc: oc }); });
         });
-        if (target === null) continue;                      // все проведения — история: не трогаем
-        if (targetFuture !== null) target = targetFuture;   // есть будущее/сегодняшнее — соединяем по нему
-        list.forEach(function (x) {
-          if (x.oc.date === target) return;
-          if (isHistoryOcc(x.oc)) return;                   // выполненные остаются в истории
-          moveOcc(x.wrk, x.oc, target);
-        });
+        for (var k = 0; k < MAX_RUNS && k < runs.length; k++) {
+          var list2 = runs[k];
+          if (!list2 || list2.length < 2) continue;          // на это проведение пары нет — оставляем как есть
+          /* цель — самая ранняя «живая» дата, НО из сегодняшних и будущих: иначе будущие работы
+             подтягивались к прошедшему дню партнёра (а у прошедших задач сайт убирает незакрытые) */
+          var todayIso = gwToISO(offToDate(0));
+          var target = null, targetFuture = null;
+          list2.forEach(function (x) {
+            if (isHistoryOcc(x.oc)) return;
+            if (target === null || x.oc.date < target) target = x.oc.date;
+            if (x.oc.date >= todayIso && (targetFuture === null || x.oc.date < targetFuture)) targetFuture = x.oc.date;
+          });
+          if (target === null) continue;                     // все эти проведения — история: не трогаем
+          if (targetFuture !== null) target = targetFuture;
+          list2.forEach(function (x) {
+            if (x.oc.date === target) return;
+            if (isHistoryOcc(x.oc)) return;                  // выполненные остаются в истории
+            moveOcc(x.wrk, x.oc, target);
+          });
+        }
       }
     });
     return moved;
