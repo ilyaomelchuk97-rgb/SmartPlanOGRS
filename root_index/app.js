@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-302';
+  var SP_BUILD = '22.09-303';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -18588,7 +18588,8 @@
     else if (a === 'graphs-copy') { e.stopPropagation(); graphsCopy(el.dataset.gid); }
     else if (a === 'graphs-del') { e.stopPropagation(); openGraphsDelModal(el.dataset.gid); }
     else if (a === 'graphs-save') { graphsSave(); }
-    else if (a === 'graphs-del-confirm') { graphsDelete(); }
+    else if (a === 'graphs-del-confirm') { graphsDelete(true); }  // 22.09-303: график + невыполненные работы
+    else if (a === 'graphs-del-only') { graphsDelete(false); }     // 22.09-303: только график, работы остаются
     else if (a === 'graphs-del-cancel') { openGraphsListModal(); }
     else if (a === 'graphs-tool') {
       if (el.dataset.tool === 'addobj') { openGraphAddObjsModal(false); }
@@ -19361,27 +19362,106 @@
     openGraphsListModal(); // обновлённый список
   }
 
-  /* Окно подтверждения удаления графика */
+  /* Окно подтверждения удаления графика.
+     22.09-303: работ в планировании может быть много (например, график на год), поэтому
+     в окне — ВЫБОР: удалить только график (работы останутся) или вместе с его
+     невыполненными работами. Выполненные работы и прошедшие (просроченные) остаются
+     в истории и в планировании — их не трогаем. */
   function openGraphsDelModal(gid) {
     var g = graphsFind(gid);
     if (!g) return;
     GS.del = gid;
+    var st = { tasks: 0, past: 0, done: 0 };
+    try { st = graphDelCount(g); } catch (eC) {}
     var h = '<div class="modal-h"><h3>Удалить график?</h3><button class="x" data-action="close-modal">×</button></div>';
-    h += '<div class="modal-b"><div style="font-size:13px;color:var(--ink);line-height:1.6">График <b>«' + esc(g.name) + '»</b> (' + esc(String(g.year)) + ') будет удалён безвозвратно.</div></div>';
+    h += '<div class="modal-b"><div style="font-size:13px;color:var(--ink);line-height:1.6">График <b>«' + esc(g.name) + '»</b> (' + esc(String(g.year)) + ') будет удалён безвозвратно.</div>';
+    if (st.tasks) {
+      var tot = st.tasks + st.done + st.past;
+      h += '<div class="note" style="margin-top:10px;font-size:12.5px;line-height:1.6;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:9px 11px">' +
+        'В планировании по этому графику сейчас <b>' + tot + '</b> ' + plural(tot, 'работа', 'работы', 'работ') + ':<br>' +
+        '· невыполненных на сегодня и будущее — <b>' + st.tasks + '</b> (их можно убрать вместе с графиком);<br>' +
+        '· выполненных — <b>' + st.done + '</b>, прошедших — <b>' + st.past + '</b> — <b>останутся в любом случае</b>.</div>';
+    } else {
+      h += '<div class="note" style="margin-top:10px;font-size:12.5px;color:var(--muted)">Работ этого графика в планировании нет.</div>';
+    }
+    h += '</div>';
     h += '<div class="modal-f">' +
       '<button type="button" class="btn" data-action="graphs-del-cancel">Отмена</button>' +
-      '<button type="button" class="btn danger" data-action="graphs-del-confirm">Удалить</button>' +
+      '<button type="button" class="btn" data-action="graphs-del-only">Удалить только график</button>' +
+      '<button type="button" class="btn danger" data-action="graphs-del-confirm">Удалить график и невыполненные работы</button>' +
       '</div>';
     modal.innerHTML = h;
-    modal.style.maxWidth = '440px';
+    modal.style.maxWidth = '480px';
     overlay.classList.add('show');
   }
+  /* Склонение: 1 работа, 2 работы, 5 работ */
+  function plural(n, one, few, many) {
+    n = Math.abs(n) % 100; var n1 = n % 10;
+    if (n > 10 && n < 20) return many;
+    if (n1 > 1 && n1 < 5) return few;
+    if (n1 === 1) return one;
+    return many;
+  }
+  /* Сколько работ графика в планировании: удаляемые (невыполненные, сегодня и будущее),
+     прошедшие невыполненные и выполненные. */
+  function graphDelCount(g) {
+    var out = { tasks: 0, past: 0, done: 0 };
+    if (!g || !g.objs) return out;
+    g.objs.forEach(function (ob) {
+      gwObjWorks(ob).forEach(function (wrk) {
+        (wrk.occs || []).forEach(function (oc) {
+          if (!oc || !oc.tid) return;
+          var tk = null; try { tk = TASKS_DB.getTask(oc.tid); } catch (e) {}
+          if (!tk) return;
+          var other = false; // работа другого, ЕЩЁ СУЩЕСТВУЮЩЕГО графика — её не считаем
+          try { other = !!(tk.graphId && tk.graphId !== g.id && graphsLoad().some(function (x) { return x.id === tk.graphId; })); } catch (e1) {}
+          if (other) return;
+          if (isDone(tk)) { out.done++; return; }
+          if (typeof tk.d === 'number' && tk.d < 0) { out.past++; return; }
+          out.tasks++;
+        });
+      });
+    });
+    return out;
+  }
 
-  /* Удаление графика (после подтверждения) */
-  function graphsDelete() {
+  /* Удаление графика (после подтверждения).
+     withTasks = true — вместе с графиком убрать его НЕВЫПОЛНЕННЫЕ работы на сегодня
+     и будущее. Выполненные работы и прошедшие (просроченные) остаются в истории
+     и в планировании: у них просто снимается привязка к удаляемому графику. */
+  function graphsDelete(withTasks) {
     var gid = GS.del;
     if (!gid) { overlay.classList.remove('show'); modal.style.maxWidth = ''; return; }
     var g = graphsFind(gid);
+    var removed = 0, kept = 0, doneKept = 0;
+    if (withTasks && g && g.objs) {
+      g.objs.forEach(function (ob) {
+        gwObjWorks(ob).forEach(function (wrk) {
+          (wrk.occs || []).forEach(function (oc) {
+            if (!oc || !oc.tid) return;
+            var tk = null; try { tk = TASKS_DB.getTask(oc.tid); } catch (e) {}
+            if (!tk) return;
+            // 22.09-303: «чужую» работу не трогаем ТОЛЬКО если её график ещё существует.
+            // Если график уже удалён (осталась привязка), работа «осиротела» — её можно убирать.
+            var stillThere = false;
+            try { stillThere = graphsLoad().some(function (x) { return x.id === tk.graphId; }); } catch (e0) {}
+            if (tk.graphId && tk.graphId !== gid && stillThere) { oc.tid = null; kept++; return; }
+            if (isDone(tk)) {                                                      // выполненные — в историю
+              try { TASKS_DB.updateTask(tk.id, { graphId: '', graphRi: null, graphSid: '' }); doneKept++; } catch (e1) {}
+              oc.tid = null; return;
+            }
+            if (typeof tk.d === 'number' && tk.d < 0) {                            // прошедшие невыполненные — оставляем
+              try { TASKS_DB.updateTask(tk.id, { graphId: '', graphRi: null, graphSid: '' }); } catch (e2) {}
+              oc.tid = null; kept++; return;
+            }
+            try { TASKS_DB.hardDeleteTask(tk.id); removed++; } catch (e3) {}      // невыполненные сегодня/будущее — убираем
+            oc.tid = null;
+          });
+          wrk.occs = [];
+        });
+      });
+      try { S.tasks = TASKS_DB.getTasks(); } catch (e4) {}
+    }
     var list = graphsLoad().filter(function (x) { return x.id !== gid; });
     graphsSaveList(list);
     // Сборка 22.09-25: удалить график с сервера
@@ -19397,8 +19477,11 @@
       graphsCurSave(null);
       if (S.screen === 'graphs') renderGraphs(); // панель уйдёт — график не выбран
     }
-    logAction('Удалён график', g ? g.name + ' (' + g.year + ')' : gid);
-    toast('ok', 'График удалён');
+    logAction('Удалён график', (g ? g.name + ' (' + g.year + ')' : gid) + (withTasks ? (' · убрано невыполненных работ: ' + removed + ', осталось в истории и планировании: ' + (kept + doneKept)) : ' · работы в планировании оставлены'));
+    toast('ok', withTasks
+      ? ('График удалён. Убрано невыполненных работ: ' + removed + '. Выполненные и прошедшие остались: ' + (kept + doneKept) + '.')
+      : 'График удалён. Работы в планировании остались.');
+    try { if (S.screen === 'calendar') drawCalendarGrid(); } catch (e5) {}
     openGraphsListModal(); // возвращаемся к обновлённому списку
   }
 
