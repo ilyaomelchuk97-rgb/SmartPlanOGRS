@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-297';
+  var SP_BUILD = '22.09-299';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -13559,7 +13559,7 @@
     var rows = (window.SP_CHANGELOG || []).slice().sort(function (a, b) { return (b.n - a.n); });
     var html = '<div class="card"><div class="card-h"><h2>Журнал изменений</h2><span class="sub">' + rows.length + ' сборок · новые сверху</span></div><div class="card-b">';
     html += '<div style="font-size:12.5px;color:var(--muted);margin-bottom:12px;line-height:1.5">История версий системы SmartPlan: дата, номер сборки и что изменилось. Текущая сборка — в шапке любой страницы и на экране входа.</div>';
-    html += '<table class="dt"><thead><tr><th style="white-space:nowrap">Дата</th><th>Сборка</th><th>Что изменилось</th></tr></thead><tbody>';
+    html += '<table class="dt cl-table"><thead><tr><th style="white-space:nowrap">Дата</th><th>Сборка</th><th>Что изменилось</th></tr></thead><tbody>'; // 22.09-299: cl-table — закреплённая шапка
     rows.forEach(function (r) {
       if (!r) return;
       var cur = ('22.09-' + r.n) === SP_BUILD;
@@ -18324,6 +18324,7 @@
       if (window.__spLastAnimScreen !== S.screen) {
         window.__spLastAnimScreen = S.screen;
         spAnimateView(); // 22.09-293
+        try { if (window.SPAnim3) window.SPAnim3.onScreen(S.screen); } catch (eA3) {} // 22.09-298: цифры панели и вспышка меню
       }
     } catch (eV) {}
     uiEnhance();   // 22.09-266: поиск/сортировка таблиц текущей страницы
@@ -26385,6 +26386,15 @@
     function prefsWrite(p) { try { localStorage.setItem(PREF_KEY, JSON.stringify(p)); } catch (e) {} }
     function apply(p) {
       var h = document.documentElement;
+      /* 22.09-298: переключение темы — цвета перетекают (класс живёт 0,4 с и снимается,
+         чтобы постоянные переходы сайта остались прежними) */
+      try {
+        if (h.classList.contains('theme-dark') !== (p.theme === 'dark')) {
+          h.classList.add('sp-theme-anim');
+          clearTimeout(window.__spThemeAnimT);
+          window.__spThemeAnimT = setTimeout(function () { try { h.classList.remove('sp-theme-anim'); } catch (e) {} }, 420);
+        }
+      } catch (eTh) {}
       h.classList.toggle('theme-dark', p.theme === 'dark');
       KEYS.forEach(function (k) { h.classList.toggle('a11y-' + k, !!p[k]); });
     }
@@ -29417,5 +29427,95 @@
   }
 
   window.SPDonePop = pop;
+})();
+  /* ── часть 33 · app/33_anim3.js — анимации, часть 3: цифры на плитках панели и подсветка меню (22.09-298) ── */
+/* ============================================================
+   22.09-298: АНИМАЦИИ, ЧАСТЬ 3 (завершающая)
+   ------------------------------------------------------------
+   Что делает эта часть:
+     · ЦИФРЫ НА ПЛИТКАХ ПАНЕЛИ «набегают» до значения — коротко и один раз,
+       в момент открытия панели мониторинга (не при каждом обновлении данных,
+       чтобы числа не прыгали во время работы);
+     · ПУНКТ МЕНЮ, на который перешли, мягко «вспыхивает» — видно, куда
+       попал; оформление — в index.html (.nav a.sp-pulse).
+
+   Анимация переключения светлой и тёмной темы сделана оформлением
+   (html.sp-theme-anim в index.html) и включается в 17_weather.js.
+
+   Всё уважает галочку «Выключить анимации» (кнопка «Доступность») и
+   системную настройку «уменьшить движение»: тогда числа показываются сразу
+   готовыми, а вспышка меню не показывается.
+   ============================================================ */
+(function () {
+  'use strict';
+
+  var MAX_NUMBERS = 12;   // сколько плиток анимируем за раз (остальные — сразу готовыми)
+  var DURATION = 420;     // мс — спокойно и быстро
+  var running = false;
+
+  function quiet() {
+    try {
+      var h = document.documentElement;
+      if (h.classList.contains('a11y-calm')) return true;                       // «Выключить анимации»
+      if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return true;
+    } catch (e) {}
+    return false;
+  }
+
+  function animateNumber(el) {
+    var text = String(el.textContent || '').trim();
+    if (!/^\d{1,4}$/.test(text)) return;          // только целые числа без знаков и «%» — их анимируем
+    var target = parseInt(text, 10);
+    if (target <= 0 || target > 9999) return;
+    var t0 = 0;
+    el.textContent = '0';
+    function frame(ts) {
+      if (!t0) t0 = ts;
+      var k = Math.min(1, (ts - t0) / DURATION);
+      k = 1 - Math.pow(1 - k, 3);                 // плавное замедление к концу
+      el.textContent = String(Math.round(target * k));
+      if (k < 1) requestAnimationFrame(frame);
+      else el.textContent = String(target);       // в конце — ровно как было
+    }
+    try { requestAnimationFrame(frame); } catch (e) { el.textContent = String(target); }
+  }
+
+  /* Цифры на плитках панели мониторинга */
+  function dashNumbers() {
+    if (quiet()) return;
+    try {
+      var vals = document.querySelectorAll('#view .kpi .val');
+      for (var i = 0; i < vals.length && i < MAX_NUMBERS; i++) animateNumber(vals[i]);
+    } catch (e) {}
+  }
+
+  /* Мягкая вспышка пункта меню, на который перешли */
+  function navPulse() {
+    if (quiet()) return;
+    try {
+      var a = document.querySelector('#nav a.active');
+      if (!a || !a.classList) return;
+      a.classList.remove('sp-pulse');
+      void a.offsetWidth;
+      a.classList.add('sp-pulse');
+      setTimeout(function () { try { a.classList.remove('sp-pulse'); } catch (e) {} }, 700);
+    } catch (e) {}
+  }
+
+  /* Одна точка входа: вызывается при смене страницы (см. 13_refresh_events.js) */
+  function onScreen(screen) {
+    if (running) return;
+    running = true;
+    setTimeout(function () { running = false; }, 600);
+    navPulse();
+    if (screen === 'dashboard') {
+      // цифры считаем сразу после отрисовки панели
+      try { requestAnimationFrame(function () { dashNumbers(); }); } catch (e) { dashNumbers(); }
+    }
+  }
+
+  window.SPDashNumbers = dashNumbers;
+  window.SPNavPulse = navPulse;
+  window.SPAnim3 = { onScreen: onScreen, quiet: quiet };
 })();
 })();
