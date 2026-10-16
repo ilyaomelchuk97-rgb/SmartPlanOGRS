@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-301';
+  var SP_BUILD = '22.09-302';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -4771,6 +4771,43 @@
   function rmFitLayout() {
     try { rmFitLayoutRun(); } catch (e) { /* подгонка высоты не может ломать страницу */ }
   }
+  /* 22.09-302: подгонка высоты страниц с картами по фактической доступной высоте окна.
+     Раньше высоты были заданы «на глаз» (calc(100vh − 62px)): при другой высоте шапки
+     (перенос строк на узком экране, масштаб браузера) оставалась полоса снизу —
+     «карта не доходит до конца страницы». Теперь высота считается по месту, а страница
+     с картой не прокручивается (если места совсем мало — прокрутка остаётся). */
+  function spMapsFit() {
+    try {
+      var v = document.getElementById('view');
+      if (!v) return;
+      var screen = (typeof S !== 'undefined' && S.screen) ? S.screen : '';
+      // снимаем прошлую подгонку, если ушли с карт
+      if (screen !== 'objmap' && screen !== 'livemap' && screen !== 'map') {
+        v.classList.remove('sp-map-fit');
+        var prev = v.querySelector('[data-sp-fit]');
+        if (prev) { prev.style.height = ''; prev.removeAttribute('data-sp-fit'); }
+        return;
+      }
+      var cs = window.getComputedStyle(v);
+      var padTop = parseFloat(cs.paddingTop) || 0, padBot = parseFloat(cs.paddingBottom) || 0;
+      var avail = Math.floor(v.clientHeight - padTop - padBot);
+      var minH = 420;                                   // совсем низкое окно — оставляем прокрутку
+      var h = Math.max(minH, avail);
+      var box = null;
+      if (screen === 'livemap') box = document.getElementById('lm-wrap');
+      else if (screen === 'objmap') box = v.firstElementChild; // контейнер страницы карты объектов
+      else if (screen === 'map') { try { rmFitLayout(); } catch (eRM) {} return; }
+      if (!box) return;
+      if (box._spFitH !== h) { box._spFitH = h; box.style.height = h + 'px'; box.setAttribute('data-sp-fit', '1'); }
+      v.classList.toggle('sp-map-fit', h <= avail);      // не прокручиваем, если всё влезло
+      // карте сообщаем о новом размере
+      try {
+        var m = (screen === 'objmap') ? (typeof omState !== 'undefined' && omState.map) : (typeof lmState !== 'undefined' && lmState.ymap);
+        if (m && m.container && m.container.fitToViewport) m.container.fitToViewport();
+      } catch (eF) {}
+    } catch (e) {}
+  }
+  window.spMapsFit = spMapsFit;
   function rmFitLayoutRun() {
     if (S.screen !== 'map' || typeof window.getComputedStyle !== 'function') return;
     var v = document.getElementById('view');
@@ -4778,7 +4815,7 @@
     if (!wrap) return;
     var cols = String(window.getComputedStyle(wrap).gridTemplateColumns || '').trim().split(/\s+/).filter(Boolean).length;
     if (cols < 2) { wrap.classList.remove('rm-fit'); wrap.style.height = ''; v.style.paddingBottom = ''; ymFitMap(); return; }
-    v.style.paddingBottom = '12px'; // снизу — небольшой отступ, блоки почти до края окна (на других страницах — как было)
+    v.style.paddingBottom = '0px'; // 22.09-302: карта дотягивается до самого низа окна (раньше оставалась полоса 12 px)
     // где начинается блок внутри страницы — по раскладке (offsetTop), а не по экрану: в момент
     // отрисовки идёт анимация появления (сдвиг вниз), и экранные координаты занижали высоту
     function absTop(el) { var y = 0; while (el) { y += el.offsetTop || 0; el = el.offsetParent; } return y; }
@@ -4796,9 +4833,13 @@
     var raf = 0;
     try {
       window.addEventListener('resize', function () {
-        if (S.screen !== 'map') return;
+        if (S.screen !== 'map' && S.screen !== 'objmap' && S.screen !== 'livemap') return;
         if (raf) cancelAnimationFrame(raf);
-        raf = requestAnimationFrame(function () { raf = 0; rmFitLayout(); });
+        raf = requestAnimationFrame(function () {
+          raf = 0;
+          try { rmFitLayout(); } catch (e1) {}
+          try { spMapsFit(); } catch (e2) {}
+        });
       });
     } catch (e) {}
   })();
@@ -18351,6 +18392,8 @@
         window.__spLastAnimScreen = S.screen;
         spAnimateView(); // 22.09-293
         try { if (window.SPAnim3) window.SPAnim3.onScreen(S.screen); } catch (eA3) {} // 22.09-298: цифры панели и вспышка меню
+        try { if (window.spMapsFit) window.spMapsFit(); } catch (eMF) {}          // 22.09-302: карты — до конца страницы
+        try { setTimeout(function () { if (window.spMapsFit) window.spMapsFit(); }, 350); } catch (eMF2) {} // карте нужно время на создание
       }
     } catch (eV) {}
     uiEnhance();   // 22.09-266: поиск/сортировка таблиц текущей страницы
