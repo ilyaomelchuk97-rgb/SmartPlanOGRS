@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-303';
+  var SP_BUILD = '22.09-304';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -21402,6 +21402,12 @@
       (wrk.occs || []).forEach(function (oc) { if (!o && monthOf(oc.date) === mi) o = oc; });
       return o;
     }
+    /* Вхождение «в истории»: задача существует и выполнена — её не двигаем */
+    function isHistoryOcc(oc) {
+      if (!oc || !oc.tid || !TASKS_DB) return false;
+      var t = null; try { t = TASKS_DB.getTask(oc.tid); } catch (e) {}
+      try { return !!(t && isDone(t)); } catch (e2) { return false; }
+    }
     function moveOcc(wrk, oc, newIso) {
       if (!oc || oc.date === newIso) return;
       oc.date = newIso; moved++;
@@ -21418,19 +21424,42 @@
         try { invalidateRouteCache(t.m, t.d); } catch (eR2) {}
       } catch (eU) {}
     }
-    for (var a = 0; a < ws.length; a++) {
-      for (var b = 0; b < ws.length; b++) {
-        if (a === b || !isJointPair(ws[a].wid, ws[b].wid)) continue; // b — совместная с a
-        for (var mi = 0; mi < 12; mi++) {
-          var oa = firstOccOf(ws[a], mi), obb = firstOccOf(ws[b], mi);
-          if (oa && obb) {
-            // в одном месяце — позднее проведение на день более раннего (любая из пары)
-            if (obb.date > oa.date) moveOcc(ws[b], obb, oa.date);
-            else if (oa.date > obb.date) moveOcc(ws[a], oa, obb.date);
-          }
-        }
+    /* 22.09-304: СВЯЗАННЫЕ ГРУППЫ вместо попарного прохода.
+       Было: пары перебирались по очереди, и если работа B уже съезжала к третьей работе C,
+       связь A↔B терялась — совместные работы оставались на разных днях (это и был баг).
+       Теперь: сначала находим все СОЕДИНЁННЫЕ группы (A совместна с B, B — с C → A, B, C
+       в одной группе), затем внутри группы каждый месяц все работы ставим на одну дату —
+       самую раннюю среди «живых» (невыполненных) проведений. Выполненные остаются в истории. */
+    var parent = ws.map(function (w, i) { return i; });
+    function find(i) { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; }
+    function union(i, j) { var ra = find(i), rb = find(j); if (ra !== rb) parent[rb] = ra; }
+    for (var i = 0; i < ws.length; i++) {
+      for (var j = i + 1; j < ws.length; j++) {
+        if (isJointPair(ws[i].wid, ws[j].wid)) union(i, j);
       }
     }
+    var groups = {};
+    ws.forEach(function (w, i) { var r = find(i); (groups[r] = groups[r] || []).push(w); });
+    Object.keys(groups).forEach(function (k) {
+      var members = groups[k];
+      if (members.length < 2) return;                       // одиночная работа — нечего выравнивать
+      for (var mi = 0; mi < 12; mi++) {
+        var list = [];
+        members.forEach(function (wrk) { var oc = firstOccOf(wrk, mi); if (oc) list.push({ wrk: wrk, oc: oc }); });
+        if (list.length < 2) continue;
+        var target = null;                                  // самая ранняя дата среди «живых» проведений
+        list.forEach(function (x) {
+          if (isHistoryOcc(x.oc)) return;
+          if (target === null || x.oc.date < target) target = x.oc.date;
+        });
+        if (target === null) continue;                      // все проведения — история: не трогаем
+        list.forEach(function (x) {
+          if (x.oc.date === target) return;
+          if (isHistoryOcc(x.oc)) return;                   // выполненные остаются в истории
+          moveOcc(x.wrk, x.oc, target);
+        });
+      }
+    });
     return moved;
   }
 
@@ -21633,7 +21662,8 @@
     groupCandidates: gwGroupCandidates,
     occWork: gwOccWorkId,
     seasonSync: gwSeasonSync,
-    helpScheme: openAutoPickScheme // 22.09-281: страница-схема автоподбора
+    helpScheme: openAutoPickScheme, // 22.09-281: страница-схема автоподбора
+    jointAlign: gwJointAlign // 22.09-304: выравнивание совместных работ (для проверок)
   };
   /* ── часть 15 · app/15_graphs_more.js — график работ: трудоёмкость, сезоны, копии графика, печать, Excel ── */
   /* =====================================================================
