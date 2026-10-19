@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-330';
+  var SP_BUILD = '22.09-331';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -3989,15 +3989,14 @@
   }
 
   function spFlyToTrashAnim(tile, trash, done) {
-    var finished = false, sheet = null, wad = null, iv = null, safety = null, timers = [];
-    function later(fn, ms) { var id = setTimeout(fn, ms); timers.push(id); return id; }
+    var finished = false, wrap = null, wad = null, iv = null, safety = null;
     function fin() {
       if (finished) return;
       finished = true;
       if (iv) clearInterval(iv);
       if (safety) clearTimeout(safety);
-      timers.forEach(function (id) { clearTimeout(id); });
-      try { if (sheet) sheet.remove(); } catch (e1) {}
+      try { var d0 = document.getElementById('spCrumpDisp'); if (d0) d0.setAttribute('scale', '0'); } catch (e0) {}
+      try { if (wrap) wrap.remove(); } catch (e1) {}
       try { if (wad) wad.remove(); } catch (e2) {}
       done();
     }
@@ -4006,59 +4005,47 @@
       var r = tile.getBoundingClientRect(), tr = trash.getBoundingClientRect();
       if (!r.width || !tr.width) { fin(); return; }
 
-      /* Лист задачи: спереди — сама карточка с текстом, сзади — просто цвет
-         её фона. Делим лист на три вертикальные части: средняя остаётся
-         лицевой, левая и правая переворачиваются внутрь вокруг своих
-         внутренних краёв и ложатся оборотной (однотонной) стороной. */
-      var cs = window.getComputedStyle ? getComputedStyle(tile) : null;
-      var backColor = (cs && cs.backgroundColor && cs.backgroundColor !== 'rgba(0, 0, 0, 0)') ? cs.backgroundColor : '#eef2f6';
-      sheet = document.createElement('div');
-      sheet.className = 'sp-sheet';
-      sheet.style.cssText = 'position:fixed;z-index:99999;pointer-events:none;left:' + r.left + 'px;top:' + r.top +
-        'px;width:' + r.width + 'px;height:' + r.height + 'px;perspective:1050px;';
-      var inner = document.createElement('div');
-      inner.className = 'sp-sheet-inner';
-      var pw = r.width / 3;
-      for (var i = 0; i < 3; i++) {
-        var panel = document.createElement('div');
-        panel.className = 'sp-sheet-panel' + (i === 0 ? ' left' : i === 2 ? ' right' : '');
-        var front = document.createElement('div');
-        front.className = 'sp-sheet-face front';
-        var c = tile.cloneNode(true);
-        c.removeAttribute('id');
-        c.querySelectorAll('[id]').forEach(function (n) { n.removeAttribute('id'); });
-        c.classList.remove('dragging');
-        c.style.cssText = 'position:absolute;top:0;left:' + (-i * pw) + 'px;width:' + r.width + 'px;height:' + r.height + 'px;margin:0;opacity:1;';
-        front.appendChild(c);
-        panel.appendChild(front);
-        if (i !== 1) {
-          var back = document.createElement('div');
-          back.className = 'sp-sheet-face back';
-          back.style.backgroundColor = backColor; // оборот листа — просто цвет задачи
-          panel.appendChild(back);
-        }
-        inner.appendChild(panel);
-      }
-      sheet.appendChild(inner);
-      var creases = document.createElement('div');
-      creases.className = 'sp-sheet-creases';
-      sheet.appendChild(creases);
-      document.body.appendChild(sheet);
+      /* Берём именно видимую карточку и деформируем её поверхность. Клон не
+         делится на створки и не получает круглых углов: он постепенно мнётся
+         шестью короткими рывками, с разной силой по ширине и высоте. */
+      wrap = tile.cloneNode(true);
+      wrap.removeAttribute('id');
+      wrap.querySelectorAll('[id]').forEach(function (n) { n.removeAttribute('id'); });
+      wrap.className = (tile.className || '') + ' sp-crumple';
+      wrap.classList.remove('dragging'); // иначе клон наследует прозрачность перетаскивания и выглядит призраком
+      wrap.style.cssText = 'position:fixed;z-index:99999;pointer-events:none;opacity:1;left:' + r.left + 'px;top:' + r.top +
+        'px;width:' + r.width + 'px;height:' + r.height + 'px;margin:0;filter:url("#spCrumpF");';
+      var wrinkles = document.createElement('div');
+      wrinkles.className = 'sp-crumple-wrinkles';
+      wrap.appendChild(wrinkles);
+      document.body.appendChild(wrap);
       tile.style.visibility = 'hidden';
 
-      // 1) левый и правый края сильно уходят внутрь и переворачиваются на оборот
-      requestAnimationFrame(function () { requestAnimationFrame(function () { sheet.classList.add('sp-sheet-folded'); }); });
-      // 2) сложенный лист дожимают: он становится уже и ниже, контур — рваный
-      later(function () {
-        sheet.classList.add('sp-sheet-pressed');
-        sheet.style.clipPath = 'polygon(8% 15%,86% 4%,97% 72%,76% 96%,14% 91%,2% 44%)';
-      }, 600);
-      // 3) на месте сложенного листа остаётся плотный комок цвета задачи — и летит в корзину
-      later(function () {
-        wad = spMakePaperWad(tile, r);
-        if (sheet) sheet.remove();
-        if (wad) spFlyWadToTrash(wad, trash, fin); else fin();
-      }, 830);
+      var disp = spEnsureCrumpFilter();
+      var jagged = [
+        'polygon(0 0,100% 0,100% 100%,0 100%)',
+        'polygon(3% 6%,94% 1%,99% 88%,88% 99%,8% 96%,1% 40%)',
+        'polygon(9% 14%,88% 5%,97% 76%,80% 97%,16% 92%,3% 44%)',
+        'polygon(15% 20%,82% 10%,93% 68%,72% 94%,24% 88%,7% 50%)',
+        'polygon(20% 26%,76% 15%,89% 62%,66% 90%,30% 84%,11% 55%)',
+        'polygon(24% 30%,72% 19%,85% 58%,62% 86%,34% 80%,15% 58%)',
+        'polygon(28% 33%,69% 23%,82% 51%,71% 82%,39% 88%,19% 65%)',
+        'polygon(31% 36%,67% 26%,80% 52%,69% 80%,41% 85%,22% 63%)'
+      ];
+      var rotations = [0, -4, 5, -7, 6, -9, 7, -10];
+      var step = 0;
+      iv = setInterval(function () {
+        step++;
+        var k = step / 8;
+        try { if (disp) disp.setAttribute('scale', String(Math.round(26 * k))); } catch (eD) {}
+        wrinkles.style.opacity = String(0.35 + 0.65 * k);
+        wrap.style.clipPath = jagged[step];
+        wrap.style.transform = 'scale(' + (1 - 0.36 * k).toFixed(3) + ',' + (1 - 0.44 * k).toFixed(3) + ') rotate(' + rotations[step] + 'deg)';
+        if (step >= 8) {
+          clearInterval(iv); iv = null;
+          setTimeout(function () { wad = spMakePaperWad(tile, r); if (wrap) wrap.remove(); if (wad) spFlyWadToTrash(wad, trash, fin); else fin(); }, 110);
+        }
+      }, 72);
       safety = setTimeout(fin, 3400); // данные удалятся, даже если браузер прервёт анимацию
     } catch (e) { fin(); }
   }
