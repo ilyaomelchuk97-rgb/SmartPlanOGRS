@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-325';
+  var SP_BUILD = '22.09-326';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -3981,39 +3981,55 @@
       if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) { fin(); return; }
       var r = tile.getBoundingClientRect(), tr = trash.getBoundingClientRect();
       if (!r.width || !tr.width) { fin(); return; }
-      var clone = tile.cloneNode(true);
-      clone.className = tile.className + ' sp-fly-clone sp-crumple-paper'; // 22.09-324: складки смятого листа
-      clone.style.cssText = 'position:fixed;z-index:99999;pointer-events:none;left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;margin:0;opacity:.97;transform-origin:50% 60%;';
-      document.body.appendChild(clone);
+      /* Карточка делится на 3 вертикальные створки; каждая — кусок настоящей
+         карточки (клон со сдвигом), створки висят на петлях по краям средней. */
+      var wrap = document.createElement('div');
+      wrap.className = 'sp-fold';
+      wrap.style.cssText = 'position:fixed;z-index:99999;pointer-events:none;left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;perspective:950px;';
+      var row = document.createElement('div');
+      row.className = 'sp-fold-row';
+      var pw = r.width / 3;
+      for (var i = 0; i < 3; i++) {
+        var panel = document.createElement('div');
+        panel.className = 'sp-fold-p';
+        var c = tile.cloneNode(true);
+        c.style.cssText = 'position:absolute;top:0;left:' + (-i * pw) + 'px;width:' + r.width + 'px;height:' + r.height + 'px;margin:0;';
+        panel.appendChild(c);
+        row.appendChild(panel);
+      }
+      wrap.appendChild(row);
+      document.body.appendChild(wrap);
       tile.style.visibility = 'hidden';
-      // фаза 1: комкаем бумагу
-      clone.classList.add('sp-crumpling');
       var sx = r.left + r.width / 2, sy = r.top + r.height / 2;
       var ex = tr.left + tr.width / 2, ey = tr.top + tr.height / 2;
-      var cx = (sx + ex) / 2, cy = Math.min(sy, ey) - 160; // верх дуги
+      var cx = (sx + ex) / 2, cy = Math.min(sy, ey) - 160; // верх дуги полёта
+      // шаг 1: боковые края загибаются внутрь (как конверт / лист в руках)
+      requestAnimationFrame(function () { requestAnimationFrame(function () { wrap.classList.add('sp-folded'); }); });
+      // шаг 2: свёрток дожимают сверху-вниз с перекосом — получается комок
+      setTimeout(function () { wrap.classList.add('sp-squeezed'); }, 470);
+      // шаг 3: комок летит по дуге в корзину (угловатый, контур рваный — не овал)
       setTimeout(function () {
-        clone.classList.remove('sp-crumpling');
-        var t0 = null, D = 680;
+        wrap.classList.remove('sp-squeezed');
+        wrap.style.clipPath = 'polygon(7% 14%, 86% 3%, 98% 74%, 76% 97%, 12% 91%, 1% 42%)';
+        var t0 = null, D = 640;
         function step(ts) {
           if (!t0) t0 = ts;
           var k = Math.min(1, (ts - t0) / D);
           var x = (1 - k) * (1 - k) * sx + 2 * (1 - k) * k * cx + k * k * ex;
           var y = (1 - k) * (1 - k) * sy + 2 * (1 - k) * k * cy + k * k * ey;
-          var sc = 0.52 - 0.2 * k, rot = -9 + 300 * k; // 22.09-324: комок остаётся комком, а не тает в точку
-          clone.style.left = (x - r.width / 2) + 'px';
-          clone.style.top = (y - r.height / 2) + 'px';
-          clone.style.transform = 'scale(' + sc.toFixed(3) + ') rotate(' + rot.toFixed(1) + 'deg)';
-          clone.style.borderRadius = '40% 58% 50% 62% / 58% 42% 60% 44%'; // рваный силуэт комка, не кружок
+          wrap.style.left = (x - r.width / 2) + 'px';
+          wrap.style.top = (y - r.height / 2) + 'px';
+          wrap.style.transform = 'scale(' + (0.88 - 0.3 * k).toFixed(3) + ',' + (0.6 - 0.16 * k).toFixed(3) + ') rotate(' + (-5 + 130 * k).toFixed(1) + 'deg)';
           if (k < 1) requestAnimationFrame(step);
           else {
-            try { clone.remove(); } catch (e) {}
+            try { wrap.remove(); } catch (e) {}
             spPuffAt(ex, ey, trash); // облачко в корзине
             setTimeout(fin, 170);
           }
         }
         requestAnimationFrame(step);
-      }, 640); // 22.09-324: комканье рывками — 0,62 с
-      setTimeout(fin, 2600); // страховка: данные удалятся, даже если анимация прервётся
+      }, 900);
+      setTimeout(fin, 3200); // страховка: данные удалятся, даже если анимация прервётся
     } catch (e) { fin(); }
   }
 
