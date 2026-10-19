@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-326';
+  var SP_BUILD = '22.09-327';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -21931,25 +21931,57 @@
           list.sort(function (x, y) { return String(x.date) < String(y.date) ? -1 : (String(x.date) > String(y.date) ? 1 : 0); });
           list.forEach(function (oc, k) { (runs[k] = runs[k] || []).push({ wrk: wrk, oc: oc }); });
         });
-        for (var k = 0; k < MAX_RUNS && k < runs.length; k++) {
-          var list2 = runs[k];
-          if (!list2 || list2.length < 2) continue;          // на это проведение пары нет — оставляем как есть
+        var todayIso = gwToISO(offToDate(0));
+        function runTarget(list2) {
           /* цель — самая ранняя «живая» дата, НО из сегодняшних и будущих: иначе будущие работы
              подтягивались к прошедшему дню партнёра (а у прошедших задач сайт убирает незакрытые) */
-          var todayIso = gwToISO(offToDate(0));
           var target = null, targetFuture = null;
-          list2.forEach(function (x) {
+          (list2 || []).forEach(function (x) {
             if (isHistoryOcc(x.oc)) return;
             if (target === null || x.oc.date < target) target = x.oc.date;
             if (x.oc.date >= todayIso && (targetFuture === null || x.oc.date < targetFuture)) targetFuture = x.oc.date;
           });
-          if (target === null) continue;                     // все эти проведения — история: не трогаем
+          if (target === null) return null;
           if (targetFuture !== null) target = targetFuture;
+          return target;
+        }
+        for (var k = 0; k < MAX_RUNS && k < runs.length; k++) {
+          var list2 = runs[k];
+          if (!list2 || list2.length < 2) continue;          // на это проведение пары нет — см. ниже про фантомы
+          var target = runTarget(list2);
+          if (target === null) continue;                     // все эти проведения — история: не трогаем
           list2.forEach(function (x) {
             if (x.oc.date === target) return;
             if (isHistoryOcc(x.oc)) return;                  // выполненные остаются в истории
             moveOcc(x.wrk, x.oc, target);
           });
+        }
+        /* 22.09-327: ФАНТОМНЫЕ проведения. В серии бывает лишнее проведение месяца
+           БЕЗ задачи (остаток старой серии после пересборки — живой случай: ГРП-16,
+           «Проверка срабатывания» 21.09 при живых 01.09 у всех партнёров). Пары ему
+           нет, и оно висело отдельным днём — «совместно стоит, а не соединяется».
+           Такое проведение — не настоящая работа (задачи нет), поэтому: если у блока
+           в этом месяце есть общий день — подтягиваем фантом к нему; а если у самой
+           работы в общий день проведение уже есть — фантом просто убираем как дубль.
+           Проведения С задачами не трогаем: у них второе проведение месяца бывает
+           настоящим (шаг серии меньше месяца). */
+        var blockTarget = runs.length && runs[0] && runs[0].length ? runTarget(runs[0]) : null;
+        if (blockTarget) {
+          for (var k2 = 0; k2 < MAX_RUNS && k2 < runs.length; k2++) {
+            var solo = runs[k2];
+            if (!solo || solo.length !== 1) continue;
+            var xo = solo[0];
+            if (xo.oc.tid) continue;                          // есть задача — проведение настоящее
+            if (isHistoryOcc(xo.oc)) continue;
+            if (xo.oc.date === blockTarget) continue;
+            var hasAtTarget = (xo.wrk.occs || []).some(function (o) { return o && o.date === blockTarget; });
+            if (hasAtTarget) {
+              var ix = (xo.wrk.occs || []).indexOf(xo.oc);
+              if (ix >= 0) { xo.wrk.occs.splice(ix, 1); moved++; }  // дубль-фантом — убрать
+            } else {
+              moveOcc(xo.wrk, xo.oc, blockTarget);            // фантом — подтянуть к общему дню
+            }
+          }
         }
       }
     });
