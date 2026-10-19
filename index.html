@@ -663,6 +663,27 @@
   /* 22.09-256: «Карта маршрутов» — список заданий и карта по высоте до низа окна (высоту ставит rmFitLayout) */
   /* 22.09-302: страницы с картами — без прокрутки (высота подгоняется по окну) */
   #view.sp-map-fit{overflow:hidden!important;overscroll-behavior:none}
+  /* 22.09-322: карты заполняют страницу конструкцией, а не замером «на глаз» */
+  #view.sp-map-fit{display:flex;flex-direction:column}
+  #view.sp-map-fit #lm-wrap{flex:1 1 auto;min-height:0;height:auto!important}
+  #view.sp-map-fit>[data-sp-fit]{flex:1 1 auto;min-height:0;height:auto!important}
+  #view.sp-map-fit .map-wrap{flex:1 1 auto;min-height:0}
+  #map-canvas{flex:1 1 auto;min-height:0}
+  /* 22.09-322: удаление задачи — карточка комкается как бумага и летит в корзину */
+  .sp-fly-clone{box-shadow:0 12px 28px rgba(15,23,42,.35)!important;background:var(--card)}
+  .sp-crumpling{animation:spCrumple .47s ease-in forwards;filter:brightness(1.07) contrast(.94)}
+  @keyframes spCrumple{
+    0%{transform:scale(1,1) rotate(0deg);border-radius:10px}
+    30%{transform:scale(.88,.6) rotate(-5deg);border-radius:22px 30px 18px 34px}
+    55%{transform:scale(.6,.82) rotate(6deg);border-radius:34px 20px 36px 22px}
+    78%{transform:scale(.48,.52) rotate(-10deg);border-radius:46%}
+    100%{transform:scale(.55,.55) rotate(-14deg);border-radius:47%}
+  }
+  .sp-puff{position:fixed;z-index:100001;pointer-events:none;width:0;height:0}
+  .sp-puff i{position:absolute;left:-6px;top:-6px;width:11px;height:11px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#ffffff,#cbd5e1 72%);opacity:.95;animation:spPuffFly .58s ease-out forwards}
+  @keyframes spPuffFly{to{transform:translate(var(--dx),var(--dy)) scale(.25);opacity:0}}
+  .sp-trash-pop{animation:spTrashPop .45s ease}
+  @keyframes spTrashPop{30%{transform:scale(1.16) rotate(-3deg)}60%{transform:scale(.95) rotate(1deg)}}
   .map-wrap.rm-fit{align-items:stretch}
   .map-wrap.rm-fit > div{min-height:0;display:flex;flex-direction:column}
   .map-wrap.rm-fit > div > .card{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;margin:0}
@@ -692,13 +713,13 @@
   /* 22.09-299: правило пишем как table.dt.cl-table — иначе общее правило table.dt thead th{top:61px}
      (оно сильнее по весу) оставляло шапку висеть на 61 пиксель ниже верха страницы. */
   table.dt.cl-table{border-collapse:separate;border-spacing:0} /* с объединёнными рамками «липкую» шапку держат не все браузеры */
-  table.dt.cl-table thead th{position:static} /* 22.09-321: липкие шапки таблиц убраны везде */
+  table.dt.cl-table thead th{position:static} /* 22.09-322: липкие шапки таблиц убраны везде */
   html.a11y-contrast .cl-table thead th{background:#000}
   /* 22.09-266: улучшения интерфейса */
   table.dt th.ui-th{cursor:pointer;user-select:none}
   table.dt th.ui-th:hover{color:var(--blue)}
   table.dt th.ui-sorted{color:var(--blue)}
-  table.dt thead th{position:static} /* 22.09-321: шапки таблиц остаются на месте и уезжают с прокруткой */
+  table.dt thead th{position:static} /* 22.09-322: шапки таблиц остаются на месте и уезжают с прокруткой */
   table.dt[data-nosticky] thead th{position:static} /* 22.09-272: короткие таблицы — заголовок не «съезжает» при прокрутке */
   .ui-empty{text-align:center;padding:26px 14px;color:var(--muted)}
   .ui-empty-ic{font-size:34px;line-height:1;margin-bottom:8px}
@@ -1798,7 +1819,7 @@
           <div style="margin-top:6px;font-size:12px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-321 · карты до самого низа без пробела; шапка над картой объектов убрана</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-322 · кнопка «Перейти к списанию»; удаление задачи — комок бумаги в корзину; карты без пробела</div>
         <div style="margin-top:6px;text-align:center"><a href="#" id="li-cookie-link" class="cookie-link" title="Посмотреть или изменить разрешение">🍪 Cookie и хранилище браузера</a></div>
     </div>
   </div>
@@ -2076,17 +2097,17 @@
      Сайт остаётся на Render, а API (сервер + данные) — на воркере Cloudflare.
      Чтобы вернуться к базе Render — удалить следующую строку. -->
 <script>window.SP_CONFIG_OVERRIDE = 'https://smartplanogrsdb.ilya-omelchuk97.workers.dev/api';</script>
-<script src="root_index/config.js?v=22.09-321"></script>
-<script src="root_index/data.js?v=22.09-321"></script>
-<script src="root_index/users_db.js?v=22.09-321"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-321"></script>
-<script src="root_index/areas_db.js?v=22.09-321"></script>
-<script src="root_index/professions_db.js?v=22.09-321"></script>
-<script src="root_index/work_db.js?v=22.09-321"></script>
-<script src="root_index/objects_db.js?v=22.09-321"></script>
-<script src="root_index/workers_db.js?v=22.09-321"></script>
-<script src="root_index/tasks_db.js?v=22.09-321"></script>
-<script src="root_index/db.js?v=22.09-321"></script>
+<script src="root_index/config.js?v=22.09-322"></script>
+<script src="root_index/data.js?v=22.09-322"></script>
+<script src="root_index/users_db.js?v=22.09-322"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-322"></script>
+<script src="root_index/areas_db.js?v=22.09-322"></script>
+<script src="root_index/professions_db.js?v=22.09-322"></script>
+<script src="root_index/work_db.js?v=22.09-322"></script>
+<script src="root_index/objects_db.js?v=22.09-322"></script>
+<script src="root_index/workers_db.js?v=22.09-322"></script>
+<script src="root_index/tasks_db.js?v=22.09-322"></script>
+<script src="root_index/db.js?v=22.09-322"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -2104,12 +2125,12 @@
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-321"></script>
-      <script src="root_index/error_log.js?v=22.09-321"></script>
-      <script src="root_index/api_client.js?v=22.09-321"></script>
-      <script src="root_index/sync_polling.js?v=22.09-321"></script>
-      <script src="root_index/zip_util.js?v=22.09-321"></script>
-      <script src="root_index/app.js?v=22.09-321"></script>
+<script src="root_index/object_attrs.js?v=22.09-322"></script>
+      <script src="root_index/error_log.js?v=22.09-322"></script>
+      <script src="root_index/api_client.js?v=22.09-322"></script>
+      <script src="root_index/sync_polling.js?v=22.09-322"></script>
+      <script src="root_index/zip_util.js?v=22.09-322"></script>
+      <script src="root_index/app.js?v=22.09-322"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {

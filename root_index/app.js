@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-321';
+  var SP_BUILD = '22.09-322';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -3952,6 +3952,71 @@
     }
   }
 
+  /* 22.09-322: КРАСИВОЕ УДАЛЕНИЕ. Карточка задачи не пропадает мгновенно:
+     сначала небрежно комкается, как лист бумаги, потом по дуге летит в корзину
+     и там рассыпается облачком пыли. Данные удаляются после «приземления». */
+  function spPuffAt(x, y, trash) {
+    try {
+      if (trash) { trash.classList.remove('sp-trash-pop'); void trash.offsetWidth; trash.classList.add('sp-trash-pop'); }
+      var box = document.createElement('div');
+      box.className = 'sp-puff';
+      box.style.left = x + 'px'; box.style.top = y + 'px';
+      for (var i = 0; i < 11; i++) {
+        var sp = document.createElement('i');
+        var ang = (i / 11) * Math.PI * 2 + (Math.random() * 0.5);
+        var dist = 26 + Math.random() * 42;
+        sp.style.setProperty('--dx', Math.round(Math.cos(ang) * dist) + 'px');
+        sp.style.setProperty('--dy', Math.round(Math.sin(ang) * dist - 10) + 'px');
+        sp.style.animationDelay = (Math.random() * 0.08) + 's';
+        box.appendChild(sp);
+      }
+      document.body.appendChild(box);
+      setTimeout(function () { try { box.remove(); } catch (e) {} }, 800);
+    } catch (e) {}
+  }
+  function spFlyToTrashAnim(tile, trash, done) {
+    var finished = false;
+    function fin() { if (!finished) { finished = true; done(); } }
+    try {
+      if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) { fin(); return; }
+      var r = tile.getBoundingClientRect(), tr = trash.getBoundingClientRect();
+      if (!r.width || !tr.width) { fin(); return; }
+      var clone = tile.cloneNode(true);
+      clone.className = tile.className + ' sp-fly-clone';
+      clone.style.cssText = 'position:fixed;z-index:99999;pointer-events:none;left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;margin:0;opacity:.97;transform-origin:50% 60%;';
+      document.body.appendChild(clone);
+      tile.style.visibility = 'hidden';
+      // фаза 1: комкаем бумагу
+      clone.classList.add('sp-crumpling');
+      var sx = r.left + r.width / 2, sy = r.top + r.height / 2;
+      var ex = tr.left + tr.width / 2, ey = tr.top + tr.height / 2;
+      var cx = (sx + ex) / 2, cy = Math.min(sy, ey) - 160; // верх дуги
+      setTimeout(function () {
+        clone.classList.remove('sp-crumpling');
+        var t0 = null, D = 680;
+        function step(ts) {
+          if (!t0) t0 = ts;
+          var k = Math.min(1, (ts - t0) / D);
+          var x = (1 - k) * (1 - k) * sx + 2 * (1 - k) * k * cx + k * k * ex;
+          var y = (1 - k) * (1 - k) * sy + 2 * (1 - k) * k * cy + k * k * ey;
+          var sc = 0.55 - 0.38 * k, rot = -14 + 330 * k;
+          clone.style.left = (x - r.width / 2) + 'px';
+          clone.style.top = (y - r.height / 2) + 'px';
+          clone.style.transform = 'scale(' + sc.toFixed(3) + ') rotate(' + rot.toFixed(1) + 'deg)';
+          clone.style.borderRadius = '47%';
+          if (k < 1) requestAnimationFrame(step);
+          else {
+            try { clone.remove(); } catch (e) {}
+            spPuffAt(ex, ey, trash); // облачко в корзине
+            setTimeout(fin, 170);
+          }
+        }
+        requestAnimationFrame(step);
+      }, 480);
+      setTimeout(fin, 2600); // страховка: данные удалятся, даже если анимация прервётся
+    } catch (e) { fin(); }
+  }
+
   function deleteTaskToTrash(id) {
     // 22.09-268: удаление задач — по правам доступа (админ всегда может)
     if (S.role !== 'admin' && (typeof permCan !== 'function' || !permCan('delTasks'))) {
@@ -3962,12 +4027,20 @@
     if (!canEditTask(t)) { toast('err', 'Нет прав на удаление этой задачи'); return; }
     var w = workOf(t);
     return spConfirm('Удалить задачу «' + (w ? w.name : '?') + ' — ' + addrOf(t) + '»?', { title: 'Удаление задачи', ok: 'Удалить', danger: true }, function () { // 22.09-244: оформленное окно
-    addToTrash(JSON.parse(JSON.stringify(t)));
-    if (TASKS_DB) { TASKS_DB.deleteTask(id); S.tasks = TASKS_DB.getTasks(); } else { S.tasks = S.tasks.filter(function (x) { return x.id !== id; }); }
-    invalidateRouteCache(t.m, t.d);
-    drawCalendarGrid();
-    logAction('Удаление задачи', (w ? w.name : '?') + ' — ' + addrOf(t));
-        toast('ok', '🗑️ Аналитика помощника : Задача удалена. Освободилось ' + fmtH(taskHours(t)) + ' ч у мастера ' + (masterById(t.m) ? masterById(t.m).name : '?') + '.');
+    var doDelete = function () {
+      addToTrash(JSON.parse(JSON.stringify(t)));
+      if (TASKS_DB) { TASKS_DB.deleteTask(id); S.tasks = TASKS_DB.getTasks(); } else { S.tasks = S.tasks.filter(function (x) { return x.id !== id; }); }
+      invalidateRouteCache(t.m, t.d);
+      drawCalendarGrid();
+      logAction('Удаление задачи', (w ? w.name : '?') + ' — ' + addrOf(t));
+      toast('ok', '🗑️ Аналитика помощника : Задача удалена. Освободилось ' + fmtH(taskHours(t)) + ' ч у мастера ' + (masterById(t.m) ? masterById(t.m).name : '?') + '.');
+    };
+    // 22.09-322: сначала анимация «комок бумаги → корзина», удаление — после приземления
+    var tileEl = document.querySelector('.tile[data-tid="' + id + '"]');
+    var trashEl = document.getElementById('trash-zone');
+    if (tileEl) tileEl.scrollIntoView({ block: 'nearest' });
+    if (tileEl && trashEl) spFlyToTrashAnim(tileEl, trashEl, doDelete);
+    else doDelete();
     });
   }
 
@@ -4798,7 +4871,7 @@
       var box = null;
       if (screen === 'livemap') box = document.getElementById('lm-wrap');
       else if (screen === 'objmap') box = v.firstElementChild; // контейнер страницы карты объектов
-      else if (screen === 'map') { try { rmFitLayout(); } catch (eRM) {} return; }
+      else if (screen === 'map') { v.classList.add('sp-map-fit'); try { rmFitLayout(); } catch (eRM) {} return; }
       if (!box) return;
       if (box._spFitH !== h) { box._spFitH = h; box.style.height = h + 'px'; box.setAttribute('data-sp-fit', '1'); }
       v.classList.toggle('sp-map-fit', h <= avail);      // не прокручиваем, если всё влезло
@@ -6592,6 +6665,9 @@
           if (b) omSetBasemap(b.getAttribute('data-om-bm'));
         });
         omSetBasemap(omBasemapCur()); // применить сохранённую подложку (Яндекс = web_mercator-рендерер)
+        // 22.09-322: после загрузки карта обязана занять ВЕСЬ блок (иначе внизу пустая полоса)
+        setTimeout(function () { try { if (omState.map && omState.map.container) omState.map.container.fitToViewport(); } catch (e) {} try { spMapsFit(); } catch (e2) {} }, 350);
+        setTimeout(function () { try { if (omState.map && omState.map.container) omState.map.container.fitToViewport(); } catch (e) {} }, 1100);
 
         // 22.09-320: если пользователь уже смотрел карту — вернуться к его
         // центру и масштабу; «все объекты в экран» — только при первом открытии
@@ -16079,7 +16155,11 @@
     var initMaster = (isEdit && t) ? t.m : (masters[0] ? masters[0].id : '');
     var initM2 = (isEdit && t && t.m2 != null) ? t.m2 : 100;
 
-    var html = '<div class="modal-h"><h3>' + title + '</h3><div style="flex:1"></div>' +
+    // 22.09-322: закрытая задача — по центру шапки кнопка «Перейти к списанию»
+    var _woBtn = (isEdit && t && isDone(t) && S.role !== 'slesar')
+      ? '<div style="flex:1;display:flex;justify-content:center"><button type="button" class="btn sm primary" data-action="task-to-writeoff" data-tid="' + esc(t.id) + '" title="Открыть страницу «Списания» и сразу показать списание по этой задаче">📄 Перейти к списанию</button></div>'
+      : '<div style="flex:1"></div>';
+    var html = '<div class="modal-h"><h3>' + title + '</h3>' + _woBtn +
       '<label style="display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;color:var(--muted);cursor:pointer;user-select:none;white-space:nowrap;margin-right:10px" title="Задача НЕ включается в график: серия работ и треугольники в графике не изменятся">' +
       'вне плана <input type="checkbox" id="f-offplan"' + (isEdit && t && t.offplan ? ' checked' : '') + ' style="width:15px;height:15px;cursor:pointer;accent-color:#2563eb;margin:0">' +
       '</label>' +
@@ -18758,6 +18838,12 @@
     else if (a === 'gs-open') { gsOpen(); }              // 22.09-284: глобальный поиск (Ctrl+K)
     else if (a === 'ap-open') { apOpen(); }              // 22.09-290: настройки автоподбора работ
     else if (a === 'bell-toggle') { bellToggle(); }      // 22.09-284: колокольчик уведомлений
+    else if (a === 'task-to-writeoff') { // 22.09-322: из закрытой задачи — сразу в её списание
+      var _tid = el.dataset.tid;
+      try { overlay.classList.remove('show'); } catch (e) {}
+      setScreen('writeoffs');
+      setTimeout(function () { try { openWriteoffModal(_tid); } catch (e2) {} }, 400);
+    }
     else if (a === 'feedback-open') { if (window.SP_ANN && SP_ANN.openFeedback) SP_ANN.openFeedback(); } // 22.09-318
     else if (a === 'feedback-send') { if (window.SP_ANN && SP_ANN.sendFeedback) SP_ANN.sendFeedback(); } // 22.09-318
     else if (a === 'feedback-del') { if (window.SP_ANN && SP_ANN.feedbackDel) SP_ANN.feedbackDel(el.dataset.mid); } // 22.09-318
