@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-309';
+  var SP_BUILD = '22.09-310';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -954,6 +954,8 @@
     users: 'Пользователи',
     reports: 'Отчёты',
     logs: 'Журнал действий',
+    journals: 'Журналы',
+    errlogs: 'Логи ошибок',
     changelog: 'Журнал изменений',
     backup: 'Бэкапы баз данных'
   };
@@ -13594,6 +13596,44 @@
     }
   }
 
+  /* ---------- 22.09-310: ЖУРНАЛЫ — одна страница, вкладки как листы Excel ---------- */
+  function spJournalsTabsSync() {
+    var bar = document.getElementById('journals-tabs');
+    if (!bar) return;
+    var isJ = (S.screen === 'journals');
+    bar.style.display = isJ ? 'flex' : 'none';
+    if (!isJ) return;
+    var tab = S.journalTab || 'logs';
+    if (tab === 'changelog' && S.role !== 'admin') tab = 'logs';
+    bar.querySelectorAll('.jr-tab').forEach(function (b) {
+      var t = b.dataset.jtab;
+      b.classList.toggle('active', t === tab);
+      if (t === 'changelog') b.style.display = (S.role === 'admin') ? '' : 'none';
+      if (!b._jrBound) {
+        b._jrBound = true;
+        b.addEventListener('click', function () {
+          var nt = b.dataset.jtab;
+          if (nt === 'changelog' && S.role !== 'admin') { toast('err', 'Журнал изменений — только для администратора'); return; }
+          S.journalTab = nt;
+          spJournalsTabsSync();
+          renderJournalsBody();
+        });
+      }
+    });
+  }
+  function renderJournalsBody() {
+    var tab = S.journalTab || 'logs';
+    if (tab === 'changelog' && S.role !== 'admin') tab = 'logs';
+    if (tab === 'errlogs') renderErrLogs();
+    else if (tab === 'changelog') renderChangelog();
+    else renderLogs();
+  }
+  function renderJournals() {
+    if (!S.journalTab) S.journalTab = 'logs';
+    spJournalsTabsSync();
+    renderJournalsBody();
+  }
+
   /* ---------- 22.09-219: ЖУРНАЛ ИЗМЕНЕНИЙ (админ) ---------- */
   // История версий системы: дата · сборка · описание. Данные — SP_CHANGELOG (data.js).
   // ОТСЮДА И ДАЛЕЕ все новости сборок пишутся в SP_CHANGELOG, а не в шапку сайта.
@@ -17096,7 +17136,7 @@
         // 22.09-268: роли с правом viewLogs видят журналы (даже не будучи админом)
         if (!isAdmin && typeof permCan === 'function' && permCan('viewLogs')) {
           g.style.display = '';
-          ['logs', 'errlogs'].forEach(function (sc) {
+          ['journals', 'logs', 'errlogs'].forEach(function (sc) {
             var a = document.querySelector('#nav a[data-screen="' + sc + '"]');
             if (a) a.style.display = '';
           });
@@ -17523,17 +17563,22 @@
 
   /* ---------- НАВИГАЦИЯ ---------- */
   function setScreen(name) {
+    // 22.09-310: старые страницы журналов ведут на общую страницу «Журналы» с нужной вкладкой
+    if (name === 'logs') { S.journalTab = 'logs'; name = 'journals'; }
+    else if (name === 'errlogs') { S.journalTab = 'errlogs'; name = 'journals'; }
+    else if (name === 'changelog') { S.journalTab = 'changelog'; name = 'journals'; }
     // «Тест проезда» — полигон только для администратора
     if (name === 'testmap' && S.role !== 'admin') { toast('err', 'Страница «Тест проезда» — только для администратора'); return; }
     if (name === 'wxtest' && S.role !== 'admin') { toast('err', 'Страница «Тест погодный» — только для администратора'); return; }
     if (name === 'testdep' && S.role !== 'admin') { toast('err', 'Страница «Тест зависимости» — только для администратора'); return; }
     // Защита: страницы администрирования — только админу
     // 22.09-268: «Журнал действий» и «Логи ошибок» — можно разрешить другим ролям (таблица прав)
-    if ((name === 'logs' || name === 'errlogs') && S.role !== 'admin' && (typeof permCan !== 'function' || !permCan('viewLogs'))) {
+    if (name === 'journals' && S.role !== 'admin' && (typeof permCan !== 'function' || !permCan('viewLogs'))) {
       toast('err', 'Доступ к журналам закрыт (настраивается в «Правах доступа»)');
       return;
     }
-    if ((name === 'users' || name === 'changelog' || name === 'adminctl') && S.role !== 'admin') { // 22.09-264: + «Управление администрированием»
+    if (name === 'journals' && S.journalTab === 'changelog' && S.role !== 'admin') S.journalTab = 'logs';
+    if ((name === 'users' || name === 'adminctl') && S.role !== 'admin') { // 22.09-264: + «Управление администрированием»
       toast('err', 'Доступ только для администратора');
       return;
     }
@@ -18287,6 +18332,7 @@
   window.spAnimateView = spAnimateView;
   function refresh() {
     window.reRenderCurrentScreen = refresh;
+    try { var _jrBar = document.getElementById('journals-tabs'); if (_jrBar && S.screen !== 'journals') _jrBar.style.display = 'none'; } catch (eJr) {} // 22.09-310
     try { if (rebaseAllowed()) rebaseTaskDaysToToday(); } catch (eRb2) {}
     try { if (window.apBtnSync) apBtnSync(); } catch (eAp0) {} // 22.09-290: кнопка настроек автоподбора (видна только в справочнике ГРП) // 22.09-224: задачи остаются на своих календарных датах (22.09-257: при связи — после синхронизации)
     reconcileFiredResponsibles(); // 22.09-161: уволенных мастеров снять с объектов по дате увольнения
@@ -18378,9 +18424,10 @@
     else if (S.screen === 'factmonth') renderFactMonth(); // 22.09-192: месячный отчёт фактического времени по объектам
     else if (S.screen === 'users') renderUsers();
     else if (S.screen === 'reports') renderReports();
-    else if (S.screen === 'logs') renderLogs();
-    else if (S.screen === 'errlogs') renderErrLogs();
-    else if (S.screen === 'changelog') renderChangelog(); // 22.09-219
+    else if (S.screen === 'journals') renderJournals(); // 22.09-310: одна страница «Журналы» с вкладками
+    else if (S.screen === 'logs') { S.journalTab = 'logs'; S.screen = 'journals'; renderJournals(); }
+    else if (S.screen === 'errlogs') { S.journalTab = 'errlogs'; S.screen = 'journals'; renderJournals(); }
+    else if (S.screen === 'changelog') { S.journalTab = 'changelog'; S.screen = 'journals'; renderJournals(); }
     else if (S.screen === 'backup') renderBackup(); // 22.09-139
     else if (S.screen === 'adminctl') annPageRefresh(); // 22.09-264: Управление администрированием
     else if (S.screen === 'graphs') renderGraphs();

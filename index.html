@@ -478,6 +478,10 @@
   body.touch-ui .nav-acc .nav-sub{max-height:56px;opacity:1;transform:none}
   .nav .badge{margin-left:auto;background:var(--red);color:#fff;font-size:12px;font-weight:700;border-radius:20px;padding:1px 7px}
   .sb-foot{padding:12px 16px;border-top:1px solid rgba(255,255,255,.08);font-size:12px;color:#64748b}
+  .jr-tabs{display:flex;gap:6px;flex-wrap:wrap;padding:14px 18px 0;margin-bottom:14px;border-bottom:2px solid var(--line)}
+  .jr-tab{appearance:none;border:1px solid var(--line);border-bottom:none;background:var(--panel-3,#f1f5f9);color:var(--muted);font:inherit;font-size:13.5px;font-weight:600;padding:9px 18px;border-radius:10px 10px 0 0;cursor:pointer;margin-bottom:-2px;transition:background .15s,color .15s}
+  .jr-tab:hover{color:var(--ink);background:var(--card)}
+  .jr-tab.active{background:var(--card);color:var(--blue);border-bottom:2px solid var(--card);box-shadow:0 -2px 8px rgba(0,0,0,.05)}
   .base-sel{padding:10px 16px 12px;border-bottom:1px solid rgba(255,255,255,.08)}
   .base-lbl{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:#64748b;margin-bottom:5px;font-weight:600}
   .base-sel select{width:100%;padding:7px 9px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:12px;font-family:inherit;cursor:pointer;font-weight:600;}
@@ -1794,7 +1798,7 @@
           <div style="margin-top:6px;font-size:12px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-309 · дробная периодичность (0,5) больше не теряется; соединяются все проведения месяца</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-310 · журналы объединены в одну страницу «Журналы» с вкладками</div>
         <div style="margin-top:6px;text-align:center"><a href="#" id="li-cookie-link" class="cookie-link" title="Посмотреть или изменить разрешение">🍪 Cookie и хранилище браузера</a></div>
     </div>
   </div>
@@ -1840,11 +1844,9 @@
       <a data-screen="adminctl" title="Параметры системы: объявления работникам, права доступа"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6h.09A1.65 1.65 0 0 0 10.6 3V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Параметры</a>
       <a data-screen="users"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>Пользователи</a>
       <a data-screen="backup" title="Резервное копирование и восстановление всех баз данных (каждая — отдельным файлом)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>Бэкапы БД</a>
-      <a data-screen="logs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/><path d="M3 12h2M19 12h2M12 3v2M12 19v2"/></svg>Журнал действий</a>
-      <a data-screen="errlogs" title="Логи ошибок приложения и API"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>Логи ошибок</a>
-      <a data-screen="changelog" title="История версий системы: дата · сборка · что изменилось"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M12 11v4l2 2"/></svg>Журнал изменений</a>
+      <a data-screen="journals" title="Журнал действий, логи ошибок и журнал изменений — на одной странице"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20V3H6.5A2.5 2.5 0 004 5.5z"/><path d="M8 7h8M8 11h8M8 15h5"/></svg>Журналы</a>
     </nav>
-    <div class="sb-foot">УП «МИНГАЗ»<br>© 2026 SmartPlan · <a href="#" id="sb-cookie-link" class="cookie-link" title="Разрешение на cookie и хранилище браузера">🍪 Cookie</a></div>
+    <div class="sb-foot"><a href="#" id="sb-cookie-link" class="cookie-link" title="Разрешение на cookie и хранилище браузера">🍪 Cookie</a></div>
   </aside>
 
   <!-- MAIN -->
@@ -1918,6 +1920,11 @@
         </div></div>
       </div>
     </header>
+    <div id="journals-tabs" class="jr-tabs" style="display:none">
+      <button type="button" class="jr-tab" data-jtab="logs">📋 Журнал действий</button>
+      <button type="button" class="jr-tab" data-jtab="errlogs">🐞 Логи ошибок</button>
+      <button type="button" class="jr-tab" data-jtab="changelog">📝 Журнал изменений</button>
+    </div>
     <main id="view"></main>
   </div>
 </div>
@@ -2066,17 +2073,17 @@
      Сайт остаётся на Render, а API (сервер + данные) — на воркере Cloudflare.
      Чтобы вернуться к базе Render — удалить следующую строку. -->
 <script>window.SP_CONFIG_OVERRIDE = 'https://smartplanogrsdb.ilya-omelchuk97.workers.dev/api';</script>
-<script src="root_index/config.js?v=22.09-309"></script>
-<script src="root_index/data.js?v=22.09-309"></script>
-<script src="root_index/users_db.js?v=22.09-309"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-309"></script>
-<script src="root_index/areas_db.js?v=22.09-309"></script>
-<script src="root_index/professions_db.js?v=22.09-309"></script>
-<script src="root_index/work_db.js?v=22.09-309"></script>
-<script src="root_index/objects_db.js?v=22.09-309"></script>
-<script src="root_index/workers_db.js?v=22.09-309"></script>
-<script src="root_index/tasks_db.js?v=22.09-309"></script>
-<script src="root_index/db.js?v=22.09-309"></script>
+<script src="root_index/config.js?v=22.09-310"></script>
+<script src="root_index/data.js?v=22.09-310"></script>
+<script src="root_index/users_db.js?v=22.09-310"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-310"></script>
+<script src="root_index/areas_db.js?v=22.09-310"></script>
+<script src="root_index/professions_db.js?v=22.09-310"></script>
+<script src="root_index/work_db.js?v=22.09-310"></script>
+<script src="root_index/objects_db.js?v=22.09-310"></script>
+<script src="root_index/workers_db.js?v=22.09-310"></script>
+<script src="root_index/tasks_db.js?v=22.09-310"></script>
+<script src="root_index/db.js?v=22.09-310"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -2094,12 +2101,12 @@
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-309"></script>
-      <script src="root_index/error_log.js?v=22.09-309"></script>
-      <script src="root_index/api_client.js?v=22.09-309"></script>
-      <script src="root_index/sync_polling.js?v=22.09-309"></script>
-      <script src="root_index/zip_util.js?v=22.09-309"></script>
-      <script src="root_index/app.js?v=22.09-309"></script>
+<script src="root_index/object_attrs.js?v=22.09-310"></script>
+      <script src="root_index/error_log.js?v=22.09-310"></script>
+      <script src="root_index/api_client.js?v=22.09-310"></script>
+      <script src="root_index/sync_polling.js?v=22.09-310"></script>
+      <script src="root_index/zip_util.js?v=22.09-310"></script>
+      <script src="root_index/app.js?v=22.09-310"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {
