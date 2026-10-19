@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-318';
+  var SP_BUILD = '22.09-319';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -13629,6 +13629,18 @@
     else if (tab === 'feedback') renderFeedback();
     else renderLogs();
   }
+  function fbShowImg(id) {
+    var list = (window.SP_ANN && SP_ANN.feedback) ? SP_ANN.feedback() : [];
+    var m = null;
+    list.forEach(function (x) { if (x.id === id) m = x; });
+    if (!m || !m.img) return;
+    modal.innerHTML = '<div class="modal-h"><h3>📎 Скриншот к сообщению о проблеме</h3><button class="x" data-action="close-modal">×</button></div>' +
+      '<div class="modal-b" style="text-align:center"><img src="' + m.img + '" alt="Скриншот" style="max-width:100%;border:1px solid var(--line);border-radius:9px"></div>' +
+      '<div class="modal-f"><button class="btn" data-action="close-modal">Закрыть</button></div>';
+    overlay.classList.add('show');
+  }
+  window.spFbShowImg = fbShowImg;
+
   /* 22.09-318: отзывы и сообщения о проблемах (приходят с кнопки «Сообщить о проблеме») */
   function renderFeedback() {
     var list = (window.SP_ANN && SP_ANN.feedback) ? SP_ANN.feedback() : [];
@@ -13643,7 +13655,8 @@
         try { when = m.ts ? new Date(m.ts).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''; } catch (e) {}
         html += '<tr><td style="white-space:nowrap;font-size:12px;color:var(--muted)">' + esc(when) + '</td>' +
           '<td style="font-size:12.5px"><b>' + esc(m.from || '—') + '</b>' + (m.page ? '<div style="color:var(--muted);font-size:12px">страница: ' + esc(m.page) + (m.build ? ' · сборка ' + esc(m.build) : '') + '</div>' : '') + '</td>' +
-          '<td style="font-size:12.5px;white-space:pre-wrap">' + esc(m.text || '') + (m.errs ? '<div style="color:var(--muted);font-size:12px;margin-top:4px">Ошибки устройства: ' + esc(m.errs) + '</div>' : '') + '</td>' +
+          '<td style="font-size:12.5px;white-space:pre-wrap">' + esc(m.text || '') + (m.errs ? '<div style="color:var(--muted);font-size:12px;margin-top:4px">Ошибки устройства: ' + esc(m.errs) + '</div>' : '') +
+            (m.img ? '<div style="margin-top:8px"><img src="' + m.img + '" alt="Скриншот" data-action="feedback-img" data-mid="' + esc(m.id) + '" title="Нажмите — посмотреть в полном размере" style="max-width:230px;max-height:150px;border:1px solid var(--line);border-radius:8px;cursor:zoom-in;display:block"></div>' : '') + '</td>' +
           '<td style="text-align:right"><button class="btn sm" data-action="feedback-del" data-mid="' + esc(m.id) + '" style="color:var(--red)">Удалить</button></td></tr>';
       });
       html += '</tbody></table>';
@@ -18706,6 +18719,7 @@
     else if (a === 'feedback-open') { if (window.SP_ANN && SP_ANN.openFeedback) SP_ANN.openFeedback(); } // 22.09-318
     else if (a === 'feedback-send') { if (window.SP_ANN && SP_ANN.sendFeedback) SP_ANN.sendFeedback(); } // 22.09-318
     else if (a === 'feedback-del') { if (window.SP_ANN && SP_ANN.feedbackDel) SP_ANN.feedbackDel(el.dataset.mid); } // 22.09-318
+    else if (a === 'feedback-img') { if (window.spFbShowImg) spFbShowImg(el.dataset.mid); } // 22.09-319: скриншот в полном размере
     /* 22.09-278: статусы объектов графика — работы строятся только «В эксплуатации» */
     else if (a === 'graphs-status-fill') { openGraphStatusModal(); }
     else if (a === 'graphs-status-all') {
@@ -27205,8 +27219,41 @@
     return annList().filter(function (m) { return m && m.id && m.kind === 'feedback'; })
       .sort(function (a, b) { return (b.ts || 0) - (a.ts || 0); });
   }
+  var _fbImg = ''; // 22.09-319: прикреплённый скриншот (сжатый, data URI) для окна отзыва
+  function fbSetImg(dataUrl) {
+    _fbImg = dataUrl || '';
+    var pv = document.getElementById('fb-preview');
+    var del = document.getElementById('fb-img-del');
+    if (pv) { if (_fbImg) { pv.src = _fbImg; pv.style.display = 'block'; } else { pv.removeAttribute('src'); pv.style.display = 'none'; } }
+    if (del) del.style.display = _fbImg ? '' : 'none';
+  }
+  function fbLoadFile(file) {
+    if (!file) return;
+    if (!/^image\//.test(file.type || '')) { toast('warn', 'Прикрепить можно только картинку (скриншот)'); return; }
+    var rd = new FileReader();
+    rd.onload = function () {
+      var img = new Image();
+      img.onload = function () {
+        try {
+          var max = 1100, w = img.width || 1, h = img.height || 1;
+          var k = Math.min(1, max / Math.max(w, h));
+          var c = document.createElement('canvas');
+          c.width = Math.round(w * k); c.height = Math.round(h * k);
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          var url = c.toDataURL('image/jpeg', 0.72);
+          if (url.length > 700000) url = c.toDataURL('image/jpeg', 0.5); // очень большой — дожимаем
+          fbSetImg(url);
+          toast('ok', '📎 Скриншот прикреплён');
+        } catch (e) { toast('err', 'Не удалось прикрепить картинку'); }
+      };
+      img.onerror = function () { toast('err', 'Не удалось прочитать картинку'); };
+      img.src = String(rd.result || '');
+    };
+    rd.readAsDataURL(file);
+  }
   function openFeedback() {
     if (!S.user) { toast('warn', 'Сначала войдите на сайт'); return; }
+    _fbImg = '';
     var errs = '';
     try {
       var list = (window.SP_ERRORS && SP_ERRORS.getAll) ? SP_ERRORS.getAll().slice(-3) : [];
@@ -27216,6 +27263,11 @@
       '<div class="modal-b">' +
       '<div style="font-size:12.5px;color:var(--muted);margin-bottom:10px;line-height:1.5">Расскажите, что случилось или что неудобно. Сообщение придёт администратору в «Журналы» → вкладка «Отзывы и проблемы». От вас автоматически приложатся: страница, на которой вы сейчас, версия сайта и последние ошибки (если были).</div>' +
       '<textarea id="fb-text" rows="5" placeholder="Например: нажал «…» — и ничего не произошло" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:9px;font-size:13.5px;font-family:inherit;background:var(--card);color:var(--ink);resize:vertical"></textarea>' +
+      '<div style="margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+      '<label class="btn sm" style="cursor:pointer">📎 Прикрепить скриншот<input id="fb-file" type="file" accept="image/*" style="display:none"></label>' +
+      '<button type="button" class="btn sm" id="fb-img-del" style="display:none;color:var(--red)">Убрать картинку</button>' +
+      '<span style="font-size:12px;color:var(--muted)">или просто вставьте картинку из буфера: <b>Ctrl+V</b> (скриншот делается клавишами Win+Shift+S)</span></div>' +
+      '<img id="fb-preview" alt="" style="display:none;max-width:100%;max-height:220px;margin-top:10px;border:1px solid var(--line);border-radius:9px">' +
       '<div style="font-size:12px;color:var(--muted);margin-top:8px">Страница: <b>' + esc((typeof TITLES !== 'undefined' && TITLES[S.screen]) || S.screen || '') + '</b> · сборка ' + esc(String(window.SP_BUILD || '')) + (errs ? '<br>Последние ошибки на этом устройстве:<br>' + esc(errs).replace(/\n/g, '<br>') : '') + '</div>' +
       '</div>' +
       '<div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button>' +
@@ -27223,7 +27275,22 @@
     modal.innerHTML = h;
     overlay.classList.add('show');
     var ta = document.getElementById('fb-text');
-    if (ta) ta.focus();
+    if (ta) {
+      ta.focus();
+      // 22.09-319: вставка скриншота из буфера прямо в окно (Ctrl+V)
+      ta.addEventListener('paste', function (e) {
+        try {
+          var items = (e.clipboardData || {}).items || [];
+          for (var i = 0; i < items.length; i++) {
+            if (/^image\//.test(items[i].type || '')) { fbLoadFile(items[i].getAsFile()); if (e.preventDefault) e.preventDefault(); return; }
+          }
+        } catch (err) {}
+      });
+    }
+    var fi = document.getElementById('fb-file');
+    if (fi) fi.addEventListener('change', function () { fbLoadFile(fi.files && fi.files[0]); fi.value = ''; });
+    var fd = document.getElementById('fb-img-del');
+    if (fd) fd.addEventListener('click', function () { fbSetImg(''); });
   }
   function sendFeedback() {
     var ta = document.getElementById('fb-text');
@@ -27240,7 +27307,7 @@
       kind: 'feedback', text: text,
       from: (S.user && S.user.full_name) || '', from_id: (S.user && S.user.id) || '', role: S.role || '',
       page: ((typeof TITLES !== 'undefined' && TITLES[S.screen]) || S.screen || ''), build: String(window.SP_BUILD || ''),
-      errs: errsTxt, ts: Date.now()
+      errs: errsTxt, img: _fbImg || '', ts: Date.now()
     };
     var done = function () {
       try { overlay.classList.remove('show'); } catch (e) {}
