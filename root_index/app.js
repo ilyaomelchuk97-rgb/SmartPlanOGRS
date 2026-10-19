@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-327';
+  var SP_BUILD = '22.09-329';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -3974,62 +3974,158 @@
       setTimeout(function () { try { box.remove(); } catch (e) {} }, 800);
     } catch (e) {}
   }
+  /* SVG-фильтр деформации: создаётся один раз и переиспользуется. */
+  function spEnsureCrumpFilter() {
+    var disp = document.getElementById('spCrumpDisp');
+    if (disp) return disp;
+    var holder = document.createElement('div');
+    holder.innerHTML = '<svg id="spCrumpSvg" width="0" height="0" style="position:absolute" aria-hidden="true">' +
+      '<filter id="spCrumpF" x="-20%" y="-20%" width="140%" height="140%">' +
+      '<feTurbulence type="fractalNoise" baseFrequency="0.08 0.13" numOctaves="2" seed="7" result="n"/>' +
+      '<feDisplacementMap id="spCrumpDisp" in="SourceGraphic" in2="n" scale="0"/>' +
+      '</filter></svg>';
+    document.body.appendChild(holder);
+    return document.getElementById('spCrumpDisp');
+  }
+
   function spFlyToTrashAnim(tile, trash, done) {
-    var finished = false;
-    function fin() { if (!finished) { finished = true; done(); } }
+    var finished = false, wrap = null, wad = null, iv = null, safety = null;
+    function fin() {
+      if (finished) return;
+      finished = true;
+      if (iv) clearInterval(iv);
+      if (safety) clearTimeout(safety);
+      try { var d0 = document.getElementById('spCrumpDisp'); if (d0) d0.setAttribute('scale', '0'); } catch (e0) {}
+      try { if (wrap) wrap.remove(); } catch (e1) {}
+      try { if (wad) wad.remove(); } catch (e2) {}
+      done();
+    }
     try {
       if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) { fin(); return; }
       var r = tile.getBoundingClientRect(), tr = trash.getBoundingClientRect();
       if (!r.width || !tr.width) { fin(); return; }
-      /* Карточка делится на 3 вертикальные створки; каждая — кусок настоящей
-         карточки (клон со сдвигом), створки висят на петлях по краям средней. */
-      var wrap = document.createElement('div');
-      wrap.className = 'sp-fold';
-      wrap.style.cssText = 'position:fixed;z-index:99999;pointer-events:none;left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;perspective:950px;';
-      var row = document.createElement('div');
-      row.className = 'sp-fold-row';
-      var pw = r.width / 3;
-      for (var i = 0; i < 3; i++) {
-        var panel = document.createElement('div');
-        panel.className = 'sp-fold-p';
-        var c = tile.cloneNode(true);
-        c.style.cssText = 'position:absolute;top:0;left:' + (-i * pw) + 'px;width:' + r.width + 'px;height:' + r.height + 'px;margin:0;';
-        panel.appendChild(c);
-        row.appendChild(panel);
-      }
-      wrap.appendChild(row);
+
+      /* Берём именно видимую карточку и деформируем её поверхность. Клон не
+         делится на створки и не получает круглых углов: он постепенно мнётся
+         шестью короткими рывками, с разной силой по ширине и высоте. */
+      wrap = tile.cloneNode(true);
+      wrap.removeAttribute('id');
+      wrap.querySelectorAll('[id]').forEach(function (n) { n.removeAttribute('id'); });
+      wrap.className = (tile.className || '') + ' sp-crumple';
+      wrap.classList.remove('dragging'); // иначе клон наследует прозрачность перетаскивания и выглядит призраком
+      wrap.style.cssText = 'position:fixed;z-index:99999;pointer-events:none;opacity:1;left:' + r.left + 'px;top:' + r.top +
+        'px;width:' + r.width + 'px;height:' + r.height + 'px;margin:0;filter:url("#spCrumpF");';
+      var wrinkles = document.createElement('div');
+      wrinkles.className = 'sp-crumple-wrinkles';
+      wrap.appendChild(wrinkles);
       document.body.appendChild(wrap);
       tile.style.visibility = 'hidden';
-      var sx = r.left + r.width / 2, sy = r.top + r.height / 2;
-      var ex = tr.left + tr.width / 2, ey = tr.top + tr.height / 2;
-      var cx = (sx + ex) / 2, cy = Math.min(sy, ey) - 160; // верх дуги полёта
-      // шаг 1: боковые края загибаются внутрь (как конверт / лист в руках)
-      requestAnimationFrame(function () { requestAnimationFrame(function () { wrap.classList.add('sp-folded'); }); });
-      // шаг 2: свёрток дожимают сверху-вниз с перекосом — получается комок
-      setTimeout(function () { wrap.classList.add('sp-squeezed'); }, 470);
-      // шаг 3: комок летит по дуге в корзину (угловатый, контур рваный — не овал)
-      setTimeout(function () {
-        wrap.classList.remove('sp-squeezed');
-        wrap.style.clipPath = 'polygon(7% 14%, 86% 3%, 98% 74%, 76% 97%, 12% 91%, 1% 42%)';
-        var t0 = null, D = 640;
-        function step(ts) {
-          if (!t0) t0 = ts;
-          var k = Math.min(1, (ts - t0) / D);
-          var x = (1 - k) * (1 - k) * sx + 2 * (1 - k) * k * cx + k * k * ex;
-          var y = (1 - k) * (1 - k) * sy + 2 * (1 - k) * k * cy + k * k * ey;
-          wrap.style.left = (x - r.width / 2) + 'px';
-          wrap.style.top = (y - r.height / 2) + 'px';
-          wrap.style.transform = 'scale(' + (0.88 - 0.3 * k).toFixed(3) + ',' + (0.6 - 0.16 * k).toFixed(3) + ') rotate(' + (-5 + 130 * k).toFixed(1) + 'deg)';
-          if (k < 1) requestAnimationFrame(step);
-          else {
-            try { wrap.remove(); } catch (e) {}
-            spPuffAt(ex, ey, trash); // облачко в корзине
-            setTimeout(fin, 170);
-          }
+
+      var disp = spEnsureCrumpFilter();
+      var jagged = [
+        'polygon(0 0,100% 0,100% 100%,0 100%)',
+        'polygon(3% 6%,94% 1%,99% 88%,88% 99%,8% 96%,1% 40%)',
+        'polygon(9% 14%,88% 5%,97% 76%,80% 97%,16% 92%,3% 44%)',
+        'polygon(15% 20%,82% 10%,93% 68%,72% 94%,24% 88%,7% 50%)',
+        'polygon(20% 26%,76% 15%,89% 62%,66% 90%,30% 84%,11% 55%)',
+        'polygon(24% 30%,72% 19%,85% 58%,62% 86%,34% 80%,15% 58%)',
+        'polygon(28% 33%,69% 23%,82% 51%,71% 82%,39% 88%,19% 65%)',
+        'polygon(31% 36%,67% 26%,80% 52%,69% 80%,41% 85%,22% 63%)'
+      ];
+      var rotations = [0, -4, 5, -7, 6, -9, 7, -10];
+      var step = 0;
+      iv = setInterval(function () {
+        step++;
+        var k = step / 8;
+        try { if (disp) disp.setAttribute('scale', String(Math.round(26 * k))); } catch (eD) {}
+        wrinkles.style.opacity = String(0.35 + 0.65 * k);
+        wrap.style.clipPath = jagged[step];
+        wrap.style.transform = 'scale(' + (1 - 0.36 * k).toFixed(3) + ',' + (1 - 0.44 * k).toFixed(3) + ') rotate(' + rotations[step] + 'deg)';
+        if (step >= 8) {
+          clearInterval(iv); iv = null;
+          setTimeout(function () { wad = spMakePaperWad(tile, r); if (wrap) wrap.remove(); if (wad) spFlyWadToTrash(wad, trash, fin); else fin(); }, 110);
         }
-        requestAnimationFrame(step);
-      }, 900);
-      setTimeout(fin, 3200); // страховка: данные удалятся, даже если анимация прервётся
+      }, 72);
+      safety = setTimeout(fin, 3400); // данные удалятся, даже если браузер прервёт анимацию
+    } catch (e) { fin(); }
+  }
+
+  /* Плотный комок как финальный кадр видео: маленький, угловатый, с гранями.
+     Цвет берём у самой задачи, чтобы было видно, что это именно её лист. */
+  function spMakePaperWad(tile, r) {
+    try {
+      var cs = window.getComputedStyle ? getComputedStyle(tile) : null;
+      var color = (cs && cs.backgroundColor && cs.backgroundColor !== 'rgba(0, 0, 0, 0)') ? cs.backgroundColor : '#eef2f6';
+      var w = Math.max(42, Math.min(58, Math.round(r.width * 0.42)));
+      var h = Math.max(38, Math.min(52, Math.round(r.height * 0.78)));
+      var el = document.createElement('div');
+      el.className = 'sp-paper-wad';
+      el.style.left = Math.round(r.left + r.width / 2 - w / 2) + 'px';
+      el.style.top = Math.round(r.top + r.height / 2 - h / 2) + 'px';
+      el.style.width = w + 'px';
+      el.style.height = h + 'px';
+      el.style.backgroundColor = color;
+      el.style.transform = 'rotate(-9deg) scale(1.08,.94)';
+      document.body.appendChild(el);
+      try { if (el.animate) el.animate([
+        { transform: 'rotate(5deg) scale(1.14,.88)' },
+        { transform: 'rotate(-12deg) scale(.96,1.05)' },
+        { transform: 'rotate(-9deg) scale(1.08,.94)' }
+      ], { duration: 190, easing: 'ease-out' }); } catch (eA) {}
+      return el;
+    } catch (e) { return null; }
+  }
+
+  function spFlyWadToTrash(wad, trash, fin) {
+    try {
+      var rect = wad.getBoundingClientRect();
+      var tr = trash.getBoundingClientRect();
+      var sx = rect.left + rect.width / 2, sy = rect.top + rect.height / 2;
+      var ex = tr.left + tr.width / 2, ey = tr.top + tr.height / 2;
+      var cx = (sx + ex) / 2, cy = Math.min(sy, ey) - Math.max(90, Math.min(160, rect.height * 2.4));
+      var w = rect.width, h = rect.height, t0 = null, D = 620;
+      function stepFn(ts) {
+        if (!t0) t0 = ts;
+        var k = Math.min(1, (ts - t0) / D);
+        var x = (1 - k) * (1 - k) * sx + 2 * (1 - k) * k * cx + k * k * ex;
+        var y = (1 - k) * (1 - k) * sy + 2 * (1 - k) * k * cy + k * k * ey;
+        wad.style.left = (x - w / 2) + 'px';
+        wad.style.top = (y - h / 2) + 'px';
+        wad.style.transform = 'rotate(' + (-9 + 245 * k).toFixed(1) + 'deg) scale(' + (1 - 0.22 * k).toFixed(3) + ')';
+        if (k < 1) requestAnimationFrame(stepFn);
+        else {
+          try { wad.remove(); } catch (e) {}
+          spPuffAt(ex, ey, trash);
+          setTimeout(fin, 170);
+        }
+      }
+      requestAnimationFrame(stepFn);
+    } catch (e) { fin(); }
+  }
+
+  function spFlyCrumpledToTrash(wrap, r, trash, fin) {
+    try {
+      var tr = trash.getBoundingClientRect();
+      var sx = parseFloat(wrap.style.left) + r.width / 2, sy = parseFloat(wrap.style.top) + r.height / 2;
+      var ex = tr.left + tr.width / 2, ey = tr.top + tr.height / 2;
+      var cx = (sx + ex) / 2, cy = Math.min(sy, ey) - Math.max(90, Math.min(170, r.height * 1.4));
+      var t0 = null, D = 650;
+      function stepFn(ts) {
+        if (!t0) t0 = ts;
+        var k = Math.min(1, (ts - t0) / D);
+        var x = (1 - k) * (1 - k) * sx + 2 * (1 - k) * k * cx + k * k * ex;
+        var y = (1 - k) * (1 - k) * sy + 2 * (1 - k) * k * cy + k * k * ey;
+        wrap.style.left = (x - r.width / 2) + 'px';
+        wrap.style.top = (y - r.height / 2) + 'px';
+        wrap.style.transform = 'scale(' + (0.78 - 0.22 * k).toFixed(3) + ',' + (0.66 - 0.18 * k).toFixed(3) + ') rotate(' + (-8 + 126 * k).toFixed(1) + 'deg)';
+        if (k < 1) requestAnimationFrame(stepFn);
+        else {
+          try { wrap.remove(); } catch (e) {}
+          spPuffAt(ex, ey, trash);
+          setTimeout(fin, 170);
+        }
+      }
+      requestAnimationFrame(stepFn);
     } catch (e) { fin(); }
   }
 
