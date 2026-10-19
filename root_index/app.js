@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-322';
+  var SP_BUILD = '22.09-323';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -13425,6 +13425,37 @@
         toast('ok', 'Работа обновлена'); }
     else { savedW = WORK.addWork(area, data); logAction('Добавление вида работы', data.name);
         toast('ok', 'Работа добавлена на участок ' + area); }
+    // 22.09-323: ВЗАИМНАЯ отметка «Проводится совместно». Если в этой работе
+    // отмечена совместность с другой работой (или её группой), той работе
+    // автоматически проставляется обратная отметка — чтобы в её карточке
+    // тоже было видно связь. Снятие отметки здесь обратную НЕ трогает
+    // (её могли поставить руками) — снимается в карточке той работы.
+    try {
+      if (savedW && savedW.id && Array.isArray(savedW.joint_with) && savedW.joint_with.length) {
+        var _myGroup = String(savedW.group || '').trim();
+        var _back = _myGroup || savedW.id;
+        var _mirrored = 0;
+        (WORK.getWorks(area) || []).forEach(function (x) {
+          if (!x || x.id === savedW.id) return;
+          var xg = String(x.group || '').trim();
+          var targeted = savedW.joint_with.indexOf(x.id) !== -1 || (!!xg && savedW.joint_with.some(function (g) {
+            g = String(g || '').trim();
+            return g && (g === xg || xg.indexOf(g + '/') === 0);
+          }));
+          if (!targeted) return;
+          var list = Array.isArray(x.joint_with) ? x.joint_with.slice() : (x.joint_with ? [x.joint_with] : []);
+          var covered = list.indexOf(_back) !== -1 || list.indexOf(savedW.id) !== -1 || (!!_myGroup && list.some(function (g) {
+            g = String(g || '').trim();
+            return g && (_myGroup === g || _myGroup.indexOf(g + '/') === 0);
+          }));
+          if (covered) return;
+          list.push(_back);
+          WORK.updateWork(area, x.id, { joint_with: list });
+          _mirrored++;
+        });
+        if (_mirrored) toast('ok', '🤝 Обратная отметка «совместно» автоматически проставлена работам: ' + _mirrored);
+      }
+    } catch (eMir) {}
     // 22.09-137: наследование свойств группы (🏷 «Телеметрия»/«ГРП»/метки):
     // новая работа получает пометки своей группы; при переезде в другую
     // группу — пометки новой группы (пометки старой затираются).
@@ -20806,7 +20837,14 @@
         var _rgSel = (window.SP_AUTOPICK && window.SP_AUTOPICK.groups) ? window.SP_AUTOPICK.groups() : [];
         var _inSel = false;
         try { _inSel = !!(window.SP_AUTOPICK && window.SP_AUTOPICK.workInGroups(w, _rgSel)); } catch (eRg2) {}
-        if (!_inSel) return false;
+        if (!_inSel) {
+          /* 22.09-323: работы «Без телеметрии» предназначены именно объектам без ТМ —
+             объекту REGION-gaz БЕЗ телеметрии они подбираются и без галочки в настройках.
+             (Раньше упирались в эти ворота и не подбирались вовсе.) */
+          var _objTel2 = String(attrs && attrs.telemetry || '').trim();
+          var _noTmOk = (eff.telemetry_req === 'not_equipped') && !_objTel2;
+          if (!_noTmOk) return false;
+        }
       }
     }
     /* 22.09-282: ОТОПЛЕНИЕ — работы «ТО отопительного оборудования» подбираются
