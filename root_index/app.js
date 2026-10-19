@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-319';
+  var SP_BUILD = '22.09-320';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -6376,7 +6376,8 @@
   // Фильтр «Карта объектов»: какие слои показывать (ГРП / ШРП / Прочие / Области).
   // Сохраняется в localStorage. Скрывает и отрисовку, и клики (скрытое не открывает облачко).
   // 22.09-184: HOTFIX — объявление затёрто чисткой 22.09-182, без него падал refresh() (сайт не открывал страницы)
-  var omState = { map: null, tipTimer: null, svg: null, vc: [], vp: [] }; // vc/vp — видимые с учётом фильтра
+  var omState = { map: null, tipTimer: null, svg: null, vc: [], vp: [], view: null }; // vc/vp — видимые с учётом фильтра; view — запомненные центр+масштаб (22.09-320)
+  try { window.SP_OM_STATE = omState; } catch (e) {} // для проверок: текущий вид карты объектов
   var omFilter = { grp: true, shrp: true, grs: true, pgrp: true, other: true, zones: true };
   try {
     var _omf = JSON.parse(localStorage.getItem('smartplan_objmap_filter') || 'null');
@@ -6479,6 +6480,15 @@
   function renderObjMap() {
     var v = document.getElementById('view');
     lmStopTicker && null; // (не используется здесь — просто карта)
+    // 22.09-320: перед перестройкой запоминаем центр и масштаб, куда смотрел
+    // пользователь, — иначе при каждом обновлении данных с сервера карта
+    // заново «вписывала все объекты» и сама приближалась обратно.
+    if (omState.map) {
+      try {
+        var _c = omState.map.getCenter(), _z = omState.map.getZoom();
+        if (_c && isFinite(_z)) omState.view = { c: [_c[0], _c[1]], z: _z };
+      } catch (e) {}
+    }
     // уничтожить прошлую карту и слой (уход/повторный вход)
     if (omState.svg) { try { omState.svg.destroy(); } catch (e) {} omState.svg = null; }
     try { if (omState.map) { omState.map.destroy(); } } catch (e) {}
@@ -6569,18 +6579,25 @@
         });
         omSetBasemap(omBasemapCur()); // применить сохранённую подложку (Яндекс = web_mercator-рендерер)
 
+        // 22.09-320: если пользователь уже смотрел карту — вернуться к его
+        // центру и масштабу; «все объекты в экран» — только при первом открытии
+        if (omState.view && omState.view.c) {
+          try { map.setCenter(omState.view.c, omState.view.z); } catch (e) {}
+        }
         // масштаб: по всем точкам и полигонам
         var all1 = null, all2 = null;
         if (withCoords.length && withPoly.length) { all1 = [Math.min(pb1[0], b1[0]), Math.min(pb1[1], b1[1])]; all2 = [Math.max(pb2[0], b2[0]), Math.max(pb2[1], b2[1])]; }
         else if (withCoords.length) { all1 = pb1; all2 = pb2; }
         else if (withPoly.length) { all1 = b1; all2 = b2; }
-        if (all1 && (withCoords.length + withPoly.length) > 1) {
+        if (omState.view && omState.view.c) {
+          // вид восстановлен выше — масштаб не трогаем
+        } else if (all1 && (withCoords.length + withPoly.length) > 1) {
           try { map.setBounds([all1, all2], { checkZoomRange: true, zoomMargin: 40 }); } catch (e) {}
         } else if (all1 && withPoly.length === 1) {
           // единственная область и нет точек — показать её целиком (иначе карта
           // оставалась на дефолтном центре Минска, и область была за экраном)
           try { map.setBounds([b1, b2], { checkZoomRange: true, zoomMargin: 60 }); } catch (e) {}
-        } else if (withCoords.length === 1) {
+        } else if (withCoords.length === 1 && !(omState.view && omState.view.c)) {
           map.setCenter([+withCoords[0].lat, +withCoords[0].lng], 14);
         }
 
@@ -17658,6 +17675,7 @@
     _crEl.title = 'История изменений системы: Администрирование → Журнал изменений';
     document.getElementById('sidebar').classList.remove('open');
     refresh();
+    if (name !== 'objmap') { try { omState.view = null; } catch (eOv) {} } // 22.09-320: ушёл с карты объектов — следующий вход снова покажет все объекты
   }
   /* ── часть 12 · app/12_writeoffs.js — списания, «Приступил/Закончил», карточки работ на день, факт работ, окно списания ── */
   /* =====================================================================
@@ -18432,6 +18450,15 @@
     }
     // Уход со страницы «Карта объектов» — освобождаем карту, SVG-слой и облачко
     if (name !== 'objmap') {
+      // 22.09-320: ДО уничтожения запоминаем центр и масштаб пользователя —
+      // этот блок срабатывает при каждой перестройке, и renderObjMap потом
+      // вернёт карту к запомненному виду, а не «впишет все объекты» заново.
+      if (omState.map) {
+        try {
+          var _oc = omState.map.getCenter(), _oz = omState.map.getZoom();
+          if (_oc && isFinite(_oz)) omState.view = { c: [_oc[0], _oc[1]], z: _oz };
+        } catch (e) {}
+      }
       if (omState.svg) { try { omState.svg.destroy(); } catch (e) {} omState.svg = null; }
       if (omState.map) { try { omState.map.destroy(); } catch (e) {} omState.map = null; }
       omHideTip();
