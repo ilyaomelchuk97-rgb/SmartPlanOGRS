@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-317';
+  var SP_BUILD = '22.09-318';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -13604,11 +13604,11 @@
     bar.style.display = isJ ? 'flex' : 'none';
     if (!isJ) return;
     var tab = S.journalTab || (S.role === 'admin' ? 'changelog' : 'logs');
-    if (tab === 'changelog' && S.role !== 'admin') tab = 'logs';
+    if ((tab === 'changelog' || tab === 'feedback') && S.role !== 'admin') tab = 'logs';
     bar.querySelectorAll('.jr-tab').forEach(function (b) {
       var t = b.dataset.jtab;
       b.classList.toggle('active', t === tab);
-      if (t === 'changelog') b.style.display = (S.role === 'admin') ? '' : 'none';
+      if (t === 'changelog' || t === 'feedback') b.style.display = (S.role === 'admin') ? '' : 'none';
       if (!b._jrBound) {
         b._jrBound = true;
         b.addEventListener('click', function () {
@@ -13623,10 +13623,34 @@
   }
   function renderJournalsBody() {
     var tab = S.journalTab || (S.role === 'admin' ? 'changelog' : 'logs');
-    if (tab === 'changelog' && S.role !== 'admin') tab = 'logs';
+    if ((tab === 'changelog' || tab === 'feedback') && S.role !== 'admin') tab = 'logs';
     if (tab === 'errlogs') renderErrLogs();
     else if (tab === 'changelog') renderChangelog();
+    else if (tab === 'feedback') renderFeedback();
     else renderLogs();
+  }
+  /* 22.09-318: отзывы и сообщения о проблемах (приходят с кнопки «Сообщить о проблеме») */
+  function renderFeedback() {
+    var list = (window.SP_ANN && SP_ANN.feedback) ? SP_ANN.feedback() : [];
+    var html = '<div class="card"><div class="card-h"><h2>💬 Отзывы и проблемы пользователей</h2><span class="sub">' + list.length + ' сообщений · новые сверху</span></div><div class="card-b">';
+    html += '<div style="font-size:12.5px;color:var(--muted);margin-bottom:12px;line-height:1.5">Сюда приходят сообщения с кнопки «💬 Сообщить о проблеме» в шапке сайта: кто отправил, с какой страницы и что случилось. Вместе с сообщением автоматически прикладываются версия сайта и последние ошибки с устройства отправителя.</div>';
+    if (!list.length) {
+      html += '<div class="empty">Пока пусто. Как только кто-то нажмёт «Сообщить о проблеме», сообщение появится здесь.</div>';
+    } else {
+      html += '<table class="dt"><thead><tr><th style="width:140px">Когда</th><th style="width:210px">Кто</th><th>Сообщение</th><th style="width:90px"></th></tr></thead><tbody>';
+      list.forEach(function (m) {
+        var when = '';
+        try { when = m.ts ? new Date(m.ts).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''; } catch (e) {}
+        html += '<tr><td style="white-space:nowrap;font-size:12px;color:var(--muted)">' + esc(when) + '</td>' +
+          '<td style="font-size:12.5px"><b>' + esc(m.from || '—') + '</b>' + (m.page ? '<div style="color:var(--muted);font-size:12px">страница: ' + esc(m.page) + (m.build ? ' · сборка ' + esc(m.build) : '') + '</div>' : '') + '</td>' +
+          '<td style="font-size:12.5px;white-space:pre-wrap">' + esc(m.text || '') + (m.errs ? '<div style="color:var(--muted);font-size:12px;margin-top:4px">Ошибки устройства: ' + esc(m.errs) + '</div>' : '') + '</td>' +
+          '<td style="text-align:right"><button class="btn sm" data-action="feedback-del" data-mid="' + esc(m.id) + '" style="color:var(--red)">Удалить</button></td></tr>';
+      });
+      html += '</tbody></table>';
+    }
+    html += '</div></div>';
+    var vw = document.getElementById('view');
+    if (vw) vw.innerHTML = html;
   }
   function renderJournals() {
     if (!S.journalTab) S.journalTab = (S.role === 'admin' ? 'changelog' : 'logs');
@@ -17579,7 +17603,7 @@
       toast('err', 'Доступ к журналам закрыт (настраивается в «Правах доступа»)');
       return;
     }
-    if (name === 'journals' && S.journalTab === 'changelog' && S.role !== 'admin') S.journalTab = 'logs';
+    if (name === 'journals' && (S.journalTab === 'changelog' || S.journalTab === 'feedback') && S.role !== 'admin') S.journalTab = 'logs';
     if ((name === 'users' || name === 'adminctl') && S.role !== 'admin') { // 22.09-264: + «Управление администрированием»
       toast('err', 'Доступ только для администратора');
       return;
@@ -18679,6 +18703,9 @@
     else if (a === 'gs-open') { gsOpen(); }              // 22.09-284: глобальный поиск (Ctrl+K)
     else if (a === 'ap-open') { apOpen(); }              // 22.09-290: настройки автоподбора работ
     else if (a === 'bell-toggle') { bellToggle(); }      // 22.09-284: колокольчик уведомлений
+    else if (a === 'feedback-open') { if (window.SP_ANN && SP_ANN.openFeedback) SP_ANN.openFeedback(); } // 22.09-318
+    else if (a === 'feedback-send') { if (window.SP_ANN && SP_ANN.sendFeedback) SP_ANN.sendFeedback(); } // 22.09-318
+    else if (a === 'feedback-del') { if (window.SP_ANN && SP_ANN.feedbackDel) SP_ANN.feedbackDel(el.dataset.mid); } // 22.09-318
     /* 22.09-278: статусы объектов графика — работы строятся только «В эксплуатации» */
     else if (a === 'graphs-status-fill') { openGraphStatusModal(); }
     else if (a === 'graphs-status-all') {
@@ -27171,7 +27198,72 @@
     try { var a = JSON.parse(localStorage.getItem(annLsKey()) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; }
   }
   function annAnnouncements() {
-    return annList().filter(function (m) { return m && m.id && m.kind !== 'ack'; });
+    return annList().filter(function (m) { return m && m.id && m.kind !== 'ack' && m.kind !== 'feedback'; }); // 22.09-318: отзывы — отдельный вид записей, не объявления
+  }
+  // 22.09-318: отзывы и сообщения о проблемах (кнопка в шапке сайта)
+  function fbList() {
+    return annList().filter(function (m) { return m && m.id && m.kind === 'feedback'; })
+      .sort(function (a, b) { return (b.ts || 0) - (a.ts || 0); });
+  }
+  function openFeedback() {
+    if (!S.user) { toast('warn', 'Сначала войдите на сайт'); return; }
+    var errs = '';
+    try {
+      var list = (window.SP_ERRORS && SP_ERRORS.getAll) ? SP_ERRORS.getAll().slice(-3) : [];
+      if (list.length) errs = list.map(function (e) { return '• ' + (e.where || '') + ': ' + String(e.msg || '').slice(0, 90); }).join('\n');
+    } catch (e) {}
+    var h = '<div class="modal-h"><h3>💬 Сообщить о проблеме</h3><button class="x" data-action="close-modal">×</button></div>' +
+      '<div class="modal-b">' +
+      '<div style="font-size:12.5px;color:var(--muted);margin-bottom:10px;line-height:1.5">Расскажите, что случилось или что неудобно. Сообщение придёт администратору в «Журналы» → вкладка «Отзывы и проблемы». От вас автоматически приложатся: страница, на которой вы сейчас, версия сайта и последние ошибки (если были).</div>' +
+      '<textarea id="fb-text" rows="5" placeholder="Например: нажал «…» — и ничего не произошло" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:9px;font-size:13.5px;font-family:inherit;background:var(--card);color:var(--ink);resize:vertical"></textarea>' +
+      '<div style="font-size:12px;color:var(--muted);margin-top:8px">Страница: <b>' + esc((typeof TITLES !== 'undefined' && TITLES[S.screen]) || S.screen || '') + '</b> · сборка ' + esc(String(window.SP_BUILD || '')) + (errs ? '<br>Последние ошибки на этом устройстве:<br>' + esc(errs).replace(/\n/g, '<br>') : '') + '</div>' +
+      '</div>' +
+      '<div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button>' +
+      '<button class="btn primary" data-action="feedback-send">📨 Отправить</button></div>';
+    modal.innerHTML = h;
+    overlay.classList.add('show');
+    var ta = document.getElementById('fb-text');
+    if (ta) ta.focus();
+  }
+  function sendFeedback() {
+    var ta = document.getElementById('fb-text');
+    var text = ta ? String(ta.value || '').trim() : '';
+    if (!text) { toast('warn', 'Напишите, пожалуйста, что случилось'); if (ta) ta.focus(); return; }
+    if (text.length > 1000) text = text.slice(0, 1000);
+    var errsTxt = '';
+    try {
+      var list = (window.SP_ERRORS && SP_ERRORS.getAll) ? SP_ERRORS.getAll().slice(-3) : [];
+      errsTxt = list.map(function (e) { return (e.where || '') + ': ' + String(e.msg || '').slice(0, 120); }).join(' | ');
+    } catch (e) {}
+    var rec = {
+      id: 'fb_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+      kind: 'feedback', text: text,
+      from: (S.user && S.user.full_name) || '', from_id: (S.user && S.user.id) || '', role: S.role || '',
+      page: ((typeof TITLES !== 'undefined' && TITLES[S.screen]) || S.screen || ''), build: String(window.SP_BUILD || ''),
+      errs: errsTxt, ts: Date.now()
+    };
+    var done = function () {
+      try { overlay.classList.remove('show'); } catch (e) {}
+      toast('ok', '✓ Спасибо! Сообщение отправлено администратору');
+      try { logAction('Отзыв о проблеме', text.slice(0, 120)); } catch (e2) {}
+    };
+    if (window.SP_API && SP_API.syncPush) {
+      SP_API.syncPush('messages', rec).then(function (r) {
+        if (r && r.ok) { try { SP_SYNC_POLL.applyRemote('messages', [rec]); } catch (eA) {} done(); }
+        else toast('err', 'Не удалось отправить: ' + ((r && r.err) || 'нет связи с сервером'));
+      })['catch'](function () { toast('err', 'Не удалось отправить — нет связи с сервером'); });
+    } else toast('err', 'Нет связи с сервером');
+  }
+  function fbDel(id) {
+    if (!S.user || S.role !== 'admin') { toast('err', 'Удалять отзывы может только администратор'); return; }
+    spConfirm('Удалить этот отзыв?', { title: 'Отзывы и проблемы', ok: 'Удалить', danger: true }, function () {
+      if (window.SP_API && SP_API.del) {
+        SP_API.del('messages', id).then(function (r) {
+          if (r && r.ok) { try { SP_SYNC_POLL.applyRemote('messages', [{ id: id, _deleted: true }]); } catch (eA) {} toast('ok', 'Отзыв удалён'); refresh(); }
+          else toast('err', 'Не удалось удалить: ' + ((r && r.err) || 'нет связи'));
+        })['catch'](function () { toast('err', 'Не удалось удалить — нет связи'); });
+      } else toast('err', 'Нет связи с сервером');
+    });
   }
   // «Ознакомились»: ref (id объявления) → массив имён
   function annAcksMap() {
@@ -27489,6 +27581,7 @@
   }
   window.SP_ANN = {
     check: annCheck, remind: annRemind, canSend: canSendAnn, perms: annPerms, render: renderAdminCtl, pageRefresh: annPageRefresh, list: annAnnouncements,
+    feedback: fbList, openFeedback: openFeedback, sendFeedback: sendFeedback, feedbackDel: fbDel,
     send: annSend, reshow: annShowNext, seen: annSeenLoad, start: annStart, stopLoop: annStopLoop, afterSync: annAfterSync
   };
   /* ── часть 20 · app/20_ui_enhance.js — улучшения интерфейса: поиск и сортировка таблиц, липкие шапки, пустые состояния, скелетон загрузки, печать (22.09-266) ── */
@@ -28475,11 +28568,17 @@
      подсказке не будет. Настройки хранятся на этом устройстве для этого пользователя. */
   var BELL_CFG_KEY = 'smartplan_bell_cfg_v1';
   function bellCfg() {
-    var cfg = { overdue: true, today: true };
+    var cfg = { overdue: true, today: true, overdueDays: 0, onlyMine: false };
     try {
       var all = JSON.parse(localStorage.getItem(BELL_CFG_KEY) || '{}') || {};
       var mine = (S.user && S.user.id) ? all[String(S.user.id)] : null;
-      if (mine) { if (mine.overdue === false) cfg.overdue = false; if (mine.today === false) cfg.today = false; }
+      if (mine) {
+        if (mine.overdue === false) cfg.overdue = false;
+        if (mine.today === false) cfg.today = false;
+        if (mine.onlyMine === true) cfg.onlyMine = true;
+        var od = parseInt(mine.overdueDays, 10);
+        if (isFinite(od) && od > 0) cfg.overdueDays = od;
+      }
     } catch (e) {}
     return cfg;
   }
@@ -28487,9 +28586,11 @@
     try {
       var all = JSON.parse(localStorage.getItem(BELL_CFG_KEY) || '{}') || {};
       var id = (S.user && S.user.id) ? String(S.user.id) : 'anon';
-      var cur = all[id] || { overdue: true, today: true };
+      var cur = all[id] || { overdue: true, today: true, overdueDays: 0, onlyMine: false };
       if (patch.overdue !== undefined) cur.overdue = !!patch.overdue;
       if (patch.today !== undefined) cur.today = !!patch.today;
+      if (patch.onlyMine !== undefined) cur.onlyMine = !!patch.onlyMine;
+      if (patch.overdueDays !== undefined) { var od2 = parseInt(patch.overdueDays, 10); cur.overdueDays = isFinite(od2) && od2 > 0 ? od2 : 0; }
       all[id] = cur;
       localStorage.setItem(BELL_CFG_KEY, JSON.stringify(all));
     } catch (e) {}
@@ -28551,7 +28652,11 @@
       if (role === 'master' || role === 'smaster') return String(t.m) === my;
       return true; // администратор, начальник участка, инженер — все задачи
     });
-    var overdue = mine.filter(function (t) { return t.d < 0; });
+    // 22.09-318: личные настройки — «только мои задачи» и срок просрочки
+    var cfg = bellCfg();
+    if (cfg.onlyMine && role !== 'slesar') mine = mine.filter(function (t) { return String(t.m) === my; });
+    var odDays = cfg.overdueDays || 0;
+    var overdue = mine.filter(function (t) { return t.d < 0 && (odDays === 0 || (-t.d) >= odDays); });
     var today = mine.filter(function (t) { return t.d === 0; });
     return { overdue: overdue.length, today: today.length, total: mine.length };
   }
@@ -28657,6 +28762,9 @@
       '<div style="padding:2px 12px 8px;display:flex;flex-direction:column;gap:6px">' +
       '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink);cursor:pointer"><input type="checkbox" data-bell-cfg="overdue"' + (cfg.overdue ? ' checked' : '') + '> 🔴 Напоминать о просроченных задачах</label>' +
       '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink);cursor:pointer"><input type="checkbox" data-bell-cfg="today"' + (cfg.today ? ' checked' : '') + '> 📅 Показывать задачи на сегодня</label>' +
+      '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink);cursor:pointer"><input type="checkbox" data-bell-cfg="onlyMine"' + (cfg.onlyMine ? ' checked' : '') + '> 👤 Только мои задачи (не все подряд)</label>' +
+      '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink)">⏰ Напоминать о просрочке: <select data-bell-cfg-days style="padding:4px 8px;border:1px solid var(--line);border-radius:7px;font-size:12.5px;background:var(--card);color:var(--ink)">' +
+        [0, 1, 3, 5, 7].map(function (d) { return '<option value="' + d + '"' + (cfg.overdueDays === d ? ' selected' : '') + '>' + (d === 0 ? 'сразу, в первый день' : ('когда ей уже ' + d + ' дн.')) + '</option>'; }).join('') + '</select></label>' +
       '<div style="font-size:11.5px;color:var(--muted)">Настройка ваша личная, действует на этом устройстве.</div></div>';
     if (S.role === 'admin') h += '<div class="bl-foot"><button type="button" class="bl-all" data-bell-admin="1">Объявления и управление →</button></div>';
     h += '</div>';
@@ -28665,6 +28773,10 @@
   /* Нажатия внутри окошка (делегирование) */
   function bellWirePanel() {
     var el = bellPopEl();
+    el.addEventListener('change', function (e) {
+      var sel = e.target && e.target.closest ? e.target.closest('[data-bell-cfg-days]') : null;
+      if (sel) { bellCfgSet({ overdueDays: parseInt(sel.value, 10) || 0 }); bellSync(); }
+    });
     el.addEventListener('click', function (e) {
       var t = e.target;
       if (!t || !t.closest) return;
