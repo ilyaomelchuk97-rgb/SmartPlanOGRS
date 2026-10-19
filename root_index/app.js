@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-331';
+  var SP_BUILD = '22.09-332';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -12899,8 +12899,11 @@
     if (respHistory) data.respHistory = respHistory;
     if (S.objModalMode === 'edit') {
       var old = OBJ_MAP[S.objModalOid];
+      var _chgBefore = null;
+      try { _chgBefore = old ? JSON.parse(JSON.stringify(old)) : null; } catch (eCb) {}
       OBJECTS_DB.updateObject(S.objModalOid, data);
       refreshObjects();
+      try { if (_chgBefore && window.SP_OBJ_CHANGE) SP_OBJ_CHANGE.notify(_chgBefore, OBJ_MAP[S.objModalOid]); } catch (eCn) {} // 22.09-332
       // Синхронизация привязанных задач: адрес и координаты из справочника
       var newAddr = objFullAddr(OBJ_MAP[S.objModalOid]);
       var changed = 0;
@@ -19940,6 +19943,16 @@
     if (!g.objs) g.objs = [];
     var inGraph = {};
     if (!GS.gaoDup) g.objs.forEach(function (x) { inGraph[x.oid] = 1; });
+    /* 22.09-332: объект не может быть в двух графиках ОДНОГО года. Занятые
+       другими графиками этого года — в окне добавления не показываем вовсе
+       (в графике другого года тот же объект доступен, как и раньше). */
+    var busyYear = {};
+    try {
+      graphsLoad().forEach(function (xg) {
+        if (!xg || xg.id === g.id || String(xg.year) !== String(g.year)) return;
+        (xg.objs || []).forEach(function (xo) { if (xo && xo.oid) busyYear[xo.oid] = xg.name || ''; });
+      });
+    } catch (eB) {}
     var typeSel = document.getElementById('gao-type');
     var fType = typeSel ? typeSel.value : '';
     var respSel = document.getElementById('gao-resp');
@@ -19993,6 +20006,7 @@
       if (fType && o.type !== fType) return false;
       if (respId && (o.respId || '') !== respId) return false;
       if (inGraph[o.id]) return false; // добавленные в график не показываем
+      if (busyYear[o.id] !== undefined) return false; // 22.09-332: уже есть в другом графике этого года
       return true;
     });
     objs.sort(function (a, b) {
@@ -21035,6 +21049,7 @@
   function openGraphStatusModal() {
     var g = graphsFind(GS.cur);
     if (!g) { toast('err', 'Сначала выберите график'); return; }
+    var canEditStatus = (S.role === 'admin'); // 22.09-332: статусы меняет только администратор, остальные — только смотрят
     var l = graphsNonOpList(g);
     var rows = l.noStatus.concat(l.off);
     var opts = ['В эксплуатации', 'Проектируется', 'Строится', 'Реконструкция', 'Консервация', 'Ликвидирован'];
@@ -21046,15 +21061,16 @@
     if (!rows.length) {
       h += '<div class="empty" style="padding:22px 14px;font-size:13px">✅ Все объекты этого графика «В эксплуатации» — заполнять нечего.</div>';
     } else {
+      if (!canEditStatus) h += '<div style="font-size:12.5px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 10px;margin-bottom:8px">👁 Вы можете только просматривать статусы. Изменять их может только администратор.</div>';
       h += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">' +
-        '<button type="button" class="btn sm" data-action="graphs-status-all" style="background:#16a34a;color:#fff;border-color:#15803d;font-weight:700">✓ Всем без статуса — «В эксплуатации»</button>' +
+        (canEditStatus ? '<button type="button" class="btn sm" data-action="graphs-status-all" style="background:#16a34a;color:#fff;border-color:#15803d;font-weight:700">✓ Всем без статуса — «В эксплуатации»</button>' : '') +
         '<span style="font-size:12.5px;color:var(--muted);font-weight:700">строк: ' + rows.length + ' (без статуса: ' + l.noStatus.length + ', не в эксплуатации: ' + l.off.length + ')</span></div>';
       h += '<div style="display:flex;flex-direction:column;gap:6px;max-height:52vh;overflow-y:auto;padding:2px">';
       rows.forEach(function (r) {
         h += '<div class="gao-row" style="cursor:default">' +
           '<span class="chip ' + esc(r.type) + '">' + esc(r.type) + '</span>' +
           '<span style="min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(r.name) + '">' + esc(r.name) + '</span>' +
-          '<select data-graph-status="' + esc(r.oid) + '" style="flex:0 0 auto;min-width:200px">' +
+          '<select data-graph-status="' + esc(r.oid) + '"' + (canEditStatus ? '' : ' disabled title="Статусы может изменять только администратор"') + ' style="flex:0 0 auto;min-width:200px">' +
             '<option value="">' + esc(r.status || '— статус не задан —') + '</option>' +
             opts.filter(function (o) { return o !== r.status; }).map(function (o) { return '<option value="' + esc(o) + '">' + esc(o) + '</option>'; }).join('') +
           '</select></div>';
@@ -21083,8 +21099,11 @@
   }
   /* Запись статуса объекта: карточка объекта + дата изменения + журнал действий */
   function graphStatusSet(oid, status) {
+    if (S.role !== 'admin') { toast('err', 'Статусы объектов может изменять только администратор'); return false; } // 22.09-332
     var rec = objRecOf(oid);
     if (!rec) return false;
+    var _beforeSnap = null;
+    try { _beforeSnap = JSON.parse(JSON.stringify(rec)); } catch (eBs) {}
     if (objStatusOf(rec) === status) return false;
     var today = gwToISO(new Date());
     try {
@@ -21095,6 +21114,7 @@
       try { if (rec.attrs) rec.attrs.status = status; rec.statusFrom = today; } catch (e2) {}
     } catch (e) { return false; }
     try { logAction('Статус объекта', (objFullAddr(rec) || oid) + ' → ' + status); } catch (e3) {}
+    try { if (_beforeSnap && window.SP_OBJ_CHANGE) SP_OBJ_CHANGE.notify(_beforeSnap, objRecOf(oid)); } catch (eN) {} // 22.09-332: уведомление ответственным
     return true;
   }
   /* «Всем без статуса — В эксплуатации» (кнопка в окне статусов) */
@@ -22172,6 +22192,38 @@
      Часы одного проведения = норма работы (у задач графика объём всегда 1 —
      см. создание задач в graphsPeriodSave). Считаем по датам треугольников
      (occs): итог за год, по месяцам и по объектам. */
+  /* 22.09-332: ПЛАНОВАЯ трудоёмкость — фонд часов бригады ответственного
+     (мастер + его слесари) по их графикам смен: за каждый день месяца —
+     рабочие часы каждого по графику (5/2, 2/2, отсутствия, ручные правки). */
+  function graphsPlannedHours(g) {
+    var plan = [];
+    for (var i = 0; i < 12; i++) plan.push(0);
+    try {
+      if (!g || !g.respId) return plan;
+      var brigade = [g.respId];
+      try { (wkBrigadeOf(g.respId) || []).forEach(function (u) { brigade.push(u.id); }); } catch (eBr) {}
+      var y = +g.year;
+      for (var mi = 0; mi < 12; mi++) {
+        var days = new Date(y, mi + 1, 0).getDate();
+        for (var d = 1; d <= days; d++) {
+          var ds = y + '-' + String(mi + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+          var off = dateToOff(new Date(y, mi, d));
+          brigade.forEach(function (uid) {
+            try {
+              if (String(uid) === String(g.respId)) { plan[mi] += masterCapacity(uid, off); return; }
+              if (wkDayState(uid, ds) !== 'work') return;
+              var wd = wkData(uid);
+              var ov = wd.overrides && wd.overrides[ds];
+              if (ov && ov.s === 'work' && isFinite(+ov.h) && +ov.h > 0) { plan[mi] += +ov.h; return; }
+              plan[mi] += (wd.hours === 12 ? 12 : dayCapacity(off));
+            } catch (eH) {}
+          });
+        }
+      }
+    } catch (e) {}
+    return plan;
+  }
+
   function graphsLaborStats(g, area) {
     var months = [];
     for (var i = 0; i < 12; i++) months.push({ h: 0, occ: 0 });
@@ -22198,7 +22250,11 @@
       });
       objs.push(row);
     });
-    return { yearH: yearH, occTotal: occTotal, months: months, objs: objs, series: series, noNorm: noNorm };
+    // 22.09-332: рядом с нормативной — плановая (фонд бригады по графикам смен)
+    var planM = graphsPlannedHours(g);
+    months.forEach(function (mo, mi) { mo.plan = Math.round(planM[mi] * 100) / 100; });
+    var yearPlan = Math.round(planM.reduce(function (a, b) { return a + b; }, 0) * 100) / 100;
+    return { yearH: yearH, yearPlan: yearPlan, occTotal: occTotal, months: months, objs: objs, series: series, noNorm: noNorm };
   }
   // 22.09-200: в окнах «Трудоёмкость графика» часы — до 3 знаков после запятой (лишние нули не выводятся: 12,3 · 0,15 · 4,167)
   function fmtH3(h) { var v = Math.round((+h || 0) * 1000) / 1000; return String(v).replace('.', ','); }
@@ -22216,6 +22272,7 @@
     } else {
       h += '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 12px;font-size:13.5px;display:flex;gap:16px;flex-wrap:wrap;align-items:center">' +
         '<span>Итого за год: <b style="font-size:16px;color:#15803d">' + fmtH3(st.yearH) + ' чел/ч</b></span>' +
+        '<span>Плановая (бригада по графику смен): <b style="font-size:16px;color:#1d4ed8">' + fmtH3(st.yearPlan) + ' чел/ч</b></span>' +
         '<span style="color:var(--muted)">проведений за год: <b>' + st.occTotal + '</b></span>' +
         '<span style="color:var(--muted)">объектов: <b>' + st.objs.length + '</b></span>' +
         '<span style="color:var(--muted)">видов работ: <b>' + st.series + '</b></span>' +
@@ -22225,7 +22282,8 @@
       h += '<table style="' + graphsLaborTableCss() + '"><tr>' +
         '<th style="' + graphsLaborCellCss(true) + '">Месяц</th>' +
         '<th style="' + graphsLaborCellCss(true) + 'text-align:right">Проведений</th>' +
-        '<th style="' + graphsLaborCellCss(true) + 'text-align:right">Трудоёмкость, чел/ч</th>' +
+        '<th style="' + graphsLaborCellCss(true) + 'text-align:right">Нормативная трудоёмкость, чел/ч</th>' +
+        '<th style="' + graphsLaborCellCss(true) + 'text-align:right">Плановая трудоёмкость, чел/ч</th>' +
         '<th style="' + graphsLaborCellCss(true) + 'text-align:right">% года</th></tr>';
       st.months.forEach(function (mo, mi) {
         if (!mo.occ && !mo.h) return;
@@ -22233,11 +22291,13 @@
         h += '<tr><td style="' + graphsLaborCellCss(false) + 'text-align:left">' + esc(MONTHS_RU[mi]) + '</td>' +
           '<td style="' + graphsLaborCellCss(false) + '">' + mo.occ + '</td>' +
           '<td style="' + graphsLaborCellCss(false) + '"><b>' + fmtH3(mo.h) + '</b></td>' +
+          '<td style="' + graphsLaborCellCss(false) + 'color:#1d4ed8"><b>' + fmtH3(mo.plan || 0) + '</b></td>' +
           '<td style="' + graphsLaborCellCss(false) + 'color:var(--muted)">' + String(pct).replace('.', ',') + '%</td></tr>';
       });
       h += '<tr style="font-weight:800;background:#f0fdf4"><td style="' + graphsLaborCellCss(false) + 'text-align:left">ИТОГО за год</td>' +
         '<td style="' + graphsLaborCellCss(false) + '">' + st.occTotal + '</td>' +
         '<td style="' + graphsLaborCellCss(false) + '">' + fmtH3(st.yearH) + '</td>' +
+        '<td style="' + graphsLaborCellCss(false) + 'color:#1d4ed8">' + fmtH3(st.yearPlan) + '</td>' +
         '<td style="' + graphsLaborCellCss(false) + 'color:var(--muted)">100%</td></tr>';
       h += '</table>';
       // 22.09-200: таблица «По объектам» внизу убрана — осталась только кнопка «📍 По объектам» внизу окна (отдельное окно, 22.09-196)
@@ -22425,7 +22485,7 @@
         '<th style="' + graphsLaborCellCss(true) + '">Объект (нажмите — его карточка)</th>' +
         '<th style="' + graphsLaborCellCss(true) + 'text-align:right">Видов работ</th>' +
         '<th style="' + graphsLaborCellCss(true) + 'text-align:right">Проведений</th>' +
-        '<th style="' + graphsLaborCellCss(true) + 'text-align:right">Трудоёмкость, чел/ч</th></tr>' +
+        '<th style="' + graphsLaborCellCss(true) + 'text-align:right">Нормативная трудоёмкость, чел/ч</th></tr>' +
         rowsHtml +
         '<tr style="font-weight:800;background:#f0fdf4"><td style="' + graphsLaborCellCss(false) + 'text-align:left">ИТОГО · ' + esc(gloPeriodLabel()) + '</td>' +
           '<td style="' + graphsLaborCellCss(false) + '"></td>' +
@@ -23724,15 +23784,26 @@
     if (!g) { overlay.classList.remove('show'); modal.style.maxWidth = ''; return; }
     if (!g.objs) g.objs = [];
     var inputs = document.querySelectorAll('#gao-list input[type=checkbox]:checked');
+    // 22.09-332: защита при сохранении — объект из другого графика того же года не добавляем
+    var busyYear2 = {};
+    try {
+      graphsLoad().forEach(function (xg) {
+        if (!xg || xg.id === g.id || String(xg.year) !== String(g.year)) return;
+        (xg.objs || []).forEach(function (xo) { if (xo && xo.oid) busyYear2[xo.oid] = xg.name || ''; });
+      });
+    } catch (eB2) {}
+    var skippedBusy = 0;
     var added = 0;
     var newIdx = []; // 22.09-138: индексы добавленных объектов в g.objs
     for (var i = 0; i < inputs.length; i++) {
       var o = OBJ_MAP[inputs[i].getAttribute('data-gao')];
       if (!o) continue;
+      if (busyYear2[o.id] !== undefined) { skippedBusy++; continue; } // уже в другом графике этого года
       newIdx.push(g.objs.length);
       g.objs.push({ oid: o.id, type: o.type || 'ГРП', name: objFullAddr(o), respId: o.respId || '', respName: o.respName || '' });
       added++;
     }
+    if (skippedBusy) toast('warn', 'Пропущено объектов: ' + skippedBusy + ' — они уже есть в другом графике ' + g.year + ' года');
     if (!added) { toast('err', 'Отметьте объекты для добавления'); return; }
     // 22.09-138: у добавленного объекта мог уже быть ОБЩИЙ набор работ (задан
     // в другом графике) — подтягиваем его и сразу считаем даты от якоря
@@ -27545,8 +27616,77 @@
     try { var a = JSON.parse(localStorage.getItem(annLsKey()) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; }
   }
   function annAnnouncements() {
-    return annList().filter(function (m) { return m && m.id && m.kind !== 'ack' && m.kind !== 'feedback'; }); // 22.09-318: отзывы — отдельный вид записей, не объявления
+    return annList().filter(function (m) { return m && m.id && m.kind !== 'ack' && m.kind !== 'feedback' && m.kind !== 'objchg'; }); // 22.09-318/332: отзывы и изменения объектов — отдельные виды записей
   }
+  function objchgList() {
+    return annList().filter(function (m) { return m && m.id && m.kind === 'objchg'; })
+      .sort(function (a, b) { return (b.ts || 0) - (a.ts || 0); });
+  }
+  /* 22.09-332: УВЕДОМЛЕНИЯ ОБ ИЗМЕНЕНИЯХ ОБЪЕКТОВ. Если у объекта сменился
+     статус (Реконструкция и т.д.), вид обслуживания или наличие/тип ТМ —
+     ответственным за графики с этим объектом (и администраторам) уходит
+     уведомление «В связи с изменением…» с предложением перестроить график
+     или построить новый (кнопки — в колокольчике уведомлений). */
+  function objchgAttrs(rec) {
+    try { if (window.SP_OBJ_ATTRS && SP_OBJ_ATTRS.getAttrs) return SP_OBJ_ATTRS.getAttrs(rec) || {}; } catch (e) {}
+    return (rec && rec.attrs) || {};
+  }
+  function objchgDiff(before, after) {
+    var ba = objchgAttrs(before), aa = objchgAttrs(after), out = [];
+    var bs = String(ba.status || '').trim(), as = String(aa.status || '').trim();
+    if (bs !== as) out.push('статус: ' + (bs || 'не задан') + ' → ' + (as || 'не задан'));
+    var bk = String(ba.serviceKind || '').trim(), ak = String(aa.serviceKind || '').trim();
+    if (bk !== ak) out.push('вид обслуживания: ' + (bk || 'не задан') + ' → ' + (ak || 'не задан'));
+    var bt = String(ba.telemetry || '').trim(), at = String(aa.telemetry || '').trim();
+    if (!!bt !== !!at) out.push(at ? ('появилась телеметрия: ' + at) : ('телеметрия убрана (была: ' + bt + ')'));
+    else if (bt && at && bt.toLowerCase() !== at.toLowerCase()) out.push('тип телеметрии: ' + bt + ' → ' + at);
+    return out;
+  }
+  function objchgNotify(before, after) {
+    if (!before || !after || !after.id || !S.user) return 0;
+    var diffs = objchgDiff(before, after);
+    if (!diffs.length) return 0;
+    var oid = after.id;
+    var graphs = [];
+    try { graphs = (window.SP_GRAPH_AUTO && SP_GRAPH_AUTO.load) ? (SP_GRAPH_AUTO.load() || []) : []; } catch (e) {}
+    var yNow = new Date().getFullYear();
+    var affected = graphs.filter(function (g) {
+      return g && (+g.year >= yNow) && (g.objs || []).some(function (ob) { return ob && ob.oid === oid; });
+    });
+    if (!affected.length) return 0; // объекта нет в актуальных графиках — перестраивать нечего
+    var recip = {};
+    affected.forEach(function (g) { if (g.respId) recip[String(g.respId)] = 1; });
+    try { (DB.getUsers() || []).forEach(function (u) { if (u && u.role === 'admin' && u.active !== false) recip[String(u.id)] = 1; }); } catch (e) {}
+    var me = String(S.user.id || '');
+    delete recip[me]; // автора правки о его же изменении не уведомляем
+    var name = oid;
+    try { name = objFullAddr(after) || after.addr || oid; } catch (e) { name = after.addr || oid; }
+    var gnames = affected.map(function (g) { return '«' + (g.name || '') + '» (' + g.year + ')'; }).join(', ');
+    var text = 'В связи с изменением объекта ' + name + ': ' + diffs.join('; ') + '. Графики: ' + gnames + '.';
+    var n = 0;
+    Object.keys(recip).forEach(function (uid) {
+      var rec = {
+        id: 'ochg_' + oid + '_' + Date.now() + '_' + uid, kind: 'objchg', to: uid, oid: oid, obj: name,
+        changes: diffs, graphs: gnames, text: text,
+        from: S.user.full_name || '', from_id: me, ts: Date.now()
+      };
+      // сначала НА СЕРВЕР, потом локально: иначе клиент помечает запись как
+      // уже серверную (noteServer в applyRemote) и syncPush её пропускает
+      try {
+        if (window.SP_API && SP_API.syncPush) {
+          SP_API.syncPush('messages', rec).then(function () {
+            try { if (window.SP_SYNC_POLL && SP_SYNC_POLL.applyRemote) SP_SYNC_POLL.applyRemote('messages', [rec]); } catch (eA2) {}
+          })['catch'](function () {
+            try { if (window.SP_SYNC_POLL && SP_SYNC_POLL.applyRemote) SP_SYNC_POLL.applyRemote('messages', [rec]); } catch (eA3) {}
+          });
+        } else if (window.SP_SYNC_POLL && SP_SYNC_POLL.applyRemote) SP_SYNC_POLL.applyRemote('messages', [rec]);
+      } catch (eP) {}
+      n++;
+    });
+    try { if (window.bellSync) bellSync(); } catch (eB) {}
+    return n;
+  }
+  window.SP_OBJ_CHANGE = { notify: objchgNotify, diff: objchgDiff };
   // 22.09-318: отзывы и сообщения о проблемах (кнопка в шапке сайта)
   function fbList() {
     return annList().filter(function (m) { return m && m.id && m.kind === 'feedback'; })
@@ -27981,7 +28121,7 @@
   }
   window.SP_ANN = {
     check: annCheck, remind: annRemind, canSend: canSendAnn, perms: annPerms, render: renderAdminCtl, pageRefresh: annPageRefresh, list: annAnnouncements,
-    feedback: fbList, openFeedback: openFeedback, sendFeedback: sendFeedback, feedbackDel: fbDel,
+    feedback: fbList, openFeedback: openFeedback, sendFeedback: sendFeedback, feedbackDel: fbDel, objChanges: objchgList,
     send: annSend, reshow: annShowNext, seen: annSeenLoad, start: annStart, stopLoop: annStopLoop, afterSync: annAfterSync
   };
   /* ── часть 20 · app/20_ui_enhance.js — улучшения интерфейса: поиск и сортировка таблиц, липкие шапки, пустые состояния, скелетон загрузки, печать (22.09-266) ── */
@@ -29040,6 +29180,37 @@
     bellUnread().forEach(function (m) { if (bellMarkRead(m, true)) n++; });
     return n;
   }
+  /* 22.09-332: непрочитанные изменения объектов, адресованные мне */
+  function bellObjChanges() {
+    var out = [];
+    try {
+      if (!S.user || !S.user.id) return out;
+      var seen = bellSeen();
+      var list = (window.SP_ANN && SP_ANN.objChanges) ? (SP_ANN.objChanges() || []) : [];
+      list.forEach(function (m) {
+        if (!m || !m.id) return;
+        if (!(m.to === 'all' || String(m.to) === String(S.user.id))) return;
+        if (seen[m.id]) return;
+        out.push(m);
+      });
+      out.sort(function (a, b) { return (b.ts || 0) - (a.ts || 0); });
+    } catch (e) {}
+    return out;
+  }
+  function bellObjItemHtml(m) {
+    var when = '';
+    try { when = m.ts ? new Date(m.ts).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''; } catch (e) {}
+    return '<div class="bl-item" style="border-left:3px solid #f59e0b">' +
+      '<div class="bl-top"><span class="bl-prio" style="background:#f59e0b">изменение объекта</span>' +
+      '<span class="bl-from">' + esc(m.obj || 'Объект') + '</span><span class="bl-when">' + esc(when) + '</span></div>' +
+      '<div class="bl-text">' + esc(m.text || '') + '</div>' +
+      '<div style="display:flex;gap:6px;margin-top:7px;flex-wrap:wrap">' +
+      '<button type="button" class="btn sm primary" data-bell-objchg="graph" data-mid="' + esc(m.id) + '">Перестроить график</button>' +
+      '<button type="button" class="btn sm" data-bell-objchg="new" data-mid="' + esc(m.id) + '">Построить новый</button>' +
+      '<button type="button" class="btn sm" data-bell-objchg="ok" data-mid="' + esc(m.id) + '">Понятно</button>' +
+      '</div></div>';
+  }
+
   /* Задачи: просрочено / на сегодня (по роли) */
   function bellMyTasks() {
     var my = (S.user && S.user.id) ? String(S.user.id) : '';
@@ -29064,7 +29235,7 @@
   /* Красный кружок на кнопке */
   function bellBadgeSync() {
     try {
-      var n = bellUnread().length;
+      var n = bellUnread().length + bellObjChanges().length; // 22.09-332: + изменения объектов
       var b = document.getElementById('sp-bell-badge');
       var btn = document.getElementById('sp-bell');
       if (b) {
@@ -29148,6 +29319,12 @@
     if (unread.length) h += unread.slice(0, 20).map(bellItemHtml).join('');
     else h += '<div class="bl-empty">Новых объявлений нет</div>';
     if (unread.length > 20) h += '<div class="bl-empty">…и ещё ' + (unread.length - 20) + '</div>';
+    var objchg = bellObjChanges();
+    if (objchg.length) {
+      h += '<div class="bl-sec">Изменения объектов</div>';
+      h += objchg.slice(0, 10).map(bellObjItemHtml).join('');
+      if (objchg.length > 10) h += '<div class="bl-empty">…и ещё ' + (objchg.length - 10) + '</div>';
+    }
     var cfg = bellCfg();
     if (cfg.overdue || cfg.today) {
       h += '<div class="bl-sec">Задачи</div>';
@@ -29203,6 +29380,20 @@
         patch[cfgEl.getAttribute('data-bell-cfg')] = !!cfgEl.checked;
         bellCfgSet(patch);
         bellSync(); // перерисовать окошко и подсказку с новыми настройками
+        return;
+      }
+      var oc = t.closest('[data-bell-objchg]');
+      if (oc) {
+        var mid = oc.getAttribute('data-mid'), mode = oc.getAttribute('data-bell-objchg');
+        var mm = null;
+        bellObjChanges().forEach(function (x) { if (x.id === mid) mm = x; });
+        if (mm) bellMarkRead(mm, true); // прочитано — любым из трёх действий
+        if (mode === 'ok') { bellSync(); return; }
+        bellClose();
+        try { setScreen('graphs'); } catch (eG) {}
+        if (mode === 'new') setTimeout(function () {
+          try { var nb = document.querySelector('[data-action="graphs-new"]'); if (nb) nb.click(); } catch (eN2) {}
+        }, 500);
         return;
       }
       var tk = t.closest('[data-bell-tasks]');
