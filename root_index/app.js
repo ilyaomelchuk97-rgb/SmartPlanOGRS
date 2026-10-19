@@ -894,6 +894,9 @@
   // Определение приоритета задачи
   function taskColor(t) {
     if (t.status === 'done' || t.s === 'done') return 'done';
+    // 22.09-333: дата выполнения позже даты дедлайна — просрочка, красный сразу,
+    // не дожидаясь, пока дедлайн пройдёт по календарю (задачу перенесли за дедлайн)
+    if (typeof t.d === 'number' && typeof t.dl === 'number' && isFinite(t.dl) && t.d > t.dl) return 'red';
     // Проверка погодного ограничения (температура)
     var w = workOf(t);
     if (w && w.min_temp > -50) {
@@ -929,7 +932,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-332';
+  var SP_BUILD = '22.09-333';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -4332,7 +4335,7 @@
     if (!tile) { tip.style.display = 'none'; return; }
     var t = findTask(tile.dataset.tid); if (!t) return;
     var o = OBJ_MAP[t.o], w = workOf(t), m = masterById(t.m);
-    var dlTxt = t.dl < 0 ? '<b style="color:#fca5a5">просрочка ' + (-t.dl) + ' дн</b>' : t.dl === 0 ? '<b style="color:#fde047">дедлайн сегодня</b>' : 'дедлайн: ' + fmtShort(t.dl);
+    var dlTxt = (typeof t.dl === 'number' && t.d > t.dl) ? '<b style="color:#fca5a5">просрочка: позже дедлайна на ' + (t.d - t.dl) + ' дн</b>' : t.dl < 0 ? '<b style="color:#fca5a5">просрочка ' + (-t.dl) + ' дн</b>' : t.dl === 0 ? '<b style="color:#fde047">дедлайн сегодня</b>' : 'дедлайн: ' + fmtShort(t.dl); // 22.09-333
     tip.innerHTML = '<b>' + esc(w ? w.name : '?') + '</b><br>' + esc(addrOf(t)) + ' · ' + esc(o ? o.type : '') + '<br>Объём: ' + (t.volume || 1) + ' ' + (w ? w.unit : '') + ' — ' + fmtH(taskHours(t)) + ' ч' +
       (t.needs_permit ? '<br><b style="color:#fca5a5">📋 Ордер до: ' + (t.dl_date || '—') + '</b>' : '') +
       (t.depends_on_snow ? '<br><b style="color:#7dd3fc">❄️ Снегозависимая (норматив 48 ч)</b>' : '') +
@@ -18654,7 +18657,7 @@
       // Мягкое обновление данных текущего экрана без полной перерисовки
       var rzBadge = document.getElementById('rz-badge');
       if (rzBadge) {
-        var redzone = visibleTasks().filter(function (t) { return !isDone(t) && (t.dl <= 2 || t.d < 0); });
+        var redzone = visibleTasks().filter(function (t) { return !isDone(t) && (t.dl <= 2 || t.d < 0 || (typeof t.dl === 'number' && isFinite(t.dl) && t.d > t.dl)); }); // 22.09-333: + выполнение позже дедлайна
         rzBadge.textContent = redzone.length;
       }
       // 22.09-268: если панель успела показать «скелетон» — перерисовать её целиком,
@@ -29108,7 +29111,7 @@
      подсказке не будет. Настройки хранятся на этом устройстве для этого пользователя. */
   var BELL_CFG_KEY = 'smartplan_bell_cfg_v1';
   function bellCfg() {
-    var cfg = { overdue: true, today: true, overdueDays: 0, onlyMine: false };
+    var cfg = { overdue: true, today: true, overdueDays: 0, onlyMine: false, soon: true };
     try {
       var all = JSON.parse(localStorage.getItem(BELL_CFG_KEY) || '{}') || {};
       var mine = (S.user && S.user.id) ? all[String(S.user.id)] : null;
@@ -29116,6 +29119,7 @@
         if (mine.overdue === false) cfg.overdue = false;
         if (mine.today === false) cfg.today = false;
         if (mine.onlyMine === true) cfg.onlyMine = true;
+        if (mine.soon === false) cfg.soon = false;
         var od = parseInt(mine.overdueDays, 10);
         if (isFinite(od) && od > 0) cfg.overdueDays = od;
       }
@@ -29126,10 +29130,11 @@
     try {
       var all = JSON.parse(localStorage.getItem(BELL_CFG_KEY) || '{}') || {};
       var id = (S.user && S.user.id) ? String(S.user.id) : 'anon';
-      var cur = all[id] || { overdue: true, today: true, overdueDays: 0, onlyMine: false };
+      var cur = all[id] || { overdue: true, today: true, overdueDays: 0, onlyMine: false, soon: true };
       if (patch.overdue !== undefined) cur.overdue = !!patch.overdue;
       if (patch.today !== undefined) cur.today = !!patch.today;
       if (patch.onlyMine !== undefined) cur.onlyMine = !!patch.onlyMine;
+      if (patch.soon !== undefined) cur.soon = !!patch.soon;
       if (patch.overdueDays !== undefined) { var od2 = parseInt(patch.overdueDays, 10); cur.overdueDays = isFinite(od2) && od2 > 0 ? od2 : 0; }
       all[id] = cur;
       localStorage.setItem(BELL_CFG_KEY, JSON.stringify(all));
@@ -29227,9 +29232,16 @@
     var cfg = bellCfg();
     if (cfg.onlyMine && role !== 'slesar') mine = mine.filter(function (t) { return String(t.m) === my; });
     var odDays = cfg.overdueDays || 0;
-    var overdue = mine.filter(function (t) { return t.d < 0 && (odDays === 0 || (-t.d) >= odDays); });
+    // 22.09-333: просрочка — выполнение в прошлом ИЛИ дата выполнения позже дедлайна
+    function daysOver(t) {
+      if (t.d < 0) return -t.d;
+      if (typeof t.dl === 'number' && isFinite(t.dl) && t.d > t.dl) return t.d - t.dl;
+      return 0;
+    }
+    var overdue = mine.filter(function (t) { var o = daysOver(t); return o > 0 && (odDays === 0 || o >= odDays); });
     var today = mine.filter(function (t) { return t.d === 0; });
-    return { overdue: overdue.length, today: today.length, total: mine.length };
+    var soon = mine.filter(function (t) { return typeof t.dl === 'number' && t.dl === 1; }); // дедлайн уже завтра
+    return { overdue: overdue.length, today: today.length, soon: soon.length, total: mine.length };
   }
   function bellTaskScreen() { return (S.role === 'slesar') ? 'map' : 'calendar'; } // слесарю — «Карта маршрутов», остальным — планирование
   /* Красный кружок на кнопке */
@@ -29256,6 +29268,7 @@
     if (n > 0) parts.push('объявлений: ' + n);
     if (cfg.overdue && t.overdue) parts.push('просрочено задач: ' + t.overdue);
     if (cfg.today && t.today) parts.push('на сегодня: ' + t.today);
+    if (cfg.soon && t.soon) parts.push('дедлайн завтра: ' + t.soon);
     return 'Уведомления' + (parts.length ? ' — ' + parts.join(', ') : ' — новых нет');
   }
   function bellSync() { bellBadgeSync(); try { if (bellOpen) bellRender(); } catch (e) {} }
@@ -29311,10 +29324,27 @@
     var el = bellPopEl();
     var unread = bellUnread();
     var t = bellMyTasks();
+    var cfg = bellCfg(); // 22.09-333: настройки нужны уже в шапке блока настроек (выше по тексту)
     var h = '<div class="bl-head"><span>Уведомления</span>' +
       (unread.length ? '<button type="button" class="bl-all" data-bell-readall="1" title="Отметить все объявления прочитанными">✓ Прочитать все</button>' : '') +
-      '<button type="button" class="bl-x" data-bell-close="1" title="Закрыть">×</button></div>';
+      '<button type="button" class="bl-x" data-bell-gear="1" title="Настройки уведомлений" aria-label="Настройки уведомлений" style="font-size:15px;line-height:1">⚙</button></div>'; // 22.09-333: вместо крестика — шестерёнка
     h += '<div class="bl-body">';
+    // 22.09-333: настройки — скрытый блок над уведомлениями, открывается шестерёнкой;
+    // изменения применяются только по кнопке «Сохранить», «Закрыть» — без сохранения
+    h += '<div id="bl-settings" style="display:none;border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:4px">' +
+      '<div class="bl-sec">Настройки уведомлений</div>' +
+      '<div style="padding:2px 12px 8px;display:flex;flex-direction:column;gap:6px">' +
+      '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink);cursor:pointer"><input type="checkbox" data-bell-cfg="overdue"' + (cfg.overdue ? ' checked' : '') + '> 🔴 Напоминать о просроченных задачах</label>' +
+      '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink)">⏰ Напоминать о просрочке: <select data-bell-cfg-days style="padding:4px 8px;border:1px solid var(--line);border-radius:7px;font-size:12.5px;background:var(--card);color:var(--ink)">' +
+        [0, 1, 3, 5, 7].map(function (d) { return '<option value="' + d + '"' + (cfg.overdueDays === d ? ' selected' : '') + '>' + (d === 0 ? 'сразу, в первый день' : ('когда ей уже ' + d + ' дн.')) + '</option>'; }).join('') + '</select></label>' +
+      '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink);cursor:pointer"><input type="checkbox" data-bell-cfg="today"' + (cfg.today ? ' checked' : '') + '> 📅 Показывать задачи на сегодня</label>' +
+      '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink);cursor:pointer"><input type="checkbox" data-bell-cfg="soon"' + (cfg.soon ? ' checked' : '') + '> ⏳ Показывать задачи, у которых дедлайн через 1 день</label>' +
+      '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink);cursor:pointer"><input type="checkbox" data-bell-cfg="onlyMine"' + (cfg.onlyMine ? ' checked' : '') + '> 👤 Только мои задачи (не все подряд)</label>' +
+      '<div style="font-size:11.5px;color:var(--muted)">Настройки ваши личные, действуют на этом устройстве.</div>' +
+      '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">' +
+      '<button type="button" class="btn sm" data-bell-settings-close="1">Закрыть</button>' +
+      '<button type="button" class="btn sm primary" data-bell-settings-save="1">Сохранить</button>' +
+      '</div></div></div>';
     h += '<div class="bl-sec">Объявления</div>';
     if (unread.length) h += unread.slice(0, 20).map(bellItemHtml).join('');
     else h += '<div class="bl-empty">Новых объявлений нет</div>';
@@ -29325,24 +29355,16 @@
       h += objchg.slice(0, 10).map(bellObjItemHtml).join('');
       if (objchg.length > 10) h += '<div class="bl-empty">…и ещё ' + (objchg.length - 10) + '</div>';
     }
-    var cfg = bellCfg();
-    if (cfg.overdue || cfg.today) {
+    if (cfg.overdue || cfg.today || cfg.soon) {
       h += '<div class="bl-sec">Задачи</div>';
       h += '<div class="bl-tasks">' +
         (cfg.overdue ? '<button type="button" class="bl-task' + (t.overdue ? ' bl-task-red' : '') + '" data-bell-tasks="1" title="Открыть ' + (S.role === 'slesar' ? '«Карту маршрутов»' : '«Планирование»') + '">' +
           '<b>' + t.overdue + '</b> просрочено</button>' : '') +
         (cfg.today ? '<button type="button" class="bl-task bl-task-blue" data-bell-tasks="1" title="Открыть ' + (S.role === 'slesar' ? '«Карту маршрутов»' : '«Планирование»') + '">' +
-          '<b>' + t.today + '</b> на сегодня</button>' : '') + '</div>';
+          '<b>' + t.today + '</b> на сегодня</button>' : '') +
+        (cfg.soon ? '<button type="button" class="bl-task" data-bell-tasks="1" style="color:#b45309;border-color:#fde68a;background:#fffbeb" title="Задачи, у которых дедлайн уже завтра. Открыть ' + (S.role === 'slesar' ? '«Карту маршрутов»' : '«Планирование»') + '">' +
+          '<b>' + t.soon + '</b> дедлайн завтра</button>' : '') + '</div>';
     }
-    // 22.09-317: настройки — каждый сам решает, нужны ли ему напоминания о задачах
-    h += '<div class="bl-sec">Настройки уведомлений</div>' +
-      '<div style="padding:2px 12px 8px;display:flex;flex-direction:column;gap:6px">' +
-      '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink);cursor:pointer"><input type="checkbox" data-bell-cfg="overdue"' + (cfg.overdue ? ' checked' : '') + '> 🔴 Напоминать о просроченных задачах</label>' +
-      '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink);cursor:pointer"><input type="checkbox" data-bell-cfg="today"' + (cfg.today ? ' checked' : '') + '> 📅 Показывать задачи на сегодня</label>' +
-      '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink);cursor:pointer"><input type="checkbox" data-bell-cfg="onlyMine"' + (cfg.onlyMine ? ' checked' : '') + '> 👤 Только мои задачи (не все подряд)</label>' +
-      '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink)">⏰ Напоминать о просрочке: <select data-bell-cfg-days style="padding:4px 8px;border:1px solid var(--line);border-radius:7px;font-size:12.5px;background:var(--card);color:var(--ink)">' +
-        [0, 1, 3, 5, 7].map(function (d) { return '<option value="' + d + '"' + (cfg.overdueDays === d ? ' selected' : '') + '>' + (d === 0 ? 'сразу, в первый день' : ('когда ей уже ' + d + ' дн.')) + '</option>'; }).join('') + '</select></label>' +
-      '<div style="font-size:11.5px;color:var(--muted)">Настройка ваша личная, действует на этом устройстве.</div></div>';
     if (S.role === 'admin') h += '<div class="bl-foot"><button type="button" class="bl-all" data-bell-admin="1">Объявления и управление →</button></div>';
     h += '</div>';
     el.innerHTML = h;
@@ -29350,10 +29372,7 @@
   /* Нажатия внутри окошка (делегирование) */
   function bellWirePanel() {
     var el = bellPopEl();
-    el.addEventListener('change', function (e) {
-      var sel = e.target && e.target.closest ? e.target.closest('[data-bell-cfg-days]') : null;
-      if (sel) { bellCfgSet({ overdueDays: parseInt(sel.value, 10) || 0 }); bellSync(); }
-    });
+    // 22.09-333: срок просрочки — тоже черновик до кнопки «Сохранить» (мгновенного сохранения больше нет)
     el.addEventListener('click', function (e) {
       var t = e.target;
       if (!t || !t.closest) return;
@@ -29374,12 +29393,21 @@
         if (m) { bellMarkRead(m, true); bellSync(); }
         return;
       }
-      var cfgEl = t.closest('[data-bell-cfg]');
-      if (cfgEl) {
+      var gear = t.closest('[data-bell-gear]');
+      if (gear) {
+        var st = document.getElementById('bl-settings');
+        if (st) st.style.display = (st.style.display === 'none' || !st.style.display) ? 'block' : 'none';
+        return;
+      }
+      if (t.closest('[data-bell-settings-close]')) { bellRender(); return; } // закрыть без сохранения (черновик сбросится)
+      if (t.closest('[data-bell-settings-save]')) {
         var patch = {};
-        patch[cfgEl.getAttribute('data-bell-cfg')] = !!cfgEl.checked;
+        el.querySelectorAll('[data-bell-cfg]').forEach(function (inp) { patch[inp.getAttribute('data-bell-cfg')] = !!inp.checked; });
+        var dsel = el.querySelector('[data-bell-cfg-days]');
+        if (dsel) patch.overdueDays = parseInt(dsel.value, 10) || 0;
         bellCfgSet(patch);
-        bellSync(); // перерисовать окошко и подсказку с новыми настройками
+        bellSync();
+        toast('ok', '✓ Настройки уведомлений сохранены');
         return;
       }
       var oc = t.closest('[data-bell-objchg]');
