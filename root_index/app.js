@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-316';
+  var SP_BUILD = '22.09-317';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -27279,7 +27279,7 @@
         box.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:6px 2px">Объявлений пока нет. Отправьте первое — оно тут же появится у получателя на экране.</div>';
         return;
       }
-      var h = '<table class="dt"><thead><tr><th style="width:130px">Когда</th><th style="width:220px">Кому</th><th>Сообщение</th><th style="width:150px">Ознакомились</th><th style="width:90px"></th></tr></thead><tbody>';
+      var h = '<table class="dt" data-nosticky="1"><thead><tr><th style="width:130px">Когда</th><th style="width:220px">Кому</th><th>Сообщение</th><th style="width:150px">Ознакомились</th><th style="width:90px"></th></tr></thead><tbody>'; // 22.09-317: шапка остаётся на месте, за прокруткой не ездит
       msgs.forEach(function (m) {
         var names = acks[m.id] || [];
         var nTo = (m.to === 'all') ? (parseInt(m.n_to, 10) || 0) : 1;
@@ -28469,6 +28469,32 @@
    ============================================================ */
   var BELL_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>';
 
+  /* 22.09-317: личные настройки уведомлений о задачах (у каждого пользователя свои).
+     Мастер (и любой другой) может отключить напоминания о просрочке и/или о задачах
+     на сегодня — тогда ни кнопок в окошке колокольчика, ни цифр во всплывающей
+     подсказке не будет. Настройки хранятся на этом устройстве для этого пользователя. */
+  var BELL_CFG_KEY = 'smartplan_bell_cfg_v1';
+  function bellCfg() {
+    var cfg = { overdue: true, today: true };
+    try {
+      var all = JSON.parse(localStorage.getItem(BELL_CFG_KEY) || '{}') || {};
+      var mine = (S.user && S.user.id) ? all[String(S.user.id)] : null;
+      if (mine) { if (mine.overdue === false) cfg.overdue = false; if (mine.today === false) cfg.today = false; }
+    } catch (e) {}
+    return cfg;
+  }
+  function bellCfgSet(patch) {
+    try {
+      var all = JSON.parse(localStorage.getItem(BELL_CFG_KEY) || '{}') || {};
+      var id = (S.user && S.user.id) ? String(S.user.id) : 'anon';
+      var cur = all[id] || { overdue: true, today: true };
+      if (patch.overdue !== undefined) cur.overdue = !!patch.overdue;
+      if (patch.today !== undefined) cur.today = !!patch.today;
+      all[id] = cur;
+      localStorage.setItem(BELL_CFG_KEY, JSON.stringify(all));
+    } catch (e) {}
+  }
+
   function bellSeen() {
     try { return (window.SP_ANN && SP_ANN.seen) ? (SP_ANN.seen() || {}) : {}; } catch (e) { return {}; }
   }
@@ -28548,11 +28574,12 @@
     } catch (e) {}
   }
   function bellHoverTitle(n) {
+    var cfg = bellCfg();
     var t = bellMyTasks();
     var parts = [];
     if (n > 0) parts.push('объявлений: ' + n);
-    if (t.overdue) parts.push('просрочено задач: ' + t.overdue);
-    if (t.today) parts.push('на сегодня: ' + t.today);
+    if (cfg.overdue && t.overdue) parts.push('просрочено задач: ' + t.overdue);
+    if (cfg.today && t.today) parts.push('на сегодня: ' + t.today);
     return 'Уведомления' + (parts.length ? ' — ' + parts.join(', ') : ' — новых нет');
   }
   function bellSync() { bellBadgeSync(); try { if (bellOpen) bellRender(); } catch (e) {} }
@@ -28616,12 +28643,21 @@
     if (unread.length) h += unread.slice(0, 20).map(bellItemHtml).join('');
     else h += '<div class="bl-empty">Новых объявлений нет</div>';
     if (unread.length > 20) h += '<div class="bl-empty">…и ещё ' + (unread.length - 20) + '</div>';
-    h += '<div class="bl-sec">Задачи</div>';
-    h += '<div class="bl-tasks">' +
-      '<button type="button" class="bl-task' + (t.overdue ? ' bl-task-red' : '') + '" data-bell-tasks="1" title="Открыть ' + (S.role === 'slesar' ? '«Карту маршрутов»' : '«Планирование»') + '">' +
-        '<b>' + t.overdue + '</b> просрочено</button>' +
-      '<button type="button" class="bl-task bl-task-blue" data-bell-tasks="1" title="Открыть ' + (S.role === 'slesar' ? '«Карту маршрутов»' : '«Планирование»') + '">' +
-        '<b>' + t.today + '</b> на сегодня</button></div>';
+    var cfg = bellCfg();
+    if (cfg.overdue || cfg.today) {
+      h += '<div class="bl-sec">Задачи</div>';
+      h += '<div class="bl-tasks">' +
+        (cfg.overdue ? '<button type="button" class="bl-task' + (t.overdue ? ' bl-task-red' : '') + '" data-bell-tasks="1" title="Открыть ' + (S.role === 'slesar' ? '«Карту маршрутов»' : '«Планирование»') + '">' +
+          '<b>' + t.overdue + '</b> просрочено</button>' : '') +
+        (cfg.today ? '<button type="button" class="bl-task bl-task-blue" data-bell-tasks="1" title="Открыть ' + (S.role === 'slesar' ? '«Карту маршрутов»' : '«Планирование»') + '">' +
+          '<b>' + t.today + '</b> на сегодня</button>' : '') + '</div>';
+    }
+    // 22.09-317: настройки — каждый сам решает, нужны ли ему напоминания о задачах
+    h += '<div class="bl-sec">Настройки уведомлений</div>' +
+      '<div style="padding:2px 12px 8px;display:flex;flex-direction:column;gap:6px">' +
+      '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink);cursor:pointer"><input type="checkbox" data-bell-cfg="overdue"' + (cfg.overdue ? ' checked' : '') + '> 🔴 Напоминать о просроченных задачах</label>' +
+      '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink);cursor:pointer"><input type="checkbox" data-bell-cfg="today"' + (cfg.today ? ' checked' : '') + '> 📅 Показывать задачи на сегодня</label>' +
+      '<div style="font-size:11.5px;color:var(--muted)">Настройка ваша личная, действует на этом устройстве.</div></div>';
     if (S.role === 'admin') h += '<div class="bl-foot"><button type="button" class="bl-all" data-bell-admin="1">Объявления и управление →</button></div>';
     h += '</div>';
     el.innerHTML = h;
@@ -28647,6 +28683,14 @@
         var m = null;
         bellUnread().forEach(function (x) { if (x.id === id) m = x; });
         if (m) { bellMarkRead(m, true); bellSync(); }
+        return;
+      }
+      var cfgEl = t.closest('[data-bell-cfg]');
+      if (cfgEl) {
+        var patch = {};
+        patch[cfgEl.getAttribute('data-bell-cfg')] = !!cfgEl.checked;
+        bellCfgSet(patch);
+        bellSync(); // перерисовать окошко и подсказку с новыми настройками
         return;
       }
       var tk = t.closest('[data-bell-tasks]');
