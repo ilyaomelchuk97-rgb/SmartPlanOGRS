@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-314';
+  var SP_BUILD = '22.09-315';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -29361,8 +29361,10 @@
   var GREEN_MS = 4200;   // сколько держится зелёная линия после подключения
   var CARD_MS = 5000;    // сколько висит карточка (и «в сети», и «не в сети»)
   var CHECK_MS = 500;    // как часто сверяем состояние связи
-  var WATCH_POLL = 20000; // обычный опрос идёт раз в секунду — 20 с молчания уже не норма
-  var WATCH_LIVE = 45000; // при мгновенных уведомлениях опрос раз в 30 с — ждём дольше
+  var WATCH_POLL = 90000; // 22.09-315: обычный опрос — 90 с молчания (браузер душит таймеры фоновых вкладок)
+  var WATCH_LIVE = 120000; // 22.09-315: при мгновенных уведомлениях опрос раз в 30 с — ждём до 2 минут
+  var RECHECK_MS = 10000; // 22.09-315: после возвращения на вкладку даём связи 10 с тихо перепровериться
+  var recheckUntil = 0;   // 22.09-315: до этого момента молчание сервера НЕ объявляем «не в сети»
   var READY_GIVEUP = 30000; // 22.09-295: сколько ждать первого ответа сервера после входа
   var curState = '';
   var prevState = '';
@@ -29416,7 +29418,12 @@
         try {
           if (st.ready && hasToken()) {
             var since = Date.now() - Math.max(st.lastPoll || 0, bootTs);
-            if (since > (st.live ? WATCH_LIVE : WATCH_POLL)) return 'offline';
+            if (since > (st.live ? WATCH_LIVE : WATCH_POLL)) {
+              // 22.09-315: только вернулись на вкладку / окно получило фокус — сначала тихо
+              // перепроверяем связь; «не в сети» объявим, только если проверка правда не прошла
+              if (Date.now() < recheckUntil) return (curState && curState !== 'offline' && curState !== 'error') ? curState : 'connecting';
+              return 'offline';
+            }
           } else if (hasToken() && (Date.now() - bootTs) > READY_GIVEUP) {
             return 'offline'; // 22.09-295: сервер не ответил ни разу за 30 секунд — не притворяемся, что всё хорошо
           }
@@ -29583,6 +29590,16 @@
       return !!(el && el.classList && el.classList.contains('on'));
     }
   };
+
+  // 22.09-315: вернулись на вкладку или окно получило фокус — тихо перепроверить связь:
+  // дёргаем опрос сервера сразу и даём ему RECHECK_MS, прежде чем пугать «не в сети»
+  function armRecheck() {
+    recheckUntil = Date.now() + RECHECK_MS;
+    try { if (window.SP_SYNC_POLL && SP_SYNC_POLL.kick) SP_SYNC_POLL.kick(); } catch (eK) {}
+    check();
+  }
+  try { document.addEventListener('visibilitychange', function () { if (!document.hidden) armRecheck(); }); } catch (eV) {}
+  try { window.addEventListener('focus', armRecheck); } catch (eF) {}
 
   // реагируем сразу на смену сети браузером, а состояние сервера сверяем мелкими шагами
   try { window.addEventListener('online', check); } catch (e) {}
