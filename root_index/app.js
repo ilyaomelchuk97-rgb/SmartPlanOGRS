@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-320';
+  var SP_BUILD = '22.09-321';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -4826,6 +4826,14 @@
     var h = Math.floor(v.clientHeight - topIn - pb);
     wrap.classList.add('rm-fit');
     wrap.style.height = Math.max(420, h) + 'px';                     // очень низкое окно — не меньше 420 px (тогда прокрутка)
+    // 22.09-321: полотно карты занимает всю оставшуюся высоту блока под строкой
+    // «Объектов…» (раньше высота была «100vh − 210px на глаз» — внизу оставался пустой пробел)
+    try {
+      var box = wrap.querySelector('.map-box');
+      var cv = document.getElementById('map-canvas');
+      var st = document.getElementById('map-stats');
+      if (box && cv) cv.style.height = Math.max(300, box.clientHeight - (st ? st.offsetHeight : 0)) + 'px';
+    } catch (eCv) {}
     ymFitMap();
   }
   function ymFitMap() {
@@ -4833,6 +4841,18 @@
   }
   (function () {
     var raf = 0;
+    // 22.09-321: шапка сайта изменила высоту (кнопки перенеслись на вторую строку,
+    // появился/пропал селектор участка) — картам пересчитать высоту под новое место
+    try {
+      if (typeof ResizeObserver === 'function') {
+        var tb = document.querySelector('.topbar');
+        if (tb) new ResizeObserver(function () {
+          if (S.screen !== 'map' && S.screen !== 'objmap' && S.screen !== 'livemap') return;
+          try { rmFitLayout(); } catch (e1) {}
+          try { spMapsFit(); } catch (e2) {}
+        }).observe(tb);
+      }
+    } catch (e) {}
     try {
       window.addEventListener('resize', function () {
         if (S.screen !== 'map' && S.screen !== 'objmap' && S.screen !== 'livemap') return;
@@ -6500,22 +6520,16 @@
     var withPoly = OBJECTS.filter(function (o) { return o && o.poly && o.poly.length >= 3; });
     var onlyPoly = withPoly.filter(function (o) { return !(o.lat != null && o.lng != null); });
 
+    // 22.09-321: шапка над картой («Карта объектов · Точки · Области · сборка») убрана
+    // по просьбе пользователя — карта занимает всё место страницы.
     var html = '<div style="height:calc(100vh - 62px);display:flex;flex-direction:column;background:#e8eef3;position:relative;z-index:0">';
-    html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--card);border-bottom:1px solid var(--line);flex-wrap:wrap;flex:0 0 auto">';
-    html += '<div><div style="font-size:14px;font-weight:800;color:var(--ink)">Карта объектов</div>';
-    html += '<div class="sub" style="font-size:12.5px">Точки: ' + withCoords.length + ' · Области: ' + withPoly.length + (onlyPoly.length ? ' (только область: ' + onlyPoly.length + ')' : '') + ' · нажмите на точку или область · сборка 21.09-21</div></div>';
-    html += '<div style="margin-left:auto;display:flex;gap:12px;font-size:12px;color:var(--muted);flex-wrap:wrap">';
-    html += '<span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#2563eb;margin-right:4px"></span>ГРП</span>';
-    html += '<span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#7c3aed;margin-right:4px"></span>ШРП</span>';
-    html += '<span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#64748b;margin-right:4px"></span>Прочие</span>';
-    html += '<span><span style="display:inline-block;width:10px;height:10px;border:1px dashed #64748b;margin-right:4px;background:rgba(100,116,139,.25)"></span>Область</span>';
-    html += '</div></div>';
     html += '<div id="om-map" style="flex:1;min-height:0;position:relative">';
     html += '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:10px">';
     html += '<div class="skel" style="width:70%;height:26px"></div><div class="skel" style="width:50%;height:26px"></div><div class="skel" style="width:80%;height:26px"></div>';
     html += '<div style="font-size:12.5px;font-weight:700;color:var(--muted)">⏳ Загружаем карту объектов…</div></div>';
     html += '</div></div>';
     v.innerHTML = html;
+    try { spMapsFit(); } catch (e) {} // 22.09-321: высота — ровно до низа окна, без пустого пробела
 
     ensureYandex(function () {
       var holder = document.getElementById('om-map');
@@ -6991,6 +7005,7 @@
     html += '<div style="padding:9px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)">🚗 Выезд с базы в ' + lmFmtTime(LM_START_MIN) + ' · время поездки — по оптимизации маршрута · стоянка на объекте — человеко-часы задачи</div>';
     html += '</aside></div>';
     view.innerHTML = html;
+    try { spMapsFit(); } catch (e) {} // 22.09-321: высота — ровно до низа окна, без пустого пробела
 
     setTimeout(function () { lmHideLoading(); }, 12000); // страховка: скелетон не висит вечно
     var refreshBtn = document.getElementById('lm-refresh');
