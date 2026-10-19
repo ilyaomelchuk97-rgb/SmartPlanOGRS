@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-323';
+  var SP_BUILD = '22.09-324';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -3982,7 +3982,7 @@
       var r = tile.getBoundingClientRect(), tr = trash.getBoundingClientRect();
       if (!r.width || !tr.width) { fin(); return; }
       var clone = tile.cloneNode(true);
-      clone.className = tile.className + ' sp-fly-clone';
+      clone.className = tile.className + ' sp-fly-clone sp-crumple-paper'; // 22.09-324: складки смятого листа
       clone.style.cssText = 'position:fixed;z-index:99999;pointer-events:none;left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;margin:0;opacity:.97;transform-origin:50% 60%;';
       document.body.appendChild(clone);
       tile.style.visibility = 'hidden';
@@ -3999,11 +3999,11 @@
           var k = Math.min(1, (ts - t0) / D);
           var x = (1 - k) * (1 - k) * sx + 2 * (1 - k) * k * cx + k * k * ex;
           var y = (1 - k) * (1 - k) * sy + 2 * (1 - k) * k * cy + k * k * ey;
-          var sc = 0.55 - 0.38 * k, rot = -14 + 330 * k;
+          var sc = 0.52 - 0.2 * k, rot = -9 + 300 * k; // 22.09-324: комок остаётся комком, а не тает в точку
           clone.style.left = (x - r.width / 2) + 'px';
           clone.style.top = (y - r.height / 2) + 'px';
           clone.style.transform = 'scale(' + sc.toFixed(3) + ') rotate(' + rot.toFixed(1) + 'deg)';
-          clone.style.borderRadius = '47%';
+          clone.style.borderRadius = '40% 58% 50% 62% / 58% 42% 60% 44%'; // рваный силуэт комка, не кружок
           if (k < 1) requestAnimationFrame(step);
           else {
             try { clone.remove(); } catch (e) {}
@@ -4012,7 +4012,7 @@
           }
         }
         requestAnimationFrame(step);
-      }, 480);
+      }, 640); // 22.09-324: комканье рывками — 0,62 с
       setTimeout(fin, 2600); // страховка: данные удалятся, даже если анимация прервётся
     } catch (e) { fin(); }
   }
@@ -29404,15 +29404,28 @@
   var AP_RULES_DEF = { type: true, lines: true, telemetry: true, service: true, heating: true };
   var AP_DIAG_GROUP_NOTE = 'все работы группы — «диагностика», подбираются объектам REGION-gaz всегда';
 
+  function apLsList(key) {
+    try { var a = JSON.parse(localStorage.getItem(key) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; }
+  }
+  /* 22.09-324: настройки автоподбора живут в ОТДЕЛЬНОЙ таблице базы (раздел
+     autopick, запись main) — как все остальные данные: синхронизируются,
+     улетают в бэкап на Google Диск и НЕ зависят от обновлений сайта.
+     Старая запись (раздел settings, id autopick) читается как запасная —
+     чтобы при переходе ничего не потерялось; сохранение пишет в обе,
+     пока воркер на Cloudflare не обновится до 324-й сборки. */
   function apSettingsRec() {
     try {
-      var lsKey = (window.SP_SYNC_POLL && SP_SYNC_POLL.LS_KEYS && SP_SYNC_POLL.LS_KEYS.settings) || 'smartplan_settings';
-      var arr = JSON.parse(localStorage.getItem(lsKey) || '[]');
-      if (Array.isArray(arr)) {
-        var rec = arr.filter(function (x) { return x && x.id === 'autopick'; })[0];
-        if (rec && rec.cfg && typeof rec.cfg === 'object') return rec.cfg;
+      var key = (window.SP_SYNC_POLL && SP_SYNC_POLL.LS_KEYS && SP_SYNC_POLL.LS_KEYS.autopick) || 'smartplan_autopick';
+      var rec = apLsList(key).filter(function (x) { return x && x.id === 'main'; })[0];
+      if (rec && typeof rec === 'object' && (rec.regionGroups || rec.tmGroups || rec.heatGroups || rec.rules)) {
+        return { regionGroups: rec.regionGroups || [], tmGroups: rec.tmGroups || [], heatGroups: rec.heatGroups || [], rules: rec.rules || {} };
       }
     } catch (e) {}
+    try {
+      var skey = (window.SP_SYNC_POLL && SP_SYNC_POLL.LS_KEYS && SP_SYNC_POLL.LS_KEYS.settings) || 'smartplan_settings';
+      var old = apLsList(skey).filter(function (x) { return x && x.id === 'autopick'; })[0];
+      if (old && old.cfg && typeof old.cfg === 'object') return old.cfg; // переходный запасной вариант
+    } catch (e2) {}
     return null;
   }
   /* Полная настройка (с умолчаниями) */
@@ -29456,20 +29469,31 @@
     try { if (window.SP_GRAPH_AUTO && SP_GRAPH_AUTO.eff) return !!SP_GRAPH_AUTO.eff(w).diag_equipment; } catch (e2) {}
     return /приборного диагностического оборудования/i.test(String((w && w.name) || ''));
   }
-  /* Сохранение настройки (как права доступа — раздел settings, запись autopick) */
+  /* 22.09-324: сохранение — в ОТДЕЛЬНУЮ таблицу базы (раздел autopick).
+     Дополнительно дублируем в старую запись (settings/autopick), пока воркер
+     на Cloudflare старый: порядок обновления сайта и воркера тогда не важен. */
   function apSave(cfg) {
     if (S.role !== 'admin') { toast('err', 'Настройки автоподбора меняет только администратор'); return; }
-    var rec = { id: 'autopick', cfg: cfg, updated_at: Date.now() };
+    var rec = { id: 'main', regionGroups: cfg.regionGroups || [], tmGroups: cfg.tmGroups || [], heatGroups: cfg.heatGroups || [], rules: cfg.rules || {}, updated_at: Date.now() };
+    var oldRec = { id: 'autopick', cfg: cfg, updated_at: Date.now() };
     var done = function (src) {
-      try { if (window.SP_SYNC_POLL && SP_SYNC_POLL.applyRemote) SP_SYNC_POLL.applyRemote('settings', [rec]); } catch (e) {}
-      try { logAction('Настройки автоподбора', 'групп REGION-gaz: ' + ((cfg.regionGroups || []).length) + (src ? ' · ' + src : '')); } catch (e2) {}
-      toast('ok', '✓ Настройки автоподбора сохранены — действуют на всех устройствах');
+      try { if (window.SP_SYNC_POLL && SP_SYNC_POLL.applyRemote) { SP_SYNC_POLL.applyRemote('autopick', [rec]); SP_SYNC_POLL.applyRemote('settings', [oldRec]); } } catch (e) {}
+      try { logAction('Настройки автоподбора', 'групп REGION-gaz: ' + ((cfg.regionGroups || []).length) + ' · ТМ: ' + ((cfg.tmGroups || []).length) + ' · отопление: ' + ((cfg.heatGroups || []).length) + (src ? ' · ' + src : '')); } catch (e2) {}
+      toast('ok', '✓ Настройки автоподбора сохранены в базу — действуют на всех устройствах и попадают в бэкап');
     };
     if (window.SP_API && SP_API.syncPush) {
-      SP_API.syncPush('settings', rec).then(function (r) {
+      SP_API.syncPush('autopick', rec).then(function (r) {
+        // дубль в старую запись — молча, основной результат уже есть
+        try { SP_API.syncPush('settings', oldRec)['catch'](function () {}); } catch (eD) {}
         if (r && r.ok) done();
         else if (r && (r.conflict || r.stale_client)) toast('err', 'Обновите страницу (Ctrl+Shift+R) и повторите');
-        else toast('err', 'Не удалось сохранить: ' + ((r && r.err) || 'нет связи'));
+        else {
+          // воркер ещё старый и раздела autopick не знает — пишем по-старому, чтобы не потерять
+          SP_API.syncPush('settings', oldRec).then(function (r2) {
+            if (r2 && r2.ok) { try { SP_SYNC_POLL.applyRemote('settings', [oldRec]); } catch (e3) {} toast('ok', '✓ Настройки сохранены (по-старому: обновите воркер Cloudflare до сборки 324, чтобы включилась отдельная таблица)'); }
+            else toast('err', 'Не удалось сохранить: ' + ((r2 && r2.err) || (r && r.err) || 'нет связи'));
+          })['catch'](function () { toast('err', 'Не удалось сохранить — нет связи с сервером'); });
+        }
       })['catch'](function () { toast('err', 'Не удалось сохранить — нет связи с сервером'); });
     } else done('локально');
   }
@@ -29700,6 +29724,16 @@
     var groups = apCollect('ap-groups', 'data-ap-group');
     var tmGroups = apCollect('ap-tm-groups', 'data-ap-tmgroup');     // 22.09-296
     var heatGroups = apCollect('ap-heat-groups', 'data-ap-heatgroup'); // 22.09-296
+    // 22.09-324: защита от случайного стирания — если сейчас отмечено хоть что-то,
+    // а сохраняют «всё пусто», переспросим (так настройки терялись при пустом окне)
+    var _hadAny = ((cfg.regionGroups || []).length + (cfg.tmGroups || []).length + (cfg.heatGroups || []).length) > 0;
+    var _nowAny = (groups.length + tmGroups.length + heatGroups.length) > 0;
+    if (_hadAny && !_nowAny && !apSaveFromModal._okEmpty) {
+      return spConfirm('Сейчас в настройках отмечены группы, а вы сохраняете «ни одной». Точно снять ВСЕ отметки автоподбора?', { title: 'Настройки автоподбора', ok: 'Да, снять все', danger: true }, function () {
+        apSaveFromModal._okEmpty = true;
+        try { apSaveFromModal(); } finally { apSaveFromModal._okEmpty = false; }
+      });
+    }
     function chk(id, dflt) { var x = document.getElementById(id); return x ? !!x.checked : dflt; }
     var rules = {
       type: chk('ap-r-type', cfg.rules.type !== false),

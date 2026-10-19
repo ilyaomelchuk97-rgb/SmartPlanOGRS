@@ -663,21 +663,31 @@
   /* 22.09-256: «Карта маршрутов» — список заданий и карта по высоте до низа окна (высоту ставит rmFitLayout) */
   /* 22.09-302: страницы с картами — без прокрутки (высота подгоняется по окну) */
   #view.sp-map-fit{overflow:hidden!important;overscroll-behavior:none}
-  /* 22.09-323: карты заполняют страницу конструкцией, а не замером «на глаз» */
+  /* 22.09-324: карты заполняют страницу конструкцией, а не замером «на глаз» */
   #view.sp-map-fit{display:flex;flex-direction:column}
   #view.sp-map-fit #lm-wrap{flex:1 1 auto;min-height:0;height:auto!important}
   #view.sp-map-fit>[data-sp-fit]{flex:1 1 auto;min-height:0;height:auto!important}
   #view.sp-map-fit .map-wrap{flex:1 1 auto;min-height:0}
   #map-canvas{flex:1 1 auto;min-height:0}
-  /* 22.09-323: удаление задачи — карточка комкается как бумага и летит в корзину */
-  .sp-fly-clone{box-shadow:0 12px 28px rgba(15,23,42,.35)!important;background:var(--card)}
-  .sp-crumpling{animation:spCrumple .47s ease-in forwards;filter:brightness(1.07) contrast(.94)}
-  @keyframes spCrumple{
-    0%{transform:scale(1,1) rotate(0deg);border-radius:10px}
-    30%{transform:scale(.88,.6) rotate(-5deg);border-radius:22px 30px 18px 34px}
-    55%{transform:scale(.6,.82) rotate(6deg);border-radius:34px 20px 36px 22px}
-    78%{transform:scale(.48,.52) rotate(-10deg);border-radius:46%}
-    100%{transform:scale(.55,.55) rotate(-14deg);border-radius:47%}
+  /* 22.09-324: удаление задачи — карточка комкается как бумага и летит в корзину */
+  .sp-fly-clone{box-shadow:0 12px 28px rgba(15,23,42,.35)!important;background-color:var(--card)}
+  /* 22.09-324: лист мнут РУКАМИ — края загибаются внутрь рывками, силуэт рваный,
+     по листу идут складки (тени полосами), а не ровный кружок */
+  .sp-crumple-paper{
+    background-image:
+      linear-gradient(38deg, rgba(0,0,0,.16) 0 16%, rgba(255,255,255,.28) 16% 24%, rgba(0,0,0,.05) 24% 47%, rgba(255,255,255,.4) 47% 55%, rgba(0,0,0,.13) 55% 76%, rgba(255,255,255,.2) 76% 84%, rgba(0,0,0,.08) 84%),
+      repeating-linear-gradient(112deg, rgba(0,0,0,.07) 0 5px, rgba(255,255,255,.10) 5px 8px, transparent 8px 15px),
+      repeating-linear-gradient(24deg, rgba(0,0,0,.05) 0 7px, transparent 7px 16px);
+    box-shadow:inset 0 0 22px rgba(15,23,42,.28), inset 4px 6px 12px rgba(255,255,255,.35), 0 12px 28px rgba(15,23,42,.35)!important;
+  }
+  .sp-crumpling{animation:spCrumple2 .62s ease-in forwards;filter:brightness(1.06) contrast(.96)}
+  @keyframes spCrumple2{
+    0%{transform:scale(1,1) rotate(0deg) skew(0deg,0deg);border-radius:10px;clip-path:polygon(0 0,100% 0,100% 100%,0 100%)}
+    22%{transform:scale(.93,.8) rotate(-3deg) skew(3deg,-2deg);border-radius:14px 20px 16px 22px;clip-path:polygon(3% 2%,97% 0,100% 96%,2% 100%)}
+    45%{transform:scale(.78,.88) rotate(4.5deg) skew(-4deg,3deg);border-radius:20px 30px 24px 34px;clip-path:polygon(8% 5%,94% 3%,97% 92%,5% 96%)}
+    68%{transform:scale(.63,.62) rotate(-7deg) skew(5deg,4deg);border-radius:32% 44% 38% 48%/44% 36% 52% 40%;clip-path:polygon(16% 12%,86% 8%,93% 84%,11% 90%)}
+    84%{transform:scale(.55,.6) rotate(6deg) skew(-3deg,-4deg);border-radius:42% 55% 47% 58%/55% 44% 58% 46%;clip-path:polygon(22% 18%,80% 14%,88% 80%,18% 86%)}
+    100%{transform:scale(.52,.5) rotate(-9deg);border-radius:40% 58% 50% 62%/58% 42% 60% 44%;clip-path:polygon(24% 20%,78% 16%,86% 78%,20% 84%)}
   }
   .sp-puff{position:fixed;z-index:100001;pointer-events:none;width:0;height:0}
   .sp-puff i{position:absolute;left:-6px;top:-6px;width:11px;height:11px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#ffffff,#cbd5e1 72%);opacity:.95;animation:spPuffFly .58s ease-out forwards}
@@ -713,13 +723,13 @@
   /* 22.09-299: правило пишем как table.dt.cl-table — иначе общее правило table.dt thead th{top:61px}
      (оно сильнее по весу) оставляло шапку висеть на 61 пиксель ниже верха страницы. */
   table.dt.cl-table{border-collapse:separate;border-spacing:0} /* с объединёнными рамками «липкую» шапку держат не все браузеры */
-  table.dt.cl-table thead th{position:static} /* 22.09-323: липкие шапки таблиц убраны везде */
+  table.dt.cl-table thead th{position:static} /* 22.09-324: липкие шапки таблиц убраны везде */
   html.a11y-contrast .cl-table thead th{background:#000}
   /* 22.09-266: улучшения интерфейса */
   table.dt th.ui-th{cursor:pointer;user-select:none}
   table.dt th.ui-th:hover{color:var(--blue)}
   table.dt th.ui-sorted{color:var(--blue)}
-  table.dt thead th{position:static} /* 22.09-323: шапки таблиц остаются на месте и уезжают с прокруткой */
+  table.dt thead th{position:static} /* 22.09-324: шапки таблиц остаются на месте и уезжают с прокруткой */
   table.dt[data-nosticky] thead th{position:static} /* 22.09-272: короткие таблицы — заголовок не «съезжает» при прокрутке */
   .ui-empty{text-align:center;padding:26px 14px;color:var(--muted)}
   .ui-empty-ic{font-size:34px;line-height:1;margin-bottom:8px}
@@ -1819,7 +1829,7 @@
           <div style="margin-top:6px;font-size:12px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-323 · взаимная отметка «совместно»; «Без телеметрии» подбирается объекту REGION-gaz без ТМ</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-324 · настройки автоподбора — в отдельной таблице базы; удаление задачи мнётся как бумага</div>
         <div style="margin-top:6px;text-align:center"><a href="#" id="li-cookie-link" class="cookie-link" title="Посмотреть или изменить разрешение">🍪 Cookie и хранилище браузера</a></div>
     </div>
   </div>
@@ -2097,17 +2107,17 @@
      Сайт остаётся на Render, а API (сервер + данные) — на воркере Cloudflare.
      Чтобы вернуться к базе Render — удалить следующую строку. -->
 <script>window.SP_CONFIG_OVERRIDE = 'https://smartplanogrsdb.ilya-omelchuk97.workers.dev/api';</script>
-<script src="root_index/config.js?v=22.09-323"></script>
-<script src="root_index/data.js?v=22.09-323"></script>
-<script src="root_index/users_db.js?v=22.09-323"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-323"></script>
-<script src="root_index/areas_db.js?v=22.09-323"></script>
-<script src="root_index/professions_db.js?v=22.09-323"></script>
-<script src="root_index/work_db.js?v=22.09-323"></script>
-<script src="root_index/objects_db.js?v=22.09-323"></script>
-<script src="root_index/workers_db.js?v=22.09-323"></script>
-<script src="root_index/tasks_db.js?v=22.09-323"></script>
-<script src="root_index/db.js?v=22.09-323"></script>
+<script src="root_index/config.js?v=22.09-324"></script>
+<script src="root_index/data.js?v=22.09-324"></script>
+<script src="root_index/users_db.js?v=22.09-324"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-324"></script>
+<script src="root_index/areas_db.js?v=22.09-324"></script>
+<script src="root_index/professions_db.js?v=22.09-324"></script>
+<script src="root_index/work_db.js?v=22.09-324"></script>
+<script src="root_index/objects_db.js?v=22.09-324"></script>
+<script src="root_index/workers_db.js?v=22.09-324"></script>
+<script src="root_index/tasks_db.js?v=22.09-324"></script>
+<script src="root_index/db.js?v=22.09-324"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -2125,12 +2135,12 @@
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-323"></script>
-      <script src="root_index/error_log.js?v=22.09-323"></script>
-      <script src="root_index/api_client.js?v=22.09-323"></script>
-      <script src="root_index/sync_polling.js?v=22.09-323"></script>
-      <script src="root_index/zip_util.js?v=22.09-323"></script>
-      <script src="root_index/app.js?v=22.09-323"></script>
+<script src="root_index/object_attrs.js?v=22.09-324"></script>
+      <script src="root_index/error_log.js?v=22.09-324"></script>
+      <script src="root_index/api_client.js?v=22.09-324"></script>
+      <script src="root_index/sync_polling.js?v=22.09-324"></script>
+      <script src="root_index/zip_util.js?v=22.09-324"></script>
+      <script src="root_index/app.js?v=22.09-324"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {
