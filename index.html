@@ -451,8 +451,8 @@
     width:248px;flex:0 0 248px;background:linear-gradient(180deg,var(--navy),var(--navy2));
     color:#cbd5e1;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;
   }
-  .brand{display:flex;align-items:center;gap:10px;padding:18px 18px 16px;border-bottom:1px solid rgba(255,255,255,.08)}
-  .brand .logo{width:60px;height:60px;border-radius:12px;background:#fff;padding:5px;
+  .brand{display:flex;align-items:center;gap:10px;padding:9px 18px;border-bottom:1px solid rgba(255,255,255,.08)}
+  .brand .logo{width:48px;height:48px;border-radius:12px;background:#fff;padding:5px;
     object-fit:contain;box-shadow:0 4px 12px rgba(0,0,0,.25)}
   .brand .bt{font-size:15px;font-weight:700;color:#fff;line-height:1.15}
   .brand .bs{font-size:12px;color:#7dd3fc;letter-spacing:.3px}
@@ -477,7 +477,7 @@
      (класс body.touch-ui ставит app.js по (hover:none) и (pointer:coarse)) */
   body.touch-ui .nav-acc .nav-sub{max-height:56px;opacity:1;transform:none}
   .nav .badge{margin-left:auto;background:var(--red);color:#fff;font-size:12px;font-weight:700;border-radius:20px;padding:1px 7px}
-  .sb-foot{padding:12px 16px;border-top:1px solid rgba(255,255,255,.08);font-size:12px;color:#64748b}
+  .sb-foot{padding:12px 16px;border-top:1px solid rgba(255,255,255,.08);font-size:12px;color:#64748b;display:flex;align-items:center;justify-content:center;text-align:center}
   .jr-tabs{display:flex;gap:6px;flex-wrap:wrap;padding:14px 18px 0;margin-bottom:14px;border-bottom:2px solid var(--line)}
   .jr-tab{appearance:none;border:1px solid var(--line);border-bottom:none;background:var(--panel-3,#f1f5f9);color:var(--muted);font:inherit;font-size:13.5px;font-weight:600;padding:9px 18px;border-radius:10px 10px 0 0;cursor:pointer;margin-bottom:-2px;transition:background .15s,color .15s}
   .jr-tab:hover{color:var(--ink);background:var(--card)}
@@ -1116,7 +1116,7 @@
     .topbar{height:70px}
     .topbar h1{font-size:19px}
     .nav a{font-size:15px;padding:12px 14px}
-    .brand .logo{width:72px;height:72px}
+    .brand .logo{width:58px;height:58px}
     .brand .bt{font-size:17px}
     .tile{font-size:12px;padding:5px 8px}
     .tile .tw{font-size:12px}
@@ -1129,7 +1129,7 @@
   /* === 11" Планшет горизонтально (1024–1365px) === */
   @media (max-width: 1365px) and (min-width: 1024px) {
     .sidebar{width:220px;flex-basis:220px}
-    .brand .logo{width:52px;height:52px}
+    .brand .logo{width:42px;height:42px}
     .brand .bt{font-size:14px}
     .nav a{font-size:12.5px;padding:8px 10px;gap:9px}
     .nav a svg{width:16px;height:16px}
@@ -1258,7 +1258,7 @@
     .topbar h1{font-size:13px}
     .usr .un{display:none}
     .nav a{font-size:12px}
-    .brand .logo{width:44px;height:44px}
+    .brand .logo{width:35px;height:35px}
     .brand .bt{font-size:13px}
     .brand .bs{font-size:11.5px}
   }
@@ -1798,7 +1798,7 @@
           <div style="margin-top:6px;font-size:12px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-310 · журналы объединены в одну страницу «Журналы» с вкладками</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-311 · в «Журналах» первой вкладка «Журнал изменений»; шапка меню компактнее</div>
         <div style="margin-top:6px;text-align:center"><a href="#" id="li-cookie-link" class="cookie-link" title="Посмотреть или изменить разрешение">🍪 Cookie и хранилище браузера</a></div>
     </div>
   </div>
@@ -1921,9 +1921,9 @@
       </div>
     </header>
     <div id="journals-tabs" class="jr-tabs" style="display:none">
+      <button type="button" class="jr-tab" data-jtab="changelog">📝 Журнал изменений</button>
       <button type="button" class="jr-tab" data-jtab="logs">📋 Журнал действий</button>
       <button type="button" class="jr-tab" data-jtab="errlogs">🐞 Логи ошибок</button>
-      <button type="button" class="jr-tab" data-jtab="changelog">📝 Журнал изменений</button>
     </div>
     <main id="view"></main>
   </div>
@@ -2073,17 +2073,17 @@
      Сайт остаётся на Render, а API (сервер + данные) — на воркере Cloudflare.
      Чтобы вернуться к базе Render — удалить следующую строку. -->
 <script>window.SP_CONFIG_OVERRIDE = 'https://smartplanogrsdb.ilya-omelchuk97.workers.dev/api';</script>
-<script src="root_index/config.js?v=22.09-310"></script>
-<script src="root_index/data.js?v=22.09-310"></script>
-<script src="root_index/users_db.js?v=22.09-310"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-310"></script>
-<script src="root_index/areas_db.js?v=22.09-310"></script>
-<script src="root_index/professions_db.js?v=22.09-310"></script>
-<script src="root_index/work_db.js?v=22.09-310"></script>
-<script src="root_index/objects_db.js?v=22.09-310"></script>
-<script src="root_index/workers_db.js?v=22.09-310"></script>
-<script src="root_index/tasks_db.js?v=22.09-310"></script>
-<script src="root_index/db.js?v=22.09-310"></script>
+<script src="root_index/config.js?v=22.09-311"></script>
+<script src="root_index/data.js?v=22.09-311"></script>
+<script src="root_index/users_db.js?v=22.09-311"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-311"></script>
+<script src="root_index/areas_db.js?v=22.09-311"></script>
+<script src="root_index/professions_db.js?v=22.09-311"></script>
+<script src="root_index/work_db.js?v=22.09-311"></script>
+<script src="root_index/objects_db.js?v=22.09-311"></script>
+<script src="root_index/workers_db.js?v=22.09-311"></script>
+<script src="root_index/tasks_db.js?v=22.09-311"></script>
+<script src="root_index/db.js?v=22.09-311"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -2101,12 +2101,12 @@
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-310"></script>
-      <script src="root_index/error_log.js?v=22.09-310"></script>
-      <script src="root_index/api_client.js?v=22.09-310"></script>
-      <script src="root_index/sync_polling.js?v=22.09-310"></script>
-      <script src="root_index/zip_util.js?v=22.09-310"></script>
-      <script src="root_index/app.js?v=22.09-310"></script>
+<script src="root_index/object_attrs.js?v=22.09-311"></script>
+      <script src="root_index/error_log.js?v=22.09-311"></script>
+      <script src="root_index/api_client.js?v=22.09-311"></script>
+      <script src="root_index/sync_polling.js?v=22.09-311"></script>
+      <script src="root_index/zip_util.js?v=22.09-311"></script>
+      <script src="root_index/app.js?v=22.09-311"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {

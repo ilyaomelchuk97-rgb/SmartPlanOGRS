@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-310';
+  var SP_BUILD = '22.09-311';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -13603,7 +13603,7 @@
     var isJ = (S.screen === 'journals');
     bar.style.display = isJ ? 'flex' : 'none';
     if (!isJ) return;
-    var tab = S.journalTab || 'logs';
+    var tab = S.journalTab || (S.role === 'admin' ? 'changelog' : 'logs');
     if (tab === 'changelog' && S.role !== 'admin') tab = 'logs';
     bar.querySelectorAll('.jr-tab').forEach(function (b) {
       var t = b.dataset.jtab;
@@ -13622,14 +13622,14 @@
     });
   }
   function renderJournalsBody() {
-    var tab = S.journalTab || 'logs';
+    var tab = S.journalTab || (S.role === 'admin' ? 'changelog' : 'logs');
     if (tab === 'changelog' && S.role !== 'admin') tab = 'logs';
     if (tab === 'errlogs') renderErrLogs();
     else if (tab === 'changelog') renderChangelog();
     else renderLogs();
   }
   function renderJournals() {
-    if (!S.journalTab) S.journalTab = 'logs';
+    if (!S.journalTab) S.journalTab = (S.role === 'admin' ? 'changelog' : 'logs');
     spJournalsTabsSync();
     renderJournalsBody();
   }
@@ -17563,6 +17563,8 @@
 
   /* ---------- НАВИГАЦИЯ ---------- */
   function setScreen(name) {
+    // 22.09-311: вход в «Журналы» из меню открывает первую вкладку — «Журнал изменений»
+    if (name === 'journals') S.journalTab = (S.role === 'admin' ? 'changelog' : 'logs');
     // 22.09-310: старые страницы журналов ведут на общую страницу «Журналы» с нужной вкладкой
     if (name === 'logs') { S.journalTab = 'logs'; name = 'journals'; }
     else if (name === 'errlogs') { S.journalTab = 'errlogs'; name = 'journals'; }
