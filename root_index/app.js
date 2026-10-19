@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-315';
+  var SP_BUILD = '22.09-316';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -18651,7 +18651,6 @@
       else if (el.dataset.tool === 'filter') { openGraphFilterModal(); }
       else if (el.dataset.tool === 'winter') { openGraphWinterModal(); }
       else if (el.dataset.tool === 'delworks') { openGraphDelWorksModal(); }
-      else if (el.dataset.tool === 'joint') { gwJointRunAll(); } // 22.09-306: соединить совместные
       else if (el.dataset.tool === 'print') { openGraphPrintModal(); }
       else if (el.dataset.tool === 'labor') { openGraphLaborModal(); } // 22.09-158
     }
@@ -19095,7 +19094,6 @@
     gift: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 01-2 2H7a2 2 0 01-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 010-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 010 5"/></svg>',
     pencil: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>',
     copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>',
-    joint: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12l-3 3a2.5 2.5 0 003.5 3.5l3-3"/><path d="M16 12l3-3a2.5 2.5 0 00-3.5-3.5l-3 3"/><path d="M9 15l6-6"/></svg>', // 22.09-306: «Соединить совместные»
     team: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.6"/><path d="M15.6 14.2c3 .3 5.4 2.7 5.4 5.8"/></svg>' // 22.09-249: «Настройки бригад»
   };
   function graphsToolbarHtml(g) {
@@ -19106,12 +19104,11 @@
       { tool: 'newobj', tip: 'Добавить объекты в график', cls: 'gt-green', icon: 'plus' },
       { tool: 'period', tip: 'Настроить периодичность', cls: 'gt-violet', icon: 'repeat' },
       { tool: 'winter', tip: 'Сезоны', cls: 'gt-sky', icon: 'snow' },
-      { tool: 'joint', tip: 'Соединить совместные работы: работы с отметкой «Проводится совместно» ставятся в один день (по месяцам). Показывает, сколько работ соединено', cls: 'gt-amber', icon: 'joint' }, // 22.09-306
-      { tool: 'legend', tip: 'Обозначения работ', cls: 'gt-rose', icon: 'legend' },
-      { tool: 'snaps', tip: '22.09-226: Копии графика (автоматически сохраняются при каждой печати) — список, просмотр, восстановление выбранной копии', cls: 'gt-slate', icon: 'copy' }
+      { tool: 'legend', tip: 'Обозначения работ', cls: 'gt-rose', icon: 'legend' }
     ];
     var right = [
       { tool: 'labor', tip: 'Трудоёмкость графика (за год, по месяцам, по объектам)', cls: 'gt-green', icon: 'bars' },
+      { tool: 'snaps', tip: '22.09-226: Копии графика (автоматически сохраняются при каждой печати) — список, просмотр, восстановление выбранной копии', cls: 'gt-slate', icon: 'copy' }, // 22.09-316: между «Трудоёмкостью» и «Фильтром»
       { tool: 'filter', tip: 'Фильтр', cls: 'gt-slate', icon: 'funnel' },
       { tool: 'print', tip: 'Печать графика (в Excel)', cls: 'gt-amber', icon: 'printer' },
       { tool: 'delworks', tip: 'Удалить работы', cls: 'gt-red', icon: 'trash' }
