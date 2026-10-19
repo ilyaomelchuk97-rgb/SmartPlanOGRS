@@ -929,7 +929,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-324';
+  var SP_BUILD = '22.09-325';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -19267,6 +19267,29 @@
       '<button type="button" class="btn ok" data-action="graphs-new">' + IC.plus + ' Новый график</button>' +
       '<button type="button" class="btn" data-action="graphs-list"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg> Список графиков</button>' +
       '</div>';
+    /* 22.09-325: совместные работы выравниваются при КАЖДОМ открытии графика.
+       Раньше выравнивание запускалось только при сохранении периодичности,
+       ручном переносе и сохранении сезонов. Если отметки «совместно» поставили
+       в справочнике уже ПОСЛЕ построения графика — даты оставались разными,
+       и казалось, что «отметка стоит, а не соединяется» (живой случай: график
+       «грп 15», 2027). Выравнивание идемпотентно: выровненные даты повторно
+       не двигаются, сохранение — только если что-то реально перенеслось. */
+    if (g && g.objs && g.objs.length) {
+      try {
+        // выравниваем именно ТОТ экземпляр из списка, который потом сохраняем
+        // (graphsFind даёт свежую копию — её правки при сохранении терялись)
+        var _jlist = graphsLoad(), _jg = null;
+        _jlist.forEach(function (x) { if (x.id === g.id) _jg = x; });
+        if (_jg && _jg.objs) {
+          var _jm = 0, _jarea = _jg.area || graphAreaDefault(_jg);
+          _jg.objs.forEach(function (ob) { _jm += gwJointAlign(gwObjWorks(ob), _jarea); });
+          if (_jm > 0) {
+            graphsSaveList(_jlist);
+            try { logAction('Совместные работы соединены при открытии графика', (_jg.name || '') + ': перенесено проведений — ' + _jm); } catch (eL) {}
+          }
+        }
+      } catch (eJ) {}
+    }
     // Панель инструментов — только когда график создан/выбран
     if (g) html += graphsToolbarHtml(g);
     html += '<div class="card-b" id="graphs-body"></div>' +
@@ -20903,7 +20926,7 @@
     var l = graphsNonOpList(g);
     var rows = l.noStatus.concat(l.off);
     var opts = ['В эксплуатации', 'Проектируется', 'Строится', 'Реконструкция', 'Консервация', 'Ликвидирован'];
-    var h = '<div class="modal-h"><h3>Статусы объектов графика</h3><button class="x" data-action="close-modal2">×</button></div>';
+    var h = '<div class="modal-h"><h3>Статусы объектов графика</h3><button class="x" data-action="close-modal">×</button></div>'; // 22.09-325: было close-modal2 — кнопка закрывала чужое окно и «не работала»
     h += '<div class="modal-b">';
     h += '<div class="calc" style="align-items:flex-start;font-size:12.5px;line-height:1.5;margin-bottom:10px">' +
       'Графики работ строятся только по объектам «В эксплуатации». Поставьте статус — он сохранится в карточке объекта и синхронизируется с сервером. ' +
@@ -20927,7 +20950,7 @@
       h += '</div>';
     }
     h += '</div>';
-    h += '<div class="modal-f"><button type="button" class="btn" data-action="close-modal2">Закрыть</button></div>';
+    h += '<div class="modal-f"><button type="button" class="btn" data-action="close-modal">Закрыть</button></div>';
     modal.innerHTML = h;
     modal.style.maxWidth = '760px';
     overlay.classList.add('show');
