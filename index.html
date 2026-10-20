@@ -679,7 +679,7 @@
     repeating-linear-gradient(27deg, rgba(15,23,42,.10) 0 7px, transparent 7px 19px),
     radial-gradient(ellipse at 30% 40%, rgba(255,255,255,.35), transparent 55%),
     radial-gradient(ellipse at 72% 66%, rgba(15,23,42,.18), transparent 55%)}
-  /* 22.09-344: финал как в видео — компактный фасеточный комок бумаги.
+  /* 22.09-345: финал как в видео — компактный фасеточный комок бумаги.
      Никакого border-radius: силуэт задаёт рваный многоугольник, объём — грани. */
   .sp-paper-wad{position:fixed;z-index:100000;pointer-events:none;overflow:hidden;
     clip-path:polygon(18% 4%,42% 0%,68% 7%,88% 22%,100% 45%,91% 70%,74% 94%,48% 100%,22% 92%,4% 74%,0 46%,6% 20%);
@@ -1368,10 +1368,10 @@
   /* Календарь — тайлы */
   .tile{transition:transform .18s cubic-bezier(.4,0,.2,1),box-shadow .18s,opacity .18s}
   .tile:hover{transform:scale(1.05);box-shadow:0 4px 12px rgba(0,0,0,.12);z-index:2}
-  /* 22.09-344: при наведении задача поверх соседних дней (ячейка тоже поднимается) */
+  /* 22.09-345: при наведении задача поверх соседних дней (ячейка тоже поднимается) */
   .cal-grid .cell:hover{z-index:30}
   .cal-grid .tile:hover{transform:scale(1.07);z-index:60;box-shadow:0 12px 26px rgba(15,23,42,.24)}
-  /* 22.09-344: планшеты — основная версия работает удобно (768–1180 px) */
+  /* 22.09-345: планшеты — основная версия работает удобно (768–1180 px) */
   @media (min-width:768px) and (max-width:1180px){
     .topbar{height:auto;min-height:62px;flex-wrap:wrap;padding-top:6px;padding-bottom:6px;row-gap:6px}
     #view{padding:16px}
@@ -1380,7 +1380,7 @@
     .tile{font-size:11px}
     .btn{min-height:38px}
   }
-  /* 22.09-344: МОБИЛЬНАЯ ВЕРСИЯ (класс force-mobile на <html>) — телефоны от 5 дюймов */
+  /* 22.09-345: МОБИЛЬНАЯ ВЕРСИЯ (класс force-mobile на <html>) — телефоны от 5 дюймов */
   html.force-mobile .sidebar{position:fixed;left:-272px;top:0;height:100dvh;z-index:150;transition:left .22s ease;box-shadow:0 0 44px rgba(0,0,0,.35)}
   html.force-mobile .sidebar.open{left:0}
   html.force-mobile .burger{display:inline-flex!important}
@@ -1404,6 +1404,22 @@
   html.force-mobile .attr-row{grid-template-columns:1fr!important}
   html.force-mobile #sp-bell-pop{width:calc(100vw - 16px)!important}
   html.force-mobile #sp-mobile-btn{background:var(--blue);color:#fff;border-color:var(--blue)}
+  /* 22.09-345: мобильная версия — блоки НЕ вылезают за края экрана.
+     Карточки и сетки умеют сжиматься (min-width:0), широкие таблицы
+     прокручиваются внутри своего блока, а не тянут страницу. */
+  html.force-mobile #view .card{min-width:0;max-width:100%}
+  html.force-mobile .dash-grid>*,html.force-mobile .kpi-row>*,html.force-mobile .dash-grid .card{min-width:0!important}
+  html.force-mobile .today-mstr,html.force-mobile .rz-item,html.force-mobile .kpi{min-width:0}
+  html.force-mobile #view table,html.force-mobile .modal table{display:block;overflow-x:auto;max-width:100%}
+  html.force-mobile #view table.cl-table td,html.force-mobile #view table.cl-table th{white-space:normal;word-break:break-word}
+  html.force-mobile .tabs{overflow-x:auto;flex-wrap:nowrap;max-width:100%}
+  html.force-mobile .card-h{flex-wrap:wrap;row-gap:6px}
+  html.force-mobile .gt-mid{max-width:100%;overflow:hidden}
+  html.force-mobile img,html.force-mobile canvas{max-width:100%}
+  html.force-mobile .sys-tile{min-width:0}
+  html.force-mobile #graph-dup-warn{left:12px;right:12px;max-width:none}
+  html.force-mobile #lm-clock-box{left:50%!important}
+  html.force-mobile .wx-scene{overflow:hidden}
   .tile.t-green:hover,.tile.t-yellow:hover,.tile.t-red:hover{transform:scale(1.05) translateY(-1px)}
   .cell{transition:background .15s,box-shadow .15s}
   .today-mstr{transition:transform .2s,box-shadow .2s}
@@ -1838,7 +1854,7 @@
   }
 </style>
 <script>
-/* 22.09-344: мобильная версия — выбор пользователя (кнопка в шапке) или узкий экран */
+/* 22.09-345: мобильная версия — выбор пользователя (кнопка в шапке) или узкий экран */
 try {
   var _mm = localStorage.getItem('smartplan_mobile');
   if (_mm === '1' || (_mm === null && window.innerWidth < 768)) document.documentElement.classList.add('force-mobile');
@@ -1875,7 +1891,7 @@ try {
           <div style="margin-top:6px;font-size:12px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-344 · мобильная версия по кнопке в шапке; планшеты; задача при наведении поверх дней</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-345 · мобильная версия: блоки не вылезают за края экрана</div>
         <div style="margin-top:6px;text-align:center"><a href="#" id="li-cookie-link" class="cookie-link" title="Посмотреть или изменить разрешение">🍪 Cookie и хранилище браузера</a></div>
     </div>
   </div>
@@ -2156,17 +2172,17 @@ try {
      Сайт остаётся на Render, а API (сервер + данные) — на воркере Cloudflare.
      Чтобы вернуться к базе Render — удалить следующую строку. -->
 <script>window.SP_CONFIG_OVERRIDE = 'https://smartplanogrsdb.ilya-omelchuk97.workers.dev/api';</script>
-<script src="root_index/config.js?v=22.09-344"></script>
-<script src="root_index/data.js?v=22.09-344"></script>
-<script src="root_index/users_db.js?v=22.09-344"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-344"></script>
-<script src="root_index/areas_db.js?v=22.09-344"></script>
-<script src="root_index/professions_db.js?v=22.09-344"></script>
-<script src="root_index/work_db.js?v=22.09-344"></script>
-<script src="root_index/objects_db.js?v=22.09-344"></script>
-<script src="root_index/workers_db.js?v=22.09-344"></script>
-<script src="root_index/tasks_db.js?v=22.09-344"></script>
-<script src="root_index/db.js?v=22.09-344"></script>
+<script src="root_index/config.js?v=22.09-345"></script>
+<script src="root_index/data.js?v=22.09-345"></script>
+<script src="root_index/users_db.js?v=22.09-345"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-345"></script>
+<script src="root_index/areas_db.js?v=22.09-345"></script>
+<script src="root_index/professions_db.js?v=22.09-345"></script>
+<script src="root_index/work_db.js?v=22.09-345"></script>
+<script src="root_index/objects_db.js?v=22.09-345"></script>
+<script src="root_index/workers_db.js?v=22.09-345"></script>
+<script src="root_index/tasks_db.js?v=22.09-345"></script>
+<script src="root_index/db.js?v=22.09-345"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -2184,12 +2200,12 @@ try {
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-344"></script>
-      <script src="root_index/error_log.js?v=22.09-344"></script>
-      <script src="root_index/api_client.js?v=22.09-344"></script>
-      <script src="root_index/sync_polling.js?v=22.09-344"></script>
-      <script src="root_index/zip_util.js?v=22.09-344"></script>
-      <script src="root_index/app.js?v=22.09-344"></script>
+<script src="root_index/object_attrs.js?v=22.09-345"></script>
+      <script src="root_index/error_log.js?v=22.09-345"></script>
+      <script src="root_index/api_client.js?v=22.09-345"></script>
+      <script src="root_index/sync_polling.js?v=22.09-345"></script>
+      <script src="root_index/zip_util.js?v=22.09-345"></script>
+      <script src="root_index/app.js?v=22.09-345"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {
