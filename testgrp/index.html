@@ -1,0 +1,2308 @@
+<!DOCTYPE html>
+<!--
+  ═══════════════════════════════════════════════════════════════════
+  SmartPlan — система планирования работ УП «МИНГАЗ» (сайт / программа
+  для ЭВМ).
+
+  АВТОР И ПРАВООБЛАДАТЕЛЬ: Омельчук Илья Анатольевич, оператор ПЭВМ
+  УП «МИНГАЗ» (г. Минск, Республика Беларусь).
+
+  © 2026 Омельчук И.А. ВСЕ ПРАВА ЗАЩИЩЕНЫ. Сайт создан указанным
+  автором в полном объёме. Копирование, распространение и использование
+  без согласия правообладателя запрещены.
+
+  Отметка об авторстве размещена: 09.10.2026 (сборка 22.09-228).
+  ═══════════════════════════════════════════════════════════════════
+-->
+<html lang="ru">
+<head>
+<script>
+/* ============================================================
+   ТЕСТОВОЕ ОТВЕТВЛЕНИЕ SmartPlan (/testgrp)
+   ------------------------------------------------------------
+   · Отдельный вход: все данные браузера (сессия, кэши, настройки)
+     хранятся с префиксом testgrp_ и НЕ пересекаются с основным
+     сайтом, хотя домен один. Входить сюда нужно отдельно.
+   · База данных общая (тот же воркер Cloudflare), но работа
+     ведётся на участке «ТЕСТ» (он предвыбран фильтром участка).
+   · Версия заморожена: обновления основного сайта сюда не
+     прилетают, пока эту папку специально не обновят.
+   ============================================================ */
+(function () {
+  try {
+    var pfx = 'testgrp_';
+    function wrap(store) {
+      return {
+        getItem: function (k) { return store.getItem(pfx + k); },
+        setItem: function (k, v) { store.setItem(pfx + k, v); },
+        removeItem: function (k) { store.removeItem(pfx + k); },
+        clear: function () {
+          var ks = [];
+          for (var i = 0; i < store.length; i++) { var k = store.key(i); if (k && k.indexOf(pfx) === 0) ks.push(k); }
+          ks.forEach(function (k) { store.removeItem(k); });
+        },
+        key: function (idx) {
+          var n = 0;
+          for (var i = 0; i < store.length; i++) { var k = store.key(i); if (k && k.indexOf(pfx) === 0) { if (n === idx) return k.slice(pfx.length); n++; } }
+          return null;
+        },
+        get length() {
+          var n = 0;
+          for (var i = 0; i < store.length; i++) { var k = store.key(i); if (k && k.indexOf(pfx) === 0) n++; }
+          return n;
+        }
+      };
+    }
+    Object.defineProperty(window, 'localStorage', { value: wrap(window.localStorage), configurable: true });
+    Object.defineProperty(window, 'sessionStorage', { value: wrap(window.sessionStorage), configurable: true });
+    // участок «ТЕСТ» выбран заранее (фильтр участка сайта)
+    try { if (!localStorage.getItem('smartplan_area_filter')) localStorage.setItem('smartplan_area_filter', 'ТЕСТ'); } catch (e2) {}
+  } catch (e) {}
+})();
+</script>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartPlan ТЕСТ — тестовое ответвление</title>
+  <link rel="manifest" href="root_index/manifest.json">
+  <meta name="theme-color" content="#0f2740">
+  <meta name="author" content="Омельчук Илья Анатольевич — оператор ПЭВМ УП «МИНГАЗ»">
+  <meta name="copyright" content="© 2026 Омельчук Илья Анатольевич (УП «МИНГАЗ»). Все права защищены">
+  <link rel="icon" type="image/png" sizes="192x192" href="root_index/icon-192.png">
+  <link rel="apple-touch-icon" href="root_index/icon-192.png">
+<style>
+  :root{
+    --navy:#0f2740; --navy2:#16385c; --slate:#1f2d3d; --ink:#1f2937;
+    --bg:#eef2f6; --card:#ffffff; --line:#e2e8f0; --muted:#64748b; --txt:#334155;
+    --panel-2:#f8fafc; --panel-3:#f1f5f9;
+    --blue:#2563eb; --blue-d:#1d4ed8; --green:#16a34a; --green-l:#dcfce7;
+    --yellow:#ca8a04; --yellow-l:#fef9c3; --red:#dc2626; --red-l:#fee2e2;
+    --shadow:0 1px 3px rgba(15,39,64,.08),0 1px 2px rgba(15,39,64,.06);
+    --shadow-lg:0 10px 30px rgba(15,39,64,.12);
+    --radius:12px;
+  }
+
+  /* ============================================================
+     22.09-259 — ТЕМЫ И РЕЖИМЫ ДОСТУПНОСТИ (по навыку frontend-design)
+     Якорь тёмной темы — «дежурная ночь»: глубокий сине-сланцевый фон,
+     один светлый акцент, без неона. Тема = смена дизайн-токенов
+     (переменных) + точечные оверрайды тех светлых элементов, что
+     заданы «жёстко», не по токенам.
+     ============================================================ */
+  html.theme-dark{
+    --navy:#0a1526; --navy2:#101f38; --slate:#132038; --ink:#edf3fc;
+    --bg:#0d1626; --card:#152238; --line:#2b3d5c; --muted:#8ba0bf; --txt:#c9d6ea;
+    --panel-2:#1a2942; --panel-3:#20304d;
+    --blue:#5b96f7; --blue-d:#4a83ea; --green:#3ecf8e; --green-l:#143426;
+    --yellow:#e2b54b; --yellow-l:#372d11; --red:#ef7a72; --red-l:#3a1b1b;
+    --shadow:0 1px 3px rgba(0,0,0,.45),0 1px 2px rgba(0,0,0,.35);
+    --shadow-lg:0 12px 34px rgba(0,0,0,.55);
+  }
+  /* фиксированные светлые элементы (не по токенам) — тёмные варианты */
+  html.theme-dark .seg{background:var(--panel-3)}
+  html.theme-dark .chip,html.theme-dark .taskline .pill,html.theme-dark .tile{background:var(--panel-3)}
+  html.theme-dark .tile .tw{color:var(--ink)}
+  html.theme-dark .tile.t-green .tw{color:#9fe8c4}
+  html.theme-dark .tile.t-yellow .tw{color:#f0d9a0}
+  html.theme-dark .tile.t-red .tw{color:#f5b3ad}
+  html.theme-dark .tile.t-weather{background:#3a2f14!important;border-left-color:#b98a2e!important}
+  html.theme-dark .tile.t-weather .tw{color:#f0d48a!important}
+  html.theme-dark .tile.t-done{background:#22304a;border-left-color:#54688c}
+  html.theme-dark .tile.t-done .tw{color:#93a4bd}
+  /* 22.09-275: карты в тёмной теме — затемняем ТОЛЬКО подложку (тайлы), метки и панели не трогаем */
+  html.theme-dark [class*="ground-pane"]{filter:invert(1) hue-rotate(180deg) brightness(.9) contrast(.92)}
+  html.theme-dark [class*="ground-pane"] [class*="ground-pane"]{filter:none}
+  html.theme-dark [class*="ground-pane"] img{filter:none}
+  html.theme-dark .map-box,html.theme-dark #om-map,html.theme-dark #map-canvas{background:#0d1626}
+  /* Зум и подписи Яндекс-карты (они вне подложки) — тоже в тёмном виде */
+  html.theme-dark [class*="controls-pane"]{filter:invert(1) hue-rotate(180deg)}
+  html.theme-dark .mtask{background:var(--card)}                        /* 22.09-302: карточки заданий — тёмные */
+  html.theme-dark .mtask.sel{background:var(--panel-2);border-color:var(--blue)}  /* выбранная — тёмная с синей рамкой (была светло-голубая) */
+  html.theme-dark .mtask:hover{background:var(--panel-3)}               /* при наведении — чуть светлее тёмного */
+  html.theme-dark .mtask.sel:hover{background:var(--panel-3)}
+  html.theme-dark .mtask.t-hover{background:var(--panel-3);border-color:#a78bfa;box-shadow:0 0 0 2px rgba(167,139,250,.25)}
+  html.theme-dark .mtask.t-picked{background:linear-gradient(135deg,#2b2350,#3a2b60);border-color:#a78bfa;box-shadow:0 0 0 3px rgba(167,139,250,.3)}
+  html.theme-dark .mtask-grip{color:#54688c}
+  html.theme-dark .fld input,html.theme-dark .fld select{background:var(--panel-3);color:var(--ink)}
+  html.theme-dark .fld input:hover,html.theme-dark .fld select:hover{background:var(--panel-3);border-color:var(--line)}
+  html.theme-dark .fld input::placeholder{color:#5b6f92}
+  html.theme-dark #sync-indicator{background:var(--panel-2)!important;color:var(--txt)!important;border-color:var(--line)!important}
+  html.theme-dark #map-stats{background:var(--panel-2)!important}
+  html.a11y-contrast #map-stats{background:#000!important;color:#fff!important}
+  /* подписи сайдбара и индикатор сервера — светлые в тёмных режимах */
+  html.theme-dark .base-lbl,html.theme-dark .nav .grp,html.theme-dark .sb-foot
+  html.a11y-contrast .base-lbl,html.a11y-contrast .nav .grp,html.a11y-contrast .sb-foot
+  /* «Корзина» в планировании */
+  html.theme-dark .trash-zone{color:#f5b3ad;border-color:#5c2a2a}
+  html.a11y-contrast .trash-zone{color:#fff;border-color:#fff;background:#000}
+  html.theme-dark .sp-dlg-f,html.theme-dark .sp-consent-f{background:var(--panel-2)}
+  html.theme-dark .li-consent{background:#33290f;border-color:#5c4d1d;color:#e3d08f}
+  html.theme-dark .storage-warn{background:var(--red-l);border-color:#5c2a2a;color:#f0b1ab}
+  html.theme-dark .li-hint{background:var(--panel-2);border-color:var(--line);color:var(--txt)}
+  html.theme-dark .li-hint code{background:var(--panel-3);color:var(--blue)}
+  html.theme-dark .login-brand{background:var(--panel-2)}
+  html.theme-dark .login-card div[style*="background:#f8fafc"]{background:var(--panel-2)!important;border-color:var(--line)!important;color:var(--txt)!important}
+  html.theme-dark .login-card div[style*="background:#f8fafc"] div,html.theme-dark .login-card div[style*="background:#f8fafc"] span{color:var(--muted)!important}
+  html.theme-dark .login-card button[style*="background:#fff"]{background:var(--card)!important;border-color:var(--line)!important;color:var(--txt)!important}
+  html.theme-dark .wr-item{background:var(--card)}
+  html.theme-dark .wr-f{color:var(--txt)}
+  html.theme-dark .wr-f s{color:#f0a09a}
+  html.theme-dark .wr-f b{color:#8ce3b4}
+  html.theme-dark .sh-code{background:var(--panel-3)}
+  html.theme-dark .sh-note{background:#33290f;border-color:#5c4d1d;color:#e3d08f}
+  html.theme-dark .gw-h{border-bottom-color:var(--line)}
+  html.theme-dark .base-sel select{background:var(--panel-3);color:var(--txt)}
+  html.theme-dark ::-webkit-scrollbar-thumb{background:#33456a}
+  html.theme-dark ::-webkit-scrollbar-thumb:hover{background:#41547c}
+  /* кнопки «тема» и «доступность» в шапке */
+  .tb-btns{display:inline-flex;gap:6px;align-items:center}
+  .tb-btn{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);background:var(--card);border-radius:8px;cursor:pointer;color:var(--muted);padding:0}
+  .tb-btn:hover{border-color:var(--blue);color:var(--blue);background:var(--panel-2)}
+  .tb-btn.on{border-color:var(--blue);color:var(--blue)}
+  /* 22.09-271: кнопки шапки с подписью, мигающий индикатор сервера, мини-окошко при наведении */
+  #dash-setup-btn{border-color:var(--blue);color:var(--blue);background:var(--card)}
+  #dash-setup-btn:hover{background:var(--blue);border-color:var(--blue);color:#fff}
+  #dash-setup-btn svg{width:15px;height:15px}
+  #sync-indicator{width:32px;height:32px;min-width:32px;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:0;color:var(--txt);display:inline-flex;align-items:center;justify-content:center;cursor:default;user-select:none;box-sizing:border-box} /* 22.09-287: квадрат как у соседних кнопок, без стрелки */
+  #sync-indicator:hover{border-color:var(--blue);background:var(--panel-2)}
+  .sp-dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:#94a3b8;animation:spBlink 1.7s ease-in-out infinite}
+  @keyframes spBlink{0%,100%{opacity:1}50%{opacity:.28}}
+  html.a11y-calm .sp-dot{animation:none}
+  /* 22.09-276: плавное появление страницы при переходе (в режиме «без анимаций» отключено) */
+  @keyframes spPageIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  #view.page-in{animation:spPageIn .18s ease-out}
+  #sp-mini-tip{position:fixed;z-index:220;display:none;min-width:210px;max-width:320px;background:var(--card);color:var(--txt);
+    border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(15,39,64,.18);padding:10px 12px;font-size:12.5px;line-height:1.5}
+  #sp-mini-tip .mt-h{font-weight:800;display:flex;align-items:center;gap:7px;margin-bottom:5px}
+  #sp-mini-tip .mt-r{color:var(--muted)}
+  #sp-mini-tip .mt-r b{color:var(--txt)}
+  #sp-mini-tip .mt-hint{margin-top:6px;padding-top:6px;border-top:1px solid var(--line);color:var(--muted);font-size:11.5px}
+  .tb-btn svg{width:17px;height:17px;display:block}
+  #theme-toggle .ic-sun{display:none}
+  html.theme-dark #theme-toggle .ic-sun{display:block}
+  html.theme-dark #theme-toggle .ic-moon{display:none}
+  #a11y-dropdown{position:fixed;top:64px;right:76px;z-index:210;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-lg);min-width:300px;padding:6px 0}
+  #a11y-dropdown .ad-h{padding:10px 14px 8px;font-size:13px;font-weight:800;color:var(--ink);border-bottom:1px solid var(--line)}
+  #a11y-dropdown label{display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;font-size:13px;color:var(--txt)}
+  #a11y-dropdown label:hover{background:var(--panel-2)}
+  #a11y-dropdown label input{width:16px;height:16px;accent-color:var(--blue);flex:0 0 16px}
+  #a11y-dropdown .ad-sub{padding:7px 14px 9px;font-size:11.5px;color:var(--muted);line-height:1.45;border-top:1px solid var(--line);margin-top:4px}
+  /* ===== Режимы для слабовидящих. Порядок важен: a11y-contrast объявлен ПОСЛЕ
+     theme-dark — при включении обоих его токены побеждают ===== */
+  html.a11y-large{zoom:1.2}
+  html.a11y-mono body,html.a11y-mono input,html.a11y-mono select,html.a11y-mono textarea,html.a11y-mono button,html.a11y-mono .dt,html.a11y-mono .modal,html.a11y-mono .toast{font-family:'Courier New',Consolas,monospace}
+  html.a11y-calm *,html.a11y-calm *::before,html.a11y-calm *::after{animation:none!important;transition:none!important}
+  html.a11y-contrast{
+    --bg:#000; --card:#050505; --panel-2:#0a0a0a; --panel-3:#161616; --navy:#000; --navy2:#0d0d0d; --slate:#101010;
+    --line:#fff; --ink:#fff; --txt:#fff; --muted:#e6e6e6;
+    --blue:#ffd400; --blue-d:#ffe14d; --green:#00e676; --green-l:#00331a;
+    --yellow:#ffd400; --yellow-l:#332b00; --red:#ff6b6b; --red-l:#330000;
+    --shadow:0 0 0 1px rgba(255,255,255,.25); --shadow-lg:0 0 0 2px rgba(255,255,255,.35);
+  }
+  html.a11y-contrast .card,html.a11y-contrast .dt,html.a11y-contrast .modal,html.a11y-contrast .gt-btn,html.a11y-contrast .btn,html.a11y-contrast .seg,html.a11y-contrast .tb-btn{border-width:2px}
+  html.a11y-contrast a,html.a11y-contrast .cookie-link{color:var(--blue)!important;text-decoration:underline}
+  html.a11y-contrast .btn.primary,html.a11y-contrast .btn.ok,html.a11y-contrast .btn.danger{color:#000}
+  html.a11y-contrast .chip,html.a11y-contrast .tag,html.a11y-contrast .taskline .pill{color:#fff;outline:1px solid #fff}
+  html.a11y-contrast .tile{background:#1a1a1a}
+  html.a11y-contrast .tile .tw,html.a11y-contrast .tile.t-green .tw,html.a11y-contrast .tile.t-yellow .tw,html.a11y-contrast .tile.t-red .tw,html.a11y-contrast .tile.t-done .tw,html.a11y-contrast .tile.t-weather .tw{color:#fff!important}
+  html.a11y-contrast #sync-indicator{color:#fff!important;background:#000!important}
+
+  /* ===== 22.09-259b: ДОВОДКА — светлые блоки, закреплённые жёсткими/инлайн-стилями,
+     и тёмные тексты, которые в тёмной/контрастной теме должны стать светлыми.
+     Инлайн-цвета перебиваются через !important только в этих двух режимах. ===== */
+  /* таблицы */
+  html.theme-dark table.dt th,html.a11y-contrast table.dt th{background:var(--panel-2);color:var(--muted)}
+  html.theme-dark table.dt tr:hover td,html.a11y-contrast table.dt tr:hover td{background:var(--panel-3)}
+  /* календарь */
+  html.theme-dark .col-head,html.a11y-contrast .col-head{background:var(--panel-2)}
+  html.theme-dark .cell.we,html.a11y-contrast .cell.we{background:var(--panel-3)}
+  html.theme-dark .cell.today,html.a11y-contrast .cell.today{background:var(--panel-2);box-shadow:inset 0 0 0 2px var(--blue)}
+  /* карты */
+  html.theme-dark .map-box{background:#26344a}
+  html.a11y-contrast .map-box{background:#111}
+  /* блок-подсказка «.calc» и кнопка «карта погоды» */
+  html.theme-dark .calc,html.a11y-contrast .calc{background:var(--panel-2);border-color:var(--line);color:var(--txt)}
+  html.theme-dark .wx-map-fab{background:rgba(13,22,38,.55);border-color:rgba(139,160,191,.55);color:var(--ink)}
+  html.a11y-contrast .wx-map-fab{background:#000;border-color:#fff;color:#fff}
+  /* чипы участков и ролей (жёсткие светлые фоны) */
+  html.theme-dark .chip.ГРП,html.theme-dark .chip.blue,html.a11y-contrast .chip.ГРП,html.a11y-contrast .chip.blue{background:#16294d;color:#a8c6f5}
+  html.theme-dark .chip.ШРП,html.a11y-contrast .chip.ШРП{background:var(--green-l);color:#9fe8c4}
+  html.theme-dark .chip.ГРС,html.theme-dark .chip.teal,html.a11y-contrast .chip.ГРС,html.a11y-contrast .chip.teal{background:#0e3038;color:#9fe8e0}
+  html.theme-dark .chip.ПГРП,html.a11y-contrast .chip.ПГРП{background:#3a250f;color:#f5cfa0}
+  html.theme-dark .chip.Трасса,html.a11y-contrast .chip.Трасса{background:#3a2f14;color:#f0d48a}
+  html.theme-dark .chip.navy,html.theme-dark .chip.slate,html.a11y-contrast .chip.navy,html.a11y-contrast .chip.slate{background:var(--panel-3);color:var(--txt)}
+  html.theme-dark .chip.purple,html.a11y-contrast .chip.purple{background:#2a2144;color:#d3c6f5}
+  html.a11y-contrast .chip{background:#1a1a1a}
+  /* --- инлайн-фоны (задаются в разметке страниц): светлые → тёмные --- */
+  html.theme-dark [style*="background:#f1f5f9"],html.a11y-contrast [style*="background:#f1f5f9"],
+  html.theme-dark [style*="background:#f8fafc"],html.a11y-contrast [style*="background:#f8fafc"],
+  html.theme-dark [style*="background:#fafafa"],html.a11y-contrast [style*="background:#fafafa"],
+  html.theme-dark [style*="background:#fafbfc"],html.a11y-contrast [style*="background:#fafbfc"],
+  html.theme-dark [style*="background:#f3f4f6"],html.a11y-contrast [style*="background:#f3f4f6"]{background:var(--panel-2)!important}
+  html.theme-dark [style*="background:#eef2f6"],html.a11y-contrast [style*="background:#eef2f6"],
+  html.theme-dark [style*="background:#e2e8f0"],html.a11y-contrast [style*="background:#e2e8f0"],
+  html.theme-dark [style*="background:#e8eef3"],html.a11y-contrast [style*="background:#e8eef3"]{background:var(--panel-3)!important}
+  html.theme-dark [style*="background:#eff6ff"],html.a11y-contrast [style*="background:#eff6ff"],
+  html.theme-dark [style*="background:#f5f9ff"],html.a11y-contrast [style*="background:#f5f9ff"]{background:var(--panel-2)!important;color:var(--txt)!important}
+  html.theme-dark [style*="background:#dcfce7"],html.a11y-contrast [style*="background:#dcfce7"],
+  html.theme-dark [style*="background:#f0fdf4"],html.a11y-contrast [style*="background:#f0fdf4"]{background:var(--green-l)!important;color:#9fe8c4!important}
+  html.theme-dark [style*="background:#fee2e2"],html.a11y-contrast [style*="background:#fee2e2"]{background:var(--red-l)!important;color:#f5b3ad!important}
+  html.theme-dark [style*="background:#fef9c3"],html.a11y-contrast [style*="background:#fef9c3"]{background:var(--yellow-l)!important;color:#f0d9a0!important}
+  html.theme-dark [style*="background:#fef3c7"],html.a11y-contrast [style*="background:#fef3c7"]{background:#3a2f14!important;color:#f0d48a!important}
+  html.theme-dark [style*="background:#dbeafe"],html.a11y-contrast [style*="background:#dbeafe"]{background:#16294d!important;color:#a8c6f5!important}
+  html.theme-dark [style*="background:#cffafe"],html.a11y-contrast [style*="background:#cffafe"]{background:#0e3038!important;color:#9fe8e0!important}
+  html.theme-dark [style*="background:#fed7aa"],html.a11y-contrast [style*="background:#fed7aa"]{background:#3a250f!important;color:#f5cfa0!important}
+  html.theme-dark [style*="background:#ede9fe"],html.a11y-contrast [style*="background:#ede9fe"]{background:#2a2144!important;color:#d3c6f5!important}
+  html.theme-dark [style*="background:#ccfbf1"],html.a11y-contrast [style*="background:#ccfbf1"]{background:#0e3038!important;color:#9fe8e0!important}
+  html.theme-dark [style*="background:#fff"],html.a11y-contrast [style*="background:#fff"],
+  html.theme-dark [style*="background:#ffffff"],html.a11y-contrast [style*="background:#ffffff"]{background:var(--card)!important;color:var(--txt)!important}
+  /* тот же список для записи background-color:#... (график смен и пр.) */
+  html.theme-dark [style*="background-color:#f1f5f9"],html.a11y-contrast [style*="background-color:#f1f5f9"],
+  html.theme-dark [style*="background-color:#f8fafc"],html.a11y-contrast [style*="background-color:#f8fafc"],
+  html.theme-dark [style*="background-color:#fafafa"],html.a11y-contrast [style*="background-color:#fafafa"],
+  html.theme-dark [style*="background-color:#fafbfc"],html.a11y-contrast [style*="background-color:#fafbfc"],
+  html.theme-dark [style*="background-color:#f3f4f6"],html.a11y-contrast [style*="background-color:#f3f4f6"]{background:var(--panel-2)!important}
+  html.theme-dark [style*="background-color:#eef2f6"],html.a11y-contrast [style*="background-color:#eef2f6"],
+  html.theme-dark [style*="background-color:#eef2f7"],html.a11y-contrast [style*="background-color:#eef2f7"],
+  html.theme-dark [style*="background:#eef2f7"],html.a11y-contrast [style*="background:#eef2f7"],
+  html.theme-dark [style*="background-color:#e2e8f0"],html.a11y-contrast [style*="background-color:#e2e8f0"],
+  html.theme-dark [style*="background-color:#e8eef3"],html.a11y-contrast [style*="background-color:#e8eef3"]{background:var(--panel-3)!important}
+  html.theme-dark [style*="background-color:#eff6ff"],html.a11y-contrast [style*="background-color:#eff6ff"],
+  html.theme-dark [style*="background-color:#f5f9ff"],html.a11y-contrast [style*="background-color:#f5f9ff"]{background:var(--panel-2)!important;color:var(--txt)!important}
+  html.theme-dark [style*="background-color:#dcfce7"],html.a11y-contrast [style*="background-color:#dcfce7"],
+  html.theme-dark [style*="background-color:#f0fdf4"],html.a11y-contrast [style*="background-color:#f0fdf4"]{background:var(--green-l)!important;color:#9fe8c4!important}
+  html.theme-dark [style*="background-color:#fee2e2"],html.a11y-contrast [style*="background-color:#fee2e2"]{background:var(--red-l)!important;color:#f5b3ad!important}
+  html.theme-dark [style*="background-color:#fef9c3"],html.a11y-contrast [style*="background-color:#fef9c3"]{background:var(--yellow-l)!important;color:#f0d9a0!important}
+  html.theme-dark [style*="background-color:#fef3c7"],html.a11y-contrast [style*="background-color:#fef3c7"]{background:#3a2f14!important;color:#f0d48a!important}
+  html.theme-dark [style*="background-color:#dbeafe"],html.a11y-contrast [style*="background-color:#dbeafe"]{background:#16294d!important;color:#a8c6f5!important}
+  html.theme-dark [style*="background-color:#cffafe"],html.a11y-contrast [style*="background-color:#cffafe"]{background:#0e3038!important;color:#9fe8e0!important}
+  html.theme-dark [style*="background-color:#fed7aa"],html.a11y-contrast [style*="background-color:#fed7aa"]{background:#3a250f!important;color:#f5cfa0!important}
+  html.theme-dark [style*="background-color:#ede9fe"],html.a11y-contrast [style*="background-color:#ede9fe"]{background:#2a2144!important;color:#d3c6f5!important}
+  html.theme-dark [style*="background-color:#ccfbf1"],html.a11y-contrast [style*="background-color:#ccfbf1"]{background:#0e3038!important;color:#9fe8e0!important}
+  html.theme-dark [style*="background-color:#fff"],html.a11y-contrast [style*="background-color:#fff"],
+  html.theme-dark [style*="background-color:#ffffff"],html.a11y-contrast [style*="background-color:#ffffff"]{background:var(--card)!important;color:var(--txt)!important}
+  /* часы «Карты местоположения» — полупрозрачный белый бокс */
+  html.theme-dark #lm-clock-box{background:rgba(21,34,56,.97)!important;color:var(--txt)!important}
+  html.a11y-contrast #lm-clock-box{background:rgba(0,0,0,.97)!important;color:#fff!important}
+  /* текстовые поля без инлайн-фона (поиск логов и пр.) */
+  html.theme-dark input,html.theme-dark select,html.theme-dark textarea{background-color:var(--panel-3);color:var(--txt)}
+  html.a11y-contrast input,html.a11y-contrast select,html.a11y-contrast textarea{background-color:var(--panel-3);color:#fff;border-color:#fff}
+  /* сегментные переключатели в контрастном режиме */
+  html.a11y-contrast .seg{background:#161616}
+  /* --- инлайн-тексты: тёмные → светлые (в тёмной теме шрифты должны быть светлые) --- */
+  html.theme-dark [style*="color:#1f2937"],html.a11y-contrast [style*="color:#1f2937"],
+  html.theme-dark [style*="color:#334155"],html.a11y-contrast [style*="color:#334155"],
+  html.theme-dark [style*="color:#475569"],html.a11y-contrast [style*="color:#475569"],
+  html.theme-dark [style*="color:#0f2740"],html.a11y-contrast [style*="color:#0f2740"],
+  html.theme-dark [style*="color:#111827"],html.a11y-contrast [style*="color:#111827"]{color:var(--txt)!important}
+  html.theme-dark [style*="color:#16a34a"],html.a11y-contrast [style*="color:#16a34a"],
+  html.theme-dark [style*="color:#10b981"],html.a11y-contrast [style*="color:#10b981"]{color:#3ecf8e!important}
+  html.theme-dark [style*="color:#15803d"],html.a11y-contrast [style*="color:#15803d"],
+  html.theme-dark [style*="color:#166534"],html.a11y-contrast [style*="color:#166534"],
+  html.theme-dark [style*="color:#14532d"],html.a11y-contrast [style*="color:#14532d"]{color:#9fe8c4!important}
+  html.theme-dark [style*="color:#0d9488"],html.a11y-contrast [style*="color:#0d9488"]{color:#5eead4!important}
+  html.theme-dark [style*="color:#0369a1"],html.a11y-contrast [style*="color:#0369a1"]{color:#7dd3fc!important}
+  html.theme-dark [style*="color:#dc2626"],html.a11y-contrast [style*="color:#dc2626"],
+  html.theme-dark [style*="color:#c8102e"],html.a11y-contrast [style*="color:#c8102e"],
+  html.theme-dark [style*="color:#fc3f1d"],html.a11y-contrast [style*="color:#fc3f1d"]{color:#ef7a72!important}
+  html.theme-dark [style*="color:#b91c1c"],html.a11y-contrast [style*="color:#b91c1c"],
+  html.theme-dark [style*="color:#991b1b"],html.a11y-contrast [style*="color:#991b1b"],
+  html.theme-dark [style*="color:#7f1d1d"],html.a11y-contrast [style*="color:#7f1d1d"]{color:#f5b3ad!important}
+  html.theme-dark [style*="color:#2563eb"],html.a11y-contrast [style*="color:#2563eb"]{color:#5b96f7!important}
+  html.theme-dark [style*="color:#1d4ed8"],html.a11y-contrast [style*="color:#1d4ed8"],
+  html.theme-dark [style*="color:#1e40af"],html.a11y-contrast [style*="color:#1e40af"]{color:#a8c6f5!important}
+  html.theme-dark [style*="color:#1e3a8a"],html.a11y-contrast [style*="color:#1e3a8a"]{color:#a8c6f5!important}
+  html.theme-dark [style*="color:#92400e"],html.a11y-contrast [style*="color:#92400e"],
+  html.theme-dark [style*="color:#b45309"],html.a11y-contrast [style*="color:#b45309"],
+  html.theme-dark [style*="color:#ca8a04"],html.a11y-contrast [style*="color:#ca8a04"],
+  html.theme-dark [style*="color:#854d0e"],html.a11y-contrast [style*="color:#854d0e"],
+  html.theme-dark [style*="color:#78350f"],html.a11y-contrast [style*="color:#78350f"]{color:#f0d9a0!important}
+  html.theme-dark [style*="color:#d97706"],html.a11y-contrast [style*="color:#d97706"],
+  html.theme-dark [style*="color:#f59e0b"],html.a11y-contrast [style*="color:#f59e0b"],
+  html.theme-dark [style*="color:#fbbf24"],html.a11y-contrast [style*="color:#fbbf24"]{color:#f0c060!important}
+  html.theme-dark [style*="color:#c2410c"],html.a11y-contrast [style*="color:#c2410c"]{color:#f5cfa0!important}
+  *{box-sizing:border-box}
+  /* ===== Оффлайн-баннер ===== */
+  /* 22.09-294: плашка «Нет соединения» — в том же стиле, что карточки «Сайт в сети/не в сети»;
+     пока показывается карточка (html.sp-oc-on), плашка ждёт наверху и не мешает */
+  #net-banner{position:fixed;top:7px;left:50%;transform:translate(-50%,-150%);z-index:999990;display:inline-flex;align-items:center;gap:9px;
+    max-width:92vw;padding:9px 16px 9px 14px;border-radius:14px;font-size:12.5px;font-weight:700;color:#fee2e2;text-align:center;
+    background:linear-gradient(135deg,#3f1120 0%,#7f1d1d 55%,#b91c1c 100%);border:1px solid rgba(252,165,165,.42);
+    box-shadow:0 14px 32px rgba(127,29,29,.4),inset 0 1px 0 rgba(255,255,255,.16);pointer-events:none;
+    opacity:0;transition:transform .28s cubic-bezier(.22,.9,.3,1),opacity .28s ease}
+  #net-banner::before{content:"";flex:0 0 auto;width:9px;height:9px;border-radius:50%;background:#fca5a5;animation:netPulse 1.7s ease-out infinite}
+  @keyframes netPulse{0%{box-shadow:0 0 0 0 rgba(252,165,165,.65)}70%{box-shadow:0 0 0 10px rgba(252,165,165,0)}100%{box-shadow:0 0 0 0 rgba(252,165,165,0)}}
+  @media (prefers-reduced-motion:reduce){#net-banner::before{animation:none}}
+  #net-banner.show{transform:translate(-50%,0);opacity:1}
+  html.sp-oc-on #net-banner{transform:translate(-50%,-150%)!important;opacity:0!important} /* карточка на экране — плашка ждёт */
+
+  /* ===== 22.09-298: анимации, часть 3 — плитки панели, тема, меню ===== */
+  /* Пункт меню, на который только что перешли, мягко «вспыхивает» (класс живёт 0,6 с) */
+  @keyframes spNavPulse{0%{box-shadow:0 0 0 0 rgba(96,165,250,.55)}100%{box-shadow:0 0 0 10px rgba(96,165,250,0)}}
+  .nav a.active.sp-pulse{animation:spNavPulse .6s ease-out} /* 22.09-298: сильнее прежнего правила .nav a.active */
+  /* Перетекание светлой и тёмной темы: класс ставится только на время переключения (0,4 с),
+     поэтому постоянные переходы сайта не затрагиваются. */
+  html.sp-theme-anim,html.sp-theme-anim body,html.sp-theme-anim .card,html.sp-theme-anim .kpi,
+  html.sp-theme-anim .tile,html.sp-theme-anim .modal,html.sp-theme-anim .dt,html.sp-theme-anim .dt td,
+  html.sp-theme-anim .dt th,html.sp-theme-anim .nav,html.sp-theme-anim .nav a,html.sp-theme-anim .seg,
+  html.sp-theme-anim .chip,html.sp-theme-anim .tb-btn,html.sp-theme-anim .toast,html.sp-theme-anim .fld input,
+  html.sp-theme-anim .fld select,html.sp-theme-anim .tree li.w,html.sp-theme-anim .mname,html.sp-theme-anim .cell,
+  html.sp-theme-anim .cal-grid,html.sp-theme-anim #view,html.sp-theme-anim .card-b,html.sp-theme-anim .modal-h,
+  html.sp-theme-anim .modal-f,html.sp-theme-anim .btn,html.sp-theme-anim #topbar{
+    transition:background-color .3s ease,color .3s ease,border-color .3s ease,box-shadow .3s ease!important}
+  @media (prefers-reduced-motion:reduce){
+    html.sp-theme-anim,html.sp-theme-anim body,html.sp-theme-anim .card,html.sp-theme-anim .kpi,
+    html.sp-theme-anim .tile,html.sp-theme-anim .modal,html.sp-theme-anim .dt,html.sp-theme-anim .dt td,
+    html.sp-theme-anim .dt th,html.sp-theme-anim .nav,html.sp-theme-anim .nav a,html.sp-theme-anim .seg,
+    html.sp-theme-anim .chip,html.sp-theme-anim .tb-btn,html.sp-theme-anim .toast,html.sp-theme-anim .fld input,
+    html.sp-theme-anim .fld select,html.sp-theme-anim .tree li.w,html.sp-theme-anim .mname,html.sp-theme-anim .cell,
+    html.sp-theme-anim .cal-grid,html.sp-theme-anim #view,html.sp-theme-anim .card-b,html.sp-theme-anim .modal-h,
+    html.sp-theme-anim .modal-f,html.sp-theme-anim .btn,html.sp-theme-anim #topbar{transition:none!important}
+    .nav a.active.sp-pulse{animation:none}
+  }
+
+  /* ===== 22.09-297: анимации, часть 2 — списки, таблицы, календарь, графики ===== */
+  /* Строки списков и таблиц появляются коротким каскадом. Класс sp-cascade живёт
+     недолго и ставится только при смене страницы/вкладки, поэтому при обновлении
+     данных строки не «мигают» заново. Задержки — только у первых строк (дальше сразу). */
+  @keyframes spRowIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  .sp-cascade .tree li.w,.sp-cascade #view table.dt tbody tr,.sp-cascade .gw-grid > *{animation:spRowIn .16s ease-out backwards}
+  .sp-cascade .tree li.w:nth-child(1),.sp-cascade #view table.dt tbody tr:nth-child(1),.sp-cascade .gw-grid > *:nth-child(1){animation-delay:0ms}
+  .sp-cascade .tree li.w:nth-child(2),.sp-cascade #view table.dt tbody tr:nth-child(2),.sp-cascade .gw-grid > *:nth-child(2){animation-delay:14ms}
+  .sp-cascade .tree li.w:nth-child(3),.sp-cascade #view table.dt tbody tr:nth-child(3),.sp-cascade .gw-grid > *:nth-child(3){animation-delay:28ms}
+  .sp-cascade .tree li.w:nth-child(4),.sp-cascade #view table.dt tbody tr:nth-child(4),.sp-cascade .gw-grid > *:nth-child(4){animation-delay:42ms}
+  .sp-cascade .tree li.w:nth-child(5),.sp-cascade #view table.dt tbody tr:nth-child(5),.sp-cascade .gw-grid > *:nth-child(5){animation-delay:56ms}
+  .sp-cascade .tree li.w:nth-child(6),.sp-cascade #view table.dt tbody tr:nth-child(6),.sp-cascade .gw-grid > *:nth-child(6){animation-delay:70ms}
+  .sp-cascade .tree li.w:nth-child(7),.sp-cascade #view table.dt tbody tr:nth-child(7),.sp-cascade .gw-grid > *:nth-child(7){animation-delay:84ms}
+  .sp-cascade .tree li.w:nth-child(8),.sp-cascade #view table.dt tbody tr:nth-child(8),.sp-cascade .gw-grid > *:nth-child(8){animation-delay:98ms}
+  .sp-cascade .tree li.w:nth-child(9),.sp-cascade #view table.dt tbody tr:nth-child(9),.sp-cascade .gw-grid > *:nth-child(9){animation-delay:112ms}
+  .sp-cascade .tree li.w:nth-child(10),.sp-cascade #view table.dt tbody tr:nth-child(10),.sp-cascade .gw-grid > *:nth-child(10){animation-delay:126ms}
+  /* Календарь: волна дней при смене периода (месяц/неделя/день) — и только тогда */
+  @keyframes spCellIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+  .cal-grid.sp-wave > *,.sp-cascade .cal-grid > *{animation:spCellIn .18s ease-out backwards}
+  .cal-grid.sp-wave > *:nth-child(1),.sp-cascade .cal-grid > *:nth-child(1){animation-delay:0ms}
+  .cal-grid.sp-wave > *:nth-child(2),.sp-cascade .cal-grid > *:nth-child(2){animation-delay:12ms}
+  .cal-grid.sp-wave > *:nth-child(3),.sp-cascade .cal-grid > *:nth-child(3){animation-delay:24ms}
+  .cal-grid.sp-wave > *:nth-child(4),.sp-cascade .cal-grid > *:nth-child(4){animation-delay:36ms}
+  .cal-grid.sp-wave > *:nth-child(5),.sp-cascade .cal-grid > *:nth-child(5){animation-delay:48ms}
+  .cal-grid.sp-wave > *:nth-child(6),.sp-cascade .cal-grid > *:nth-child(6){animation-delay:60ms}
+  .cal-grid.sp-wave > *:nth-child(7),.sp-cascade .cal-grid > *:nth-child(7){animation-delay:72ms}
+  .cal-grid.sp-wave > *:nth-child(8),.sp-cascade .cal-grid > *:nth-child(8){animation-delay:84ms}
+  .cal-grid.sp-wave > *:nth-child(9),.sp-cascade .cal-grid > *:nth-child(9){animation-delay:96ms}
+  .cal-grid.sp-wave > *:nth-child(10),.sp-cascade .cal-grid > *:nth-child(10){animation-delay:108ms}
+  .cal-grid.sp-wave > *:nth-child(11),.sp-cascade .cal-grid > *:nth-child(11){animation-delay:120ms}
+  .cal-grid.sp-wave > *:nth-child(12),.sp-cascade .cal-grid > *:nth-child(12){animation-delay:132ms}
+  /* Найденная поиском строка — мягкая волна подсветки (вместо резкой заливки) */
+  .sp-flash{animation:spFlash 2.4s ease-out 1}
+  @keyframes spFlash{0%{background-color:rgba(254,240,138,0)}12%{background-color:#fef08a}72%{background-color:#fef08a}100%{background-color:rgba(254,240,138,0)}}
+  /* Галочка выполнения «вылетает» из плитки задачи (показывается в момент отметки) */
+  #sp-done-pop{position:fixed;z-index:2147482900;pointer-events:none;transform:translate(-50%,0);animation:spDonePop .78s cubic-bezier(.2,.9,.3,1) forwards}
+  #sp-done-pop .sp-dp-tick{stroke-dasharray:34;stroke-dashoffset:34;animation:spTickDraw .3s ease-out .06s forwards}
+  @keyframes spDonePop{0%{opacity:0;transform:translate(-50%,6px) scale(.6)}35%{opacity:1;transform:translate(-50%,-14px) scale(1.06)}100%{opacity:0;transform:translate(-50%,-46px) scale(1)}}
+  /* «Летящая» карточка задачи при перетаскивании (вместо полупрозрачного снимка плитки) */
+  #sp-drag-ghost{position:fixed;left:-1200px;top:-1200px;z-index:2147483200;pointer-events:none;max-width:270px;
+    background:var(--card);border:1px solid var(--blue);border-radius:10px;box-shadow:0 12px 30px rgba(15,23,42,.3);
+    padding:8px 12px;font-size:12.5px;font-weight:700;color:var(--ink)}
+  #sp-drag-ghost .sp-dg-sub{display:block;font-weight:500;font-size:11px;color:var(--muted);margin-top:2px}
+  /* Ячейка, на которую можно бросить задачу, мягко «дышит» */
+  .cell.drop-on{animation:spDropPulse .9s ease-in-out infinite}
+  @keyframes spDropPulse{0%,100%{box-shadow:inset 0 0 0 0 rgba(37,99,235,0)}50%{box-shadow:inset 0 0 0 3px rgba(37,99,235,.3)}}
+  @media (prefers-reduced-motion:reduce){
+    .sp-cascade .tree li.w,.sp-cascade #view table.dt tbody tr,.sp-cascade .gw-grid > *,.cal-grid.sp-wave > *,.sp-cascade .cal-grid > *{animation:none}
+    .cell.drop-on{animation:none}
+    #sp-done-pop{animation-duration:.01s}#sp-done-pop .sp-dp-tick{animation-duration:.01s}
+  }
+
+  /* ===== 22.09-292: живая полоска состояния сервера вверху экрана =====
+     оранжевая — идёт подключение, зелёная — сервер в сети (гаснет сама),
+     красная — сервера нет. По полоске бегает мягкий отсвет того же цвета. */
+  #sp-conn-line{position:fixed;left:0;right:0;top:0;height:3px;z-index:2147482998;pointer-events:none;opacity:0;transition:opacity .45s ease;overflow:hidden}
+  #sp-conn-line.cl-on{opacity:1}
+  #sp-conn-line .cl-base{position:absolute;left:0;right:0;top:0;bottom:0;opacity:.42}
+  #sp-conn-line .cl-run{position:absolute;top:0;bottom:0;left:0;width:32%;opacity:.95;animation:clRun var(--cl-dur,2.6s) linear infinite;will-change:transform}
+  #sp-conn-line .cl-run2{width:18%;opacity:.6;animation-delay:calc(var(--cl-dur,2.6s) / -2)}
+  @keyframes clRun{0%{transform:translateX(-120%)}100%{transform:translateX(340%)}}
+  #sp-conn-line.cl-ok{--cl-dur:3.4s}
+  #sp-conn-line.cl-ok .cl-base{background:#16a34a}
+  #sp-conn-line.cl-ok .cl-run{background:radial-gradient(closest-side,#bbf7d0 0%,rgba(34,197,94,.9) 48%,rgba(34,197,94,0) 100%);filter:drop-shadow(0 0 6px rgba(34,197,94,.9))}
+  #sp-conn-line.cl-warn{--cl-dur:2.1s}
+  #sp-conn-line.cl-warn .cl-base{background:#f59e0b}
+  #sp-conn-line.cl-warn .cl-run{background:radial-gradient(closest-side,#fde68a 0%,rgba(245,158,11,.92) 48%,rgba(245,158,11,0) 100%);filter:drop-shadow(0 0 6px rgba(245,158,11,.95))}
+  #sp-conn-line.cl-bad{--cl-dur:1.4s}
+  #sp-conn-line.cl-bad .cl-base{background:#dc2626}
+  #sp-conn-line.cl-bad .cl-run{background:radial-gradient(closest-side,#fecaca 0%,rgba(239,68,68,.95) 45%,rgba(239,68,68,0) 100%);filter:drop-shadow(0 0 7px rgba(239,68,68,.95))}
+  @media (prefers-reduced-motion:reduce){#sp-conn-line .cl-run{animation:none;opacity:0}#sp-conn-line .cl-base{opacity:.8}}
+  /* ===== 22.09-292: красивое уведомление «Сайт в сети» ===== */
+  #sp-online-card{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:2147482997;display:flex;align-items:center;gap:12px;max-width:min(92vw,470px);
+    padding:11px 16px;border-radius:15px;cursor:pointer;overflow:hidden;color:#f0fdf4;
+    background:linear-gradient(135deg,#04331f 0%,#0b5c3d 52%,#12805c 100%);
+    border:1px solid rgba(134,239,172,.42);
+    box-shadow:0 18px 40px rgba(6,78,59,.42),inset 0 1px 0 rgba(255,255,255,.20);
+    opacity:0;pointer-events:none;transition:opacity .32s ease}
+  #sp-online-card.on{opacity:1;pointer-events:auto;animation:spOcIn .5s cubic-bezier(.2,.9,.25,1.05)}
+  /* 22.09-294: потеря связи — та же карточка, только красная */
+  #sp-online-card.oc-bad{background:linear-gradient(135deg,#3f1120 0%,#7f1d1d 55%,#b91c1c 100%);border-color:rgba(252,165,165,.42);
+    box-shadow:0 18px 40px rgba(127,29,29,.44),inset 0 1px 0 rgba(255,255,255,.18)}
+  #sp-online-card.oc-bad #sp-oc-ring{stroke:#fca5a5}
+  #sp-online-card.oc-bad .sp-oc-x{stroke-dasharray:13;stroke-dashoffset:13;animation:spOcX .3s ease-out .42s both}
+  @keyframes spOcX{from{stroke-dashoffset:13}to{stroke-dashoffset:0}}
+  #sp-online-card.oc-bad #sp-oc-sub{color:#fecaca}
+  #sp-online-card.oc-bad #sp-oc-bar{background:linear-gradient(90deg,#f87171,#fca5a5)}
+  @media (prefers-reduced-motion:reduce){#sp-online-card.oc-bad .sp-oc-x{animation-duration:.01s}}
+  @keyframes spOcIn{0%{opacity:0;transform:translate(-50%,-18px) scale(.95)}100%{opacity:1;transform:translate(-50%,0) scale(1)}}
+  #sp-online-card::after{content:"";position:absolute;top:0;bottom:0;left:-45%;width:45%;pointer-events:none;
+    background:linear-gradient(90deg,rgba(255,255,255,0) 0%,rgba(255,255,255,.17) 50%,rgba(255,255,255,0) 100%);
+    animation:spOcShine 1.6s ease-out .35s 1 both}
+  @keyframes spOcShine{to{left:120%}}
+  #sp-oc-ic{flex:0 0 auto;display:inline-flex}
+  #sp-oc-ic svg{display:block}
+  #sp-oc-ring{animation:spOcRing .6s ease-out both}
+  @keyframes spOcRing{from{stroke-dashoffset:119.4}to{stroke-dashoffset:0}}
+  #sp-oc-tick{animation:spOcTick .34s ease-out .44s both}
+  @keyframes spOcTick{from{stroke-dashoffset:34}to{stroke-dashoffset:0}}
+  #sp-oc-tx{display:flex;flex-direction:column;gap:2px;min-width:0}
+  #sp-oc-tx b{font-size:13.5px;letter-spacing:.2px;color:#fff}
+  #sp-oc-sub{font-size:11.5px;line-height:1.35;color:#bbf7d0}
+  #sp-oc-bar{position:absolute;left:0;bottom:0;height:2px;width:100%;transform-origin:left;
+    background:linear-gradient(90deg,#4ade80,#86efac);animation:spOcBar 5s linear both}
+  @keyframes spOcBar{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+  @media (prefers-reduced-motion:reduce){#sp-online-card.on{animation:none}#sp-online-card::after{animation:none;opacity:0}#sp-oc-ring,#sp-oc-tick{animation-duration:.01s}#sp-oc-bar{animation-duration:5s}}
+  /* ===== 22.09-229/292: панель группового изменения внизу справочника =====
+     Появляется, когда отмечена хотя бы одна работа; при отметке следующих
+     работ не перерисовывается — меняется только счётчик. */
+  #wsel-bar{position:fixed;left:50%;transform:translateX(-50%);bottom:12px;z-index:90;display:flex;align-items:center;gap:8px;
+    background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 6px 18px rgba(0,0,0,.18);
+    padding:8px 12px;font-size:12.5px;font-weight:700;animation:wselIn .26s ease-out}
+  @keyframes wselIn{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}
+  @media (prefers-reduced-motion:reduce){#wsel-bar{animation:none}}
+  /* ===== Скелетоны (shimmer) ===== */
+  @keyframes skelShimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
+  .skel{border-radius:10px;background:linear-gradient(90deg,var(--panel-3) 25%,var(--panel-2) 50%,var(--panel-3) 75%);background-size:800px 100%;animation:skelShimmer 1.3s linear infinite}
+  /* ===== Boot-сплэш (пока грузится приложение) ===== */
+  #boot-splash{position:fixed;inset:0;z-index:999999;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;transition:opacity .35s ease}
+  #boot-splash.hide{opacity:0;pointer-events:none}
+  #boot-splash img{width:74px;height:74px;border-radius:16px;background:#fff;padding:6px;box-shadow:var(--shadow-lg)}
+  @keyframes bootPulse{0%,100%{opacity:.35}50%{opacity:1}}
+  #boot-splash .boot-txt{font-size:13px;font-weight:700;color:var(--muted);animation:bootPulse 1.4s ease-in-out infinite}
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;overscroll-behavior:none}
+  body{
+    font-family:'Segoe UI',Roboto,-apple-system,BlinkMacSystemFont,Arial,sans-serif;
+    background:var(--bg);color:var(--txt);font-size:14px;line-height:1.4;
+  }
+  .app{display:flex;height:100vh;height:100dvh;overflow:hidden} /* 22.09-108: dvh — мобильные браузеры без среза низа */
+
+  /* ---------- SIDEBAR ---------- */
+  .sidebar{
+    width:248px;flex:0 0 248px;background:linear-gradient(180deg,var(--navy),var(--navy2));
+    color:#cbd5e1;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;
+  }
+  .brand{position:relative;display:flex;align-items:center;justify-content:center;text-align:center;min-height:66px;gap:10px;padding:9px 18px;border-bottom:1px solid rgba(255,255,255,.08)}
+  .brand .logo{position:absolute;left:18px;top:50%;transform:translateY(-50%);width:48px;height:48px;border-radius:12px;background:#fff;padding:5px;
+    object-fit:contain;box-shadow:0 4px 12px rgba(0,0,0,.25)}
+  .brand .bt{font-size:15px;font-weight:700;color:#fff;line-height:1.15}
+  .brand .bs{font-size:12px;color:#7dd3fc;letter-spacing:.3px}
+  .nav{padding:12px 10px;flex:1;overflow-y:auto}
+  .nav .grp{font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#64748b;padding:14px 10px 6px}
+  .nav a{
+    display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:9px;color:#cbd5e1;
+    text-decoration:none;cursor:pointer;font-size:13.5px;margin-bottom:2px;transition:.15s;border:1px solid transparent;
+    white-space:nowrap;overflow:hidden; /* 22.09-346: подпись пункта — всегда в одну строку, не «прыгает» при наведении */
+  }
+  .nav{scrollbar-gutter:stable} /* 22.09-347: ширина меню не меняется при появлении полосы прокрутки */
+  .nav a svg{width:18px;height:18px;flex:0 0 18px;opacity:.9}
+  .nav a:hover{background:rgba(255,255,255,.06);color:#fff}
+  .nav a.active{background:rgba(59,130,246,.18);color:#fff;border-color:rgba(96,165,250,.4)}
+  .nav a.active svg{opacity:1}
+  /* Подменю «Графики» — выезжает под «Планирование / Календарь» при наведении */
+  .nav-acc .nav-sub{max-height:0;opacity:0;overflow:hidden;transform:translateY(-6px);
+    transition:max-height .3s cubic-bezier(.4,0,.2,1),opacity .2s ease,transform .28s ease}
+  .nav-acc:hover .nav-sub,.nav-acc.open .nav-sub{max-height:56px;opacity:1;transform:translateY(0)}
+  .nav-sub a{padding:7px 12px 7px 25px;font-size:12.5px;color:#8fa6c4}
+  .nav-sub a svg{width:16px;height:16px;flex:0 0 16px}
+  .nav-sub a.active{color:#fff}
+  /* Тач-устройство (планшет без мыши): подменю «Графики» раскрыто всегда
+     (класс body.touch-ui ставит app.js по (hover:none) и (pointer:coarse)) */
+  body.touch-ui .nav-acc .nav-sub{max-height:56px;opacity:1;transform:none}
+  .nav .badge{margin-left:auto;background:var(--red);color:#fff;font-size:12px;font-weight:700;border-radius:20px;padding:1px 7px}
+  .sb-foot{padding:2px 16px;line-height:1.2;border-top:1px solid rgba(255,255,255,.08);font-size:12px;color:#64748b;display:flex;align-items:center;justify-content:center;text-align:center}
+  .jr-tabs{display:flex;gap:6px;flex-wrap:wrap;padding:14px 18px 0;margin-bottom:14px;border-bottom:2px solid var(--line)}
+  .jr-tab{appearance:none;border:1px solid var(--line);border-bottom:none;background:var(--panel-3,#f1f5f9);color:var(--muted);font:inherit;font-size:13.5px;font-weight:600;padding:9px 18px;border-radius:10px 10px 0 0;cursor:pointer;margin-bottom:-2px;transition:background .15s,color .15s}
+  .jr-tab:hover{color:var(--ink);background:var(--card)}
+  .jr-tab.active{background:var(--card);color:var(--blue);border-bottom:2px solid var(--card);box-shadow:0 -2px 8px rgba(0,0,0,.05)}
+  .base-sel{padding:10px 16px 12px;border-bottom:1px solid rgba(255,255,255,.08)}
+  .base-lbl{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:#64748b;margin-bottom:5px;font-weight:600}
+  .base-sel select{width:100%;padding:7px 9px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:12px;font-family:inherit;cursor:pointer;font-weight:600;}
+  .base-sel select option{color:var(--ink);background:var(--card);}
+  .base-sel select:focus{outline:none;border-color:rgba(96,165,250,.5)}
+
+  /* ---------- MAIN ---------- */
+  .main{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column} /* 22.09-108: min-height:0 — иначе при скрытом сайдбаре (колонка ≤1080px) #view не сжимается и скролл пропадает */
+  .topbar{
+    background:var(--card);border-bottom:1px solid var(--line);padding:0 22px;height:62px;
+    display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:20;
+  }
+  .topbar h1{font-size:16.5px;font-weight:700;color:var(--ink);margin:0}
+  .topbar .crumb{font-size:12px;color:var(--muted)}
+  .topbar .spacer{flex:1}
+  .btn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--card);color:var(--ink);
+    padding:8px 13px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;transition:.15s;font-family:inherit}
+  .btn:hover{background:#f8fafc;border-color:#cbd5e1}
+  .btn svg{width:16px;height:16px}
+  .btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+  .btn.primary:hover{background:var(--blue-d)}
+  .btn.ghost{background:transparent}
+  .btn.sm{padding:5px 9px;font-size:12px}
+  .btn.ok{background:var(--green);border-color:var(--green);color:#fff}
+  .btn.ok:hover{background:#15803d;border-color:#15803d;color:#fff}
+  .btn.danger{background:var(--red);border-color:var(--red);color:#fff}
+  .btn.danger:hover{background:#b91c1c;border-color:#b91c1c;color:#fff}
+  .usr{display:flex;align-items:center;gap:9px;padding-left:6px;position:relative}
+  .usr .av{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#64748b,#334155);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px}
+  .usr .un{font-size:12.5px;font-weight:600;color:var(--ink);line-height:1.1}
+  .usr .ur{font-size:12px;color:var(--muted)}
+  /* 22.09-106: кнопка «Выйти» спрятана в дропдаун; desktop — раскрытие по hover на блок пользователя, сенсор — по стрелочке ▾ */
+  #usr-caret{display:none;font-size:11.5px;color:#94a3b8;cursor:pointer;align-self:center;padding:2px 3px;margin-left:-2px}
+  body.usr-touch #usr-caret{display:inline-block}
+  .usr .usr-dd{display:none;position:absolute;top:100%;right:0;z-index:210;padding-top:7px}
+  .usr .usr-dd-in{background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(15,39,64,.18);padding:8px;min-width:150px}
+  @media (hover:hover){.usr:hover .usr-dd{display:block}}
+  .usr .usr-dd.show{display:block}
+  /* 22.09-108: подготовка к сенсорным экранам */
+  *{-webkit-tap-highlight-color:transparent} /* без серой вспышки при тапе */
+  /* без задержки/зума двойным тапом на элементах управления */
+  .btn, .nav a, .burger, .tile, .chip, label.cb, .modal button, .modal select, .modal input,
+  #usr-caret, .usr [data-action], .card-h [data-action]{touch-action:manipulation}
+  /* сенсор (нет hover): стрелочка меню пользователя видна и без JS */
+  @media (hover:none){#usr-caret{display:inline-block}}
+  /* iOS/Android не делают авто-зум при фокусе в поля модалок (нужен шрифт ≥16px) */
+  @media (hover:none) and (pointer:coarse){
+    .modal input, .modal select, .modal textarea{font-size:16px}
+    .btn{min-height:40px}
+  }
+
+  /* ---------- VIEW ---------- */
+  #view{padding:22px;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain} /* 22.09-108 */
+  /* Яндекс-карты: высота внутренних панелей карты — 96% (правка пользователя
+     по замеру в DevTools: панели выше видимой области — области срезались) */
+  ymaps-2-1-79-inner-panes,
+  .ymaps-2-1-79-inner-panes{height:96% !important}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius)}
+  .card-h{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}
+  .card-h h2{margin:0;font-size:14px;color:var(--ink);font-weight:700}
+  .card-h .sub{font-size:12px;color:var(--muted)}
+  .card-h .spacer{flex:1}
+  .card-b{padding:16px}
+
+  /* ---------- DASHBOARD ---------- */
+  .kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:16px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:15px 16px;position:relative;overflow:hidden}
+  .kpi .lab{font-size:12.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:600}
+  .kpi .val{font-size:27px;font-weight:800;color:var(--ink);margin-top:3px;line-height:1}
+  .kpi .hint{font-size:12.5px;color:var(--muted);margin-top:5px}
+  .kpi .acc{position:absolute;right:-14px;top:-14px;width:62px;height:62px;border-radius:50%;opacity:.12}
+  .dash-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:16px;margin-bottom:16px}
+  .dash-grid.dw-inv{grid-template-columns:1fr 1.4fr} /* 22.09-274: «Графики» первыми — колонки зеркалятся, ширина блоков та же */
+  .dash-grid.dw-one{grid-template-columns:1fr}
+  .wk-drop-on{outline:2px dashed #2563eb !important;outline-offset:4px}
+  .today-mstr{display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:9px;margin-top:9px}
+  .today-mstr .dot{width:10px;height:10px;border-radius:50%;flex:0 0 10px}
+  .today-mstr .nm{font-weight:700;color:var(--ink);font-size:13px}
+  .today-mstr .ar{font-size:12px;color:var(--muted)}
+  .today-mstr .meta{margin-left:auto;text-align:right;font-size:12px}
+  .today-mstr .h{font-weight:700}
+  .today-mstr .tag{display:inline-block;font-size:12px;font-weight:700;padding:2px 7px;border-radius:20px;margin-top:3px}
+  .tag.over{background:var(--red-l);color:var(--red)}
+  .tag.ok{background:var(--green-l);color:var(--green)}
+  .taskline{display:flex;gap:8px;font-size:12px;color:var(--txt);margin-top:6px;align-items:center}
+  .taskline .pill{font-size:11.5px;padding:1px 7px;border-radius:5px;background:#eef2f6;color:var(--muted)} /* 22.09-248: группа работ — читаемее */
+  .rz-item{display:flex;gap:10px;padding:11px 0;border-bottom:1px dashed var(--line)}
+  .rz-item:last-child{border-bottom:none}
+  .rz-bar{width:4px;border-radius:4px;flex:0 0 4px}
+  .rz-main{flex:1;min-width:0}
+  .rz-t{font-weight:700;color:var(--ink);font-size:13px}
+  .rz-s{font-size:12.5px;color:var(--muted);margin-top:2px}
+  .rz-dl{font-size:12.5px;font-weight:700;white-space:nowrap}
+  .rz-dl.red{color:var(--red)} .rz-dl.yel{color:var(--yellow)}
+  .rings{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+  .ring{display:flex;flex-direction:column;align-items:center;padding:14px 8px;border:1px solid var(--line);border-radius:10px}
+  .ring .ar{font-size:12.5px;color:var(--muted);margin-top:7px;font-weight:600}
+  .empty{color:var(--muted);font-size:13px;padding:18px;text-align:center}
+
+  /* ---------- CALENDAR ---------- */
+  .cal-head{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+  .seg{display:inline-flex;background:#e2e8f0;border-radius:9px;padding:3px}
+  .seg button{border:none;background:transparent;padding:6px 14px;border-radius:7px;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--muted);font-family:inherit}
+  .seg button.on{background:var(--card);color:var(--blue);box-shadow:var(--shadow)}
+  .cal-title{font-size:15px;font-weight:700;color:var(--ink)}
+  .legend{display:flex;gap:12px;font-size:12.5px;color:var(--muted);margin-left:auto;flex-wrap:wrap}
+  .legend span{display:inline-flex;align-items:center;gap:5px}
+  .legend i{width:11px;height:11px;border-radius:3px;display:inline-block}
+  .cal-scroll{overflow:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--card)}
+  .cal-grid{display:grid}
+  .gh{position:sticky;top:0;z-index:5;background:#f1f5f9}
+  .gh.corner{position:sticky;left:0;z-index:8}
+  .col-head{text-align:center;padding:8px 4px;font-size:11.5px;color:var(--muted);border-right:1px solid var(--line);border-bottom:1px solid var(--line);background:#f1f5f9}
+  .col-head.corner{display:flex;align-items:center;justify-content:center;text-align:center;font-weight:600;color:var(--ink);font-size:11.5px}
+  .col-head .dn{font-weight:700;color:var(--ink);font-size:14px}
+  .col-head .wd{font-size:10px;text-transform:uppercase}
+  .col-head.today{background:#eff6ff}
+  .col-head.today .dn{color:var(--blue)}
+  .col-head.we{color:#94a3b8}
+  .mname{position:sticky;left:0;z-index:6;background:var(--card);border-right:2px solid var(--line);border-bottom:1px solid var(--line);padding:9px 11px;min-width:170px;display:flex;align-items:center;gap:9px}
+  .mname .dot{width:9px;height:9px;border-radius:50%}
+  .mname .nm{font-weight:700;color:var(--ink);font-size:12.5px;line-height:1.1}
+  .mname .ar{font-size:10.5px;color:var(--muted)}
+  .cell{border-right:1px solid var(--line);border-bottom:1px solid var(--line);min-height:62px;padding:4px;display:flex;flex-direction:column;gap:4px;background:var(--card);position:relative}
+  .cell.we{background:#fafbfc}
+  .cell.today{background:#f5f9ff}
+  .cell.drop-on{background:#dbeafe!important;outline:2px dashed var(--blue);outline-offset:-3px}
+  .cell.overload{box-shadow:inset 0 0 0 2px var(--red)}
+  .mname .sh-today{transition:opacity .15s}
+  .mname[data-action="master-sch-popup"]:hover .nm{text-decoration:underline;text-underline-offset:2px}
+  .tile{border-radius:6px;padding:4px 6px;font-size:10.5px;line-height:1.2;cursor:grab;background:#eef2f6;border-left:3px solid #94a3b8;position:relative;user-select:none}
+  .tile:active{cursor:grabbing}
+  .tile.dragging{opacity:.4}
+  .tile .tw{font-weight:600;color:var(--ink);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tile .th{font-size:9.5px;color:var(--muted)}
+  .tile.t-green{background:var(--green-l);border-left-color:var(--green)}
+  .tile.t-green .tw{color:#14532d}
+  .tile.t-yellow{background:var(--yellow-l);border-left-color:var(--yellow)}
+  .tile.t-yellow .tw{color:#713f12}
+  .tile.t-red{background:var(--red-l);border-left-color:var(--red)}
+  .tile.t-red .tw{color:#7f1d1d}
+  .tile.t-weather{background:#fef3c7!important;border-left-color:#f59e0b!important}
+  .tile.t-weather .tw{color:#92400e!important}
+  .tile.t-done{background:#f1f5f9;border-left-color:#94a3b8;opacity:.7}
+  .tile.t-done .tw{color:#64748b;text-decoration:line-through}
+  .tile .chk{position:absolute;right:3px;top:3px;font-size:10px;color:var(--green)}
+  .tile-chk{position:absolute;right:4px;bottom:4px;z-index:10;cursor:pointer;display:flex;align-items:center;justify-content:center;width:16px;height:16px}
+  .tile-chk input{position:absolute;opacity:0;width:100%;height:100%;cursor:pointer;margin:0}
+  .tile-chk-box{width:15px;height:15px;border:2px solid #94a3b8;border-radius:4px;background:var(--card);transition:.15s;display:flex;align-items:center;justify-content:center;pointer-events:none}
+  .tile-chk input:checked + .tile-chk-box{background:var(--green);border-color:var(--green)}
+  .tile-chk input:checked + .tile-chk-box:after{content:'';width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg);margin-bottom:2px}
+  .read-only .tile{cursor:default}
+
+  /* ---------- КОРЗИНА ---------- */
+  .trash-zone{display:inline-flex;align-items:center;gap:7px;padding:7px 14px;border:2px dashed #fca5a5;border-radius:10px;color:#dc2626;font-size:12.5px;font-weight:700;transition:.18s;background:var(--card);cursor:default;user-select:none}
+  .trash-zone.drop-active{background:#fee2e2;border-color:var(--red);transform:scale(1.08);box-shadow:0 4px 14px rgba(220,38,38,.25)}
+  .trash-zone svg{transition:.18s}
+
+  /* tooltip */
+  #tip{position:fixed;z-index:200;background:var(--slate);color:#fff;padding:9px 11px;border-radius:8px;font-size:12.5px;max-width:260px;box-shadow:var(--shadow-lg);pointer-events:none;display:none;line-height:1.5}
+  #tip b{color:#7dd3fc}
+
+  /* ---------- MAP ---------- */
+  .map-wrap{display:grid;grid-template-columns:330px 1fr;gap:16px}
+  .mlist{max-height:calc(100vh - 260px);overflow:auto;min-height:300px}
+  .mtask{display:flex;gap:9px;padding:10px 11px;border:1px solid var(--line);border-radius:9px;margin-bottom:8px;cursor:pointer;transition:.12s;background:var(--card)}
+  .mtask-grip{display:flex;align-items:center;color:#cbd5e1;cursor:grab;flex:0 0 14px}
+  .mtask-grip:active{cursor:grabbing}
+  .mtask.drop-above{border-top:3px solid var(--blue)!important;margin-top:5px}
+  .mtask:hover{border-color:var(--blue);background:#f8faff}
+  .mtask.sel{border-color:var(--blue);background:#eff6ff;box-shadow:0 0 0 2px rgba(37,99,235,.18)}
+  /* Подсветка маркера на карте ↔ карточка слева (Тест проезда) */
+  .mtask.t-hover{border-color:#7c3aed;background:#faf5ff;box-shadow:0 0 0 2px rgba(124,58,237,.18);transform:translateX(2px)}
+  .mtask.t-picked{border-color:#7c3aed;background:linear-gradient(135deg,#ede9fe,#f5d0fe);box-shadow:0 0 0 3px rgba(124,58,237,.35)}
+  .mtask .pin{width:24px;height:24px;border-radius:50%;background:var(--blue);color:#fff;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center;flex:0 0 24px}
+  .mtask .mt-t{font-weight:700;color:var(--ink);font-size:12.5px}
+  .mtask .mt-s{font-size:12px;color:var(--muted)}
+  .map-box{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:#dbe4ec;position:relative;display:flex;flex-direction:column}
+  /* 22.09-256: «Карта маршрутов» — список заданий и карта по высоте до низа окна (высоту ставит rmFitLayout) */
+  /* 22.09-302: страницы с картами — без прокрутки (высота подгоняется по окну) */
+  #view.sp-map-fit{overflow:hidden!important;overscroll-behavior:none}
+  /* 22.09-328: карты заполняют страницу конструкцией, а не замером «на глаз» */
+  #view.sp-map-fit{display:flex;flex-direction:column}
+  #view.sp-map-fit #lm-wrap{flex:1 1 auto;min-height:0;height:auto!important}
+  #view.sp-map-fit>[data-sp-fit]{flex:1 1 auto;min-height:0;height:auto!important}
+  #view.sp-map-fit .map-wrap{flex:1 1 auto;min-height:0}
+  #map-canvas{flex:1 1 auto;min-height:0}
+  /* 22.09-328: УДАЛЕНИЕ ЗАДАЧИ — лист именно МНУТ, а не складывают панелями.
+     Поверхность настоящей карточки волнообразно деформируется SVG-рябью:
+     края неровно утягиваются внутрь, появляются мятые складки и рваный
+     силуэт. Никаких створок, круглых углов, мини-квадратов и овалов. */
+  .sp-crumple{will-change:transform,left,top;overflow:hidden!important}
+  .sp-crumple-wrinkles{position:absolute;inset:0;pointer-events:none;opacity:0;z-index:5;background:
+    repeating-linear-gradient(118deg, rgba(15,23,42,.13) 0 5px, rgba(255,255,255,.16) 5px 9px, transparent 9px 17px),
+    repeating-linear-gradient(27deg, rgba(15,23,42,.10) 0 7px, transparent 7px 19px),
+    radial-gradient(ellipse at 30% 40%, rgba(255,255,255,.35), transparent 55%),
+    radial-gradient(ellipse at 72% 66%, rgba(15,23,42,.18), transparent 55%)}
+  /* 22.09-347: финал как в видео — компактный фасеточный комок бумаги.
+     Никакого border-radius: силуэт задаёт рваный многоугольник, объём — грани. */
+  .sp-paper-wad{position:fixed;z-index:100000;pointer-events:none;overflow:hidden;
+    clip-path:polygon(18% 4%,42% 0%,68% 7%,88% 22%,100% 45%,91% 70%,74% 94%,48% 100%,22% 92%,4% 74%,0 46%,6% 20%);
+    filter:drop-shadow(0 9px 11px rgba(15,23,42,.32));
+    background-image:
+      linear-gradient(35deg, rgba(255,255,255,.72) 0 23%, rgba(255,255,255,0) 24%),
+      linear-gradient(155deg, rgba(15,23,42,.22) 0 27%, rgba(15,23,42,0) 28%),
+      linear-gradient(96deg, rgba(255,255,255,.34) 0 41%, rgba(15,23,42,.16) 42% 58%, rgba(255,255,255,.22) 59%),
+      repeating-linear-gradient(48deg, rgba(15,23,42,.11) 0 4px, transparent 4px 8px)}
+  .sp-paper-wad::before,.sp-paper-wad::after{content:'';position:absolute;inset:0;pointer-events:none}
+  .sp-paper-wad::before{background:linear-gradient(61deg, transparent 46%, rgba(15,23,42,.25) 49%, rgba(255,255,255,.38) 52%, transparent 56%),linear-gradient(-38deg, transparent 55%, rgba(15,23,42,.18) 58%, rgba(255,255,255,.25) 61%, transparent 65%)}
+  .sp-paper-wad::after{background:radial-gradient(circle at 34% 28%, rgba(255,255,255,.5), transparent 34%),radial-gradient(circle at 72% 72%, rgba(15,23,42,.22), transparent 42%)}
+  .sp-puff{position:fixed;z-index:100001;pointer-events:none;width:0;height:0}
+  .sp-puff i{position:absolute;left:-6px;top:-6px;width:11px;height:11px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#ffffff,#cbd5e1 72%);opacity:.95;animation:spPuffFly .58s ease-out forwards}
+  @keyframes spPuffFly{to{transform:translate(var(--dx),var(--dy)) scale(.25);opacity:0}}
+  .sp-trash-pop{animation:spTrashPop .45s ease}
+  @keyframes spTrashPop{30%{transform:scale(1.16) rotate(-3deg)}60%{transform:scale(.95) rotate(1deg)}}
+  .map-wrap.rm-fit{align-items:stretch}
+  .map-wrap.rm-fit > div{min-height:0;display:flex;flex-direction:column}
+  .map-wrap.rm-fit > div > .card{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;margin:0}
+  .map-wrap.rm-fit .mlist{flex:1 1 auto;min-height:0;max-height:none}
+  .map-wrap.rm-fit .map-box{flex:1 1 auto;min-height:0}
+  .map-wrap.rm-fit #map-canvas{flex:1 1 auto;height:auto!important;min-height:0!important}
+    .map-stats{display:flex;gap:8px;padding:10px 12px;background:#f1f5f9;border-bottom:1px solid var(--line);font-size:12px;flex-wrap:wrap}
+  .map-stats b{color:var(--ink)}
+
+  /* ---------- ЗАГРУЗКА КАРТЫ ---------- */
+  .map-loading{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);font-size:13px;background:#e8eef3;text-align:center;padding:20px}
+  .map-spin{width:38px;height:38px;border:4px solid #cbd5e1;border-top-color:var(--blue);border-radius:50%;animation:mspin .8s linear infinite;margin-bottom:14px}
+  @keyframes mspin{to{transform:rotate(360deg)}}
+
+  /* ---------- ВИДЖЕТ МАРШРУТА (iframe Яндекс.Карт по ссылке) ---------- */
+  .route-frame{position:absolute;inset:0;width:100%;height:100%;border:0;display:block;background:#e8eef3}
+  .route-actions{display:flex;gap:8px;align-items:center;margin-left:auto}
+
+  /* ---------- REFERENCES ---------- */
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:16px}
+  .tabs button{border:none;background:transparent;padding:10px 14px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;font-family:inherit}
+  .tabs button.on{color:var(--blue);border-bottom-color:var(--blue)}
+  table.dt{width:100%;border-collapse:collapse;font-size:12.5px}
+  table.dt th{text-align:left;background:#f8fafc;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.4px;padding:9px 11px;border-bottom:1px solid var(--line);font-weight:700}
+  /* 22.09-299: в «Журнале изменений» шапка таблицы (Дата · Сборка · Что изменилось) закреплена —
+     при прокрутке списка она остаётся на месте, а строки уезжают под неё. */
+  /* 22.09-299: правило пишем как table.dt.cl-table — иначе общее правило table.dt thead th{top:61px}
+     (оно сильнее по весу) оставляло шапку висеть на 61 пиксель ниже верха страницы. */
+  table.dt.cl-table{border-collapse:separate;border-spacing:0} /* с объединёнными рамками «липкую» шапку держат не все браузеры */
+  table.dt.cl-table thead th{position:static} /* 22.09-328: липкие шапки таблиц убраны везде */
+  html.a11y-contrast .cl-table thead th{background:#000}
+  /* 22.09-266: улучшения интерфейса */
+  table.dt th.ui-th{cursor:pointer;user-select:none}
+  table.dt th.ui-th:hover{color:var(--blue)}
+  table.dt th.ui-sorted{color:var(--blue)}
+  table.dt thead th{position:static} /* 22.09-328: шапки таблиц остаются на месте и уезжают с прокруткой */
+  table.dt[data-nosticky] thead th{position:static} /* 22.09-272: короткие таблицы — заголовок не «съезжает» при прокрутке */
+  .ui-empty{text-align:center;padding:26px 14px;color:var(--muted)}
+  .ui-empty-ic{font-size:34px;line-height:1;margin-bottom:8px}
+  .ui-empty-t{font-size:15px;font-weight:700;color:var(--txt);margin-bottom:5px}
+  .ui-empty-h{font-size:13px;line-height:1.55;max-width:520px;margin:0 auto 12px}
+  .sk-wrap{max-width:1100px}
+  .sk-note{font-size:13px;color:var(--muted);margin:2px 0 12px;animation:skPulse 1.4s ease-in-out infinite}
+  .sk-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-bottom:12px}
+  .sk-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .sk{background:linear-gradient(90deg,var(--panel-3) 25%,var(--panel-2) 37%,var(--panel-3) 63%);background-size:400% 100%;animation:skShine 1.3s ease-in-out infinite;border-radius:6px}
+  .sk-t{height:12px;width:52%;margin-bottom:12px}
+  .sk-l{height:9px;margin-bottom:8px}
+  .sk-l.sk-short{width:64%}
+  .sk-r{height:9px;margin-bottom:9px}
+  @keyframes skShine{0%{background-position:100% 50%}100%{background-position:0 50%}}
+  @keyframes skPulse{0%,100%{opacity:1}50%{opacity:.6}}
+  /* 22.09-270: настройка панели — строки, которые тянутся мышкой */
+  #dw-list{border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .dw-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--card);cursor:grab;touch-action:none;user-select:none}
+  .dw-row:last-child{border-bottom:0}
+  .dw-row:hover{background:var(--panel-2)}
+  .dw-grip{color:var(--muted);font-size:16px;line-height:1;letter-spacing:-2px}
+  .dw-lab{display:inline-flex;align-items:center;gap:8px;flex:1;font-size:13.5px;cursor:pointer}
+  .dw-row.dw-dragging{background:var(--panel-3);cursor:grabbing;box-shadow:inset 0 0 0 2px var(--blue);border-radius:8px}
+  .dw-hint{font-size:12.5px;color:var(--muted);margin-bottom:10px;line-height:1.5}
+  table.dt td{padding:9px 11px;border-bottom:1px solid var(--line);color:var(--txt)}
+  table.dt tr:hover td{background:#f8fafc}
+  .chip{font-size:12px;font-weight:700;padding:2px 8px;border-radius:20px;background:#eef2f6;color:var(--muted)}
+  .chip.ГРП{background:#dbeafe;color:#1d4ed8}
+  .chip.ШРП{background:#dcfce7;color:#15803d}
+  .chip.ГРС{background:#cffafe;color:#0e7490}
+  .chip.ПГРП{background:#fed7aa;color:#c2410c}
+  .chip.Трасса{background:#fef3c7;color:#b45309}
+  .tree ul{list-style:none;padding-left:18px;margin:4px 0}
+  .tree .grp{font-weight:700;color:var(--ink);font-size:13px;padding:5px 0;display:flex;align-items:center;gap:6px;cursor:pointer}
+  .tree .grp svg{width:14px;height:14px;transition:transform .18s}
+  .tree .grp.closed svg{transform:rotate(-90deg)}
+  .tree li.w{padding:6px 0;display:flex;align-items:center;gap:10px;font-size:12.5px;border-bottom:1px dashed var(--line)}
+  .imp-box{border:2px dashed #cbd5e1;border-radius:12px;padding:30px;text-align:center;color:var(--muted)}
+  .imp-box .ic{font-size:34px;margin-bottom:8px}
+  .imp-box h3{margin:0 0 4px;color:var(--ink);font-size:15px}
+
+  /* ---------- MODAL ---------- */
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;align-items:flex-start;justify-content:center;z-index:100;padding:40px 16px;overflow:auto}
+  .overlay.show{display:flex}
+  #overlay2.overlay{z-index:200} /* 22.09-162: окно выбора совместных работ — поверх карточки работы */
+  #overlay3.overlay{z-index:300} /* 22.09-220: окно отсутствий/комментария — поверх «Настроек бригад» и карточки работника */
+  #modal2.modal{width:min(560px,92vw);max-width:560px}
+  /* 22.09-135: окно — 80% ширины по центру экрана; высота — по содержимому
+     (cap max-height сверху); margin:auto центрирует по обеим осям, а при
+     переполнении схлопывается в 0 — окно не уходит за верх и скроллится. */
+  .modal{background:var(--card);border-radius:14px;width:80%;max-width:80%;margin:auto;box-shadow:var(--shadow-lg);overflow:hidden;display:flex;flex-direction:column;max-height:calc(100vh - 80px);transition:max-width .25s ease}
+  .modal-h{display:flex;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line);flex-shrink:0}
+  .modal-h h3{margin:0;font-size:15px;color:var(--ink)}
+  .modal-h .x{margin-left:auto;cursor:pointer;color:var(--muted);font-size:20px;background:none;border:none}
+  .modal-b{padding:18px;overflow-y:auto;flex:1;min-height:0}
+  .fld{margin-bottom:14px}
+  .fld label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:5px}
+  /* Образцы цвета области (модалка области + карта рисования) */
+  .zc-sw{width:25px;height:25px;border-radius:50%;border:none;cursor:pointer;padding:0;flex:0 0 auto;box-shadow:inset 0 0 0 1px rgba(15,39,64,.22);transition:transform .12s ease}
+  .zc-sw:hover{transform:scale(1.15)}
+  .zc-sw.on{box-shadow:inset 0 0 0 1px rgba(15,39,64,.22),0 0 0 2px #fff,0 0 0 4px #1d4ed8;transform:scale(1.06)}
+  .zc-custom{width:36px;height:25px;padding:1px 2px;border:1px solid var(--line);border-radius:7px;background:var(--card);cursor:pointer;font-family:inherit}
+  .fld input,.fld select{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;color:var(--ink);background:var(--card)}
+  .fld input:focus,.fld select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+  .calc{background:#eff6ff;border:1px solid #bfdbfe;border-radius:9px;padding:11px 13px;font-size:12.5px;color:#1e3a8a;display:flex;flex-direction:column;align-items:center;gap:8px}
+  /* max-width:fit-content у .modal: ширину диктует ТОЛЬКО текст трудозатрат (#f-calc).
+     Инфо-тексты и опции селектов НЕ раздувают модалку:
+     — contain:inline-size — инфо-боксы не вкладывают свою ширину в ширину модалки;
+     — width:0;min-width:100% — селекты рендерятся как обычно (на всю ширину поля),
+       но их вклад в собственную ширину модалки нулевой (иначе Chrome растягивает
+       модалку под самую длинную опцию списка работ). */
+  .modal .calc:not(#f-calc){contain:inline-size}
+  .modal select{width:0;min-width:100%}
+  /* Блок трудозатрат: строки (div) выровнены влево, компактный интервал */
+  #f-calc{align-items:flex-start;gap:4px}
+  .calc b{color:var(--blue-d)}
+  /* Зелёная кнопка «+» — добавить ещё один вид работ в задаче */
+  .work-item{border:1px solid var(--line);border-radius:10px;padding:8px;background:#fbfdff}
+  .work-item .work-row{margin-bottom:6px}
+  .work-row{display:flex;gap:6px;align-items:center;padding-right:36px}/* 22.09-160 */
+  .work-row-new{animation:workRowIn .28s ease}
+  @keyframes workRowIn{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
+  .work-add-btn{flex:0 0 34px;width:34px;height:34px;border:none;border-radius:10px;background:linear-gradient(135deg,#22c55e,#15803d);color:#fff;font-family:inherit;font-size:19px;font-weight:800;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(21,128,61,.35);text-shadow:0 1px 1px rgba(0,0,0,.18);transition:transform .15s ease,box-shadow .15s ease,filter .15s ease}
+  .work-add-btn:hover{filter:brightness(1.1);transform:translateY(-1px);box-shadow:0 4px 12px rgba(21,128,61,.45)}
+  .work-add-btn:active{transform:scale(.9);filter:brightness(.95)}
+  .modal-f{padding:13px 18px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:9px;background:#f8fafc;flex-shrink:0}
+  /* Строки списка сохранённых графиков (окно «Список графиков») */
+  .gl-row{display:flex;align-items:center;gap:11px;padding:11px 13px;border:1px solid var(--line);border-radius:10px;cursor:pointer;background:var(--card);transition:background .15s,border-color .15s,transform .15s}
+  .gl-row:hover{background:#f1f5f9;border-color:#cbd5e1;transform:translateX(3px)}
+  .gl-row.cur{background:#eff6ff;border-color:#93c5fd}
+  /* 22.09-275: в тёмной теме строки тёмные; при наведении — ЧУТЬ светлее (не белые) */
+  html.theme-dark .gl-row:hover{background:#1e2c47;border-color:#35507e}
+  html.theme-dark .gl-row.cur{background:#20304d;border-color:#3f5f95}
+  html.theme-dark .gl-row.cur .chip{background:#2b4670;color:#cfe0ff}
+  /* 22.09-275: в тёмной теме все светлые ховеры заменяем на «чуть светлее фона» */
+  html.theme-dark .btn:hover{background:var(--panel-2);border-color:var(--line)}
+  html.theme-dark .tb-btn:hover{background:var(--panel-3)}
+  html.theme-dark .gao-row:hover{background:var(--panel-3);border-color:var(--line)}
+  html.theme-dark .gw-c:hover{background:var(--panel-3)}
+  html.theme-dark .tree li.w:hover{background:var(--panel-3)}
+  html.theme-dark #date-popup .dp-actions button:hover{background:var(--panel-3)}
+  html.theme-dark .wx-l-head .wx-l-toggle:hover{background:var(--panel-3);color:var(--txt)}
+  html.theme-dark .wx-layer-item:hover{background:var(--panel-3)}
+  /* Панель инструментов графика — строка под шапкой страницы «Графики» */
+  .gtb{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .gtb .spacer{flex:1}
+  .gt-btn{width:36px;height:36px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:10px;background:transparent;cursor:pointer;transition:background .15s,transform .15s;border:1.5px solid var(--ink);color:var(--ink)}
+  .gt-btn svg{width:18px;height:18px;display:block}
+  .gt-btn:hover{transform:translateY(-1px)}
+  .gt-btn:active{transform:scale(.93)}
+  .gt-btn.gt-sm{width:32px;height:32px;border-radius:9px} /* 22.09-249: кнопки-значки в шапке «Графиков смен» — под высоту соседних кнопок */
+  .gt-btn.gt-sm svg{width:17px;height:17px}
+  .gt-blue{border-color:#2563eb;color:#2563eb}.gt-blue:hover{background:rgba(37,99,235,.09)}
+  .gt-green{border-color:#16a34a;color:#16a34a}.gt-green:hover{background:rgba(22,163,74,.09)}
+  .gt-amber{border-color:#ca8a04;color:#ca8a04}.gt-amber:hover{background:rgba(202,138,4,.1)}
+  .gt-red{border-color:#dc2626;color:#dc2626}.gt-red:hover{background:rgba(220,38,38,.09)}
+  .gt-cyan{border-color:#0891b2;color:#0891b2}.gt-cyan:hover{background:rgba(8,145,178,.09)}
+  .gt-violet{border-color:#9333ea;color:#9333ea}.gt-violet:hover{background:rgba(147,51,234,.09)}
+  .gt-rose{border-color:#e11d48;color:#e11d48}.gt-rose:hover{background:rgba(225,29,72,.09)}
+  .gt-slate{border-color:#64748b;color:#64748b}.gt-slate:hover{background:rgba(100,116,139,.1)}
+  .gt-sky{border-color:#0284c7;color:#0284c7}.gt-sky:hover{background:rgba(2,132,199,.1)}
+  /* Центр панели графика: сверху год + ответственный, под ними наименование */
+  .gt-mid{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0;justify-content:center}
+  .gt-mid-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center}
+  .gt-name{font-size:13.5px;font-weight:800;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:320px}
+  /* Строки объектов в окне «Добавить объекты в график» */
+  .gao-row{display:flex;align-items:center;gap:9px;padding:8px 11px;border:1px solid var(--line);border-radius:10px;background:var(--card);cursor:pointer;transition:background .15s,border-color .15s}
+  .gao-row:hover{background:#f1f5f9;border-color:#cbd5e1}
+  .gao-row.gao-used{opacity:.55;cursor:default}
+  .gao-row.gao-used:hover{background:var(--card);border-color:var(--line)}
+  /* Таблица графика: слева объекты (строки), сверху месяцы года */
+  .gw-scroll{overflow:auto;border:1px solid var(--line);border-radius:10px;background:var(--card);max-height:max(320px,calc(100vh - 250px))} /* 22.09-245: таблица прокручивается в своей рамке — строка месяцев и колонка объектов закреплены */
+  .gw-scroll.gw-ro{max-height:max(260px,calc(100vh - 340px))} /* в окне копии — с учётом шапки и кнопок окна */
+  .gw-h{position:sticky;top:0;z-index:2} /* 22.09-245: закреплённая строка месяцев */
+  .gw-h.gw-corner{left:0;z-index:4}      /* угол «Объект / год» — поверх при прокрутке в обе стороны */
+  .gw-grid{display:grid;grid-template-columns:minmax(240px,1.7fr) repeat(12,minmax(58px,1fr));min-width:940px}
+  .gw-h{background:var(--card);font-size:11.5px;font-weight:800;color:var(--ink);padding:8px 5px;text-align:center;border-bottom:2px solid #cbd5e1;border-left:1px solid var(--line)}
+  .gw-h.gw-corner{text-align:left;border-left:none;padding:8px 11px}
+  .gw-h.gw-corner span{display:block;font-size:11.5px;color:var(--blue);font-weight:800;letter-spacing:.4px}
+  .gw-h.gw-m{white-space:nowrap}
+  /* 22.09-286: общий выбор участка в шапке (слева от даты) */
+  #sp-area-sel{max-width:230px;padding:7px 10px;border:1px solid var(--line);border-radius:9px;font-size:12.5px;font-weight:700;font-family:inherit;background:var(--card);color:var(--txt);cursor:pointer;margin-right:10px}
+  #sp-area-sel:hover{border-color:var(--blue);background:var(--panel-2)}
+  #sp-area-sel:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+  html.theme-dark #sp-area-sel{background:var(--panel-2);color:var(--txt)}
+  @media(max-width:820px){#sp-area-sel{max-width:128px;font-size:12px}}
+  /* 22.09-284: колокольчик уведомлений и глобальный поиск */
+  #sp-search-btn svg, #sp-bell svg, #sp-ap-btn svg{width:16px;height:16px}
+  /* 22.09-291: кнопка настроек автоподбора — светлый фон, оранжевый контур (фон и контур поменяли местами).
+     Цвета заданы здесь, а не в разметке кнопки: запись цвета прямо в кнопке перебивает подсветку при наведении. */
+  #sp-ap-btn{border-color:#f59e0b;background:var(--card);color:#f59e0b}
+  #sp-ap-btn:hover{border-color:#d97706;background:#fff7ed;color:#d97706}
+  #sp-ap-btn:focus{outline:none;border-color:#d97706;box-shadow:0 0 0 3px rgba(245,158,11,.25)}
+  html.theme-dark #sp-ap-btn,html.a11y-contrast #sp-ap-btn{color:#f0c060!important;border-color:#d97706}
+  html.theme-dark #sp-ap-btn:hover,html.a11y-contrast #sp-ap-btn:hover{background:#3a2f14}
+  /* 22.09-290: окно настроек автоподбора работ */
+  #ap-ov{position:fixed;inset:0;z-index:9600;background:rgba(15,23,42,.45);display:flex;align-items:flex-start;justify-content:center;padding-top:6vh}
+  #ap-box{width:720px;max-width:calc(100vw - 24px);max-height:86vh;display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 24px 60px rgba(15,23,42,.35);overflow:hidden}
+  .ap-h{display:flex;align-items:flex-start;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);font-size:15px;color:var(--txt)}
+  .ap-h>b{white-space:nowrap}
+  .ap-sub{font-size:12px;color:var(--muted);line-height:1.35;flex:1 1 auto}
+  .ap-x{margin-left:auto;border:0;background:transparent;color:var(--muted);font-size:20px;line-height:1;cursor:pointer;padding:0 4px}
+  .ap-x:hover{color:var(--txt)}
+  .ap-b{overflow-y:auto;padding:12px 16px}
+  .ap-sec{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:12px}
+  .ap-sec-h{font-size:13px;font-weight:800;color:var(--txt);margin-bottom:6px}
+  .ap-hint{font-weight:500;font-size:11.5px;color:var(--muted)}
+  .ap-note{font-size:12px;line-height:1.5;color:var(--muted);background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:7px 10px;margin-bottom:8px}
+  .ap-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+  .ap-tools input{flex:1;min-width:180px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;font-family:inherit;background:var(--card);color:var(--txt)}
+  .ap-mini{border:1px solid var(--line);background:var(--card);color:var(--txt);border-radius:8px;padding:6px 10px;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer}
+  .ap-mini:hover{border-color:var(--blue);color:var(--blue)}
+  .ap-cnt{font-size:12px;color:var(--muted);font-weight:700}
+  .ap-groups{max-height:38vh;overflow-y:auto;border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+  .ap-row{display:flex;align-items:flex-start;gap:8px;padding:4px 0;font-size:12.5px;line-height:1.4;cursor:pointer}
+  .ap-row input{margin-top:2px;accent-color:#f59e0b;width:15px;height:15px;flex:0 0 auto}
+  .ap-g-name{flex:1 1 auto;min-width:0;font-weight:600;color:var(--txt)}
+  .ap-g-cnt{flex:0 0 auto;max-width:48%;white-space:normal;text-align:right;font-size:11.5px;color:var(--muted);padding-left:8px;line-height:1.35}
+  .ap-cb{display:flex;align-items:flex-start;gap:8px;font-size:12.5px;line-height:1.45;margin:5px 0;cursor:pointer}
+  .ap-cb input{margin-top:2px;accent-color:#2563eb;width:15px;height:15px;flex:0 0 auto}
+  .ap-empty{padding:10px;font-size:12.5px;color:var(--muted)}
+  .ap-f{display:flex;gap:10px;padding:10px 16px;border-top:1px solid var(--line);background:var(--panel-2)}
+  html.theme-dark .ap-note{background:var(--panel-3)}
+  html.theme-dark .ap-f{background:var(--panel-3)}
+  #sp-bell-badge{position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;border-radius:9px;background:#dc2626;color:#fff;font-size:10.5px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 4px;line-height:1;box-shadow:0 0 0 2px var(--card)}
+  #sp-bell-pop{position:fixed;z-index:9000;width:392px;max-width:calc(100vw - 16px);background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 44px rgba(15,23,42,.28);overflow:hidden}
+  .bl-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);font-size:13.5px;font-weight:800;color:var(--txt)}
+  .bl-head>span:first-child{margin-right:auto}
+  .bl-all{border:1px solid var(--line);background:var(--card);color:var(--blue);border-radius:8px;padding:4px 9px;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer}
+  .bl-all:hover{background:var(--panel-2)}
+  .bl-x{border:0;background:transparent;color:var(--muted);font-size:18px;line-height:1;cursor:pointer;padding:0 4px}
+  .bl-x:hover{color:var(--txt)}
+  .bl-body{max-height:62vh;overflow-y:auto;padding:6px 0 8px}
+  .bl-sec{font-size:11px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);padding:8px 12px 4px}
+  .bl-item{padding:8px 12px;border-left:3px solid transparent;cursor:pointer}
+  .bl-item:hover{background:var(--panel-2)}
+  .bl-item.bl-high{border-left-color:#dc2626;background:#fef2f2}
+  html.theme-dark .bl-item.bl-high{background:#3f1d1d}
+  .bl-top{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--muted)}
+  .bl-prio{background:#dc2626;color:#fff;border-radius:6px;padding:1px 6px;font-weight:800;font-size:10.5px}
+  .bl-prio.bl-prio-n{background:var(--blue)}
+  .bl-from{font-weight:700;color:var(--txt);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:170px}
+  .bl-when{margin-left:auto;white-space:nowrap}
+  .bl-text{font-size:13px;line-height:1.45;color:var(--txt);margin-top:4px;white-space:pre-wrap}
+  .bl-empty{padding:8px 12px;font-size:12.5px;color:var(--muted)}
+  .bl-tasks{display:flex;gap:8px;padding:4px 12px 6px}
+  .bl-task{flex:1;border:1px solid var(--line);background:var(--panel-2);border-radius:10px;padding:9px 10px;font-size:12.5px;font-weight:700;font-family:inherit;color:var(--txt);cursor:pointer;text-align:left}
+  .bl-task b{font-size:16px;margin-right:4px}
+  .bl-task-red{border-color:#fecaca;background:#fef2f2;color:#b91c1c}
+  html.theme-dark .bl-task-red{background:#3f1d1d;border-color:#7f1d1d;color:#fca5a5}
+  .bl-task-blue{border-color:#bfdbfe;background:#eff6ff;color:#1d4ed8}
+  html.theme-dark .bl-task-blue{background:#1e2c47;border-color:#35507e;color:#93c5fd}
+  .bl-task:hover{filter:brightness(.97)}
+  .bl-foot{padding:4px 12px 6px}
+  /* окно глобального поиска */
+  #gs-overlay{position:fixed;inset:0;z-index:9500;background:rgba(15,23,42,.42);display:flex;align-items:flex-start;justify-content:center;padding-top:9vh}
+  #gs-box{width:640px;max-width:calc(100vw - 20px);background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 22px 60px rgba(15,23,42,.35);overflow:hidden}
+  .gs-in{display:flex;align-items:center;gap:9px;padding:12px 14px;border-bottom:1px solid var(--line);color:var(--muted)}
+  .gs-in input{flex:1;border:0;outline:0;background:transparent;font-size:15px;font-family:inherit;color:var(--txt)}
+  #gs-hint{font-size:11px;font-weight:700;border:1px solid var(--line);border-radius:6px;padding:2px 6px;color:var(--muted)}
+  #gs-res{max-height:60vh;overflow-y:auto;padding:4px 0 8px}
+  .gs-sec{font-size:11px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);padding:8px 14px 3px}
+  .gs-row{display:flex;align-items:baseline;gap:9px;padding:7px 14px;cursor:pointer;border-left:3px solid transparent}
+  .gs-row:hover{background:var(--panel-2)}
+  .gs-row.gs-on{background:var(--panel-2);border-left-color:var(--blue)}
+  .gs-kind{flex:0 0 auto;font-size:10.5px;font-weight:800;border-radius:6px;padding:1px 6px;background:var(--panel-3);color:var(--muted)}
+  .gs-t{font-size:13.5px;font-weight:700;color:var(--txt);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .gs-s{margin-left:auto;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42%}
+  .gs-empty{padding:14px;font-size:13px;color:var(--muted);line-height:1.6}
+  .gs-k{display:inline-block;border:1px solid var(--line);border-radius:5px;padding:0 5px;font-size:11px;font-weight:700;color:var(--txt)}
+  html.a11y-contrast #sp-bell-badge,html.a11y-contrast .bl-prio{background:#000;border:1px solid #fff}
+  /* 22.09-281: серая круглая кнопка «i» у заголовка окна (схема автоподбора работ) */
+  .sp-info-btn{width:22px;height:22px;min-width:22px;border-radius:50%;border:0;background:#94a3b8;color:#fff;font:800 13px/1 inherit;font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;margin-left:9px;padding:0;vertical-align:2px}
+  .sp-info-btn:hover{background:#64748b}
+  .sp-info-btn:active{transform:scale(.94)}
+  .sp-info-btn:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
+  html.a11y-contrast .sp-info-btn{background:#000;border:1px solid #fff}
+  /* 22.09-278: значок «объект не в эксплуатации» в строке графика */
+  .gw-off{flex:0 0 auto;font-size:11px;font-weight:800;border-radius:6px;padding:1px 5px;margin-left:5px;background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;white-space:nowrap}
+  .gw-off.warn{background:#fffbeb;color:#b45309;border-color:#fde68a}
+  html.theme-dark .gw-off{background:#3f1d1d;color:#fca5a5;border-color:#7f1d1d}
+  html.theme-dark .gw-off.warn{background:#3b2f14;color:#fcd34d;border-color:#78500f}
+  .gw-obj{position:sticky;left:0;z-index:1;display:flex;align-items:center;gap:7px;padding:7px 10px;border-bottom:1px solid var(--line);background:var(--card);font-size:12px;font-weight:600;color:var(--ink)}
+  .gw-obj-nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .gw-c{border-bottom:1px solid var(--line);border-left:1px solid var(--line);min-height:38px;background:var(--card);cursor:pointer;transition:background .12s;display:flex;align-items:center;justify-content:center}
+  .gd-c{display:flex;align-items:center;justify-content:center}
+  .gw-tris{display:flex;align-items:center;justify-content:center;gap:3px;flex-wrap:wrap}
+  .gw-tri-w{display:inline-flex;cursor:default}
+  /* Всплывающее окно с информацией о работе (наведение на треугольник) */
+  #gw-tip{position:fixed;z-index:9999;background:var(--slate);color:#fff;font-size:12px;font-weight:500;padding:9px 12px;border-radius:9px;pointer-events:none;box-shadow:var(--shadow-lg);max-width:320px;white-space:normal;line-height:1.5;opacity:0;transform:translateY(3px);transition:opacity .15s,transform .15s}
+  #gw-tip.show{opacity:1;transform:translateY(0)}
+  #gw-tip b{color:#7dd3fc}
+  .gl-tri{flex:0 0 auto;display:inline-flex}
+  .gw-leg-row input[type=color]{width:36px;height:26px;padding:0;border:1px solid var(--line);border-radius:6px;background:var(--card);cursor:pointer;margin-left:auto;flex:0 0 auto}
+  .gpr-obj{border:1px solid var(--line);border-radius:10px;background:var(--card);overflow:hidden}
+  .gpr-obj-h{display:flex;align-items:center;gap:8px;padding:8px 10px;background:#f8fafc;border-bottom:1px solid var(--line)}
+  .gpr-obj-nm{font-size:12.5px;font-weight:700;color:var(--ink);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .gpr-past{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;user-select:none;white-space:nowrap;flex:0 0 auto}
+  .gpr-past input{width:14px;height:14px;cursor:pointer;accent-color:#2563eb;margin:0;flex:0 0 auto}
+  .gpr-works{padding:8px;display:flex;flex-direction:column;gap:6px}
+  .gpr-wrow{display:grid;grid-auto-flow:column;grid-template-columns:minmax(170px,1.7fr) 30px 78px 68px 128px 30px;gap:6px;align-items:center;min-width:0}
+  .gpr-cols{display:grid;grid-template-columns:minmax(170px,1.7fr) 30px 78px 68px 128px 30px;gap:6px;align-items:center;min-width:0}
+  .gpr-cols{padding:0 18px 4px;font-size:12px;font-weight:800;color:var(--muted)}
+  .gpr-cols span{text-align:center}
+  .gpr-cols span:first-child{text-align:left}
+  .gpr-del{width:28px;height:28px;border:1px solid var(--line);border-radius:7px;background:var(--card);color:var(--red);font-size:15px;font-weight:800;cursor:pointer;line-height:1;padding:0;flex:0 0 auto}
+  .gpr-empty{font-size:12.5px;color:var(--muted);padding:2px 2px}
+  /* Карта объектов: скрыть нижние ссылки «Открыть в Яндекс.Картах» и «Создать свою карту» */
+  [class*="copyrights-promo"],[class*="map-copyrights-promo"]{display:none!important}
+  .gpr-inp{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:12px;background:var(--card);color:var(--ink)}
+  /* 22.09-238: периодичность копии графика — только просмотр (те же строки, без полей ввода) */
+  .gpr-ro-row,.gpr-ro-cols{display:grid;grid-template-columns:minmax(220px,2fr) 90px 80px 140px 110px;gap:6px;align-items:center;min-width:0}
+  .gpr-ro-cols{padding:0 18px 4px;font-size:12px;font-weight:800;color:var(--muted)}
+  .gpr-ro-cols span{text-align:center}
+  .gpr-ro-cols span:first-child{text-align:left}
+  .gpr-ro{background:#f8fafc;cursor:default;min-height:30px;overflow:hidden}
+  .gw-c:hover{background:#eff6ff}
+  .gw-m{cursor:pointer;transition:color .15s;padding-top:16px;padding-bottom:0px}
+  .gw-m:hover{color:var(--blue)}
+  /* 22.09-235: таблица графика в режиме «только просмотр» (окно копии) — без «нажимаемости» */
+  .gw-ro .gw-c,.gw-ro .gw-m{cursor:default}
+  .gw-ro .gw-c:hover{background:var(--card)}
+  .gw-ro .gw-m:hover{color:var(--ink)}
+  /* Шапка дня: число + день недели; ячейка дня (не кликается) */
+  .gd-h{padding:5px 2px!important}
+  .gd-h b{display:block;font-size:12px}
+  .gd-h span{display:block;font-size:8.5px;font-weight:700;color:var(--muted);white-space:normal;line-height:1.15}
+  .gd-c{border-bottom:1px solid var(--line);border-left:1px solid var(--line);min-height:38px;background:var(--card)}
+  /* Окно «Обозначения работ»: цветной треугольник + описание работы */
+  .gw-legend{display:flex;flex-direction:column}
+  .gw-leg-row{display:flex;align-items:center;gap:14px;padding:8px 2px}
+  .gw-leg-txt{font-size:13px;font-weight:600;color:#4b5563}
+  /* Всплывающая подсказка кнопок панели графика */
+  #gt-tip{position:fixed;z-index:9999;background:var(--slate);color:#fff;font-size:12px;font-weight:600;padding:6px 10px;border-radius:8px;pointer-events:none;box-shadow:var(--shadow-lg);white-space:nowrap;opacity:0;transform:translateY(3px);transition:opacity .15s,transform .15s}
+  #gt-tip.show{opacity:1;transform:translateY(0)}
+
+  /* ---------- TOAST ---------- */
+  #toasts{position:fixed;right:18px;bottom:18px;z-index:999999;display:flex;flex-direction:column;gap:9px;pointer-events:none}
+  /* 22.09-244: оформленные окна подтверждения (вместо браузерных «ОК / Отмена») — поверх всех окон */
+  .sp-dlg{position:fixed;inset:0;z-index:100000;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:16px;animation:fadeIn .15s ease}
+  .sp-dlg-box{background:var(--card);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.35);width:min(470px,100%);overflow:hidden;border-top:4px solid var(--blue);animation:popIn .22s cubic-bezier(.34,1.56,.64,1)}
+  .sp-dlg-box.danger{border-top-color:var(--red)}
+  .sp-dlg-h{display:flex;align-items:center;gap:10px;padding:15px 18px 6px;font-size:15px;font-weight:800;color:var(--ink)}
+  .sp-dlg-ic{font-size:21px;line-height:1}
+  .sp-dlg-b{padding:6px 18px 16px;font-size:13.5px;line-height:1.55;color:var(--ink);max-height:60vh;overflow:auto;overflow-wrap:anywhere}
+  .sp-dlg-f{display:flex;justify-content:flex-end;gap:9px;padding:12px 18px;border-top:1px solid var(--line);background:#f8fafc;flex-wrap:wrap}
+  /* 22.09-247: разрешение на cookie — при первом открытии сайта */
+  .sp-consent{position:fixed;inset:0;z-index:100001;background:rgba(15,23,42,.55);display:flex;align-items:flex-end;justify-content:center;padding:18px;animation:fadeIn .2s ease}
+  .sp-consent-box{background:var(--card);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.35);width:min(620px,100%);overflow:hidden;border-top:4px solid #d97706;animation:popIn .25s cubic-bezier(.34,1.56,.64,1)}
+  .sp-consent-h{display:flex;align-items:center;gap:10px;padding:16px 20px 4px;font-size:16px;font-weight:800;color:var(--ink)}
+  .sp-consent-ic{font-size:24px;line-height:1}
+  .sp-consent-b{padding:4px 20px 8px;font-size:13.5px;line-height:1.55;color:var(--ink)}
+  .sp-consent-b p{margin:8px 0}
+  .sp-consent-cur{color:var(--muted);font-weight:700}
+  .sp-consent-f{display:flex;justify-content:flex-end;gap:10px;padding:12px 20px;border-top:1px solid var(--line);background:#f8fafc;flex-wrap:wrap}
+  .li-consent{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;padding:10px 12px;border-radius:10px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:12.5px;line-height:1.45}
+  .li-consent span{flex:1;min-width:180px}
+  .cookie-link{color:#94a3b8;font-size:12px;text-decoration:none;border-bottom:1px dashed currentColor}
+  .cookie-link:hover{color:var(--blue)}
+  /* 22.09-252: хранилище браузера запрещено/переполнено — предупреждение и пошаговая инструкция */
+  .storage-warn{margin-top:10px;padding:9px 11px;border-radius:9px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:11.5px;line-height:1.5;text-align:left}
+  .storage-warn a,.sp-consent-warn a{color:#1d4ed8;font-weight:700;text-decoration:none;border-bottom:1px dashed currentColor}
+  .storage-warn a:hover,.sp-consent-warn a:hover{color:var(--blue)}
+  .sp-consent-b p.sp-consent-warn{padding:9px 11px;border-radius:9px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:12.5px;line-height:1.5}
+  .sh-h{font-weight:800;margin:12px 0 4px;color:var(--ink)}
+  .sh-ol{margin:4px 0 6px;padding-left:22px}
+  .sh-ol li{margin:4px 0}
+  .sh-code{font-family:Consolas,'Courier New',monospace;font-size:12px;background:#f1f5f9;border:1px solid var(--line);border-radius:5px;padding:1px 5px;overflow-wrap:anywhere}
+  .sh-copy{margin-left:6px;padding:2px 8px;font-size:11.5px;font-family:inherit;border-radius:6px;border:1px solid #cbd5e1;background:#fff;color:var(--ink);cursor:pointer;white-space:nowrap}
+  .sh-copy:hover{border-color:var(--blue);color:var(--blue)}
+  .sh-note{margin-top:10px;padding:8px 10px;border-radius:8px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:12.5px;line-height:1.5}
+  .sh-diag{margin-top:10px;color:var(--muted);font-size:11.5px}
+  /* 22.09-255: восстановление видов работ из копии браузера */
+  .wr-hint{color:var(--muted);font-size:12.5px}
+  .wr-tools{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 8px}
+  .wr-list{display:flex;flex-direction:column;gap:6px}
+  .wr-item{display:flex;gap:9px;align-items:flex-start;padding:7px 10px;border:1px solid var(--line);border-radius:9px;cursor:pointer;background:#fff}
+  .wr-item:hover{border-color:var(--blue)}
+  .wr-item input{margin-top:3px}
+  .wr-area{font-size:11.5px;color:var(--muted)}
+  .wr-f{font-size:12px;color:#475569;margin-top:2px}
+  .wr-f s{color:#b91c1c}
+  .wr-f b{color:#166534}
+  #li-btn:disabled{opacity:.55;cursor:not-allowed}
+  /* 22.09-293: уведомления — карточка со значком, который прорисовывается,
+     и полоской времени внизу; появляются снизу, уходят вниз при закрытии */
+  .toast{position:relative;display:flex;align-items:flex-start;gap:10px;overflow:hidden;background:var(--slate);color:#fff;
+    padding:12px 15px;border-radius:12px;font-size:13px;box-shadow:var(--shadow-lg);max-width:340px;
+    border-left:4px solid var(--blue);--tst:#93c5fd;animation:spToastIn .19s cubic-bezier(.22,.9,.3,1);pointer-events:none}
+  .toast.ok{border-left-color:var(--green);--tst:#4ade80}
+  .toast.warn{border-left-color:var(--yellow);--tst:#fbbf24}
+  .toast.err{border-left-color:var(--red);--tst:#f87171}
+  .toast.out{animation:spToastOut .16s ease-in forwards}
+  .tst-ic{flex:0 0 auto;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;margin-top:1px}
+  .tst-ic svg{display:block;width:18px;height:18px}
+  .tst-tx{min-width:0;line-height:1.4}
+  .tst-bar{position:absolute;left:0;bottom:0;height:2px;width:100%;transform-origin:left;background:var(--tst);opacity:.5;animation:spToastBar 4.2s linear both}
+  .tst-tick{stroke-dasharray:26;stroke-dashoffset:26;animation:spTickDraw .3s ease-out .06s forwards}
+  @keyframes spToastIn{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+  @keyframes spToastOut{from{opacity:1;transform:none}to{opacity:0;transform:translateY(6px) scale(.99)}}
+  @keyframes spToastBar{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+  @keyframes spTickDraw{to{stroke-dashoffset:0}}
+  @media (prefers-reduced-motion:reduce){.tst-bar{animation:none;opacity:.35}}
+  @keyframes in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+  @media(max-width:980px){
+    .sidebar{position:fixed;left:-260px;z-index:50;transition:.2s}
+    .sidebar.open{left:0}
+    .kpi-row{grid-template-columns:repeat(2,1fr)}
+    .dash-grid{grid-template-columns:1fr}
+    .map-wrap{grid-template-columns:1fr}
+    .burger{display:inline-flex!important}
+  }
+  .burger{display:none;background:none;border:1px solid var(--line);border-radius:8px;padding:7px;cursor:pointer;align-items:center;justify-content:center}
+  .burger svg{width:18px;height:18px}
+
+  /* ---------- АДАПТИВНЫЙ САЙДБАР (≤1080px): превращается в overlay ---------- */
+  @media (max-width:1080px){
+    .app{flex-direction:column}
+    .sidebar{
+      position:fixed;left:-280px;top:0;bottom:0;width:260px;flex-basis:260px;z-index:90;
+      transition:left .25s cubic-bezier(.4,0,.2,1);
+      box-shadow:0 0 40px rgba(0,0,0,.3);
+    }
+    .sidebar.open{left:0}
+    /* затемнение фона при открытом сайдбаре */
+    body.drawer-open::after{
+      content:"";position:fixed;inset:0;background:rgba(15,39,64,.55);z-index:80;
+      animation:fadeIn .15s ease;
+    }
+    /* ВАЖНО: показать бургер-кнопку ВСЕГДА при ≤1080px */
+    .burger{display:inline-flex!important}
+    /* когда сайдбар закрыт и ширина ≤1080 — контент растягивается на всю ширину */
+    .main{flex:1;min-width:0}
+  }
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+
+  /* =====================================================================
+     ПОЛНАЯ АДАПТИВНОСТЬ — 24", 11", 7", горизонталь/вертикаль
+     ===================================================================== */
+
+  /* === 24" Десктоп (1920px+) — масштабирование вверх === */
+  @media (min-width: 1920px) {
+    body{font-size:16px}
+    .sidebar{width:280px;flex-basis:280px}
+    .kpi .val{font-size:34px}
+    .kpi .lab{font-size:13.5px}
+    .kpi .hint{font-size:13px}
+    .card-h h2{font-size:16px}
+    #view{padding:32px}
+    .card-b{padding:24px}
+    .dash-grid{gap:24px}
+    .kpi-row{gap:20px}
+    .topbar{height:70px}
+    .topbar h1{font-size:19px}
+    .nav a{font-size:15px;padding:12px 14px}
+    .brand .logo{width:58px;height:58px}
+    .brand .bt{font-size:17px}
+    .tile{font-size:12px;padding:5px 8px}
+    .tile .tw{font-size:12px}
+    .tile .th{font-size:10.5px}
+    .col-head{min-width:86px}
+    .mname{min-width:200px}
+    .cell{min-height:72px}
+  }
+
+  /* === 11" Планшет горизонтально (1024–1365px) === */
+  @media (max-width: 1365px) and (min-width: 1024px) {
+    .sidebar{width:220px;flex-basis:220px}
+    .brand .logo{width:42px;height:42px}
+    .brand .bt{font-size:14px}
+    .nav a{font-size:12.5px;padding:8px 10px;gap:9px}
+    .nav a svg{width:16px;height:16px}
+    .kpi .val{font-size:23px}
+    .dash-grid{grid-template-columns:1.3fr 1fr}
+    .dash-grid.dw-inv{grid-template-columns:1fr 1.3fr}
+    .map-wrap{grid-template-columns:280px 1fr}
+    #view{padding:18px}
+  }
+
+  /* === 7"–11" Планшет вертикально / смартфон горизонтально (768–1023px) === */
+  @media (max-width: 1023px) and (min-width: 768px) {
+    .sidebar{position:fixed;left:-280px;z-index:50;transition:left .25s;width:260px;flex-basis:260px;box-shadow:0 0 40px rgba(0,0,0,.3)}
+    .sidebar.open{left:0}
+    .burger{display:inline-flex!important}
+    .kpi-row{grid-template-columns:repeat(2,1fr)}
+    .dash-grid{grid-template-columns:1fr}
+    .map-wrap{grid-template-columns:1fr}
+    #view{padding:16px}
+    .card-b{padding:14px}
+    .topbar{padding:0 16px;gap:10px}
+    .topbar h1{font-size:15px}
+    .usr .ur{display:none}
+    .cal-head{gap:8px}
+    .legend{display:none}
+  }
+
+  /* === Планшет вертикально (768–1023px) → портретная ориентация === */
+  @media (max-width: 1023px) and (min-width: 768px) and (orientation: portrait) {
+    .kpi-row{grid-template-columns:repeat(2,1fr);gap:10px}
+    .kpi .val{font-size:22px}
+    .map-wrap{grid-template-columns:1fr}
+    .mlist{max-height:250px}
+  }
+
+  /* === Планшет горизонтально (768–1023px) → ландшафтная ориентация === */
+  @media (max-width: 1023px) and (min-width: 768px) and (orientation: landscape) {
+    .kpi-row{grid-template-columns:repeat(5,1fr)}
+    .dash-grid{grid-template-columns:1fr 1fr}
+    .map-wrap{grid-template-columns:300px 1fr}
+    .mlist{max-height:calc(100vh - 220px)}
+  }
+
+  /* === Смартфон (<768px) === */
+  @media (max-width: 767px) {
+    .sidebar{position:fixed;left:-280px;z-index:50;transition:left .25s;width:260px;flex-basis:260px;box-shadow:0 0 40px rgba(0,0,0,.3)}
+    .sidebar.open{left:0}
+    .burger{display:inline-flex!important}
+    body{font-size:13px}
+    #view{padding:12px}
+    .card-b{padding:12px}
+    .card-h{padding:10px 12px;flex-wrap:wrap}
+    .card-h h2{font-size:13px}
+    /* KPI — 1 колонка на телефоне */
+    .kpi-row{grid-template-columns:1fr 1fr;gap:8px}
+    .kpi{padding:12px}
+    .kpi .val{font-size:20px}
+    .kpi .lab{font-size:12px}
+    .kpi .hint{font-size:11.5px}
+    /* Дашборд в одну колонку */
+    .dash-grid{grid-template-columns:1fr;gap:12px}
+    /* Карта — одна колонка, список сверху */
+    .map-wrap{grid-template-columns:1fr}
+    .mlist{max-height:200px}
+    /* Топбар — компактнее */
+    .topbar{height:auto;padding:8px 12px;flex-wrap:wrap;gap:8px;position:sticky}
+    .topbar h1{font-size:14px}
+    .topbar .crumb{font-size:12px}
+    .usr .ur{display:none}
+    .usr .un{font-size:12px}
+    .usr .av{width:30px;height:30px;font-size:12px}
+    /* Календарь — уменьшенный */
+    .cal-head{gap:6px}
+    .cal-title{font-size:13px}
+    .legend{display:none}
+    .trash-zone{font-size:12px;padding:5px 10px}
+    /* Модальные окна — почти на весь экран */
+    .overlay{padding:0}
+    .modal{width:100%!important;min-width:0;max-width:100%!important;border-radius:0;min-height:100vh;margin:0} /* 22.09-135: гасим базовые 80%/margin:auto — на телефоне окно на весь экран */
+    .modal-b{padding:14px}
+    /* Тосты — выше, чтобы не перекрывать кнопку чата */
+    #toasts{bottom:70px;right:10px;left:10px}
+    .toast{max-width:100%}
+    /* Панель маршрута */
+    /* Сегментные кнопки крупнее */
+    .seg button{padding:7px 12px;font-size:12px}
+    .btn{padding:7px 11px;font-size:12px}
+    .btn.sm{padding:6px 9px;font-size:12px}
+    /* Отчёты */
+    .report-month-dropdown{width:calc(100vw - 24px);max-width:300px}
+    /* Дата-попап */
+    #date-popup{width:calc(100vw - 24px);max-width:320px}
+  }
+
+  /* === Смартфон вертикально (портрет) === */
+  @media (max-width: 767px) and (orientation: portrait) {
+    .kpi-row{grid-template-columns:1fr 1fr}
+    .col-head{font-size:10px}
+    .col-head .dn{font-size:12px}
+    .mname{min-width:120px}
+    .mname .nm{font-size:11px}
+    .cell{min-height:50px}
+    .login-wrap{padding:20px}
+  }
+
+  /* === Смартфон горизонтально (ландшафт) === */
+  @media (max-width: 767px) and (orientation: landscape) {
+    .kpi-row{grid-template-columns:repeat(5,1fr);gap:6px}
+    .kpi .val{font-size:18px}
+    .dash-grid{grid-template-columns:1fr 1fr}
+    .map-wrap{grid-template-columns:1fr 1fr}
+    .mlist{max-height:calc(100vh - 160px)}
+    /* ширина ячеек единая — min-width не нужен */
+    /* Топбар тоньше в ландшафте */
+    .topbar{padding:4px 12px}
+    #view{padding:10px}
+    /* Экран входа компактнее */
+    .login-card{max-width:340px}
+    .login-wrap{padding:20px}
+  }
+
+  /* === Очень маленькие экраны (<380px) === */
+  @media (max-width: 379px) {
+    .kpi-row{grid-template-columns:1fr}
+    .kpi .val{font-size:18px}
+    .topbar h1{font-size:13px}
+    .usr .un{display:none}
+    .nav a{font-size:12px}
+    .brand .logo{width:35px;height:35px}
+    .brand .bt{font-size:13px}
+    .brand .bs{font-size:11.5px}
+  }
+
+  /* ---------- ЭКРАН ВХОДА ---------- */
+  .login-screen{position:fixed;inset:0;z-index:500;background:linear-gradient(135deg,rgba(15,39,64,.25),rgba(22,56,92,.25)),url('root_index/fon.webp') center/cover no-repeat;display:flex;align-items:center;justify-content:center;padding:20px}
+  body.logged-in .login-screen{display:none}
+  /* Обёртка даёт отступ 100px вокруг карточки входа */
+  .login-wrap{position:relative;padding:100px;width:100%;max-width:584px;z-index:2}
+  .login-card{background:var(--card);border-radius:16px;width:100%;max-width:384px;box-shadow:0 24px 70px rgba(0,0,0,.4);overflow:hidden;position:relative;z-index:1}
+  .login-brand{display:flex;align-items:center;gap:11px;padding:18px 20px;background:#f8fafc;border-bottom:1px solid var(--line)}
+  .login-brand .logo{width:66px;height:66px;border-radius:13px;background:#fff;padding:6px;object-fit:contain;box-shadow:0 4px 12px rgba(0,0,0,.18)}
+  .login-brand .bt{font-size:16px;font-weight:800;color:var(--ink)}
+  .login-brand .bs{font-size:12px;color:var(--muted)}
+  .login-body{padding:22px 20px}
+  .login-body h2{margin:0 0 14px;font-size:16px;color:var(--ink)}
+  .li-err{color:var(--red);font-size:12px;min-height:15px;margin-bottom:8px}
+  .li-hint{margin-top:14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:9px;padding:10px 12px;font-size:12.5px;color:#1e3a8a;line-height:1.8}
+  .li-hint code{background:#dbeafe;padding:1px 5px;border-radius:4px;font-weight:700}
+  body:not(.logged-in) .app{display:none}
+
+  /* =====================================================================
+     АНИМАЦИИ И ПЕРЕХОДЫ (весь сайт)
+     ===================================================================== */
+  /* Базовые keyframes */
+  @keyframes fadeInUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+  @keyframes scaleIn{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}
+  @keyframes slideInLeft{from{opacity:0;transform:translateX(-18px)}to{opacity:1;transform:none}}
+  @keyframes slideInRight{from{opacity:0;transform:translateX(18px)}to{opacity:1;transform:none}}
+  @keyframes popIn{0%{opacity:0;transform:scale(.8)}60%{transform:scale(1.04)}100%{opacity:1;transform:scale(1)}}
+  @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+  @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+  @keyframes pulseSoft{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.07);opacity:.85}}
+  @keyframes spinLoad{to{transform:rotate(360deg)}}
+
+  /* Появление контента при смене экрана — 22.09-293: спокойно и быстро (не заставляет ждать) */
+  #view{animation:fadeIn .2s ease}
+  #view > *{animation:fadeInUp .22s cubic-bezier(.4,0,.2,1) backwards}
+  #view > *:nth-child(1){animation-delay:.01s}
+  #view > *:nth-child(2){animation-delay:.04s}
+  #view > *:nth-child(3){animation-delay:.07s}
+  #view > *:nth-child(4){animation-delay:.1s}
+
+  /* Кнопки — 22.09-293: спокойный отклик на наведение и нажатие */
+  .btn{transition:transform .15s cubic-bezier(.4,0,.2,1),background .15s,border-color .15s,box-shadow .15s,color .15s}
+  .btn:hover{transform:translateY(-1px)}
+  .btn:active{transform:translateY(1px) scale(.98)}
+  .btn.primary:hover{box-shadow:0 6px 16px rgba(37,99,235,.26)}
+  /* Кнопки шапки, вкладки и переключатели — такой же отклик, чуть заметнее нажатие */
+  .tb-btn{transition:transform .14s ease,border-color .15s ease,background .15s ease,color .15s ease}
+  .tb-btn:hover{transform:translateY(-1px)}
+  .tb-btn:active{transform:translateY(1px) scale(.95)}
+  .tb-btn svg{transition:transform .16s ease}
+  .tb-btn:hover svg{transform:scale(1.08)}
+  .tabs button,.seg button{transition:color .15s,border-color .15s,background .15s,transform .13s ease}
+  .tabs button:active,.seg button:active{transform:scale(.97)}
+
+  /* Навигация */
+  .nav a{transition:all .2s cubic-bezier(.4,0,.2,1)}
+  .nav a:hover{transform:translateX(4px)}
+  .nav a.active{animation:slideInLeft .3s ease}
+
+  /* KPI-карточки */
+  .kpi{transition:transform .25s cubic-bezier(.4,0,.2,1),box-shadow .25s}
+  .kpi:hover{transform:translateY(-4px) scale(1.02)}
+  .kpi .val{transition:color .2s}
+
+  /* Общие карточки */
+  .card{transition:box-shadow .25s,transform .25s}
+  .card:hover{transform:translateY(-1px)}
+
+  /* Календарь — тайлы */
+  .tile{transition:transform .18s cubic-bezier(.4,0,.2,1),box-shadow .18s,opacity .18s}
+  .tile:hover{transform:scale(1.05);box-shadow:0 4px 12px rgba(0,0,0,.12);z-index:2}
+  /* 22.09-347: при наведении задача поверх соседних дней (ячейка тоже поднимается) */
+  .cal-grid .cell:hover{z-index:30}
+  .cal-grid .tile:hover{transform:scale(1.07);z-index:60;box-shadow:0 12px 26px rgba(15,23,42,.24)}
+  /* 22.09-347: планшеты — основная версия работает удобно (768–1180 px) */
+  @media (min-width:768px) and (max-width:1180px){
+    .topbar{height:auto;min-height:62px;flex-wrap:wrap;padding-top:6px;padding-bottom:6px;row-gap:6px}
+    #view{padding:16px}
+    .modal{max-width:94vw!important}
+    .cal-scroll{overflow-x:auto}
+    .tile{font-size:11px}
+    .btn{min-height:38px}
+  }
+  /* 22.09-347: МОБИЛЬНАЯ ВЕРСИЯ (класс force-mobile на <html>) — телефоны от 5 дюймов */
+  html.force-mobile .sidebar{position:fixed;left:-272px;top:0;height:100dvh;z-index:150;transition:left .22s ease;box-shadow:0 0 44px rgba(0,0,0,.35)}
+  html.force-mobile .sidebar.open{left:0}
+  html.force-mobile .burger{display:inline-flex!important}
+  html.force-mobile .main{margin-left:0!important}
+  html.force-mobile .topbar{height:auto;flex-wrap:wrap;padding:8px 10px;gap:8px;row-gap:6px}
+  html.force-mobile .topbar h1{font-size:15px}
+  html.force-mobile #view{padding:10px}
+  html.force-mobile .usr .un{display:none}
+  html.force-mobile .dash-grid,html.force-mobile .dash-grid.dw-inv{grid-template-columns:1fr!important}
+  html.force-mobile .kpi-row{grid-template-columns:1fr 1fr!important;gap:10px}
+  html.force-mobile .map-wrap{grid-template-columns:1fr!important}
+  html.force-mobile #view table.dt{display:block;overflow-x:auto;white-space:nowrap;max-width:100%}
+  html.force-mobile .card-b{padding:12px}
+  html.force-mobile .overlay{padding:12px 6px}
+  html.force-mobile .modal{width:96vw!important;max-width:96vw!important;max-height:94dvh}
+  html.force-mobile .cal-scroll{overflow-x:auto}
+  html.force-mobile .cal-grid{min-width:600px}
+  html.force-mobile .tile{font-size:10px;padding:4px 5px}
+  html.force-mobile .btn{min-height:40px}
+  html.force-mobile .nav a{padding:12px 14px;font-size:14px}
+  html.force-mobile .attr-row{grid-template-columns:1fr!important}
+  html.force-mobile #sp-bell-pop{width:calc(100vw - 16px)!important}
+  html.force-mobile #sp-mobile-btn{background:var(--blue);color:#fff;border-color:var(--blue)}
+  /* 22.09-347: подсказочные блоки (.calc) убраны по всему сайту — по просьбе
+     пользователя. Остаются только данные и предупреждения: расчёт часов в
+     карточке задачи (#f-calc) и блоки с красной/жёлтой полосой (предупреждения). */
+  .calc{display:none!important}
+  #f-calc{display:flex!important}
+  .calc[style*="border-left:4px solid var(--red)"],.calc[style*="border-left:4px solid var(--yellow)"]{display:flex!important}
+  .ap-note{display:none!important}
+  /* 22.09-347: мобильная версия — блоки НЕ вылезают за края экрана.
+     Карточки и сетки умеют сжиматься (min-width:0), широкие таблицы
+     прокручиваются внутри своего блока, а не тянут страницу. */
+  html.force-mobile #view .card{min-width:0;max-width:100%}
+  html.force-mobile .dash-grid>*,html.force-mobile .kpi-row>*,html.force-mobile .dash-grid .card{min-width:0!important}
+  html.force-mobile .today-mstr,html.force-mobile .rz-item,html.force-mobile .kpi{min-width:0}
+  html.force-mobile #view table,html.force-mobile .modal table{display:block;overflow-x:auto;max-width:100%}
+  html.force-mobile #view table.cl-table td,html.force-mobile #view table.cl-table th{white-space:normal;word-break:break-word}
+  html.force-mobile .tabs{overflow-x:auto;flex-wrap:nowrap;max-width:100%}
+  html.force-mobile .card-h{flex-wrap:wrap;row-gap:6px}
+  html.force-mobile .gt-mid{max-width:100%;overflow:hidden}
+  html.force-mobile img,html.force-mobile canvas{max-width:100%}
+  html.force-mobile .sys-tile{min-width:0}
+  html.force-mobile #graph-dup-warn{left:12px;right:12px;max-width:none}
+  html.force-mobile #lm-clock-box{left:50%!important}
+  html.force-mobile .wx-scene{overflow:hidden}
+  .tile.t-green:hover,.tile.t-yellow:hover,.tile.t-red:hover{transform:scale(1.05) translateY(-1px)}
+  .cell{transition:background .15s,box-shadow .15s}
+  .today-mstr{transition:transform .2s,box-shadow .2s}
+  .today-mstr:hover{transform:translateX(3px)}
+  /* 22.09-251: блок мастера в «Сегодня» целиком открывает «Карточки работ на день» */
+  .today-mstr[data-action]{cursor:pointer}
+  .today-mstr[data-action]:hover{border-color:var(--blue);box-shadow:0 4px 14px rgba(37,99,235,.14)}
+  .rz-item{transition:transform .2s,background .2s}
+  .rz-item:hover{transform:translateX(4px);background:#f8fafc}
+
+  /* Карта маршрутов */
+  .mtask{transition:all .2s cubic-bezier(.4,0,.2,1)}
+  .mtask:hover{transform:translateX(4px)}
+  .mtask .pin{transition:transform .2s}
+  .mtask:hover .pin{transform:scale(1.12) rotate(-5deg)}
+  .trash-zone{transition:all .2s cubic-bezier(.4,0,.2,1)}
+
+  /* Чипы и элементы справочников */
+  .chip{transition:transform .18s,background .18s}
+  .chip:hover{transform:scale(1.08)}
+  .tree li.w{transition:background .18s,padding-left .18s}
+  .tree li.w:hover{background:#f8fafc;padding-left:4px}
+  table.dt tr{transition:background .15s}
+  .tabs button{transition:color .2s,border-color .2s}
+  .seg button{transition:all .2s cubic-bezier(.4,0,.2,1)}
+
+  /* Кольца прогресса */
+  .ring{transition:transform .25s,box-shadow .25s}
+  .ring:hover{transform:translateY(-3px) scale(1.04)}
+  .ring svg circle:last-child{transition:stroke-dashoffset 1s cubic-bezier(.4,0,.2,1)}
+
+  /* Бейджи */
+  .nav .badge{animation:pulseSoft 2.2s ease-in-out infinite}
+  .btn .badge{animation:pulseSoft 2.2s ease-in-out infinite}
+
+  /* Поля ввода */
+  .fld input,.fld select{transition:border-color .2s,box-shadow .2s,background .2s}
+  .fld input:hover,.fld select:hover{border-color:#cbd5e1;background:#fcfdff}
+
+  /* Модальное окно — 22.09-293: плавно появляется и так же плавно закрывается.
+     display переключается «плавно» там, где браузер это умеет (Chrome/Edge);
+     в остальных окно просто появляется и исчезает, как раньше. */
+  .overlay{opacity:0;transition:opacity .16s ease}
+  .overlay{transition:opacity .16s ease,display .16s allow-discrete}
+  .overlay.show{opacity:1}
+  .modal{animation:popIn .3s cubic-bezier(.34,1.56,.64,1)}
+  .overlay.show > .modal{animation:spModalIn .19s cubic-bezier(.22,.9,.3,1)}
+  @keyframes spModalIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .modal-h,.modal-f{animation:fadeIn .22s ease backwards}
+  /* окна, которые создаёт код: поиск по системе (Ctrl+K) и настройки автоподбора */
+  #ap-ov.sp-in{animation:fadeIn .14s ease}
+  #ap-ov.sp-in #ap-box{animation:spModalIn .19s cubic-bezier(.22,.9,.3,1)}
+  #gs-overlay.sp-in #gs-box{animation:spModalIn .19s cubic-bezier(.22,.9,.3,1)}
+  /* 22.09-300: окно схемы автоподбора работ (открывается кнопкой «i» поверх страницы) */
+  #sp-scheme-ov{position:fixed;inset:0;z-index:9650;background:rgba(15,23,42,.5);display:flex;align-items:flex-start;justify-content:center;padding:4vh 12px}
+  #sp-scheme-box{width:min(1040px,96vw);height:88vh;display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 24px 60px rgba(15,23,42,.35)}
+  .sps-h{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--line)}
+  .sps-h b{white-space:nowrap;font-size:14px;color:var(--ink)}
+  .sps-sub{font-size:12px;color:var(--muted);flex:1 1 auto;line-height:1.3}
+  .sps-x{margin-left:auto;border:0;background:transparent;color:var(--muted);font-size:20px;line-height:1;cursor:pointer;padding:0 4px}
+  .sps-x:hover{color:var(--txt)}
+  #sp-scheme-frame{flex:1 1 auto;width:100%;border:0;background:#fff}
+  #sp-scheme-ov.sp-in{animation:fadeIn .14s ease}
+  #sp-scheme-ov.sp-in #sp-scheme-box{animation:spModalIn .19s cubic-bezier(.22,.9,.3,1)}
+
+  /* Toast — 22.09-293: анимация уведомлений задана выше (спокойный выезд снизу) */
+
+  /* Бренд-логотип в сайдбаре */
+  .brand .logo{transition:transform .3s}
+  .brand:hover .logo{transform:translateY(-50%) rotate(-6deg) scale(1.05)}
+  .login-brand .logo{transition:transform .3s}
+  .login-brand:hover .logo{transform:rotate(-6deg) scale(1.05)}
+
+  /* Аватар пользователя */
+  .usr .av{transition:transform .25s}
+  .usr:hover .av{transform:scale(1.1) rotate(5deg)}
+
+  /* Экран входа */
+  .login-card{animation:popIn .5s cubic-bezier(.34,1.56,.64,1)}
+  .login-body h2{animation:fadeIn .5s ease .15s backwards}
+
+  /* Скроллбар */
+  .nav::-webkit-scrollbar,.cal-scroll::-webkit-scrollbar,.mlist::-webkit-scrollbar{width:8px;height:8px}
+  .nav::-webkit-scrollbar-thumb,.cal-scroll::-webkit-scrollbar-thumb,.mlist::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:8px;transition:background .2s}
+  .nav::-webkit-scrollbar-thumb:hover,.cal-scroll::-webkit-scrollbar-thumb:hover,.mlist::-webkit-scrollbar-thumb:hover{background:#94a3b8}
+
+  /* ---------- LEAFLET ---------- */
+  .leaflet-control-container .leaflet-bottom.leaflet-right { display: none !important }
+  .leaflet-control-zoom { border: none !important; box-shadow: 0 2px 8px rgba(0,0,0,.15) !important }
+  .leaflet-control-zoom a { background: #fff !important; color: var(--ink) !important; border: none !important }
+
+  /* ---------- TOUCH / ПЛАНШЕТЫ ---------- */
+  /* touch-action: none чтобы браузер не перехватывал жест при перетаскивании */
+  .tile[draggable="true"], .mtask[draggable="true"] { touch-action: none }
+  /* Ghost-клон при touch-перетаскивании */
+  .tile.touch-dragging, .mtask.touch-dragging { box-shadow: 0 8px 24px rgba(37,99,235,.4)!important }
+  /* Увеличенная зона касания для чекбоксов на мобильных */
+  @media (pointer: coarse) {
+    .tile-chk { width: 22px; height: 22px }
+    .tile-chk-box { width: 20px; height: 20px }
+    .seg button { padding: 8px 16px; font-size: 13px }
+    .btn.sm { padding: 7px 12px; font-size: 13px }
+    .tile { padding: 5px 7px; font-size: 11px }
+    .tile .tw { font-size: 11px }
+    .tile .th { font-size: 10px }
+    .col-head { min-width: 60px }
+    .cell { min-height: 55px }
+    .mname { min-width: 140px }
+    /* ширина ячеек единая — min-width не нужен */
+    .mtask { padding: 12px 11px }
+  }
+
+  /* Уважение к настройке «уменьшить анимацию» */
+  @media (prefers-reduced-motion:reduce){
+    *:not(.wx-scene):not(.wx-drop):not(.wx-flake):not(.wx-cloud):not(.wx-sun):not(.wx-sun-rays):not(.wx-sun-wrap):not(.wx-godrays):not(.wx-moon):not(.wx-moon-shadow):not(.wx-star){animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+    .ai-typing span{animation:aiWave 1.2s ease-in-out infinite!important}
+  }
+
+  /* ---------- ЧИПЫ РОЛЕЙ ---------- */
+  .chip.navy{background:#e2e8f0;color:#0f2740}
+  .chip.blue{background:#dbeafe;color:#1d4ed8}
+  .chip.purple{background:#ede9fe;color:#6d28d9}
+  .chip.teal{background:#ccfbf1;color:#0f766e}
+  .chip.slate{background:#e2e8f0;color:#475569}
+  .fld label.cb{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink);font-weight:600;cursor:pointer}
+  .fld label.cb input{width:auto;margin:0}
+
+  /* ---------- ПОПАП-КАЛЕНДАРЬ ---------- */
+  #date-popup{position:fixed;z-index:250;background:var(--card);border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.2);border:1px solid var(--line);padding:16px;width:320px;display:none}
+  #date-popup.open{display:block;animation:scaleIn .2s ease}
+  #date-popup .dp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+  #date-popup .dp-title{font-size:14px;font-weight:700;color:var(--ink)}
+  #date-popup .dp-nav{display:flex;gap:4px}
+  #date-popup .dp-nav button{width:30px;height:30px;border:1px solid var(--line);background:var(--card);border-radius:6px;cursor:pointer;font-size:14px;color:var(--ink);display:flex;align-items:center;justify-content:center;transition:.15s}
+  #date-popup .dp-nav button:hover{background:var(--blue);color:#fff;border-color:var(--blue)}
+  #date-popup .dp-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+  #date-popup .dp-wd{text-align:center;font-size:11px;color:var(--muted);font-weight:700;padding:4px 0}
+  #date-popup .dp-day{text-align:center;padding:8px 0;font-size:13px;color:var(--ink);cursor:pointer;border-radius:6px;transition:.12s;border:none;background:none;font-family:inherit}
+  #date-popup .dp-day:hover{background:#dbeafe;color:var(--blue)}
+  #date-popup .dp-day.today{font-weight:800;color:var(--blue)}
+  #date-popup .dp-day.selected{background:var(--blue);color:#fff;font-weight:700}
+  #date-popup .dp-day.other-month{color:#cbd5e1}
+  #date-popup .dp-actions{display:flex;justify-content:space-between;margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+  #date-popup .dp-actions button{padding:6px 14px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--ink);transition:.15s;font-family:inherit}
+  #date-popup .dp-actions button:hover{background:#f8fafc}
+  #date-popup .dp-actions button.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+  #date-popup .dp-actions button.primary:hover{background:var(--blue-d)}
+  #date-popup .dp-overlay{position:fixed;inset:0;z-index:-1}
+
+  /* ---------- ПОПАП ПОГОДЫ (выпадающий список) ---------- */
+  .weather-dropdown{position:relative;max-height:0;opacity:0;overflow:hidden;padding:0 16px;margin-top:0;background:linear-gradient(160deg,#1e3a5f,#0f2740);color:#fff;border-radius:14px;box-shadow:0 12px 30px rgba(0,0,0,.2);transition:max-height .45s cubic-bezier(.4,0,.2,1),opacity .35s ease,padding .35s ease,margin-top .35s ease}
+  .weather-dropdown.open{max-height:360px;opacity:1;padding:16px;margin-top:8px}
+  @keyframes wpFadeIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+  .weather-dropdown .wd-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-right:36px}
+  .weather-dropdown .wd-title{font-size:14px;font-weight:700}
+  .weather-dropdown .wd-sub{font-size:11px;color:#93c5fd}
+  .weather-dropdown .wd-close{position:absolute;top:10px;right:10px;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:16px;width:28px;height:28px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:3}
+  .weather-dropdown .wd-close:hover{background:rgba(255,255,255,.3)}
+  .weather-dropdown .wd-grid{display:flex;gap:8px;overflow-x:auto;padding:5px 4px 8px 4px;scrollbar-width:thin;scrollbar-color:rgba(147,197,253,.55) rgba(255,255,255,.06)}
+  /* 22.09-125: скроллбар прогноза — тонкий, небесно-голубой, в тон попапа */
+  .weather-dropdown .wd-grid::-webkit-scrollbar{height:7px}
+  .weather-dropdown .wd-grid::-webkit-scrollbar-track{background:rgba(255,255,255,.06);border-radius:10px}
+  .weather-dropdown .wd-grid::-webkit-scrollbar-thumb{background:linear-gradient(90deg,rgba(147,197,253,.6),rgba(56,189,248,.75));border-radius:10px;box-shadow:0 0 6px rgba(56,189,248,.45)}
+  .weather-dropdown .wd-grid::-webkit-scrollbar-thumb:hover{background:linear-gradient(90deg,#93c5fd,#38bdf8);box-shadow:0 0 9px rgba(56,189,248,.7)}
+  .weather-dropdown .wd-day{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:10px 10px;text-align:center;min-width:95px;transition:.3s;animation:wpDayIn .4s ease backwards;cursor:pointer;display:flex;flex-direction:column;align-items:center}
+  @keyframes wpDayIn{from{opacity:0;transform:translateY(15px)}to{opacity:1;transform:translateY(0)}}
+  .weather-dropdown .wd-day:hover{background:rgba(255,255,255,.18);transform:translateY(-3px)}
+  /* === Анимированная сцена погоды (v7 — чистый CSS, без эмодзи) === */
+  .wx-scene{position:absolute;inset:0;overflow:hidden;border-radius:10px;z-index:0;pointer-events:none}
+  .wx-scene *{-webkit-text-stroke:0 transparent;text-shadow:none;outline:none}
+
+  /* Солнце: светящийся диск + вращающиеся лучи + пульсация */
+  .wx-sun-wrap{position:absolute;width:66px;height:66px;animation:wxSunPulse 4s ease-in-out infinite}
+  .wx-sun{position:absolute;inset:13px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fffdf0,#ffe066 48%,#f59e0b);box-shadow:0 0 16px rgba(255,213,70,.9),0 0 38px rgba(255,200,70,.45)}
+  .wx-sun-wrap.dim .wx-sun{background:radial-gradient(circle at 35% 30%,#fef3c7,#fde68a 45%,#d1d5db 100%);box-shadow:0 0 12px rgba(220,200,100,.35)}
+  .wx-sun-wrap.evening .wx-sun{background:radial-gradient(circle at 35% 30%,#fff7ed,#fb923c 48%,#c2410c);box-shadow:0 0 16px rgba(251,146,60,.8),0 0 38px rgba(194,65,12,.4)}
+  .wx-sun-wrap.morning .wx-sun{background:radial-gradient(circle at 35% 30%,#fff7ed,#fdba74 48%,#ea580c);box-shadow:0 0 16px rgba(253,186,116,.7),0 0 38px rgba(234,88,12,.35)}
+  .wx-sun-rays{position:absolute;inset:0;border-radius:50%;background:repeating-conic-gradient(from 0deg,rgba(255,225,130,.9) 0 2.5deg,transparent 2.5deg 22.5deg);-webkit-mask:radial-gradient(circle,transparent 0 44%,#000 47% 94%,transparent 97%);mask:radial-gradient(circle,transparent 0 44%,#000 47% 94%,transparent 97%);animation:wxSunSpin 30s linear infinite}
+
+  /* Полупрозрачные толстые солнечные лучи (god rays) через весь блок — только при ясной погоде */
+  .wx-godrays{position:absolute;inset:0;z-index:0;pointer-events:none;background:repeating-conic-gradient(from 5deg at calc(100% - 39px) 7px,rgba(255,248,220,0) 0deg 3deg,rgba(255,248,220,.4) 9deg,rgba(255,248,220,.5) 13deg,rgba(255,248,220,.4) 17deg,rgba(255,248,220,0) 23deg 30deg);-webkit-mask:radial-gradient(circle at calc(100% - 39px) 7px,transparent 0 6%,#000 9% 100%);mask:radial-gradient(circle at calc(100% - 39px) 7px,transparent 0 6%,#000 9% 100%);filter:blur(3px);animation:wxGodPulse 8s ease-in-out infinite}
+  @keyframes wxGodPulse{0%,100%{opacity:.5}50%{opacity:.9}}
+
+  /* Луна: фазы рисуются смещением круга-тени (.wx-moon-shadow) */
+  .wx-moon{position:absolute;width:46px;height:46px;border-radius:50%;overflow:hidden;background:radial-gradient(circle at 35% 30%,#fdfdeb,#dedeca 70%,#b4b4a4);box-shadow:0 0 14px rgba(240,240,220,.5),inset -4px -4px 9px rgba(0,0,0,.18);animation:wxMoonFloat 6s ease-in-out infinite}
+  .wx-moon-shadow{position:absolute;top:0;left:0;width:46px;height:46px;border-radius:50%;background:#0f1c33}
+
+  /* Звёзды — четырёхконечные с игольчатым сиянием */
+  .wx-star{position:absolute;width:9px;height:9px;background:#fff;clip-path:polygon(50% 0,60% 40%,100% 50%,60% 60%,50% 100%,40% 60%,0 50%,40% 40%);filter:drop-shadow(0 0 3px rgba(255,255,255,.85));animation:wxTwinkle 2.5s ease-in-out infinite}
+
+  /* Облако — основание-таблетка + две выпуклости */
+  .wx-cloud{position:absolute;width:58px;height:20px;border-radius:20px;background:linear-gradient(180deg,#ffffff,#dbe4ec);box-shadow:0 2px 6px rgba(0,0,0,.08)}
+  .wx-cloud:before{content:"";position:absolute;width:28px;height:28px;border-radius:50%;background:inherit;top:-13px;left:9px}
+  .wx-cloud:after{content:"";position:absolute;width:20px;height:20px;border-radius:50%;background:inherit;top:-8px;left:32px}
+  /* 22.09-231: размытые облачка во весь блок — фон карточек прогноза погоды */
+  .wx-bgclouds{position:absolute;inset:0;overflow:hidden;border-radius:14px;pointer-events:none;z-index:0;filter:blur(8px);opacity:.55}
+
+  /* Капля дождя — каплевидная форма (остриём вверх, как 💧) + блик */
+  .wx-drop{position:absolute;width:5px;height:6px;animation:wxDropFall .85s linear infinite}
+  .wx-drop:before{content:"";position:absolute;left:50%;top:0;width:5px;height:5px;margin-left:-2.5px;background:linear-gradient(150deg,#bae6fd 0%,#38bdf8 45%,#2563eb 100%);border-radius:0 50% 50% 50%;transform:rotate(45deg);box-shadow:0 0 2px rgba(56,189,248,.55)}
+  .wx-drop:after{content:"";position:absolute;left:1px;top:3.5px;width:1.5px;height:1.5px;background:rgba(255,255,255,.85);border-radius:50%}
+
+  /* Снежинка — три перекрещенных луча (6 концов) */
+  .wx-flake{position:absolute;width:11px;height:2px;background:rgba(255,255,255,.95);border-radius:1px;box-shadow:0 0 3px rgba(255,255,255,.75);animation:wxFlakeFall 3.5s linear infinite}
+  .wx-flake:before,.wx-flake:after{content:"";position:absolute;inset:0;background:inherit;border-radius:inherit;box-shadow:inherit}
+  .wx-flake:before{transform:rotate(60deg)}
+  .wx-flake:after{transform:rotate(-60deg)}
+
+  /* Молния: вспышка на всю сцену + зигзагообразный разряд с ответвлениями */
+  .wx-flash{position:absolute;inset:0;z-index:5;pointer-events:none;opacity:0;mix-blend-mode:screen;background:radial-gradient(ellipse 115% 95% at 50% 5%,#ffffff 0%,rgba(210,234,255,.98) 30%,rgba(150,195,255,.72) 60%,rgba(110,165,255,.38) 80%,transparent 96%)}
+  .wx-flash.on{animation:wxFlicker .7s ease-out}
+  .wx-bolts{position:absolute;inset:0;z-index:6;pointer-events:none;overflow:visible;filter:drop-shadow(0 0 4px rgba(196,228,255,.95)) drop-shadow(0 0 11px rgba(120,180,255,.7));-webkit-mask:linear-gradient(to right,transparent 25%,black 55%);mask:linear-gradient(to right,transparent 25%,black 55%)}
+  .wx-seg{position:absolute;border-radius:2px;background:linear-gradient(90deg,#dbeafe,#ffffff,#bfdbfe);transform-origin:center}
+  /* Жёлтая вспышка/свечение (20% разрядов) */
+  .wx-flash.yellow{background:radial-gradient(ellipse 115% 95% at 50% 5%,#fffbe6 0%,rgba(255,236,150,.98) 30%,rgba(255,205,70,.72) 60%,rgba(255,170,30,.38) 80%,transparent 96%)}
+  .wx-bolts.yellow{filter:drop-shadow(0 0 4px rgba(255,235,150,.95)) drop-shadow(0 0 11px rgba(255,190,60,.7))}
+  /* Грозовые (тёмные) облака — при сильном дожде/ливне/грозе */
+  .wx-cloud.dark{background:linear-gradient(180deg,#64748b,#334155)}
+  /* Маленькие молнии, бьющие из грозовых облаков */
+  .wx-sparks{position:absolute;inset:0;z-index:4;pointer-events:none;overflow:visible;filter:drop-shadow(0 0 3px rgba(196,228,255,.9));-webkit-mask:linear-gradient(to right,transparent 25%,black 55%);mask:linear-gradient(to right,transparent 25%,black 55%)}
+
+  @keyframes wxSunPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+  @keyframes wxSunSpin{to{transform:rotate(360deg)}}
+  @keyframes wxMoonFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+  @keyframes wxTwinkle{0%,100%{opacity:.2}50%{opacity:1}}
+  @keyframes wxCloudRight{0%{left:-12%;opacity:0}6%,90%{opacity:.78}100%{left:108%;opacity:0}}
+  @keyframes wxCloudLeft{0%{left:108%;opacity:0}6%,90%{opacity:.78}100%{left:-12%;opacity:0}}
+  @keyframes wxDropFall{0%{transform:translateY(-14px);opacity:0}6%{opacity:.85}88%{opacity:.85}100%{transform:translateY(150px);opacity:0}}
+  @keyframes wxDropFallWind{0%{transform:translate(-3px,-14px);opacity:0}6%{opacity:.85}88%{opacity:.85}100%{transform:translate(18px,150px);opacity:0}}
+  .wx-scene.wx-windy .wx-drop{animation-name:wxDropFallWind}
+  .wx-wind{position:absolute;height:2px;border-radius:10px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);opacity:0;pointer-events:none;z-index:1}
+  @keyframes wxWindMove{0%{left:-25%;opacity:0;transform:translateY(0) skewX(0deg)}8%{opacity:.55}14%{transform:translateY(-8px) skewX(-8deg)}25%{transform:translateY(5px) skewX(6deg)}36%{transform:translateY(-6px) skewX(-9deg)}47%{transform:translateY(7px) skewX(5deg)}58%{transform:translateY(-4px) skewX(-7deg)}69%{transform:translateY(6px) skewX(8deg)}80%{transform:translateY(-3px) skewX(-4deg)}88%{transform:translateY(2px) skewX(2deg)}92%{opacity:.55}100%{left:125%;opacity:0;transform:translateY(0) skewX(0deg)}}
+  @keyframes wxFlakeFall{0%{transform:translateY(-12px) translateX(0);opacity:0}8%{opacity:.9}20%{transform:translateY(12px) translateX(6px)}40%{transform:translateY(28px) translateX(-6px)}60%{transform:translateY(44px) translateX(6px)}80%{transform:translateY(62px) translateX(-5px)}92%{opacity:.9}100%{transform:translateY(85px) translateX(0);opacity:0}}
+  @keyframes wxFlakeFallWind{0%{transform:translate(0,-12px);opacity:0}8%{opacity:.9}20%{transform:translate(16px,6px)}40%{transform:translate(8px,24px)}60%{transform:translate(26px,44px)}80%{transform:translate(16px,62px)}92%{opacity:.9}100%{transform:translate(38px,85px);opacity:0}}
+  @keyframes wxFlicker{0%{opacity:0}2%{opacity:1}8%{opacity:.55}13%{opacity:1}24%{opacity:.4}36%{opacity:.85}52%{opacity:.5}100%{opacity:0}}
+  .weather-dropdown .wd-day.today{background:linear-gradient(135deg,#2563eb,#1d4ed8);border-color:rgba(147,197,253,.5)}
+  .weather-dropdown .wd-dow{font-size:10px;text-transform:uppercase;color:#93c5fd;font-weight:700}
+  .weather-dropdown .wd-date{font-size:13px;font-weight:800;margin:2px 0 6px}
+  .weather-dropdown .wd-icon{font-size:24px;margin-bottom:4px}
+  .weather-dropdown .wd-temp{font-size:15px;font-weight:800}
+  .weather-dropdown .wd-desc{font-size:9px;color:#cbd5e1;margin-top:2px;height:24px;display:flex;align-items:center;justify-content:center}
+
+  /* ---------- ВЫПАДАЮЩИЙ КАЛЕНДАРЬ ВЫБОРА МЕСЯЦА (отчёты) ---------- */
+  .report-month-dropdown{display:none;position:fixed;top:0;left:0;z-index:9999;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.25);padding:14px;width:300px}
+  .report-month-dropdown.open{display:block;animation:scaleIn .2s ease}
+  .report-month-dropdown .rm-head{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:12px;position:relative}
+  .report-month-dropdown .rm-head button{width:32px;height:32px;border:1px solid var(--line);background:var(--card);border-radius:7px;cursor:pointer;font-size:16px;color:var(--ink);display:flex;align-items:center;justify-content:center;transition:.15s;font-family:inherit}
+  .report-month-dropdown .rm-head button:hover{background:var(--blue);color:#fff;border-color:var(--blue)}
+  .report-month-dropdown .rm-year{font-size:16px;font-weight:800;color:var(--ink);min-width:60px;text-align:center}
+  .report-month-dropdown .rm-close{position:absolute;right:0;top:0;width:26px!important;height:26px!important;font-size:16px!important;border:none!important;background:transparent!important;color:var(--muted)!important}
+  .report-month-dropdown .rm-close:hover{color:var(--red)!important;background:transparent!important}
+  .report-month-dropdown .rm-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+  .report-month-dropdown .rm-month{padding:11px 4px;border:1px solid var(--line);background:var(--card);border-radius:8px;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--ink);transition:.15s;font-family:inherit;text-align:center}
+  .report-month-dropdown .rm-month:hover{background:#dbeafe;border-color:var(--blue);color:var(--blue)}
+  .report-month-dropdown .rm-month.selected{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:700}
+  .report-month-dropdown .rm-month.current{border-color:var(--green)}
+  .report-month-dropdown .rm-month.current.selected{background:var(--blue);border-color:var(--blue)}
+
+  /* ---------- УБиРОГС: МЕТКИ И ФИЛЬТРЫ ---------- */
+  .weather-warn{background:#fef3c7;border:1px solid #facc15;color:#92400e;border-radius:8px;padding:8px 12px;font-size:12px;display:flex;align-items:center;gap:8px;margin-bottom:10px}
+  .permit-warn{background:#fee2e2;border:1px solid #f87171;color:#991b1b;border-radius:8px;padding:8px 12px;font-size:12px;display:flex;align-items:center;gap:8px;margin-bottom:10px}
+  .snow-badge{display:inline-flex;align-items:center;gap:4px;background:#dbeafe;color:#1e40af;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600}
+  .permit-badge{display:inline-flex;align-items:center;gap:4px;background:#fee2e2;color:#991b1b;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600}
+  .weather-badge{display:inline-flex;align-items:center;gap:4px;background:#fef3c7;color:#92400e;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600}
+  .equipment-badge{display:inline-flex;align-items:center;gap:4px;background:#f0fdf4;color:#166534;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600}
+  .filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+  .filter-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:var(--card);font-size:12px;font-weight:600;cursor:pointer;transition:.15s;color:var(--muted)}
+  .filter-chip:hover{border-color:var(--blue);color:var(--ink)}
+  .filter-chip.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+  .vol-input{display:flex;align-items:center;gap:8px}
+  .vol-input input{flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;background:var(--card);font-family:inherit;color:var(--ink);min-width:0}
+  .vol-input input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+  .vol-unit{font-size:12px;font-weight:700;color:var(--muted);min-width:30px}
+  .attr-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+  .attr-row .fld{margin-bottom:0}
+  .tile.t-weather{background:#fef3c7!important;border-left-color:#facc15!important}
+  .tile.t-weather .tw{color:#92400e!important}
+  .ov-weather{position:absolute;top:2px;right:3px;font-size:9px;font-weight:800;color:#fff;background:#f59e0b;border-radius:5px;padding:0 4px}
+  .tile-permit{display:block;font-size:9px;color:#b91c1c;font-weight:700;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* Бейдж времени в пути (маршрут) в ячейке календаря */
+  .cell-route{font-size:9px;font-weight:700;color:#1e40af;background:#dbeafe;border-radius:4px;padding:1px 5px;margin-top:auto;white-space:nowrap;align-self:flex-start}
+  /* Карточка базы в списке заданий карты */
+  .mtask.base-card{cursor:default!important}
+  .mtask.base-card:hover{transform:none!important;background:linear-gradient(135deg,#0f2740,#1a3a5c)!important;border-color:transparent!important}
+  .mtask.base-card:hover .pin{transform:none!important}
+
+  /* Капли дождя по стеклу (для панели прогноза) */
+  .weather-dropdown .wd-head{position:relative;z-index:2}
+  .weather-dropdown .wd-grid{position:relative;z-index:2}
+  .glass-head{position:absolute;width:4px;height:5px;border-radius:50%;background:rgba(255,255,255,.5);box-shadow:0 0 2px rgba(255,255,255,.3),inset 0 -1px 1px rgba(255,255,255,.2);pointer-events:none;z-index:1}
+  .glass-trail{position:absolute;width:2px;height:2px;border-radius:50%;background:rgba(255,255,255,.22);pointer-events:none;z-index:0;transition:opacity 2.5s ease-out}
+  .snow-dot{position:absolute;width:4px;height:4px;border-radius:50%;background:rgba(255,255,255,.7);box-shadow:0 0 3px rgba(255,255,255,.5);pointer-events:none;z-index:1}
+  .glass-flake{position:absolute;width:7px;height:1.4px;background:rgba(255,255,255,.9);border-radius:1px;box-shadow:0 0 3px rgba(255,255,255,.65);pointer-events:none;z-index:1;will-change:transform}
+  .glass-flake:before,.glass-flake:after{content:"";position:absolute;inset:0;background:inherit;border-radius:inherit;box-shadow:inherit}
+  .glass-flake:before{transform:rotate(60deg)}
+  .glass-flake:after{transform:rotate(-60deg)}
+/* Модальное окно карты погоды */
+#wx-map-overlay{display:none;position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.5);backdrop-filter:blur(4px)}
+#wx-map-overlay.show{display:block}
+#wx-map-window{position:absolute;inset:20px;background:var(--card);border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.4);display:flex;flex-direction:column}
+#wx-map-header{display:flex;align-items:center;gap:12px;padding:12px 18px;background:linear-gradient(135deg,#1e3a5f,#2563eb);color:#fff;flex-shrink:0}
+#wx-map-header .wx-title{font-size:15px;font-weight:700;flex:1}
+#wx-map-close{margin-left:auto;background:none;border:none;color:#fff;font-size:26px;cursor:pointer;padding:0 4px;line-height:1;opacity:.9;transition:.15s}
+#wx-map-close:hover{opacity:1;transform:rotate(90deg)}
+#wx-map-body{flex:1;position:relative;overflow:hidden;background:#a9c7e0}
+#wx-map-canvas{position:absolute;inset:0;width:100%;height:100%}
+#wx-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:14px;background:#eef2f6;z-index:10}
+
+/* Переключатель подложки OSM / Google в шапке карты */
+#wx-basemap-sel{display:inline-flex;gap:4px;background:rgba(255,255,255,.18);border-radius:9px;padding:3px}
+.wx-bm-btn{border:none;background:transparent;color:#dbeafe;font-size:12px;font-weight:700;font-family:inherit;padding:5px 12px;border-radius:7px;cursor:pointer;transition:.15s}
+.wx-bm-btn:hover{background:rgba(255,255,255,.2)}
+.wx-bm-btn.on{background:#fff;color:#0f2740}
+/* Значения в метке ячейки */
+.wx-cl-row{display:inline-flex;align-items:center;gap:1px;font-size:9.5px;font-weight:800;line-height:1.1}
+
+/* Левая верхняя панель выбора слоёв */
+.wx-layers{position:absolute;top:12px;left:47px;z-index:600;width:200px;background:rgba(255,255,255,.92);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.7);border-radius:13px;box-shadow:0 8px 28px rgba(15,39,64,.22);padding:11px 12px 12px;animation:wxSlideIn .3s ease}
+@keyframes wxSlideIn{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:none}}
+.wx-layers .wx-l-head{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:800;color:#0f2740;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;padding-bottom:7px;border-bottom:1px solid #e2e8f0}
+.wx-l-head .wx-l-toggle{margin-left:auto;background:none;border:none;cursor:pointer;color:#64748b;font-size:14px;line-height:1;padding:2px 4px;border-radius:5px;transition:.15s}
+.wx-l-head .wx-l-toggle:hover{background:#eef2f6;color:#0f2740}
+.wx-layers.collapsed .wx-l-body{display:none}
+.wx-layers .wx-l-sub{font-size:9.5px;color:#64748b;margin:2px 0 8px;font-weight:600}
+.wx-layer-item{display:flex;align-items:center;gap:8px;padding:6px 7px;border-radius:9px;cursor:pointer;transition:.15s;user-select:none;margin-bottom:2px}
+.wx-layer-item:hover{background:#eef4fb}
+.wx-layer-item .wx-l-ic{width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;flex:0 0 26px;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.wx-layer-item .wx-l-name{font-size:12.5px;font-weight:700;color:#1f2937;flex:1}
+.wx-layer-item .wx-l-box{width:18px;height:18px;border-radius:6px;border:2px solid #5b6b80;background:var(--card);flex:0 0 18px;display:flex;align-items:center;justify-content:center;transition:.15s}
+.wx-layer-item.on .wx-l-box{border-color:#2563eb}
+.wx-layer-item.on .wx-l-box::after{content:'';width:9px;height:5px;border:solid #fff;border-width:0 0 2.5px 2.5px;transform:rotate(-45deg) translate(1px,-1px)}
+.wx-layer-item.on .wx-l-box{background:#2563eb}
+.wx-layer-item.on{background:linear-gradient(90deg,rgba(37,99,235,.10),rgba(37,99,235,.02))}
+.wx-layer-item.on .wx-l-ic{filter:saturate(1.15)}
+@media(max-width:767px){.wx-layers{width:168px;top:8px;left:8px;padding:9px 10px}}
+
+/* Нижний таймлайн (48 часов: начало сегодня 00:00 — конец завтра 23:00) */
+.wx-timeline{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:600;width:min(720px,calc(100% - 28px));background:rgba(15,39,64,.93);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:14px;padding:9px 16px 11px;box-shadow:0 8px 28px rgba(0,0,0,.32);animation:wxSlideUp .3s ease}
+@keyframes wxSlideUp{from{opacity:0;transform:translateX(-50%) translateY(14px)}to{opacity:1;transform:translateX(-50%)}}
+.wx-tl-top{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.wx-tl-date{font-size:14px;font-weight:800;letter-spacing:.2px;white-space:nowrap}
+.wx-tl-sub{font-size:10.5px;color:#93c5fd;font-weight:600}
+.wx-tl-btns{margin-left:auto;display:flex;gap:5px}
+.wx-tl-btn{width:30px;height:30px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.10);color:#fff;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s;line-height:1}
+.wx-tl-btn:hover{background:rgba(255,255,255,.22)}
+.wx-tl-btn.on{background:#2563eb;border-color:#60a5fa}
+.wx-tl-slider-wrap{position:relative;padding:2px 2px 0}
+.wx-tl-slider{-webkit-appearance:none;appearance:none;width:100%;height:7px;border-radius:5px;background:linear-gradient(90deg,rgba(56,189,248,.45),rgba(37,99,235,.55));outline:none;cursor:pointer}
+.wx-tl-slider::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:#fff;border:3px solid #2563eb;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:grab}
+.wx-tl-slider::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:#fff;border:3px solid #2563eb;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:grab}
+.wx-tl-ticks{display:flex;justify-content:space-between;font-size:9px;color:#7da7d6;margin-top:4px;font-weight:600;padding:0 2px}
+.wx-tl-ticks span{white-space:nowrap}
+@media(max-width:767px){.wx-timeline{bottom:8px;padding:7px 12px 9px}.wx-tl-date{font-size:12px}.wx-tl-sub{display:none}}
+
+/* Метка-чип на выделенном регионе (Минск / Минский район / Минская область) */
+.wx-region-label{background:rgba(15,39,64,.82);color:#fff;border-radius:9px;padding:4px 9px;box-shadow:0 4px 14px rgba(0,0,0,.3);font-family:inherit;pointer-events:none;text-align:center;backdrop-filter:blur(3px);border:1px solid rgba(255,255,255,.25)}
+.wx-region-label .wx-rl-name{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;line-height:1.1;opacity:.9}
+.wx-region-label .wx-rl-vals{display:flex;flex-wrap:wrap;gap:3px 7px;justify-content:center;margin-top:3px}
+.wx-region-label .wx-rl-row{font-size:11.5px;font-weight:800;line-height:1.1;white-space:nowrap}
+.wx-region-label .wx-rl-empty{font-size:10px;font-style:italic;opacity:.7}
+/* Метка ячейки (район города / сельсовет) внутри Минска и Минского района */
+.wx-cell-label{background:rgba(15,39,64,.82);color:#fff;border-radius:6px;padding:2px 6px 3px;box-shadow:0 2px 8px rgba(0,0,0,.3);font-family:inherit;pointer-events:none;text-align:center;border:1px solid rgba(255,255,255,.18)}
+.wx-cell-label .wx-cl-name{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.2px;opacity:.82;line-height:1.05}
+.wx-cell-label .wx-cl-vals{display:flex;gap:4px;justify-content:center;font-size:9.5px;font-weight:800;line-height:1.1;margin-top:1px}
+/* Слой дождя (радар) — мягкие голубые закруглённые пятна, движется */
+.wx-radar-tile img{filter:blur(3px) saturate(1.4) brightness(1.05)}
+/* Область грозы — тёмно-синяя прозрачная с закруглением и пульсацией */
+.leaflet-pane.wxstorm path.wx-storm-circle{animation:wxStormPulse 2.4s ease-in-out infinite}
+@keyframes wxStormPulse{0%,100%{opacity:.85}50%{opacity:.45}}
+
+/* Анимация контура регионов с осадками (дождь/снег) */
+.leaflet-overlay-pane path.wx-region-rain,.leaflet-pane path.wx-region-rain{stroke-dasharray:7 5;animation:wxRegDash 1.2s linear infinite,wxRainGlow 1.5s ease-in-out infinite;filter:drop-shadow(0 0 5px rgba(56,189,248,.9))}
+.leaflet-overlay-pane path.wx-region-snow,.leaflet-pane path.wx-region-snow{stroke-dasharray:3 6;animation:wxRegDash 2s linear infinite,wxRainGlow 2s ease-in-out infinite;filter:drop-shadow(0 0 5px rgba(186,230,253,.9))}
+@keyframes wxRegDash{to{stroke-dashoffset:-24}}
+@keyframes wxRainGlow{0%,100%{filter:drop-shadow(0 0 3px rgba(56,189,248,.5))}50%{filter:drop-shadow(0 0 9px rgba(56,189,248,1))}}
+/* Окантовки Минск + Минский район */
+.leaflet-overlay-pane path.wx-region-outline,.leaflet-pane path.wx-region-outline{animation:wxOutlinePulse 3s ease-in-out infinite;filter:drop-shadow(0 0 4px rgba(14,165,233,.7))}
+@keyframes wxOutlinePulse{0%,100%{opacity:.7;filter:drop-shadow(0 0 3px rgba(14,165,233,.5))}50%{opacity:1;filter:drop-shadow(0 0 8px rgba(14,165,233,1))}}
+/* ПЛАВНЫЕ ПЕРЕХОДЫ ЦВЕТА ЯЧЕЕК */
+.leaflet-overlay-pane path.wx-cell,.leaflet-pane path.wx-cell{transition:fill .8s cubic-bezier(.4,0,.2,1),fill-opacity .8s ease,stroke .8s ease}
+/* ВОЛНА НА ПОЛЗУНКЕ */
+.wx-tl-slider-wrap{position:relative;padding:6px 4px 2px;overflow:visible}
+/* Ползунок: тонкая ЛИНИЯ (трек), поверх неё КРУЖОК. Волна проходит ТОЛЬКО через кружок
+   (расходящиеся кольца) и перемещается вместе с ним при перетаскивании. */
+.wx-tl-slider{-webkit-appearance:none;appearance:none;width:100%;height:24px;background:transparent;cursor:pointer;outline:none}
+.wx-tl-slider::-webkit-slider-runnable-track{height:4px;border-radius:4px;margin-top:10px;background:linear-gradient(90deg,rgba(56,189,248,.35),rgba(37,99,235,.6));box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}
+.wx-tl-slider::-moz-range-track{height:4px;border-radius:4px;background:linear-gradient(90deg,rgba(56,189,248,.35),rgba(37,99,235,.6))}
+.wx-tl-slider::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;margin-top:-9px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,#bfdbfe);border:3px solid #2563eb;cursor:grab;animation:wxThumbWave 1.8s ease-out infinite}
+.wx-tl-slider::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,#bfdbfe);border:3px solid #2563eb;cursor:grab;box-shadow:0 2px 8px rgba(37,99,235,.45)}
+@keyframes wxThumbWave{0%{box-shadow:0 0 0 0 rgba(56,189,248,.55),0 0 0 0 rgba(37,99,235,.3),0 2px 8px rgba(37,99,235,.45)}55%{box-shadow:0 0 0 9px rgba(56,189,248,0),0 0 0 17px rgba(37,99,235,0),0 2px 8px rgba(37,99,235,.45)}100%{box-shadow:0 0 0 0 rgba(56,189,248,0),0 0 0 0 rgba(37,99,235,0),0 2px 8px rgba(37,99,235,.45)}}
+/* Сетка квадратов погоды + слой частиц */
+#wx-map-body{position:relative}
+#wx-map-canvas{position:relative;z-index:1}
+/* плавный переход цвета температуры в квадратах */
+.leaflet-pane path.wx-g-cell{transition:fill .4s ease,fill-opacity .4s ease}
+/* дождь / снег: анимированная пунктирная окантовка (как раньше) */
+.leaflet-overlay-pane path.wx-g-rain,.leaflet-pane path.wx-g-rain{stroke-dasharray:3 2;animation:wxGDash .7s linear infinite;filter:drop-shadow(0 0 3px rgba(56,189,248,.65))}
+.leaflet-overlay-pane path.wx-g-snow,.leaflet-pane path.wx-g-snow{stroke-dasharray:3 2;animation:wxGDash .9s linear infinite;filter:drop-shadow(0 0 3px rgba(203,213,225,.65))}
+@keyframes wxGDash{to{stroke-dashoffset:-10}}
+/* частицы поверх квадратов: дождь(капли)/снег(снежинки)/ветер(полосы) */
+#wx-particles{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:2}
+#wx-layers,#wx-timeline{z-index:20}
+.wx-cdrop{position:absolute;left:0;top:0;width:100%;height:100%;overflow:hidden;pointer-events:none}
+.wx-cdrop .wx-drop{position:absolute;top:-25%;width:1.5px;height:11px;background:linear-gradient(rgba(186,230,253,0),rgba(125,211,252,.75));border-radius:2px;animation:wxCdrop linear infinite}
+@keyframes wxCdrop{0%{top:-25%;opacity:0}12%{opacity:1}88%{opacity:1}100%{top:110%;opacity:0}}
+.wx-cdrop .wx-flake{position:absolute;top:-15%;width:4px;height:4px;border-radius:50%;background:#e2e8f0;box-shadow:0 0 2px rgba(255,255,255,.9);animation:wxCflake linear infinite}
+@keyframes wxCflake{0%{top:-15%;opacity:0;transform:translateX(0)}12%{opacity:.95}88%{opacity:.9}100%{top:110%;opacity:0;transform:translateX(10px)}}
+.wx-p-wind{position:absolute;left:-12%;width:34px;height:2px;border-radius:2px;background:linear-gradient(90deg,rgba(167,139,250,0),rgba(167,139,250,.85),rgba(167,139,250,0));animation:wxPWind linear infinite}
+@keyframes wxPWind{0%{left:-12%;opacity:0}15%{opacity:.8}85%{opacity:.75}100%{left:112%;opacity:0}}
+.wxcells-pane svg g{opacity:.65}
+
+
+
+#wx-tabs{display:flex;background:#0f2740;border-bottom:1px solid rgba(255,255,255,.12)}.wx-tab{flex:1;padding:9px 8px;border:none;background:transparent;color:#94a3b8;font-weight:700;font-size:12px;font-family:inherit;cursor:pointer;border-bottom:3px solid transparent}.wx-tab.on{color:#fff;background:rgba(255,255,255,.06);border-bottom-color:#38bdf8}#wx-yandex{display:none;position:absolute;inset:0;z-index:30;flex-direction:column;background:#fff}#wx-yandex-bar{display:flex;align-items:center;gap:8px;padding:7px 12px;background:#fef3c7;color:#78350f;font-size:11px;border-bottom:1px solid #fde68a}#wx-yandex-bar a{margin-left:auto;padding:5px 12px;background:#dc2626;color:#fff;border-radius:7px;text-decoration:none;font-weight:700;font-size:11px}#wx-yandex-frame{flex:1;width:100%;border:0;background:#fff}
+#wx-map-header{position:relative}#wx-map-header .wx-title{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:15px;font-weight:700;white-space:nowrap;flex:none;text-align:center}.wx-yandex-open{padding:7px 12px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.1);color:#fff;border-radius:8px;font-weight:700;font-size:12px;font-family:inherit;cursor:pointer;white-space:nowrap}
+.wx-popup .leaflet-popup-content-wrapper{border-radius:12px;box-shadow:0 6px 22px rgba(0,0,0,.35)}.wx-popup .leaflet-popup-content{margin:9px 12px}.wx-pop{display:flex;gap:13px;align-items:flex-start}.wx-pop-item{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:30px}.wx-pop-ic{font-size:21px;line-height:1}.wx-pop-val{font-size:13.5px;font-weight:800;line-height:1}.wx-pop-empty{font-size:12px;color:#64748b}.wx-yandex-open.on{background:#f59e0b;border-color:#f59e0b;color:#1e3a5f}#wx-basemap-sel{margin-left:auto}.wx-back{padding:6px 12px;border:none;border-radius:7px;background:#0f2740;color:#fff;font-weight:700;font-size:12px;font-family:inherit;cursor:pointer}
+
+/* Полупрозрачная кнопка карты погоды с белой окантовкой (в полосе погоды) */
+.wx-map-fab{margin-left:10px;display:inline-flex;align-items:center;gap:7px;padding:8px 14px;background:rgba(255,255,255,.16);border:1.5px solid rgba(255,255,255,.85);color:#fff;border-radius:30px;font-size:12.5px;font-weight:700;cursor:pointer;backdrop-filter:blur(6px);transition:.2s;font-family:inherit;white-space:nowrap;position:relative;z-index:2;text-shadow:0 1px 4px rgba(0,0,0,.3);box-shadow:0 4px 14px rgba(0,0,0,.18)}
+.wx-map-fab:hover{background:rgba(255,255,255,.28);transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,0,0,.28)}
+.wx-map-fab:active{transform:translateY(0)}
+@media(max-width:767px){.wx-map-fab{padding:6px 11px;font-size:11px}}
+@media(max-width:767px){#wx-map-window{inset:8px}}
+@keyframes tp{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+  /* 22.09-135: выдвижная навигация (≤1080px) — всегда ВЫШЕ любого затемнения:
+     своей подложки body.drawer-open::after (z-index:80) и модального оверлея
+     .overlay (z-index:100). Раньше в блоках 768–1023px и <768px сайдбар выезжал
+     с z-index:50 и оказывался ПОД затемнением (бар открыт, но скрыт темнотой).
+     Правило — в самом конце CSS: при равной специфичности побеждает оно. */
+  @media (max-width:1080px){
+    .sidebar{z-index:150}
+  }
+</style>
+<script>
+/* 22.09-347: мобильная версия — выбор пользователя (кнопка в шапке) или узкий экран */
+try {
+  var _mm = localStorage.getItem('smartplan_mobile');
+  if (_mm === '1' || (_mm === null && window.innerWidth < 768)) document.documentElement.classList.add('force-mobile');
+} catch (e) {}
+</script>
+</head>
+<body>
+<div id="testgrp-badge" style="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:2147483001;background:#7c2d12;color:#fff;font-size:12.5px;font-weight:700;padding:5px 16px;border-radius:0 0 12px 12px;box-shadow:0 6px 18px rgba(0,0,0,.3);letter-spacing:.2px">🧪 ТЕСТОВОЕ ОТВЕТВЛЕНИЕ · участок «ТЕСТ» · отдельный вход</div>
+
+<!-- ЭКРАН ВХОДА -->
+<div class="login-screen" id="login-screen">
+  <div class="login-wrap">
+  <div class="login-card">
+    <div class="login-brand">
+      <img src="root_index/logo.png" class="logo" alt="Логотип СЭОГС">
+      <div>
+        <div class="bt">SmartPlan</div>
+        <div class="bs">Планирование · УП «МИНГАЗ»</div>
+      </div>
+    </div>
+    <div class="login-body">
+      <h2>Вход в систему</h2>
+      <form id="login-form">
+        <div class="fld"><label>Логин</label><input id="li-login" autocomplete="username" placeholder="Введите логин"></div>
+        <div class="fld"><label>Пароль</label><input id="li-pass" type="password" autocomplete="current-password" placeholder="••••••"></div>
+        <div class="li-err" id="li-err"></div>
+        <button class="btn primary" type="submit" id="li-btn" style="width:100%;justify-content:center">Войти</button>
+        <div style="margin-top:16px;padding:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;color:#475569;line-height:1.4;">
+          <div style="font-weight:700;margin-bottom:6px;color:#0f2740;">💡 Стандартные аккаунты (автозаполнение):</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">
+            <button type="button" class="btn sm" style="background:#fff;border:1px solid #cbd5e1;padding:4px 8px;font-size:12px;color:#0f2740;" onclick="document.getElementById('li-login').value='admin';document.getElementById('li-pass').value='admin123';">👑 admin / admin123 (Администратор)</button>
+            <button type="button" class="btn sm" style="background:#fff;border:1px solid #cbd5e1;padding:4px 8px;font-size:12px;color:#475569;" onclick="document.getElementById('li-login').value='seogs';document.getElementById('li-pass').value='seogs123';">👁 seogs / seogs123 (Начальник СЭОГС — просмотр)</button>
+            <button type="button" class="btn sm" style="background:#fff;border:1px solid #cbd5e1;padding:4px 8px;font-size:12px;color:#2563eb;" onclick="document.getElementById('li-login').value='master';document.getElementById('li-pass').value='master123';">👷 master / master123 (Мастер — Иванов С.П.)</button>
+            <button type="button" class="btn sm" style="background:#fff;border:1px solid #cbd5e1;padding:4px 8px;font-size:12px;color:#059669;" onclick="document.getElementById('li-login').value='slesar';document.getElementById('li-pass').value='slesar123';">🔧 slesar / slesar123 (Слесарь — Петров А.Н.)</button>
+          </div>
+          <div style="margin-top:6px;font-size:12px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
+        </div>
+      </form>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Тестовое ответвление · замороженная сборка 22.09-347 · участок «ТЕСТ»</div>
+        <div style="margin-top:6px;text-align:center"><a href="#" id="li-cookie-link" class="cookie-link" title="Посмотреть или изменить разрешение">🍪 Cookie и хранилище браузера</a></div>
+    </div>
+  </div>
+  </div>
+</div>
+
+<div id="boot-splash"><img src="root_index/logo.png" alt="SmartPlan"><div class="boot-txt">SmartPlan загружается…</div></div>
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div>
+        <div class="bt">SmartPlan</div>
+        <div class="bs">Планирование</div>
+      </div>
+    </div>
+    <div class="base-sel">
+      <label class="base-lbl">База:</label>
+      <select id="base-select" style="color:var(--ink);background:var(--card);font-weight:600;">
+        <option value="b1" style="color:var(--ink);background:var(--card);">г. Минск, ул. Ботаническая 11</option>
+        <option value="b2" style="color:var(--ink);background:var(--card);">г. Минск, ул. Волгоградская 3А</option>
+      </select>
+    </div>
+    <nav class="nav" id="nav">
+      <div class="grp">Оперативная работа</div>
+      <a data-screen="dashboard" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>Панель мониторинга <span class="badge" id="rz-badge">0</span></a>
+      <div class="nav-acc" id="nav-plan">
+        <a data-screen="calendar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg>Планирование / Календарь</a>
+        <div class="nav-sub">
+          <a data-screen="graphs" title="Годовой график работ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M7 17v-6"/><path d="M12 17V6"/><path d="M17 17v-10"/></svg>График работ</a>
+        </div>
+      </div>
+      <a data-screen="map"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 20l-6-3V4l6 3 6-3 6 3v13l-6-3-6 3z"/><path d="M9 7v13M15 4v13"/></svg>Карта маршрутов</a>
+      <a data-screen="livemap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3"/></svg>Карта местоположения</a>
+      <a data-screen="objmap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 20l-6-3V4l6 3 6-3 6 3v13l-6-3-6 3z"/><circle cx="10.3" cy="9.3" r="1.5" fill="currentColor" stroke="none"/><circle cx="14.6" cy="14.2" r="1.5" fill="currentColor" stroke="none"/></svg>Карта объектов</a>
+      <a data-screen="perms"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L3 7v6c0 5 4 8.5 9 10 5-1.5 9-5 9-10V7l-9-5z"/><path d="M9 12l2 2 4-4"/></svg>Разрешения</a>
+      <a data-screen="reports"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg>Отчёты</a>
+      <a data-screen="schedules"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h2v2H8zM14 14h2v2h-2zM8 18h2v2H8zM14 18h2v2h-2z"/></svg>Графики смен</a>
+      <a data-screen="refs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20V3H6.5A2.5 2.5 0 004 5.5z"/><path d="M4 19.5V21h12"/></svg>Справочники</a>
+      <a data-screen="writeoffs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>Списания</a>
+      <div class="grp">Администрирование</div>
+      <a data-screen="adminctl" title="Параметры системы: объявления работникам, права доступа"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6h.09A1.65 1.65 0 0 0 10.6 3V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Параметры</a>
+      <a data-screen="users"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>Пользователи</a>
+      <a data-screen="backup" title="Резервное копирование и восстановление всех баз данных (каждая — отдельным файлом)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>Бэкапы БД</a>
+      <a data-screen="journals" title="Журнал действий, логи ошибок и журнал изменений — на одной странице"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20V3H6.5A2.5 2.5 0 004 5.5z"/><path d="M8 7h8M8 11h8M8 15h5"/></svg>Журналы</a>
+    </nav>
+    <div class="sb-foot"><a href="#" id="sb-cookie-link" class="cookie-link" title="Разрешение на cookie и хранилище браузера">🍪 Cookie</a></div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <header class="topbar">
+      <button class="burger" id="burger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+      <div>
+        <h1 id="screen-title">Дашборд</h1>
+        <div class="crumb" id="screen-crumb">Рабочий стол</div>
+      </div>
+      <div class="spacer"></div>
+      <!-- 22.09-286: общий выбор участка — все вкладки показывают выбранный участок -->
+      <select id="sp-area-sel" style="display:none" aria-label="Фильтр по участку"></select>
+      <div id="topbar-date" style="font-size:13px;font-weight:700;color:var(--blue);white-space:nowrap;"></div>
+      <div class="spacer"></div>
+      <!-- 22.09-287: все кнопки шапки справа — один ряд с одинаковым расстоянием (как у «Темы» и «Доступности») -->
+      <span class="tb-btns">
+      <!-- 22.09-271: настройка панели — только на панели мониторинга, слева от индикатора сервера -->
+      <button type="button" class="tb-btn" id="dash-setup-btn" data-action="dash-setup" style="display:none" title="Настройка панели мониторинга — какие блоки показывать и в каком порядке" aria-label="Настройка панели мониторинга">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6h.09A1.65 1.65 0 0 0 10.6 3V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+      <!-- 22.09-284: глобальный поиск (Ctrl+K) и колокольчик уведомлений -->
+      <!-- 22.09-290: настройки автоподбора работ — только на «Справочниках» участка ГРП -->
+      
+      <button type="button" class="tb-btn" id="sp-ap-btn" data-action="ap-open" style="display:none"
+        title="Настройки автоподбора работ" aria-label="Настройки автоподбора работ">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6h.09A1.65 1.65 0 0 0 10.6 3V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+      <button type="button" class="tb-btn" id="sp-search-btn" data-action="gs-open" title="Поиск по системе (Ctrl+K): объекты, виды работ, страницы, пользователи" aria-label="Поиск по системе">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      </button>
+      <button type="button" class="tb-btn" id="sp-feedback-btn" data-action="feedback-open" title="Сообщить о проблеме или оставить отзыв" aria-label="Сообщить о проблеме">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/><path d="M12 8v4M12 16h.01"/></svg>
+      </button>
+      <button type="button" class="tb-btn" id="sp-bell" data-action="bell-toggle" title="Уведомления" aria-label="Уведомления" style="position:relative">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>
+        <span id="sp-bell-badge" style="display:none">0</span>
+      </button>
+      <!-- 22.09-287: индикатор сервера — квадрат как у соседних кнопок, без стрелки -->
+      <span id="sync-indicator" title="">
+        <span id="sync-dot" class="sp-dot"></span>
+      </span>
+                <button type="button" class="tb-btn" id="sp-mobile-btn" data-action="mobile-toggle" title="Мобильная версия: вёрстка под телефон (нажмите, чтобы включить или выключить)" aria-label="Переключить мобильную версию" aria-pressed="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>
+        </button>
+                <button type="button" class="tb-btn" id="theme-toggle" title="Тема: переключить светлую ↔ тёмную" aria-label="Переключить тему (светлая/тёмная)">
+          <svg class="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          <svg class="ic-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+        </button>
+        <button type="button" class="tb-btn" id="a11y-toggle" title="Доступность: крупный шрифт, контраст, шрифт, анимации" aria-label="Настройки доступности для слабовидящих" aria-haspopup="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </span>
+      <div id="a11y-dropdown" style="display:none" role="menu" aria-label="Режимы доступности">
+        <div class="ad-h">Режимы для слабовидящих</div>
+        <label><input type="checkbox" data-pref="large"><span>Крупный шрифт (увеличение на 20%)</span></label>
+        <label><input type="checkbox" data-pref="contrast"><span>Высокий контраст (чёрный фон, белые буквы, жёлтые ссылки)</span></label>
+        <label><input type="checkbox" data-pref="mono"><span>Моноширинный шрифт (Courier)</span></label>
+        <label><input type="checkbox" data-pref="calm"><span>Выключить анимации</span></label>
+        <div class="ad-sub">Сохраняется в этом браузере. Сбросить — снять все отметки.</div>
+      </div>
+      <div id="sp-mini-tip" role="tooltip"></div>
+      <div id="sync-dropdown" style="display:none;position:fixed;top:60px;right:18px;z-index:200;min-width:280px;max-width:340px;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(15,39,64,.18);font-size:12.5px;color:var(--ink);overflow:hidden">
+        <div style="padding:10px 14px;background:linear-gradient(135deg,#0f2740,#1e3a5f);color:#fff;font-weight:700;display:flex;align-items:center;gap:8px">
+          <span style="font-size:14px">🟢</span> Пользователи онлайн
+          <span style="margin-left:auto;font-size:12px;font-weight:600;opacity:.85" id="sync-dd-count">0</span>
+        </div>
+        <div id="sync-dd-list" style="max-height:380px;overflow-y:auto"></div>
+        <div style="padding:7px 14px;background:var(--panel-2);border-top:1px solid var(--line);font-size:12px;color:var(--muted);text-align:center">Обновляется каждую секунду</div>
+      </div>
+      <div class="usr" id="usr-box">
+        <div class="av" id="av" data-action="open-my-card" title="Моя карточка — открыть" style="cursor:pointer">—</div>
+        <div data-action="usr-menu" style="cursor:pointer" title="Меню — выход из системы"><div class="un" id="un">—</div><div class="ur" id="ur">—</div></div>
+        <span id="usr-caret" data-action="usr-menu" title="Меню — выход из системы">▾</span>
+        <div class="usr-dd" id="usr-dd"><div class="usr-dd-in">
+          <button class="btn ghost" data-action="logout" title="Выйти из системы" style="width:100%;justify-content:flex-start"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg> Выйти</button>
+        </div></div>
+      </div>
+    </header>
+    <div id="journals-tabs" class="jr-tabs" style="display:none">
+      <button type="button" class="jr-tab" data-jtab="changelog">📝 Журнал изменений</button>
+      <button type="button" class="jr-tab" data-jtab="logs">📋 Журнал действий</button>
+      <button type="button" class="jr-tab" data-jtab="errlogs">🐞 Логи ошибок</button>
+      <button type="button" class="jr-tab" data-jtab="feedback">💬 Отзывы и проблемы</button>
+    </div>
+    <main id="view"></main>
+  </div>
+</div>
+
+<div id="tip"></div>
+<div id="net-banner">🌐 Нет соединения — изменения сохраняются локально и уйдут на сервер автоматически</div>
+<div id="toasts" role="status" aria-live="polite"></div>
+<div id="report-month-dropdown" class="report-month-dropdown"></div>
+<div id="dash-month-dropdown" class="report-month-dropdown"></div>
+<div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
+<div class="overlay" id="overlay2"><div class="modal" id="modal2"></div></div>
+<div class="overlay" id="overlay3"><div class="modal" id="modal3"></div></div>
+
+<script>
+/* ============================================================
+   ХРАНИЛИЩЕ-ФОЛБЭК (работа сайта одинаково во всех браузерах).
+   Браузер может ЗАПРЕЩАТЬ сайту localStorage/sessionStorage:
+   Edge/Chrome с настройкой «Блокировать файлы cookie» (или сайт в
+   списке «Блокировать»), политика организации (IT-отдел), сайт внутри
+   чужой страницы (iframe), открытие файла с диска (file://) — любое
+   обращение бросает SecurityError. Тогда ставим безопасную замену в
+   памяти: приложение работает, но данные живут до закрытия вкладки.
+   22.09-252: ПЕРЕПОЛНЕННОЕ хранилище (QuotaExceededError) — это НЕ
+   запрет: сначала освобождаем место (автоснимок, старые копии, кэши —
+   всё это пересоздаётся или хранится на сервере) и работаем как обычно;
+   замена в памяти — только если и это не помогло. Итог проверки —
+   window.SP_STORAGE_DIAG (причина уходит в «Логи ошибок»);
+   window.SP_STORAGE_FALLBACK — стоит замена в памяти. На экране входа —
+   понятное предупреждение и ссылка «Как разрешить — пошагово».
+   Скрипт стоит ПЕРВЫМ — раньше всех *_db.js и app.js. */
+(function () {
+  var PK = '__sp_probe__';
+  function probe(store) {
+    try { store.setItem(PK, '1'); store.removeItem(PK); return null; }
+    catch (e) { return e || new Error('ошибка записи'); }
+  }
+  function isQuota(e) {
+    return !!e && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22 || e.code === 1014);
+  }
+  function errText(e) {
+    if (!e) return '';
+    var n = String(e.name || 'Error'), m = String(e.message || '');
+    return (n + (m ? ': ' + m : '')).slice(0, 200);
+  }
+  function makeShim() {
+    var mem = {};
+    var shim = {
+      getItem: function (k) { return Object.prototype.hasOwnProperty.call(mem, k) ? mem[k] : null; },
+      setItem: function (k, v) { mem[k] = String(v); },
+      removeItem: function (k) { delete mem[k]; },
+      clear: function () { mem = {}; },
+      key: function (i) { var ks = Object.keys(mem); return i >= 0 && i < ks.length ? ks[i] : null; }
+    };
+    Object.defineProperty(shim, 'length', { get: function () { return Object.keys(mem).length; } });
+    return shim;
+  }
+  /* переполнено: убираем только то, что пересоздаётся само или хранится на сервере */
+  var FREE_LS = [/^smartplan_autobackup$/, /^smartplan_prev_/, /^smartplan_wx_radar_cache$/, /^smartplan_weather_cache/, /^smartplan_route_time$/, /^smartplan_geocode$/];
+  var FREE_SS = [/^lmBr_/, /^lmOsrm_/, /^/]; // в sessionStorage — только кэши маршрутов (в крайнем случае — всё)
+  function freeSpace(store, rules) {
+    var freed = [];
+    for (var r = 0; r < rules.length; r++) {
+      var keys = [];
+      try { for (var i = 0; i < store.length; i++) keys.push(store.key(i)); } catch (e) {}
+      for (var j = 0; j < keys.length; j++) {
+        if (keys[j] && keys[j] !== PK && rules[r].test(keys[j])) { try { store.removeItem(keys[j]); freed.push(keys[j]); } catch (e) {} }
+      }
+      if (!probe(store)) break;
+    }
+    return freed;
+  }
+  function check(name, rules) {
+    var d = { name: name, state: 'ok', err: '', freed: [] };
+    var real = null, err = null;
+    try { real = window[name]; } catch (e) { err = e; }
+    if (!err && !real) err = new Error('объект ' + name + ' отсутствует');
+    if (!err) err = probe(real);
+    if (err && real && isQuota(err)) {
+      d.freed = freeSpace(real, rules);
+      err = probe(real);
+      if (!err) { d.state = 'freed'; return d; } // место освобождено — работаем с настоящим хранилищем
+    }
+    if (!err) return d;
+    d.state = isQuota(err) ? 'full' : 'blocked';
+    d.err = errText(err);
+    var shim = makeShim();
+    try { Object.defineProperty(window, name, { configurable: true, get: function () { return shim; } }); }
+    catch (e) { try { window[name] = shim; } catch (e2) {} }
+    return d;
+  }
+  function cookieWorks() {
+    try {
+      var v = 'v' + Date.now();
+      document.cookie = 'sp_ck=' + v + '; path=/; SameSite=Lax';
+      var ok = String(document.cookie || '').indexOf('sp_ck=' + v) >= 0;
+      document.cookie = 'sp_ck=; max-age=0; path=/; SameSite=Lax';
+      return ok;
+    } catch (e) { return false; }
+  }
+  var diag = { ls: check('localStorage', FREE_LS), ss: check('sessionStorage', FREE_SS), cookies: cookieWorks(), frame: false, proto: String(location.protocol || '') };
+  try { diag.frame = window.top !== window.self; } catch (e) { diag.frame = true; }
+  window.SP_STORAGE_DIAG = diag;
+  function bad(x) { return x.state === 'blocked' || x.state === 'full'; }
+  if (bad(diag.ls) || bad(diag.ss)) window.SP_STORAGE_FALLBACK = true;
+  if (bad(diag.ls)) {
+    /* Предупреждение на экране входа (маркер сборки уже есть в разметке выше) */
+    try {
+      var ua = navigator.userAgent || '';
+      var br = /Edg\//.test(ua) ? 'Microsoft Edge' : /YaBrowser/.test(ua) ? 'Яндекс.Браузере' : /OPR\//.test(ua) ? 'Opera'
+        : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Google Chrome' : '';
+      var mk = document.getElementById('build-marker');
+      if (mk) {
+        var w = document.createElement('div');
+        w.id = 'storage-warn';
+        w.className = 'storage-warn';
+        w.innerHTML = diag.ls.state === 'full'
+          ? '<b>⚠ Хранилище браузера переполнено</b> — вход и настройки не сохранятся после закрытия вкладки.<br>' +
+            '<a href="#" id="storage-help-link">Что сделать — пошагово</a>'
+          : '<b>⚠ Браузер запрещает этому сайту сохранять данные</b> (файлы cookie и хранилище заблокированы в настройках браузера), ' +
+            'поэтому после закрытия вкладки вход и настройки не сохранятся. Кнопка «Разрешить» в окне сайта этот запрет не снимает — ' +
+            'его снимают в настройках браузера.<br><a href="#" id="storage-help-link">Как разрешить' + (br ? ' в ' + br : '') + ' — пошагово</a>';
+        mk.parentNode.insertBefore(w, mk.nextSibling);
+      }
+    } catch (e) {}
+  }
+})();
+</script>
+<script>
+/* 22.09-259: тема и режимы доступности применяются ДО отрисовки (чтобы экран входа
+   не «мигал» светлым), значения — из localStorage */
+(function () {
+  try {
+    var p = JSON.parse(localStorage.getItem('smartplan_ui_prefs') || '{}');
+    if (!p || typeof p !== 'object') p = {};
+    var h = document.documentElement;
+    if (p.theme === 'dark') h.classList.add('theme-dark');
+    else if (p.theme !== 'light') { var _hh = new Date().getHours(); if (_hh >= 19 || _hh < 7) h.classList.add('theme-dark'); } // 22.09-266: авто-тема вечером/ночью, пока пользователь не выбрал тему сам
+    if (p.large) h.classList.add('a11y-large');
+    if (p.contrast) h.classList.add('a11y-contrast');
+    if (p.mono) h.classList.add('a11y-mono');
+    if (p.calm) h.classList.add('a11y-calm');
+  } catch (e) {}
+})();
+</script>
+<!-- 22.09-262: база данных переехала на Cloudflare (Workers + D1).
+     Сайт остаётся на Render, а API (сервер + данные) — на воркере Cloudflare.
+     Чтобы вернуться к базе Render — удалить следующую строку. -->
+<script>window.SP_CONFIG_OVERRIDE = 'https://smartplanogrsdb.ilya-omelchuk97.workers.dev/api';</script>
+<script src="root_index/config.js?v=22.09-347"></script>
+<script src="root_index/data.js?v=22.09-347"></script>
+<script src="root_index/users_db.js?v=22.09-347"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-347"></script>
+<script src="root_index/areas_db.js?v=22.09-347"></script>
+<script src="root_index/professions_db.js?v=22.09-347"></script>
+<script src="root_index/work_db.js?v=22.09-347"></script>
+<script src="root_index/objects_db.js?v=22.09-347"></script>
+<script src="root_index/workers_db.js?v=22.09-347"></script>
+<script src="root_index/tasks_db.js?v=22.09-347"></script>
+<script src="root_index/db.js?v=22.09-347"></script>
+<!-- Попап-календарь -->
+<div id="date-popup">
+  <div class="dp-head">
+    <div class="dp-title" id="dp-month-year"></div>
+    <div class="dp-nav">
+      <button id="dp-prev" title="Назад">‹</button>
+      <button id="dp-today" title="Сегодня">●</button>
+      <button id="dp-next" title="Вперёд">›</button>
+    </div>
+  </div>
+  <div class="dp-grid" id="dp-grid"></div>
+  <div class="dp-actions">
+    <button id="dp-cancel">Закрыть</button>
+    <button class="primary" id="dp-apply">Выбрать</button>
+  </div>
+</div>
+
+<script src="root_index/object_attrs.js?v=22.09-347"></script>
+      <script src="root_index/error_log.js?v=22.09-347"></script>
+      <script src="root_index/api_client.js?v=22.09-347"></script>
+      <script src="root_index/sync_polling.js?v=22.09-347"></script>
+      <script src="root_index/zip_util.js?v=22.09-347"></script>
+      <script src="root_index/app.js?v=22.09-347"></script>
+  <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
+  <script>
+  (function () {
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        // scope не может быть шире пути к SW — поэтому '/root_index/'
+        try { navigator.serviceWorker.register('root_index/sw.js', { scope: '/root_index/' }).catch(function () {}); } catch (e) {}
+      });
+    }
+  })();
+  </script>
+
+<script>
+/* Ответвление: после входа включаем фильтр участка «ТЕСТ». Ждём, пока
+   участок приедет с сервера в список (иначе выбирать ещё не из чего). */
+(function () {
+  var tries = 0;
+  var iv = setInterval(function () {
+    tries++;
+    try {
+      if (document.body.classList.contains('logged-in') && window.SP_AREA_FILTER && SP_AREA_FILTER.apply) {
+        if (SP_AREA_FILTER.cur() === 'ТЕСТ') { clearInterval(iv); return; }
+        var sel = document.getElementById('sp-area-sel');
+        var hasOpt = false;
+        if (sel) for (var i = 0; i < sel.options.length; i++) if (sel.options[i].value === 'ТЕСТ') hasOpt = true;
+        if (hasOpt && !sessionStorage.getItem('testgrp_area_applied')) {
+          sessionStorage.setItem('testgrp_area_applied', '1');
+          SP_AREA_FILTER.apply('ТЕСТ');
+          clearInterval(iv);
+        }
+        // участок только что приехал с сервера в хранилище, но список участков
+        // в памяти обновится после перезагрузки — одна служебная перезагрузка
+        if (!hasOpt && tries === 14 && !sessionStorage.getItem('testgrp_area_reloaded')) {
+          sessionStorage.setItem('testgrp_area_reloaded', '1');
+          location.reload();
+        }
+      }
+    } catch (e) {}
+    if (tries > 90) clearInterval(iv);
+  }, 500);
+})();
+</script>
+</body>
+</html>

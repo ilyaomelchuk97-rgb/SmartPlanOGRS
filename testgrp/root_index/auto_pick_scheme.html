@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Схема автоподбора работ — SmartPlan</title>
+<style>
+  @media print {
+    body { background: #fff !important; }
+    div { box-shadow: none !important; }
+  }
+</style>
+</head>
+<body style="margin:0;background:#f4f6fa;font-family:system-ui,'Segoe UI',Roboto,Arial,sans-serif;color:#0f172a;line-height:1.5">
+<div style="max-width:1180px;margin:0 auto;padding:26px 18px 70px">
+
+  <h1 style="font-size:25px;margin:0 0 6px">Как работает автоподбор работ в «Графике работ»</h1>
+  <div style="color:#475569;font-size:14px;margin-bottom:18px">
+    SmartPlan · УП «МИНГАЗ» · сборка <b>22.09-309</b> · правила сборок 278–309<br>Открывается из окна «Настроить периодичность» — серая круглая кнопка <b>i</b> рядом с заголовком: схема показывается <b>окном поверх страницы</b> (закрыть — кнопкой <b>×</b> или клавишей <b>Esc</b>; список прокручивается внутри окна).<br>Схема отражает то, что реально делает программа: правила сверены с кодом и проверены прогонами на рабочем справочнике. Учтены правила сборок 278–309 (эксплуатация, одна работа на группу, сезон, REGION-gaz, настройки по группам для телеметрии и отопления, котлы).
+  </div>
+
+  <!-- ЛЕГЕНДА -->
+  <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:14px 18px;margin-bottom:20px;font-size:13.5px">
+    <b style="font-size:14px">Как читать схему:</b>
+    <span style="display:inline-block;margin-left:14px"><span style="display:inline-block;width:12px;height:12px;background:#dcfce7;border:1px solid #16a34a;border-radius:3px;vertical-align:-1px"></span> — шаг, который <b>ведёт дальше</b></span>
+    <span style="display:inline-block;margin-left:14px"><span style="display:inline-block;width:12px;height:12px;background:#fee2e2;border:1px solid #dc2626;border-radius:3px;vertical-align:-1px"></span> — здесь работа/объект <b>отсеивается</b></span>
+    <span style="display:inline-block;margin-left:14px"><span style="display:inline-block;width:12px;height:12px;background:#dbeafe;border:1px solid #2563eb;border-radius:3px;vertical-align:-1px"></span> — <b>этап</b></span>
+    <span style="display:inline-block;margin-left:14px"><span style="display:inline-block;background:#2563eb;color:#fff;font-size:11px;font-weight:800;border-radius:4px;padding:1px 6px;vertical-align:1px">РЕШЕНИЕ</span> — вопрос «да / нет»</span>
+  </div>
+
+  <!-- ЭТАП 1 -->
+  <div style="background:#eff6ff;border:2px solid #2563eb;border-radius:14px;padding:14px 16px 6px;margin-bottom:10px">
+    <div style="font-weight:900;color:#1d4ed8;font-size:15px;margin-bottom:10px">ЭТАП 1 · Проверка объекта (сборка 278)</div>
+
+    <div style="background:#fff;border:1px solid #cbd5e1;border-radius:10px;padding:10px 14px;font-size:14px">
+      Объект в строке графика (например, <b>ГРП-1, ул. Ленина, 5</b>)
+    </div>
+    <div style="text-align:center;color:#2563eb;font-size:18px;line-height:1.1;margin:3px 0">▼</div>
+
+    <div style="background:#fff;border:2px solid #2563eb;border-radius:10px;padding:10px 14px;font-size:14px">
+      <span style="display:inline-block;background:#2563eb;color:#fff;font-size:11px;font-weight:800;border-radius:4px;padding:1px 6px;vertical-align:1px;margin-right:6px">РЕШЕНИЕ</span><b>Тип объекта — ГРП / ШРП / ПГРП?</b>
+      <div style="margin-top:6px;font-size:13px">
+        <span style="color:#15803d;font-weight:700">ДА</span> → идём к проверке статуса ниже.<br>
+        <span style="color:#b91c1c;font-weight:700">НЕТ</span> (Трасса, Просека, Область…) → правила статуса к таким объектам <b>не применяются</b> — подбор идёт как раньше.
+      </div>
+    </div>
+    <div style="text-align:center;color:#2563eb;font-size:18px;line-height:1.1;margin:3px 0">▼</div>
+
+    <div style="background:#fff;border:2px solid #2563eb;border-radius:10px;padding:10px 14px;font-size:14px">
+      <span style="display:inline-block;background:#2563eb;color:#fff;font-size:11px;font-weight:800;border-radius:4px;padding:1px 6px;vertical-align:1px;margin-right:6px">РЕШЕНИЕ</span><b>Статус объекта = «В эксплуатации»?</b>
+      <div style="margin-top:6px;font-size:13px">
+        <span style="color:#15803d;font-weight:700">ДА</span> → переходим к ЭТАПУ 2.
+      </div>
+      <div style="margin-top:8px;background:#fee2e2;border:1px solid #dc2626;border-radius:8px;padding:8px 10px;font-size:13px">
+        <span style="color:#b91c1c;font-weight:700">НЕТ — объект выведен</span> (Проектируется, Строится, Реконструкция, Консервация, Ликвидирован):
+        работы не назначаются; при сохранении <b>невыполненные</b> задачи его серий убираются, <b>выполненные остаются в истории</b>,
+        а периодичность работ <b>сохраняется</b>. Вернули в эксплуатацию — серия начинается заново от даты возврата.
+        В графике объект помечен значком <b>⛔</b>.
+      </div>
+      <div style="margin-top:8px;background:#fef3c7;border:1px solid #d97706;border-radius:8px;padding:8px 10px;font-size:13px">
+        <span style="color:#b45309;font-weight:700">НЕТ — статус не задан</span>: новые работы не назначаются,
+        но уже поставленные задачи <b>не удаляются</b>. На странице графика — предупреждение и кнопка
+        <b>«Статусы объектов»</b> (статус ставится в один клик, в т.ч. «✓ Всем без статуса — В эксплуатации»).
+        В графике объект помечен значком <b>❓</b>.
+      </div>
+    </div>
+    <div style="text-align:center;color:#2563eb;font-size:18px;line-height:1.1;margin:3px 0 8px">▼</div>
+  </div>
+
+  <!-- ЭТАП 2 -->
+  <div style="background:#f0fdf4;border:2px solid #16a34a;border-radius:14px;padding:14px 16px 6px;margin-bottom:10px">
+    <div style="font-weight:900;color:#15803d;font-size:15px;margin-bottom:10px">
+      ЭТАП 2 · Перебор работ справочника (кнопка «⚡»; работы берутся в порядке списка справочника)
+    </div>
+
+    <div style="background:#fff;border:1px solid #cbd5e1;border-radius:10px;padding:10px 14px;font-size:14px">
+      Очередная работа справочника участка (виды работ того участка, что выбран в окне: по умолчанию — участок графика)
+    </div>
+    <div style="text-align:center;color:#16a34a;font-size:18px;line-height:1.1;margin:3px 0">▼</div>
+
+    <div style="background:#fff;border:2px solid #16a34a;border-radius:10px;padding:10px 14px;font-size:14px">
+      <span style="display:inline-block;background:#2563eb;color:#fff;font-size:11px;font-weight:800;border-radius:4px;padding:1px 6px;vertical-align:1px;margin-right:6px">РЕШЕНИЕ</span><b>Работа из списка «не подбирать никогда»?</b>
+      <div style="margin-top:6px;font-size:13px">
+        <span style="color:#15803d;font-weight:700">НЕТ</span> → дальше.
+      </div>
+      <div style="margin-top:6px;background:#fee2e2;border:1px solid #dc2626;border-radius:8px;padding:8px 10px;font-size:13px">
+        <span style="color:#b91c1c;font-weight:700">ДА</span> → пропуск. В этот список занесена работа
+        «Текущий ремонт оборудования шкафных газорегуляторных пунктов без опрессовки» — её назначают только вручную («+ работа»).
+      </div>
+    </div>
+    <div style="text-align:center;color:#16a34a;font-size:18px;line-height:1.1;margin:3px 0">▼</div>
+
+    <div style="background:#fff;border:2px solid #16a34a;border-radius:10px;padding:10px 14px;font-size:14px">
+      <span style="display:inline-block;background:#2563eb;color:#fff;font-size:11px;font-weight:800;border-radius:4px;padding:1px 6px;vertical-align:1px;margin-right:6px">РЕШЕНИЕ</span><b>В группе этой работы у объекта уже есть работа? (одна работа на группу)</b>
+      <div style="margin-top:6px;font-size:13px">
+        <span style="color:#15803d;font-weight:700">НЕТ</span> → проверяем по критериям ниже.<br>
+        <span style="color:#b91c1c;font-weight:700">ДА</span> → пропуск: в строке объекта уже есть работа этой группы (или она добавилась минуту назад), вторую не берём.
+      </div>
+    </div>
+    <div style="text-align:center;color:#16a34a;font-size:18px;line-height:1.1;margin:3px 0">▼</div>
+
+    <div style="background:#fff;border:2px solid #16a34a;border-radius:10px;padding:10px 14px;font-size:14px">
+      <span style="display:inline-block;background:#2563eb;color:#fff;font-size:11px;font-weight:800;border-radius:4px;padding:1px 6px;vertical-align:1px;margin-right:6px">РЕШЕНИЕ</span><b>Совпали ли характеристики работы и объекта?</b> (5 критериев — галочки в окне, по умолчанию все включены)
+      <div style="margin-top:8px;font-size:13px">
+        <span style="color:#15803d;font-weight:700">ДА</span> → работа добавляется у объекта строкой, её группа запоминается
+        (другие работы этой группы больше не рассматриваются), идём к следующей работе справочника.<br>
+        <span style="color:#b91c1c;font-weight:700">НЕТ</span> → пропуск, идём к следующей работе.
+      </div>
+      <div style="margin-top:8px;font-size:13px;color:#475569">
+        <b>Сезон здесь НЕ отсеивает работу</b>: зимние и летние версии нужны, чтобы график сам подставлял нужную по датам (ЭТАП 3).
+      </div>
+    </div>
+    <div style="text-align:center;color:#16a34a;font-size:18px;line-height:1.1;margin:3px 0">▼</div>
+
+    <div style="background:#fff;border:1px solid #cbd5e1;border-radius:10px;padding:10px 14px;font-size:14px">
+      Строка добавлена: <b>периодичность</b> и <b>отклонение</b> — из карточки работы;
+      <b>дата первого проведения</b> — по «Реквизиту отсчёта» работы:
+      «от предыдущей даты» (по умолчанию пусто), «от даты ввода в эксплуатацию» (переносится в год графика),
+      «от даты окончания срока службы» (разово — к самой дате).
+    </div>
+    <div style="text-align:center;color:#16a34a;font-size:18px;line-height:1.1;margin:3px 0 8px">▼</div>
+  </div>
+
+  <!-- ЭТАП 3 -->
+  <div style="background:#faf5ff;border:2px solid #9333ea;border-radius:14px;padding:14px 16px 6px;margin-bottom:20px">
+    <div style="font-weight:900;color:#7e22ce;font-size:15px;margin-bottom:10px">
+      ЭТАП 3 · Вы нажимаете «Сохранить» — расстановка дат и задач (сборки 279/280)
+    </div>
+
+    <div style="background:#fff;border:2px solid #9333ea;border-radius:10px;padding:10px 14px;font-size:14px">
+      <span style="display:inline-block;background:#2563eb;color:#fff;font-size:11px;font-weight:800;border-radius:4px;padding:1px 6px;vertical-align:1px;margin-right:6px">РЕШЕНИЕ</span><b>Дата попадает в зимний период графика?</b> (период задаётся кнопкой ❄ «Сезоны»; учитываются только день и месяц)
+      <div style="margin-top:6px;font-size:13px">
+        <span style="color:#1d4ed8;font-weight:700">ДА (это «зима»)</span> → берём <b>зимнюю версию</b> работы из её группы
+        (например, «Тех. осмотр ГРП 2-ниточного путем обхода <b>зимой</b> тел.»).<br>
+        <span style="color:#b45309;font-weight:700">НЕТ (остальное время)</span> → берём <b>летнюю/обычную версию</b>
+        («…путем обхода <b>летом</b> тел.»); если явной летней нет — работа без сезона («Круглый год»).
+      </div>
+      <div style="margin-top:8px;background:#fee2e2;border:1px solid #dc2626;border-radius:8px;padding:8px 10px;font-size:13px">
+        <b>Приоритет версий:</b> сначала — работа, у которой сезон <b>явно совпал</b> с датой (зимой — зимняя, летом — летняя),
+        затем — работа <b>без сезона</b>. Если у работ группы сезон задан, а версии для этого периода нет —
+        <b>вхождение пропускается</b> (в отчёте: «Пропущено вхождений по сезону»).<br>
+        Если зимний период в графике <b>не задан</b>: зимние работы не ставятся вовсе, летние и работы без сезона идут весь год.
+      </div>
+    </div>
+    <div style="text-align:center;color:#9333ea;font-size:18px;line-height:1.1;margin:3px 0">▼</div>
+
+    <div style="background:#fff;border:2px solid #9333ea;border-radius:10px;padding:10px 14px;font-size:14px">
+      <span style="display:inline-block;background:#2563eb;color:#fff;font-size:11px;font-weight:800;border-radius:4px;padding:1px 6px;vertical-align:1px;margin-right:6px">РЕШЕНИЕ</span><b>Такая задача уже есть в «Планировании»?</b> (тот же объект + та же работа + та же дата)
+      <div style="margin-top:6px;font-size:13px">
+        <span style="color:#15803d;font-weight:700">НЕТ</span> → создаём задачу.<br>
+        <span style="color:#b45309;font-weight:700">ДА</span> → дубль не создаём: серия привязывается к существующей задаче (в отчёте: «уже были в планировании»).
+      </div>
+    </div>
+    <div style="text-align:center;color:#9333ea;font-size:18px;line-height:1.1;margin:3px 0">▼</div>
+
+    <div style="background:#fff;border:1px solid #cbd5e1;border-radius:10px;padding:10px 14px;font-size:14px">
+      Дата ставится на <b>ближайший предыдущий рабочий день мастера графика</b> (график смен — вкладка «Работники»), шаг серии при этом считается от исходной даты.
+      <div style="margin-top:6px;font-size:13px;color:#475569">
+        Задача в «Планировании»: <b>дата</b> = дата вхождения, <b>дедлайн</b> = дата + отклонение, исполнители — слесаря бригады мастера.
+        Прошедшие даты: задачи создаются только если у объекта включено «Добавлять задачи на прошедшие дни» (в графике остаются треугольники).
+      </div>
+    </div>
+    <div style="text-align:center;color:#9333ea;font-size:18px;line-height:1.1;margin:3px 0">▼</div>
+
+    <div style="background:#fff;border:1px solid #cbd5e1;border-radius:10px;padding:10px 14px;font-size:14px">
+      <b>Следующая дата серии</b> = текущая + <b>периодичность − отклонение</b>
+      (пример: 1 мес и отклонение 2 дня — работа 18-го числа → следующая 16-го следующего месяца).
+      <div style="margin-top:6px;font-size:13px;color:#475569">
+        Внизу окна появляется отчёт: сколько задач создано/убрано, сколько вхождений переключено по сезону,
+        сколько пропущено по сезону и сколько объектов пропущено как «не в эксплуатации» / «без статуса».
+      </div>
+    </div>
+    <div style="margin-top:10px;font-size:13px;color:#475569">
+      Ручные исключения: строка, выбранная кнопкой <b>🎯</b> («точный выбор работы в группе»), помечается как ручная и
+      <b>по сезону не переключается</b>; работы можно добавить и вручную кнопкой <b>«+ работа»</b> — в обход этих правил.
+    </div>
+    <div style="margin-top:10px;background:#f3e8ff;border:1px solid #d8b4fe;border-radius:8px;padding:9px 12px;font-size:13px">
+      <b>Когда это происходит.</b> Даты и сезонные версии пересчитываются в трёх случаях:
+      ① нажали «Сохранить» в «Настроить периодичность»; ② изменили год графика в «Списке графиков»;
+      ③ нажали «Сохранить» в окне ❄ «Сезоны» (тогда версии работ переключаются сразу, без пересохранения периодичности).
+      Прошедшие даты отражаются в графике треугольниками всегда, а задачи в «Планировании» по ним создаются только
+      при включённом «Добавлять задачи на прошедшие дни». Если у работы периодичность не задана, строка добавится,
+      но серии дат не будет — пока не зададите периодичность и дату первого проведения.
+    </div>
+  </div>
+
+  <!-- 5 КРИТЕРИЕВ -->
+  <h2 style="font-size:19px;margin:26px 0 10px">Пять критериев сравнения (ЭТАП 2, «да/нет» по характеристикам)</h2>
+  <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden">
+    <table style="width:100%;border-collapse:collapse;font-size:13.5px">
+      <thead>
+        <tr style="background:#f1f5f9;text-align:left">
+          <th style="padding:9px 12px">№</th>
+          <th style="padding:9px 12px">Галочка в окне</th>
+          <th style="padding:9px 12px">Что у работы</th>
+          <th style="padding:9px 12px">Что у объекта</th>
+          <th style="padding:9px 12px">Если у объекта пусто</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-top:1px solid #e2e8f0">
+          <td style="padding:9px 12px">1</td>
+          <td style="padding:9px 12px">по типу объекта</td>
+          <td style="padding:9px 12px">«Категория объекта обслуживания» (ГРП/ШРП/ПГРП)</td>
+          <td style="padding:9px 12px">тип объекта (ГРП / ШРП / ПГРП)</td>
+          <td style="padding:9px 12px">работа с категорией не подойдёт, работа без категории — подойдёт</td>
+        </tr>
+        <tr style="border-top:1px solid #e2e8f0">
+          <td style="padding:9px 12px">2</td>
+          <td style="padding:9px 12px">по линиям редуцирования</td>
+          <td style="padding:9px 12px">«Кол-во линий редуцирования» (если задано)</td>
+          <td style="padding:9px 12px">«Кол-во линий редуцирования»</td>
+          <td style="padding:9px 12px">работы «по линиям» не подбираются</td>
+        </tr>
+        <tr style="border-top:1px solid #e2e8f0">
+          <td style="padding:9px 12px">3</td>
+          <td style="padding:9px 12px">по телеметрии</td>
+          <td style="padding:9px 12px">«Телеметрия на объекте» / «Тип телеметрии»; работы по ТМ распознаются по названию, <b>а также по отметке группы</b> в настройках автоподбора (⚙)</td>
+          <td style="padding:9px 12px">«Тип телеметрии» (наличие и название)</td>
+          <td style="padding:9px 12px">работы по ТМ не подойдут; работы «без телеметрии» — подойдут</td>
+        </tr>
+        <tr style="border-top:1px solid #e2e8f0">
+          <td style="padding:9px 12px">4</td>
+          <td style="padding:9px 12px">по виду обслуживания</td>
+          <td style="padding:9px 12px">отметка «диагностика» <b>или</b> группа работы отмечена в настройках автоподбора (⚙ в справочнике ГРП)</td>
+          <td style="padding:9px 12px">«Вид обслуживания»: <b>REGION-gaz</b> = приборно-диагностический комплекс (или «Без ИПК»)</td>
+          <td style="padding:9px 12px">у объекта REGION-gaz подбираются «диагностика» и выбранные группы; обычным объектам «диагностика» не подойдёт</td>
+        </tr>
+        <tr style="border-top:1px solid #e2e8f0">
+          <td style="padding:9px 12px">5</td>
+          <td style="padding:9px 12px">по отоплению</td>
+          <td style="padding:9px 12px">«ТО отопительного оборудования» (если у работы указан вид отопления — он должен совпасть), <b>а также группы, отмеченные</b> в настройках автоподбора (⚙)</td>
+          <td style="padding:9px 12px">«Вид отопления»: <b>«Газовое»</b> = на объекте есть котёл (у ШРП отопления нет)</td>
+          <td style="padding:9px 12px">работы «ТО отопительного» не подойдут; при «Электрическое» — тоже не подойдут</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:10px 14px;margin-top:10px;font-size:13.5px">
+    <b>Правило REGION-gaz (сборка 290):</b> отметка «диагностика» — только для объектов с приборно-диагностическим комплексом.
+    Объекту с REGION-gaz автоподбор назначает работы «диагностика» <b>и работы групп, отмеченных в настройках автоподбора</b>.
+    <b>Исключение (сборка 323):</b> работы с отметкой «Без телеметрии» объекту REGION-gaz <b>без телеметрии</b> подбираются и без галочки в настройках — они для таких объектов и предназначены. Настройки открываются кнопкой <b>⚙</b> в шапке справочника участка ГРП — у неё белый фон и оранжевый контур (страница «Справочники»). Если не отмечено ни одной
+    группы, такому объекту подбирается только «диагностика». Остальным объектам все работы подбираются как обычно.
+  </div>
+
+  <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px 14px;margin-top:10px;font-size:13.5px">
+    <b>Настройки по группам для телеметрии и отопления (сборка 296).</b> В том же окне <b>⚙</b> (шапка справочника участка ГРП)
+    появились ещё два списка групп — такие же, как для REGION-gaz:
+    <br>· <b>📡 Работы по телеметрии</b> — работы отмеченных групп подбираются <b>только объектам с телеметрией</b>;
+    <br>· <b>🔥 Работы по отоплению (котёл)</b> — работы отмеченных групп подбираются <b>только объектам с «Вид отопления» = «Газовое»</b>.
+    <br>Отметки <b>дополняют</b> карточку работы: если телеметрия или отопление указаны в карточке (или распознаются по названию) —
+    работа учитывается и без отметки; отметка закрывает случаи, где в карточке ничего не задано. Если правило работы указано явно —
+    оно главнее отметки в группе. Все три списка действуют только на «⚡ Автоподбор» и на сохранение графика.
+  </div>
+
+  <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:10px 14px;margin-top:10px;font-size:13.5px">
+    <b>Что можно настроить самому (окно ⚙, сборки 290 и 296).</b> Кнопка <b>⚙</b> — в шапке справочника участка ГРП (видна администратору).
+    В окне две части: <b>три списка групп</b> — «Работы для объектов REGION-gaz», «📡 Работы по телеметрии», «🔥 Работы по отоплению (котёл)»
+    — и <b>пять галочек «Критерии сравнения»</b> (тип объекта, линии редуцирования, телеметрия, вид обслуживания, отопление).
+    Настройки сохраняются <b>на сервере</b> (раздел settings, запись autopick), действуют на всех устройствах и у всех пользователей
+    и применяются и при «⚡ Автоподборе», и при сохранении графика.
+    <br><b>Не настраивается</b> (так и задумано): «одна работа на группу»; работа «текущий ремонт оборудования шкафных газорегуляторных пунктов <b>без опрессовки</b>» — никогда не подбирается;
+    работы «диагностика» — всегда только объектам REGION-gaz; <b>сезон</b> берётся из карточки вида работы (или из названия), а не из групп; окно ⚙ работает только для участка <b>ГРП</b>.
+  </div>
+
+
+  <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:10px;padding:10px 14px;margin-top:10px;font-size:13.5px">
+    <b>Совместные работы — в один день (сборки 304 и 306).</b> Если у работ указано «Проводится совместно» (связь по группам или по самим видам работ),
+    программа ставит их <b>в один и тот же день</b> внутри месяца: берётся <b>самая ранняя дата из сегодняшних и будущих</b> и на неё переносятся остальные работы группы.
+    <br>· Связь <b>соединяется цепочкой</b>: если A проводится совместно с B, а B — с C, то A, B и C встанут в один день.
+    <br>· Отметка <b>родительской группы действует и на вложенные подгруппы</b> («Группа / Подгруппа») — раньше сравнение было строгим, и такие работы не соединялись.
+    <br>· В месяце бывает <b>несколько проведений</b> (например, периодичность «1 месяц с отклонением 5 дней» — 05 и 30 числа): соединяются они <b>по порядку</b> — 1-е с 1-м, 2-е со 2-м (сборка 309).
+    <br>· <b>Дробная периодичность</b> («0,5» — дважды в месяц) сохраняется без потерь (сборка 309) — иначе работа не получала проведений вообще.
+    <br>· <b>Слияние групп (сборка 308):</b> если работа из одной группы помечена «совместно» с работой из <b>другой группы</b>, то эти <b>две группы сливаются</b> — все работы обеих групп
+    проводятся в один день (самый ранний в месяце). Связи групп тоже складываются в цепочку: слились первая со второй, вторая с третьей → все три группы в один день.
+    <br>· <b>Пример правила:</b> работы 1 и 2 совместны и стоят 5-го числа, работы 3 и 4 совместны и стоят 10-го числа, и при этом 1 и 4 тоже совместны →
+    <b>все четыре работы встанут на 5-е число</b> (самое раннее в этом месяце). Так же работает для цепочек любой длины: 1∾2∾3∾4 и т.д.
+    <br>· Соединение выполняется <b>автоматически</b> — отдельной кнопки для этого нет: при сохранении периодичности, после ручного переноса работы и после сохранения «Сезонов» все совместные работы месяца сами встают в один день.
+    <br>· После <b>ручного переноса</b> задачи подтягиваются её совместные работы этого месяца; после сохранения <b>«Сезонов»</b> совместные выравниваются заново.
+    <br>· Выполненные работы остаются в истории: их не переносят; будущие работы никогда не подтягиваются к <b>прошедшему</b> дню.
+  </div>
+  <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 14px;margin-top:10px;font-size:13.5px">
+    <b>Отопление и котёл (сборка 282).</b> «Вид отопления» = <b>«Газовое»</b> означает, что на объекте есть газовый котёл:
+    только таким объектам подбираются работы «ТО отопительного оборудования». Объектам <b>без отопления</b> и с
+    «Электрическое» эти работы не назначаются — даже если в названии работы вид котла не указан.
+  </div>
+
+  <!-- РАСПОЗНАВАНИЕ ПО НАЗВАНИЮ -->
+  <h2 style="font-size:19px;margin:26px 0 10px">Если поля карточки работы пустые — связь распознаётся по названию</h2>
+  <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:4px 0;font-size:13.5px">
+    <table style="width:100%;border-collapse:collapse">
+      <tbody>
+        <tr style="border-bottom:1px solid #e2e8f0"><td style="padding:8px 14px;width:52%">в названии есть «ИНДЕЛ»</td><td style="padding:8px 14px">работа только объектам с телеметрией этого типа</td></tr>
+        <tr style="border-bottom:1px solid #e2e8f0"><td style="padding:8px 14px">«оборудованных системой телеметр…» / «ТМ и АСУТП» / «(ТМ)» / «телемеханики»</td><td style="padding:8px 14px">работа по телеметрии — только объектам с ТМ</td></tr>
+        <tr style="border-bottom:1px solid #e2e8f0"><td style="padding:8px 14px">«не оборудованных системой телеметр…»</td><td style="padding:8px 14px">только объектам <b>без</b> телеметрии</td></tr>
+        <tr style="border-bottom:1px solid #e2e8f0"><td style="padding:8px 14px">«приборного диагностического оборудования»</td><td style="padding:8px 14px">диагностика — только объектам REGION-gaz</td></tr>
+        <tr style="border-bottom:1px solid #e2e8f0"><td style="padding:8px 14px">«отопительного» / «газовых котлов» / «электрокотлов»</td><td style="padding:8px 14px">только объектам с отоплением (и по виду отопления)</td></tr>
+        <tr style="border-bottom:1px solid #e2e8f0"><td style="padding:8px 14px">«…путем обхода <b>летом</b>…» / «…<b>зимой</b>…»</td><td style="padding:8px 14px">летняя / зимняя версия работы (для переключения по датам)</td></tr>
+        <tr><td style="padding:8px 14px">пометки группы работ 🏷 «Работы с ТМ» / «Без телеметрии»</td><td style="padding:8px 14px">то же самое, но задано на всю группу сразу</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- СЕЗОН -->
+  <h2 style="font-size:19px;margin:26px 0 10px">Сезон: когда какая работа выполняется (сборка 280)</h2>
+  <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden">
+    <table style="width:100%;border-collapse:collapse;font-size:13.5px">
+      <thead><tr style="background:#f1f5f9;text-align:left">
+        <th style="padding:9px 12px">Сезон работы</th><th style="padding:9px 12px">Внутри зимнего периода графика</th><th style="padding:9px 12px">В остальное время года</th>
+      </tr></thead>
+      <tbody>
+        <tr style="border-top:1px solid #e2e8f0"><td style="padding:9px 12px"><b>«Зима»</b> (или «…зимой…» в названии)</td><td style="padding:9px 12px;color:#15803d"><b>выполняется</b></td><td style="padding:9px 12px;color:#b91c1c">не выполняется</td></tr>
+        <tr style="border-top:1px solid #e2e8f0"><td style="padding:9px 12px"><b>«Лето»</b>, «Весна-осень» (или «…летом…»)</td><td style="padding:9px 12px;color:#b91c1c">не выполняется (в группе, скорее всего, есть зимняя версия — встанет она)</td><td style="padding:9px 12px;color:#15803d"><b>выполняется</b></td></tr>
+        <tr style="border-top:1px solid #e2e8f0"><td style="padding:9px 12px"><b>не задан</b> («» или «Круглый год»)</td><td style="padding:9px 12px;color:#b91c1c">не выполняется</td><td style="padding:9px 12px;color:#15803d"><b>выполняется</b></td></tr>
+        <tr style="border-top:1px solid #e2e8f0;background:#fffbeb"><td style="padding:9px 12px" colspan="3">
+          <b>Если зимний период в графике не задан вовсе:</b> зимние работы не назначаются, летние и работы без сезона идут весь год.
+        </td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ПРИМЕР -->
+  <h2 style="font-size:19px;margin:26px 0 10px">Пример: как это сработает на вашем справочнике</h2>
+  <div style="color:#475569;font-size:13px;margin-bottom:8px">Названия работ взяты из вашей базы; результат проверен прогоном правил, а не «на словах».</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:14px 16px">
+      <div style="font-weight:800;font-size:14px;margin-bottom:6px">Объект А: ГРП, 2 линии, телеметрия «ПТК "Индел"», вид обслуживания REGION-gaz, отопление газовое, «В эксплуатации»</div>
+      <div style="font-size:13.5px">
+        <b style="color:#15803d">✓</b> ТО с приборным диагностическим оборудованием, 2 линии<br>
+        <b style="color:#15803d">✓</b> Тех. осмотр «…путем обхода <b>летом</b> тел.» (зимой встанет парная «<b>зимой</b> тел.»)<br>
+        <b style="color:#15803d">✓</b> Текущий ремонт оборудования системы телеметрии (ТМ)<br>
+        <b style="color:#15803d">✓</b> Текущий ремонт ГРП с опрессовкой — подбирается как обычно (диагностика его не заменяет)
+      </div>
+    </div>
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:14px 16px">
+      <div style="font-weight:800;font-size:14px;margin-bottom:6px">Объект Б: ГРП, 2 линии, без телеметрии, вид обслуживания не задан, без отопления, «В эксплуатации»</div>
+      <div style="font-size:13.5px">
+        <b style="color:#15803d">✓</b> Текущий ремонт ГРП с опрессовкой<br>
+        <b style="color:#15803d">✓</b> Очистка территории от снега (сезон «Зима») — встанет <b>только</b> в зимний период<br>
+        <span style="color:#b91c1c"><b style="color:#b91c1c">✕</b> ТО с приборной диагностикой — нет REGION-gaz</span><br>
+        <span style="color:#b91c1c"><b style="color:#b91c1c">✕</b> Тех. осмотр с ТМ — у объекта нет телеметрии</span><br>
+        <span style="color:#b91c1c"><b style="color:#b91c1c">✕</b> ТО газовых котлов — нет котла: «Вид отопления» не «Газовое»</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ЧТО НЕ ДЕЛАЕТ АВТОПОДБОР -->
+  <h2 style="font-size:19px;margin:26px 0 10px">Что автоподбор не делает — это только вручную</h2>
+  <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:14px 18px;font-size:13.5px">
+    • <b>«+ работа»</b> — добавить работу, которую автоподбор не подобрал (например, зимнюю до задания зимнего периода).<br>
+    • <b>🎯</b> — точный выбор конкретной работы внутри группы; такая строка помечается как ручная и <b>не переключается по сезону</b>.<br>
+    • Работа «Текущий ремонт оборудования шкафных газорегуляторных пунктов без опрессовки» — не подбирается никогда.<br>
+    • Объекты не в эксплуатации и объекты без статуса — работы им автоподбор не назначает (см. ЭТАП 1).<br>
+    • Если объект <b>в эксплуатации</b>, но у него не заполнены линии/телеметрия/отопление/вид обслуживания — соответствующие группы работ просто не подберутся: заполните атрибуты в карточке объекта.<br>
+    • <b>Сезон</b> работ по группам не настраивается: он берётся из карточки вида работы (или распознаётся по названию) — группы сезон не задают.<br>
+    • Настройки <b>⚙</b> действуют для участка <b>ГРП</b>; на других участках автоподбор устроен иначе (у них свои правила и атрибуты).
+  </div>
+
+  <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:12px 16px;margin-top:20px;font-size:13.5px">
+    <b>Как повторить подбор самому:</b> «График работ» → кнопка ❄ «Сезоны» (задать зимний период) →
+    «Настроить периодичность» → кнопка <b>«⚡ Подобрать всем объектам»</b> (или «⚡» у отдельного объекта) →
+    «Сохранить». Внизу окна появится отчёт: добавлено работ, создано задач, переключено по сезону, пропущено по сезону
+    и пропущено объектов (не в эксплуатации / без статуса).
+  </div>
+
+</div>
+</body>
+</html>

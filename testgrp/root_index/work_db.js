@@ -1,0 +1,512 @@
+/* ============================================================
+   SmartPlan — БАЗА ДАННЫХ ВИДОВ РАБОТ УБиРОГС (work_db.js)
+   Расширенные атрибуты: ордер, снег, погода, техника, сезон
+   ============================================================ */
+window.SP_WORK = (function () {
+  'use strict';
+  var KEY = 'smartplan_work_catalog';
+  var AREAS = ['УБиРОГС'];
+  var SCHEMA = 5; // новая версия — расширенные атрибуты
+
+  // Каталог видов работ УБиРОГС со всеми атрибутами
+  var DEFAULTS = [
+    // --- Благоустройство после земляных работ ---
+    { id: 'w1',  group: 'Благоустройство после земляных работ', name: 'Укладка асфальтобетонного покрытия', norm: 0.5,  unit: 'м2', needs_permit: false, depends_on_snow: false, min_temp: 5,  season: 'Лето',     equipment: 'Асфальтоукладчик', min_workers: 4, opt_workers: 6 },
+    { id: 'w2',  group: 'Благоустройство после земляных работ', name: 'Укладка тротуарной плитки',          norm: 0.4,  unit: 'м2', needs_permit: false, depends_on_snow: false, min_temp: 0,  season: 'Круглый год', equipment: '—',               min_workers: 2, opt_workers: 4 },
+    { id: 'w3',  group: 'Благоустройство после земляных работ', name: 'Устройство газона (посев)',           norm: 0.25, unit: 'м2', needs_permit: false, depends_on_snow: false, min_temp: 5,  season: 'Весна-осень', equipment: '—',              min_workers: 2, opt_workers: 3 },
+    // --- Ремонт зданий ГРП/ШРП ---
+    { id: 'w4',  group: 'Ремонт зданий ГРП/ШРП',               name: 'Ремонт кровли ГРП/ШРП',              norm: 4.0,  unit: 'объект', needs_permit: false, depends_on_snow: false, min_temp: -10, season: 'Круглый год', equipment: 'Автовышка',     min_workers: 2, opt_workers: 3 },
+    { id: 'w5',  group: 'Ремонт зданий ГРП/ШРП',               name: 'Ремонт стен и отмосток',             norm: 3.0,  unit: 'объект', needs_permit: false, depends_on_snow: false, min_temp: -5,  season: 'Круглый год', equipment: '—',              min_workers: 2, opt_workers: 4 },
+    { id: 'w6',  group: 'Ремонт зданий ГРП/ШРП',               name: 'Ремонт отмостки (бетонные работы)',   norm: 0.6,  unit: 'м2', needs_permit: false, depends_on_snow: false, min_temp: 5,   season: 'Лето',     equipment: 'Бетономешалка',   min_workers: 2, opt_workers: 4 },
+    // --- Покраска ---
+    { id: 'w7',  group: 'Покраска газопроводов и конструкций',  name: 'Покраска газопровода',               norm: 0.15, unit: 'м2', needs_permit: false, depends_on_snow: false, min_temp: 5,   season: 'Лето',     equipment: 'Автовышка',      min_workers: 2, opt_workers: 3 },
+    { id: 'w8',  group: 'Покраска газопроводов и конструкций',  name: 'Покраска металлоконструкций',         norm: 0.12, unit: 'м2', needs_permit: false, depends_on_snow: false, min_temp: 0,   season: 'Круглый год', equipment: '—',             min_workers: 1, opt_workers: 2 },
+    // --- Очистка от снега ---
+    { id: 'w9',  group: 'Очистка от снега',                     name: 'Очистка территории от снега',         norm: 0.04, unit: 'м2', needs_permit: false, depends_on_snow: true,  min_temp: -50, season: 'Зима',     equipment: 'КДМ / Трактор',  min_workers: 1, opt_workers: 2 },
+    { id: 'w10', group: 'Очистка от снега',                     name: 'Очистка подъездных путей',            norm: 0.06, unit: 'м2', needs_permit: false, depends_on_snow: true,  min_temp: -50, season: 'Зима',     equipment: 'КДМ',            min_workers: 1, opt_workers: 1 },
+    // --- Расчистка лесопросек ---
+    { id: 'w11', group: 'Расчистка лесопросек',                 name: 'Расчистка просеки (валка деревьев)',  norm: 8.0,  unit: 'га', needs_permit: true,  depends_on_snow: false, min_temp: -50, season: 'Зима',     equipment: 'Бензопила, Трактор', min_workers: 3, opt_workers: 5 },
+    { id: 'w12', group: 'Расчистка лесопросек',                 name: 'Уборка порубочных остатков',          norm: 4.0,  unit: 'га', needs_permit: false, depends_on_snow: false, min_temp: -10, season: 'Зима',     equipment: 'Трактор',       min_workers: 2, opt_workers: 3 },
+    // --- Иные строительно-восстановительные ---
+    { id: 'w13', group: 'Иные СМР',                             name: 'Земляные работы (разработка грунта)',  norm: 2.0,  unit: 'объект', needs_permit: true,  depends_on_snow: false, min_temp: -5,  season: 'Круглый год', equipment: 'Экскаватор',  min_workers: 1, opt_workers: 2 },
+    { id: 'w14', group: 'Иные СМР',                             name: 'Восстановление асфальта (ямочный)',    norm: 0.3,  unit: 'м2', needs_permit: false, depends_on_snow: false, min_temp: 5,   season: 'Лето',     equipment: '—',              min_workers: 2, opt_workers: 3 }
+  ];
+
+  // 22.09-255: ОДНОРАЗОВАЯ КОПИЯ ДЛЯ ВОССТАНОВЛЕНИЯ. До 22.09-254 браузер со старой копией затирал
+  // на сервере свежие настройки видов работ и норм времени. Если в ЭТОМ браузере сохранилась своя
+  // версия каталога (например, здесь настраивали, а затёр другой браузер), при первом запуске новой
+  // версии сайта сохраняем её ДО синхронизации с сервером — администратор сможет сравнить её с
+  // сервером и вернуть нужное (окно после входа и «Бэкапы баз данных» → «Восстановление»).
+  var RECOVERY_KEY = 'smartplan_work_recovery';
+  (function takeRecoveryCopy() {
+    try {
+      if (localStorage.getItem(RECOVERY_KEY) || localStorage.getItem(RECOVERY_KEY + '_taken')) return;
+      var copies = [], seen = {};
+      function add(src, ts, raw) {
+        if (!raw) return;
+        var d = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        if (!d || !d.areas || typeof d.areas !== 'object') return;
+        var sig = JSON.stringify(d.areas);
+        if (seen[sig]) return; // одинаковые копии — одна
+        seen[sig] = 1;
+        copies.push({ src: src, ts: ts || null, areas: d.areas });
+      }
+      // одна копия — самое свежее, что было в браузере: его каталог; если его нет — автоснимок при входе
+      var cur = localStorage.getItem(KEY);
+      if (cur) { try { add('local', JSON.parse(cur).updated_at, cur); } catch (e1) {} }
+      if (!copies.length) { try { var ab = JSON.parse(localStorage.getItem('smartplan_autobackup') || 'null'); if (ab && ab.keys && ab.keys[KEY]) add('autobackup', ab.ts, ab.keys[KEY]); } catch (e2) {} }
+      if (copies.length) localStorage.setItem(RECOVERY_KEY, JSON.stringify({ taken: Date.now(), copies: copies }));
+      localStorage.setItem(RECOVERY_KEY + '_taken', String(Date.now()));
+    } catch (e) {}
+  })();
+
+  var memoryDB = null;
+  function load() {
+    if (memoryDB) return memoryDB;
+    try { var raw = localStorage.getItem(KEY); if (raw) memoryDB = JSON.parse(raw); } catch (e) {}
+    return memoryDB;
+  }
+  function save(db) {
+    memoryDB = db;
+    try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) {}
+    // Сборка 22.09-26: автосинхронизация при save()
+    if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
+      syncWithServer(db);
+    }
+  }
+  function init() {
+    var db = load();
+    if (!db) { db = { schema: SCHEMA, areas: {} }; memoryDB = db; }
+    else if (db.schema !== SCHEMA) {
+      // обновление кода не теряет данные: снимок в smartplan_prev_, перенос в новую схему
+      try { localStorage.setItem('smartplan_prev_' + KEY, JSON.stringify(db)); } catch (e) {}
+      db.schema = SCHEMA;
+      if (!db.areas) db.areas = {};
+      memoryDB = db;
+    }
+    return memoryDB;
+  }
+  function reloadFromCloud(cloudData) {
+    if (cloudData && cloudData.areas) { memoryDB = cloudData; try { localStorage.setItem(KEY, JSON.stringify(cloudData)); } catch(e) {} }
+  }
+  function syncWithServer(db) {
+    // 22.09-254: раньше здесь на сервер уходили ВСЕ виды работ при каждом сохранении (и при
+    // открытии сайта — посев/проверка каталога). Браузер со старой копией так затирал на сервере
+    // свежие настройки видов работ и норм времени. Теперь — только изменённые в этом браузере
+    // и только после получения актуальных данных с сервера (SP_API.syncPush).
+    if (!window.SP_API || !window.SP_API.getToken || !window.SP_API.getToken() || !window.SP_API.syncPush) return;
+    if (!db || !db.areas) return;
+    Object.keys(db.areas).forEach(function (area) {
+      var arr = db.areas[area];
+      if (!Array.isArray(arr)) return;
+      arr.forEach(function (w) {
+        if (!w || !w.id) return;
+        // Добавляем area в запись чтобы знать куда положить на сервере
+        window.SP_API.syncPush('work_catalog', Object.assign({ area: area }, w)).catch(function (e) {
+          try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log("warn", "sync", "sync failed", { err: String(e && e.err || e), where: "work_db.js" }); } catch(_){ }
+        });
+      });
+    });
+  }
+  // 22.09-254: явная отправка одной работы — всегда с участком (по нему её раскладывают другие браузеры)
+  function pushWork(area, w) {
+    if (!w || !w.id || !window.SP_API || !window.SP_API.getToken || !window.SP_API.getToken()) return;
+    window.SP_API.upsert('work_catalog', Object.assign({ area: area }, w)).catch(function (e) {
+      try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log("warn", "sync", "sync failed", { err: String(e && e.err || e), where: "work_db.js" }); } catch(_){ }
+    });
+  }
+  function newId() { return 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+  function ensureSeed() {
+    var db = init();
+    AREAS.forEach(function (area) {
+      if (!db.areas[area] || !db.areas[area].length) {
+        db.areas[area] = DEFAULTS.map(function (d) {
+          return Object.assign({
+            id: d.id, group: d.group, name: d.name, norm: d.norm, unit: d.unit,
+            needs_permit: d.needs_permit || false,
+            depends_on_snow: d.depends_on_snow || false,
+            min_temp: d.min_temp != null ? d.min_temp : -50,
+            season: d.season || 'Круглый год',
+            equipment: d.equipment || '—',
+            min_workers: d.min_workers || 1,
+            opt_workers: d.opt_workers || 2
+          }, _newAttrDefaults());
+        });
+      }
+    });
+    // Сборка 22.09-88: встроенная библиотека норм ГРП — 112 видов работ из файла
+    // «Сопоставление видов работ и норма времени» (grp_norms_seed.js).
+    // Посев ОДИН РАЗ на устройстве (флаг smartplan_grp_norms_v1); работы,
+    // уже существующие по названию (напр., после импорта из Excel), не дублируются.
+    try {
+      if (window.SP_GRP_NORMS_SEED && !localStorage.getItem('smartplan_grp_norms_v1')) {
+        var SG = window.SP_GRP_NORMS_SEED;
+        var PS = SG.profs || [], TT = SG.types || [''];
+        if (!db.areas['ГРП']) db.areas['ГРП'] = [];
+        var have = {};
+        db.areas['ГРП'].forEach(function (w) { if (w && w.name) have[String(w.name).trim()] = 1; });
+        (SG.rows || []).forEach(function (r, idx) {
+          var name = String(r[1] || '').trim();
+          if (!name || have[name]) return;
+          have[name] = 1;
+          var crew = (r[5] || []).map(function (c) {
+            var p = PS[c[0]] || { name: '?', grade: 0 };
+            return { prof: p.name, grade: String(p.grade), count: c[1] };
+          });
+          var crewSize = crew.reduce(function (a, e) { return a + e.count; }, 0);
+          var typ = TT[r[4]] || '';
+          db.areas['ГРП'].push(Object.assign({
+            id: 'w_grp_norm_' + (idx + 1),
+            group: (SG.groups && SG.groups[r[0]]) || 'Без группы',
+            name: name,
+            norm: r[2] / 1000,
+            unit: 'объект',
+            needs_permit: false, depends_on_snow: false, min_temp: -50,
+            season: 'Круглый год', equipment: '—',
+            min_workers: crewSize || 1, opt_workers: crewSize || 1
+          }, _newAttrDefaults(), {
+            object_categories: typ ? [typ] : [],
+            lines_count: r[3] || 0,
+            crew_size: crewSize,
+            crew: crew
+          }));
+        });
+        try { localStorage.setItem('smartplan_grp_norms_v1', '1'); } catch (e2) {}
+      }
+    } catch (e) {}
+    save(db);
+    return Promise.resolve(db);
+  }
+
+  // 22.09-255: заводские виды работ (как их создаёт посев), БЕЗ сохранения: { id → работа }.
+  // Нужны восстановлению из копии браузера — заводские значения «восстанавливать» не предлагаем.
+  function factoryWorks() {
+    var out = {};
+    DEFAULTS.forEach(function (d) {
+      out[d.id] = Object.assign({
+        id: d.id, group: d.group, name: d.name, norm: d.norm, unit: d.unit,
+        needs_permit: d.needs_permit || false, depends_on_snow: d.depends_on_snow || false,
+        min_temp: d.min_temp != null ? d.min_temp : -50, season: d.season || 'Круглый год',
+        equipment: d.equipment || '—', min_workers: d.min_workers || 1, opt_workers: d.opt_workers || 2
+      }, _newAttrDefaults());
+    });
+    try {
+      var SG = window.SP_GRP_NORMS_SEED;
+      if (SG) {
+        var PS = SG.profs || [], TT = SG.types || [''];
+        (SG.rows || []).forEach(function (r, idx) {
+          var name = String(r[1] || '').trim(); if (!name) return;
+          var crew = (r[5] || []).map(function (c) { var pp = PS[c[0]] || { name: '?', grade: 0 }; return { prof: pp.name, grade: String(pp.grade), count: c[1] }; });
+          var crewSize = crew.reduce(function (a, e) { return a + e.count; }, 0);
+          var typ = TT[r[4]] || '';
+          out['w_grp_norm_' + (idx + 1)] = Object.assign({
+            id: 'w_grp_norm_' + (idx + 1), group: (SG.groups && SG.groups[r[0]]) || 'Без группы', name: name, norm: r[2] / 1000, unit: 'объект',
+            needs_permit: false, depends_on_snow: false, min_temp: -50, season: 'Круглый год', equipment: '—',
+            min_workers: crewSize || 1, opt_workers: crewSize || 1
+          }, _newAttrDefaults(), { object_categories: typ ? [typ] : [], lines_count: r[3] || 0, crew_size: crewSize, crew: crew });
+        });
+      }
+    } catch (e) {}
+    return out;
+  }
+
+  // Дефолты для новых атрибутов (по «4 Атрибуты видов работ.htm»):
+  // — категории объектов, периодичность, реквизит отсчёта, совместные работы,
+  //   операции, показатели эксплуатации, печатные формы, журналы, сканы.
+  function _newAttrDefaults() {
+    return {
+      object_categories:    [],          // ГРП, ШРП, ПГРП, Наружный газопровод и др.
+      departments:          [],          // Справочник Подразделения
+      periodicity_value:    0,           // Целое число (мес / дней)
+      periodicity_dev:      0,           // Отклонение, дней (шаг = периодичность − отклонение) — Сборка 22.09-100
+      periodicity_unit:     'мес',       // 'мес' | 'дней'
+      periodicity_depends_on: [],        // id работ из «Виды работ»
+      periodicity_basis:    'prev_date', // 'prev_date' | 'commissioning_date' | 'service_life_end' (22.09-209)
+      joint_with:           [],          // 22.09-134: массив id работ, проводимых совместно
+      operations:           [],          // список значений
+      indicators:           [],          // контролируемые показатели
+      print_forms:          [],          // печатные формы
+      op_journal:           false,       // запись в оперативном журнале
+      passport_entry:       false,       // запись в эксплуатационном паспорте
+      scan_attach:          false,       // присоединение сканов
+      lines_count:          0,           // кол-во линий редуцирования (шт) — Сборка 22.09-87
+      crew_size:            0,           // количество исполнителей (общее) — Сборка 22.09-85
+      crew:                 [],          // состав: [{prof:'...', grade:'3', count:2}]
+      telemetry_req:        '',          // 22.09-115: '' | 'equipped' (объект с ТМ) | 'not_equipped' (без ТМ)
+      telemetry_type:       '',          // 22.09-115: конкретный тип телеметрии (из списка видов ТМ)
+      diag_equipment:       false,       // 22.09-115: с приборным диагност. оборудованием (нужен вид обслуживания Region-gas)
+      heating_req:          false,       // 22.09-115: ТО отопительного оборудования (объект с отоплением — ГРП)
+      heating_kind:         '',          // 22.09-278: вид отопления объекта для автоподбора: '' | 'Газовое' | 'Электрическое'
+      group_flags:          []           // 22.09-137: свойства ГРУППЫ работ («Телеметрия», «ГРП», произвольные метки)
+    };
+  }
+  // Безопасно парсит массивы/enum-поля/числа из HTML-формы (строки → массив/число/bool)
+  function _parseNewAttrs(d) {
+    function toArr(v) {
+      if (Array.isArray(v)) return v.slice();
+      if (v == null || v === '') return [];
+      if (typeof v === 'string') return v.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+      return [];
+    }
+    function toBool(v) { return v === true || v === 'true' || v === 'on' || v === '1' || v === 1; }
+    function toNum(v, dflt) { var n = parseFloat(v); return isFinite(n) ? n : (dflt != null ? dflt : 0); }
+    // Сборка 22.09-85: состав исполнителей [{prof, grade, count}]
+    function toCrew(v) {
+      var arr = [];
+      if (v == null || v === '') return arr;
+      if (typeof v === 'string') { try { v = JSON.parse(v); } catch (e) { return arr; } }
+      if (!Array.isArray(v)) return arr;
+      v.forEach(function (e) {
+        if (!e) return;
+        if (typeof e === 'string') e = { prof: e, grade: '', count: 1 };
+        var cnt = parseInt(e.count, 10);
+        var it = {
+          prof: String(e.prof != null ? e.prof : '').trim(),
+          grade: String(e.grade != null ? e.grade : '').replace(/[^0-9]/g, ''),
+          count: isFinite(cnt) && cnt > 0 ? cnt : 0
+        };
+        if (it.prof || it.count) arr.push(it);
+      });
+      return arr;
+    }
+    return {
+      object_categories:       toArr(d.object_categories),
+      departments:             toArr(d.departments),
+      periodicity_value:       toNum(d.periodicity_value, 0),
+      periodicity_dev:           toNum(d.periodicity_dev, 0),
+      periodicity_unit:        (d.periodicity_unit === 'дней' ? 'дней' : 'мес'),
+      periodicity_depends_on:  toArr(d.periodicity_depends_on),
+      periodicity_basis:       (['prev_date', 'commissioning_date', 'service_life_end'].indexOf(d.periodicity_basis) >= 0 ? d.periodicity_basis : 'prev_date'), // 22.09-209: + окончание срока службы
+      joint_with:              toArr(d.joint_with), // 22.09-134: массив id; строка из старой записи → [строка]
+      operations:              toArr(d.operations),
+      indicators:              toArr(d.indicators),
+      print_forms:             toArr(d.print_forms),
+      op_journal:              toBool(d.op_journal),
+      passport_entry:          toBool(d.passport_entry),
+      scan_attach:             toBool(d.scan_attach),
+      lines_count:             Math.max(0, Math.round(toNum(d.lines_count, 0))),
+      crew_size:               Math.max(0, Math.round(toNum(d.crew_size, 0))),
+      crew:                    toCrew(d.crew),
+      telemetry_req:           (d.telemetry_req === 'equipped' ? 'equipped' : (d.telemetry_req === 'not_equipped' ? 'not_equipped' : '')),
+      telemetry_type:          String(d.telemetry_type || '').trim(),
+      diag_equipment:          toBool(d.diag_equipment),
+      heating_req:             toBool(d.heating_req),
+      heating_kind:            (['Газовое', 'Электрическое'].indexOf(d.heating_kind) >= 0 ? d.heating_kind : ''), // 22.09-278
+      group_flags:             toArr(d.group_flags) // 22.09-137: свойства группы работ
+    };
+  }
+
+  function getAreas() {
+    // Участки берутся из справочника (areas_db.js), fallback — встроенный список
+    try {
+      if (window.SP_AREAS && typeof window.SP_AREAS.getAreas === 'function') {
+        var a = window.SP_AREAS.getAreas();
+        if (a && a.length) return a;
+      }
+    } catch (e) {}
+    return AREAS.slice();
+  }
+  // Создать участок в каталоге работ (пустой список работ)
+  function ensureArea(area) {
+    var db = init();
+    if (!db.areas[area]) { db.areas[area] = []; save(db); }
+    return db.areas[area];
+  }
+  // Переименовать участок: переносятся все виды работ
+  function renameArea(oldName, newName) {
+    var db = init();
+    if (db.areas[oldName]) {
+      db.areas[newName] = db.areas[oldName];
+      delete db.areas[oldName];
+      save(db);
+    }
+    // Сервер: works.area обновляется внутри PUT /api/areas/:id (вызывает areas_db)
+    return db.areas[newName] || [];
+  }
+  // Удалить участок вместе с его видами работ
+  function deleteArea(name) {
+    var db = init();
+    var arr = db.areas[name] || [];
+    delete db.areas[name];
+    save(db);
+    // 22.09-254: работы удалённого участка удаляем и на сервере (раньше они там оставались
+    // и при синхронизации возвращали участок обратно)
+    if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken() && window.SP_API.del) {
+      arr.forEach(function (w) { if (w && w.id) window.SP_API.del('work_catalog', w.id).catch(function () {}); });
+    }
+    return arr;
+  }
+  function getWorks(area) {
+    var db = init();
+    var arr = db.areas[area];
+    if (arr) return arr.map(function (w) { return Object.assign({}, w); });
+    // Фолбэк на встроенный каталог — только для дефолтного участка
+    if (!area || area === 'УБиРОГС') return (db.areas['УБиРОГС'] || DEFAULTS).map(function (w) { return Object.assign({}, w); });
+    return []; // новый участок — работ пока нет
+  }
+  function getWork(area, id) {
+    var arr = getWorks(area);
+    for (var i = 0; i < arr.length; i++) if (arr[i].id === id) return arr[i];
+    for (var j = 0; j < DEFAULTS.length; j++) if (DEFAULTS[j].id === id) return DEFAULTS[j];
+    return null;
+  }
+  function getWorkById(id) {
+    var db = init();
+    var keys = Object.keys(db.areas);
+    for (var k = 0; k < keys.length; k++) {
+      var arr = db.areas[keys[k]] || [];
+      for (var i = 0; i < arr.length; i++) if (arr[i].id === id) return arr[i];
+    }
+    for (var j = 0; j < DEFAULTS.length; j++) if (DEFAULTS[j].id === id) return DEFAULTS[j];
+    return null;
+  }
+  // Все виды работ со всех участков + встроенные DEFAULTS (плоский массив для select).
+  // Используется в «Тест зависимости» для удобного выбора.
+  function getWorkTree() {
+    var db = init();
+    var out = [];
+    var seen = {};
+    Object.keys(db.areas).forEach(function (area) {
+      (db.areas[area] || []).forEach(function (w) {
+        if (!seen[w.id]) { seen[w.id] = 1; out.push(Object.assign({ area: area }, w)); }
+      });
+    });
+    (DEFAULTS || []).forEach(function (w) {
+      if (!seen[w.id]) { seen[w.id] = 1; out.push(Object.assign({ area: '__defaults' }, w)); }
+    });
+    return out;
+  }
+  function addWork(area, data) {
+    var db = init();
+    if (!db.areas[area]) db.areas[area] = [];
+    var w = Object.assign({
+      id: newId(), group: data.group || 'Без группы', name: data.name,
+      norm: parseFloat(data.norm) || 0, unit: data.unit || 'объект',
+      needs_permit: data.needs_permit === true || data.needs_permit === 'true',
+      depends_on_snow: data.depends_on_snow === true || data.depends_on_snow === 'true',
+      min_temp: parseFloat(data.min_temp),
+      season: data.season || 'Круглый год',
+      equipment: data.equipment || '—',
+      min_workers: parseInt(data.min_workers) || 1,
+      opt_workers: parseInt(data.opt_workers) || 2
+    }, _newAttrDefaults(), _parseNewAttrs(data));
+    db.areas[area].push(w); save(db);
+    pushWork(area, w); // Сборка 22.09-25: SP_API (22.09-254: с участком)
+    return w;
+  }
+  function updateWork(area, id, data) {
+    var db = init(); var arr = db.areas[area] || [];
+    for (var i = 0; i < arr.length; i++) if (arr[i].id === id) {
+      if (data.group !== undefined) arr[i].group = data.group;
+      if (data.name !== undefined) arr[i].name = data.name;
+      if (data.norm !== undefined) arr[i].norm = parseFloat(data.norm) || 0;
+      if (data.unit !== undefined) arr[i].unit = data.unit;
+      if (data.needs_permit !== undefined) arr[i].needs_permit = data.needs_permit === true || data.needs_permit === 'true';
+      if (data.depends_on_snow !== undefined) arr[i].depends_on_snow = data.depends_on_snow === true || data.depends_on_snow === 'true';
+      if (data.min_temp !== undefined) arr[i].min_temp = parseFloat(data.min_temp);
+      if (data.season !== undefined) arr[i].season = data.season;
+      if (data.equipment !== undefined) arr[i].equipment = data.equipment;
+      if (data.min_workers !== undefined) arr[i].min_workers = parseInt(data.min_workers) || 1;
+      if (data.opt_workers !== undefined) arr[i].opt_workers = parseInt(data.opt_workers) || 2;
+      // Новые атрибуты (по «4 Атрибуты видов работ.htm»)
+      var na = _parseNewAttrs(data);
+      // Сборка 22.09-84: не переданные ключи атрибутов НЕ перезаписываем —
+      // у участков со скрытым блоком (openWorkModal) старые значения сохраняются.
+      Object.keys(na).forEach(function (k) { if (data[k] !== undefined) arr[i][k] = na[k]; });
+      save(db);
+      pushWork(area, arr[i]); // 22.09-254: с участком
+      return arr[i];
+    }
+    return null;
+  }
+  // 22.09-112: переименовать группу/подгруппу для всех работ участка сразу.
+  // Путь — «Группа / Подгруппа»; дочерние подгруппы переезжают вместе с родителем.
+  function renameGroup(area, oldPath, newPath) {
+    var db = init(); var arr = db.areas[area] || [];
+    var changed = [];
+    var op = String(oldPath || '').trim(), np = String(newPath || '').trim();
+    if (!op || !np || op === np) return 0;
+    arr.forEach(function (w) {
+      var g = String(w.group || 'Без группы').split(/\s+\/\s*|\s*\/\s+/).map(function (s) { return s.trim(); }).filter(Boolean).join(' / '); // как normGroupPath: «/» только с пробелом
+      if (g === op) { w.group = np; changed.push(w); }
+      else if (g.indexOf(op + ' / ') === 0) { w.group = np + ' / ' + g.slice(op.length + 3); changed.push(w); }
+    });
+    if (changed.length) {
+      save(db);
+      changed.forEach(function (w) { pushWork(area, w); }); // 22.09-254: с участком
+    }
+    return changed.length;
+  }
+  /* 22.09-137: СВОЙСТВА ГРУПП РАБОТ.
+     Хранятся прямо на каждой работе группы (поле group_flags) — так они
+     синхронизируются вместе с записями работ без отдельного раздела на
+     сервере. Известные свойства: «Телеметрия» (работы только объектам с ТМ,
+     в подбор «без ТМ» не входят), «ГРП» (только объектам типа ГРП); прочие —
+     простые метки для наглядности. */
+  function _normGrp(s) {
+    return String(s || '').split(/\s+\/\s*|\s*\/\s+/).map(function (p) { return p.trim(); }).filter(Boolean).join(' / ');
+  }
+  function _grpMatch(g, path) { // сам путь + его подгруппы
+    return g === path || g.indexOf(path + ' / ') === 0;
+  }
+  // Установить свойства группы (и её подгрупп). Возвращает число изменённых работ.
+  function setGroupFlags(area, path, flags) {
+    var db = init(); var arr = db.areas[area] || [];
+    var p = _normGrp(path);
+    var fl = (Array.isArray(flags) ? flags : []).map(function (s) { return String(s || '').trim(); }).filter(Boolean);
+    if (!p) return 0;
+    var changed = [];
+    arr.forEach(function (w) {
+      var g = _normGrp(w.group) || 'Без группы';
+      if (!_grpMatch(g, p)) return;
+      if (JSON.stringify(w.group_flags || []) === JSON.stringify(fl)) return;
+      w.group_flags = fl.slice(); changed.push(w);
+    });
+    if (changed.length) {
+      save(db);
+      changed.forEach(function (w) { pushWork(area, w); }); // 22.09-254: с участком
+    }
+    return changed.length;
+  }
+  // Прочитать свойства группы: сначала свои работы, затем родительские группы
+  // (вверх от «A / B» к «A»). exceptId — работа, которую пропускаем (наследование).
+  function groupFlagsOf(area, path, exceptId) {
+    var db = init(); var arr = db.areas[area] || [];
+    var p = _normGrp(path);
+    if (!p) return [];
+    var parts = p.split(' / ');
+    for (var lvl = parts.length; lvl >= 1; lvl--) {
+      var sub = parts.slice(0, lvl).join(' / ');
+      for (var i = 0; i < arr.length; i++) {
+        var w = arr[i];
+        if (!w || w.id === exceptId) continue;
+        var g = _normGrp(w.group) || 'Без группы';
+        if (g !== sub) continue;
+        var fl = Array.isArray(w.group_flags) ? w.group_flags.filter(function (s) { return s && String(s).trim(); }) : [];
+        if (fl.length) return fl.slice();
+      }
+    }
+    return [];
+  }
+
+  function deleteWork(area, id) {
+    var db = init(); var arr = db.areas[area] || [];
+    db.areas[area] = arr.filter(function (w) { return w.id !== id; });
+    save(db);
+    if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
+      window.SP_API.del('work_catalog', id).catch(function (e) {
+          try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log("warn", "sync", "sync failed", { err: String(e && e.err || e), where: "work_db.js" }); } catch(_){ }
+      });
+    }
+  }
+
+  return {
+    ensureSeed: ensureSeed, getAreas: getAreas, getWorks: getWorks, getWork: getWork,
+    getWorkById: getWorkById, getWorkTree: getWorkTree, addWork: addWork, updateWork: updateWork, deleteWork: deleteWork, renameGroup: renameGroup,
+    setGroupFlags: setGroupFlags, groupFlagsOf: groupFlagsOf,
+    ensureArea: ensureArea, renameArea: renameArea, deleteArea: deleteArea,
+    DEFAULTS: DEFAULTS, reloadFromCloud: reloadFromCloud, SCHEMA: SCHEMA,
+    factoryWorks: factoryWorks // 22.09-255
+  };
+})();
