@@ -932,7 +932,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-340';
+  var SP_BUILD = '22.09-341';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -16530,6 +16530,7 @@
       '<button class="x" data-action="close-modal">×</button></div><div class="modal-b">';
     html += '<div class="fld"><label>Объект (адрес)</label><div style="display:flex;gap:6px;align-items:stretch">';
     html += '<input id="f-obj" value="' + esc(initAddr) + '" placeholder="ГРП-1, ул. Ленина, 5" style="flex:1">';
+    html += '<button type="button" id="btn-pano-obj" style="flex:0 0 auto;white-space:nowrap;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px" title="Открыть МПК «Панорама» по координатам адреса (сначала выберите адрес из подсказок под полем или объект из справочника)">🗺 Открыть в МПК «Панорама»</button>';
     html += '<button type="button" id="btn-pick-obj" style="flex:0 0 auto;white-space:nowrap;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:background .15s,border-color .15s" title="Выбрать ГРП/ШРП из справочника объектов — адрес и координаты подставятся автоматически">📍 Выбор объекта</button>';
     html += '</div><div id="f-obj-hint" style="font-size:12.5px;margin-top:5px;color:var(--green);font-weight:600"></div></div>';
     html += '<div class="attr-row"><div class="fld"><label>Плановая дата</label><input id="f-day" type="date" value="' + initDate + '"></div>';
@@ -16578,7 +16579,7 @@
                 var row = document.createElement('div');
                 row.style.cssText = 'padding:8px 10px;font-size:12.5px;cursor:pointer;border-top:1px solid var(--line);line-height:1.35';
                 row.innerHTML = '📍 <b>' + esc(it.label) + '</b>' + (it.note ? ' <span style="color:var(--muted)">(' + esc(it.note) + ')</span>' : '') +
-                  '<button type="button" class="btn sm" data-pano="1" title="Открыть панораму по этим координатам (широта и долгота подставятся в ссылку)" style="float:right;margin-left:8px;padding:2px 8px;font-size:11.5px">🗺 Панорама</button>' +
+                  '<button type="button" class="btn sm" data-pano="1" title="Открыть панораму по этим координатам (широта и долгота подставятся в ссылку)" style="float:right;margin-left:8px;padding:2px 8px;font-size:11.5px">🗺 Открыть в МПК «Панорама»</button>' +
                   '<div style="color:var(--muted);font-size:11.5px">' + (+it.lat).toFixed(5) + ', ' + (+it.lng).toFixed(5) + '</div>'; // 22.09-339: уточнение в скобках; 22.09-340: кнопка панорамы
                 var panoBtn = row.querySelector('[data-pano]');
                 if (panoBtn) panoBtn.addEventListener('mousedown', function (e) {
@@ -16596,7 +16597,7 @@
                   var hint = document.getElementById('f-obj-hint');
                   if (hint) {
                     hint.innerHTML = '📍 Адрес выбран на карте: точка ' + (+it.lat).toFixed(5) + ', ' + (+it.lng).toFixed(5) +
-                      ' · <a href="https://panorama-mingas.cloud.gas.by/?lat_no_marker=' + (+it.lat).toFixed(6) + '&lon_no_marker=' + (+it.lng).toFixed(6) + '" target="_blank" rel="noopener" style="font-weight:700">🗺 Открыть панораму</a>';
+                      ' · <a href="https://panorama-mingas.cloud.gas.by/?lat_no_marker=' + (+it.lat).toFixed(6) + '&lon_no_marker=' + (+it.lng).toFixed(6) + '" target="_blank" rel="noopener" style="font-weight:700">🗺 Открыть в МПК «Панорама»</a>';
                   }
                   hideSug();
                 });
@@ -17213,6 +17214,19 @@
 
     var btnPickObj = document.getElementById('btn-pick-obj');
     if (btnPickObj) btnPickObj.addEventListener('click', openObjectPicker);
+    // 22.09-341: «Открыть в МПК «Панорама»» слева от выбора объекта — по координатам адреса
+    var btnPanoObj = document.getElementById('btn-pano-obj');
+    if (btnPanoObj) btnPanoObj.addEventListener('click', function () {
+      var c = S.taskModalGeoCoords || null;
+      if (!c && S.taskModalObjId && OBJ_MAP[S.taskModalObjId]) {
+        var _po = OBJ_MAP[S.taskModalObjId];
+        if (_po.lat != null && _po.lng != null) c = { lat: _po.lat, lng: _po.lng };
+      }
+      if (!c && S.taskModalMapCoords) c = S.taskModalMapCoords;
+      if (!c && isEdit && t && t.lat != null && t.lng != null) c = { lat: t.lat, lng: t.lng };
+      if (!c) { toast('warn', 'Сначала выберите адрес из подсказок под полем или объект из справочника — для панорамы нужны координаты'); return; }
+      window.open('https://panorama-mingas.cloud.gas.by/?lat_no_marker=' + (+c.lat).toFixed(6) + '&lon_no_marker=' + (+c.lng).toFixed(6), '_blank');
+    });
     // 22.09-150: сменили плановую дату — сезон другой, автовыбранные работы переподбираем
     var fDayInput = document.getElementById('f-day');
     if (fDayInput) fDayInput.addEventListener('change', function () { reautoTaskWorks(); renderTaskWorksList(); });
