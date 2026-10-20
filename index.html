@@ -679,7 +679,7 @@
     repeating-linear-gradient(27deg, rgba(15,23,42,.10) 0 7px, transparent 7px 19px),
     radial-gradient(ellipse at 30% 40%, rgba(255,255,255,.35), transparent 55%),
     radial-gradient(ellipse at 72% 66%, rgba(15,23,42,.18), transparent 55%)}
-  /* 22.09-343: финал как в видео — компактный фасеточный комок бумаги.
+  /* 22.09-344: финал как в видео — компактный фасеточный комок бумаги.
      Никакого border-radius: силуэт задаёт рваный многоугольник, объём — грани. */
   .sp-paper-wad{position:fixed;z-index:100000;pointer-events:none;overflow:hidden;
     clip-path:polygon(18% 4%,42% 0%,68% 7%,88% 22%,100% 45%,91% 70%,74% 94%,48% 100%,22% 92%,4% 74%,0 46%,6% 20%);
@@ -1368,6 +1368,42 @@
   /* Календарь — тайлы */
   .tile{transition:transform .18s cubic-bezier(.4,0,.2,1),box-shadow .18s,opacity .18s}
   .tile:hover{transform:scale(1.05);box-shadow:0 4px 12px rgba(0,0,0,.12);z-index:2}
+  /* 22.09-344: при наведении задача поверх соседних дней (ячейка тоже поднимается) */
+  .cal-grid .cell:hover{z-index:30}
+  .cal-grid .tile:hover{transform:scale(1.07);z-index:60;box-shadow:0 12px 26px rgba(15,23,42,.24)}
+  /* 22.09-344: планшеты — основная версия работает удобно (768–1180 px) */
+  @media (min-width:768px) and (max-width:1180px){
+    .topbar{height:auto;min-height:62px;flex-wrap:wrap;padding-top:6px;padding-bottom:6px;row-gap:6px}
+    #view{padding:16px}
+    .modal{max-width:94vw!important}
+    .cal-scroll{overflow-x:auto}
+    .tile{font-size:11px}
+    .btn{min-height:38px}
+  }
+  /* 22.09-344: МОБИЛЬНАЯ ВЕРСИЯ (класс force-mobile на <html>) — телефоны от 5 дюймов */
+  html.force-mobile .sidebar{position:fixed;left:-272px;top:0;height:100dvh;z-index:150;transition:left .22s ease;box-shadow:0 0 44px rgba(0,0,0,.35)}
+  html.force-mobile .sidebar.open{left:0}
+  html.force-mobile .burger{display:inline-flex!important}
+  html.force-mobile .main{margin-left:0!important}
+  html.force-mobile .topbar{height:auto;flex-wrap:wrap;padding:8px 10px;gap:8px;row-gap:6px}
+  html.force-mobile .topbar h1{font-size:15px}
+  html.force-mobile #view{padding:10px}
+  html.force-mobile .usr .un{display:none}
+  html.force-mobile .dash-grid,html.force-mobile .dash-grid.dw-inv{grid-template-columns:1fr!important}
+  html.force-mobile .kpi-row{grid-template-columns:1fr 1fr!important;gap:10px}
+  html.force-mobile .map-wrap{grid-template-columns:1fr!important}
+  html.force-mobile #view table.dt{display:block;overflow-x:auto;white-space:nowrap;max-width:100%}
+  html.force-mobile .card-b{padding:12px}
+  html.force-mobile .overlay{padding:12px 6px}
+  html.force-mobile .modal{width:96vw!important;max-width:96vw!important;max-height:94dvh}
+  html.force-mobile .cal-scroll{overflow-x:auto}
+  html.force-mobile .cal-grid{min-width:600px}
+  html.force-mobile .tile{font-size:10px;padding:4px 5px}
+  html.force-mobile .btn{min-height:40px}
+  html.force-mobile .nav a{padding:12px 14px;font-size:14px}
+  html.force-mobile .attr-row{grid-template-columns:1fr!important}
+  html.force-mobile #sp-bell-pop{width:calc(100vw - 16px)!important}
+  html.force-mobile #sp-mobile-btn{background:var(--blue);color:#fff;border-color:var(--blue)}
   .tile.t-green:hover,.tile.t-yellow:hover,.tile.t-red:hover{transform:scale(1.05) translateY(-1px)}
   .cell{transition:background .15s,box-shadow .15s}
   .today-mstr{transition:transform .2s,box-shadow .2s}
@@ -1801,6 +1837,13 @@
     .sidebar{z-index:150}
   }
 </style>
+<script>
+/* 22.09-344: мобильная версия — выбор пользователя (кнопка в шапке) или узкий экран */
+try {
+  var _mm = localStorage.getItem('smartplan_mobile');
+  if (_mm === '1' || (_mm === null && window.innerWidth < 768)) document.documentElement.classList.add('force-mobile');
+} catch (e) {}
+</script>
 </head>
 <body>
 <!-- ЭКРАН ВХОДА -->
@@ -1832,7 +1875,7 @@
           <div style="margin-top:6px;font-size:12px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-343 · панорама: ссылка lat/lon, кнопка вровень с выбором объекта</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-344 · мобильная версия по кнопке в шапке; планшеты; задача при наведении поверх дней</div>
         <div style="margin-top:6px;text-align:center"><a href="#" id="li-cookie-link" class="cookie-link" title="Посмотреть или изменить разрешение">🍪 Cookie и хранилище браузера</a></div>
     </div>
   </div>
@@ -1922,6 +1965,9 @@
       <span id="sync-indicator" title="">
         <span id="sync-dot" class="sp-dot"></span>
       </span>
+                <button type="button" class="tb-btn" id="sp-mobile-btn" data-action="mobile-toggle" title="Мобильная версия: вёрстка под телефон (нажмите, чтобы включить или выключить)" aria-label="Переключить мобильную версию" aria-pressed="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>
+        </button>
                 <button type="button" class="tb-btn" id="theme-toggle" title="Тема: переключить светлую ↔ тёмную" aria-label="Переключить тему (светлая/тёмная)">
           <svg class="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
           <svg class="ic-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
@@ -2110,17 +2156,17 @@
      Сайт остаётся на Render, а API (сервер + данные) — на воркере Cloudflare.
      Чтобы вернуться к базе Render — удалить следующую строку. -->
 <script>window.SP_CONFIG_OVERRIDE = 'https://smartplanogrsdb.ilya-omelchuk97.workers.dev/api';</script>
-<script src="root_index/config.js?v=22.09-343"></script>
-<script src="root_index/data.js?v=22.09-343"></script>
-<script src="root_index/users_db.js?v=22.09-343"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-343"></script>
-<script src="root_index/areas_db.js?v=22.09-343"></script>
-<script src="root_index/professions_db.js?v=22.09-343"></script>
-<script src="root_index/work_db.js?v=22.09-343"></script>
-<script src="root_index/objects_db.js?v=22.09-343"></script>
-<script src="root_index/workers_db.js?v=22.09-343"></script>
-<script src="root_index/tasks_db.js?v=22.09-343"></script>
-<script src="root_index/db.js?v=22.09-343"></script>
+<script src="root_index/config.js?v=22.09-344"></script>
+<script src="root_index/data.js?v=22.09-344"></script>
+<script src="root_index/users_db.js?v=22.09-344"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-344"></script>
+<script src="root_index/areas_db.js?v=22.09-344"></script>
+<script src="root_index/professions_db.js?v=22.09-344"></script>
+<script src="root_index/work_db.js?v=22.09-344"></script>
+<script src="root_index/objects_db.js?v=22.09-344"></script>
+<script src="root_index/workers_db.js?v=22.09-344"></script>
+<script src="root_index/tasks_db.js?v=22.09-344"></script>
+<script src="root_index/db.js?v=22.09-344"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -2138,12 +2184,12 @@
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-343"></script>
-      <script src="root_index/error_log.js?v=22.09-343"></script>
-      <script src="root_index/api_client.js?v=22.09-343"></script>
-      <script src="root_index/sync_polling.js?v=22.09-343"></script>
-      <script src="root_index/zip_util.js?v=22.09-343"></script>
-      <script src="root_index/app.js?v=22.09-343"></script>
+<script src="root_index/object_attrs.js?v=22.09-344"></script>
+      <script src="root_index/error_log.js?v=22.09-344"></script>
+      <script src="root_index/api_client.js?v=22.09-344"></script>
+      <script src="root_index/sync_polling.js?v=22.09-344"></script>
+      <script src="root_index/zip_util.js?v=22.09-344"></script>
+      <script src="root_index/app.js?v=22.09-344"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {

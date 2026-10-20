@@ -932,7 +932,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-343';
+  var SP_BUILD = '22.09-344';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -19317,6 +19317,7 @@
     else if (a === 'gs-open') { gsOpen(); }              // 22.09-284: глобальный поиск (Ctrl+K)
     else if (a === 'ap-open') { apOpen(); }              // 22.09-290: настройки автоподбора работ
     else if (a === 'bell-toggle') { bellToggle(); }      // 22.09-284: колокольчик уведомлений
+    else if (a === 'mobile-toggle') { if (window.mobileToggle) mobileToggle(); } // 22.09-344: мобильная версия
     else if (a === 'task-to-writeoff') { // 22.09-322: из закрытой задачи — сразу в её списание
       var _tid = el.dataset.tid;
       try { overlay.classList.remove('show'); } catch (e) {}
@@ -29361,6 +29362,35 @@
    · При наведении на любую из этих кнопок появляется мини-окошко
      с подписью (у настройки) или подробностями (у сервера).
    ============================================================ */
+  /* 22.09-344: мобильная версия — кнопка в шапке. Выбор запоминается;
+     на узком экране (<768 px) мобильная вёрстка включается сама, кнопкой
+     её можно выключить и включить обратно в любой момент. */
+  function mobileModeSync() {
+    try {
+      var on = document.documentElement.classList.contains('force-mobile');
+      var b = document.getElementById('sp-mobile-btn');
+      if (b) {
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        b.title = on ? 'Мобильная версия включена — нажмите, чтобы вернуться к обычной' : 'Мобильная версия: вёрстка под телефон (нажмите, чтобы включить)';
+      }
+    } catch (e) {}
+  }
+  function mobileToggle() {
+    try {
+      var on = document.documentElement.classList.toggle('force-mobile');
+      try { localStorage.setItem('smartplan_mobile', on ? '1' : '0'); } catch (e) {}
+      mobileModeSync();
+      toast('ok', on ? '📱 Мобильная версия включена' : '🖥 Обычная версия сайта');
+      try { if (typeof refresh === 'function') refresh(); } catch (e2) {}
+    } catch (e) {}
+  }
+  window.mobileModeSync = mobileModeSync;
+  window.mobileToggle = mobileToggle;
+  try {
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mobileModeSync);
+    else mobileModeSync();
+  } catch (e) {}
+
   var _tipEl = null, _tipAnchor = null;
 
   function spTipEl() {
