@@ -932,7 +932,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-335';
+  var SP_BUILD = '22.09-336';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -5400,6 +5400,46 @@
       tryNext(0);
     });
   }
+  /* 22.09-336: ПОДСКАЗКИ АДРЕСОВ для поля «Объект (адрес)»: до 5 найденных
+     на карте адресов с координатами. Сначала Яндекс (лучше знает Минск),
+     при недоступности — Nominatim (OSM). Возвращает [{label, lat, lng}]. */
+  function geocodeSuggest(qRaw) {
+    return new Promise(function (resolve) {
+      var q = String(qRaw || '').trim();
+      if (q.length < 4) { resolve([]); return; }
+      var settled = false;
+      function done(list) { if (!settled) { settled = true; resolve(list || []); } }
+      function nom() {
+        var qq = q.indexOf('Минск') === -1 ? q + ', Минск' : q;
+        fetch('https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(qq) + '&format=json&limit=5&accept-language=ru&countrycodes=by&viewbox=27.30,54.10,27.90,53.75&bounded=1')
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            done((d || []).map(function (x) { return { label: x.display_name, lat: parseFloat(x.lat), lng: parseFloat(x.lon) }; })
+              .filter(function (x) { return isFinite(x.lat) && isFinite(x.lng); }));
+          })['catch'](function () { done([]); });
+      }
+      function yand() {
+        if (!(window.ymaps && window.ymaps.geocode)) { nom(); return; }
+        var qq = q.indexOf('Минск') !== -1 ? q : 'Минск, ' + q;
+        window.ymaps.geocode(qq, { results: 5 }).then(function (res) {
+          var out = [];
+          try {
+            res.geoObjects.each(function (g) {
+              var c = g.geometry.getCoordinates();
+              var name = (g.properties.get('text') || g.properties.get('name') || '');
+              if (c && name) out.push({ label: name, lat: c[0], lng: c[1] });
+            });
+          } catch (e) {}
+          if (out.length) done(out); else nom();
+        }, nom);
+      }
+      if (window.ymaps && window.ymaps.geocode) yand();
+      else ensureYandex(yand, nom);
+      setTimeout(function () { if (!settled) nom(); }, 5000); // защита от зависания Яндекса
+    });
+  }
+  window.SP_GEO_SUGGEST = geocodeSuggest;
+
   function geocodeAddressUnified(addr) {
     return new Promise(function (resolve) {
       var settled = false;
@@ -16338,6 +16378,7 @@
     // для обычного адреса — чтобы геокодер не сдвинул её при сохранении
     S.taskModalMapCoords = (!S.taskModalObjId && isEdit && t && t.lat != null && t.lng != null)
       ? { lat: t.lat, lng: t.lng } : null;
+    S.taskModalGeoCoords = null; // 22.09-336: координаты адреса, выбранного из подсказок карты
     // Слесарь/Бригада: конкретные слесари или «вся бригада участка»
     S.taskModalSlesari = (isEdit && t && t.slesari && t.slesari.length) ? t.slesari.slice() : [];
     S.taskModalBrigade = !!(isEdit && t && t.brigade);
@@ -16380,6 +16421,55 @@
     modal.style.maxWidth = ''; // сброс инлайн-ширины (напр. 60% у Excel-модалки); ширину задаёт CSS max-width:fit-content
     modal.innerHTML = html;
     overlay.classList.add('show');
+
+    /* 22.09-336: подсказки адресов с карты в поле «Объект (адрес)».
+       Человек печатает адрес → выпадает до 5 найденных на карте адресов →
+       нажатие ставит адрес и его координаты (точка на карте у задачи). */
+    try {
+      var _objInp = document.getElementById('f-obj');
+      if (_objInp) {
+        var _sug = document.createElement('div');
+        _sug.id = 'f-geo-suggest';
+        _sug.style.cssText = 'display:none;margin-top:6px;border:1px solid var(--line);border-radius:9px;background:var(--card);box-shadow:0 10px 26px rgba(15,23,42,.16);overflow:hidden';
+        var _fld = _objInp.closest('.fld');
+        if (_fld) _fld.appendChild(_sug);
+        var _geoTimer = null;
+        var hideSug = function () { _sug.style.display = 'none'; _sug.innerHTML = ''; };
+        _objInp.addEventListener('input', function () {
+          S.taskModalGeoCoords = null; // текст поменяли руками — выбранные координаты больше не действуют
+          var v = _objInp.value.trim();
+          if (_geoTimer) clearTimeout(_geoTimer);
+          if (v.length < 4) { hideSug(); return; }
+          _geoTimer = setTimeout(function () {
+            if (!window.SP_GEO_SUGGEST) return;
+            SP_GEO_SUGGEST(v).then(function (list) {
+              if (_objInp.value.trim() !== v) return; // за время запроса текст уже другой
+              if (!list || !list.length) { hideSug(); return; }
+              _sug.innerHTML = '<div style="padding:6px 10px;font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Найдено на карте — нажмите, чтобы выбрать точный адрес</div>';
+              list.slice(0, 5).forEach(function (it) {
+                var row = document.createElement('div');
+                row.style.cssText = 'padding:8px 10px;font-size:12.5px;cursor:pointer;border-top:1px solid var(--line);line-height:1.35';
+                row.innerHTML = '📍 <b>' + esc(it.label) + '</b><div style="color:var(--muted);font-size:11.5px">' + (+it.lat).toFixed(5) + ', ' + (+it.lng).toFixed(5) + '</div>';
+                row.addEventListener('mouseenter', function () { row.style.background = 'var(--panel-2)'; });
+                row.addEventListener('mouseleave', function () { row.style.background = ''; });
+                row.addEventListener('mousedown', function (e) {
+                  if (e && e.preventDefault) e.preventDefault();
+                  _objInp.value = it.label;
+                  S.taskModalGeoCoords = { lat: it.lat, lng: it.lng };
+                  S.taskModalObjId = null; // адрес выбран с карты, а не из справочника
+                  var hint = document.getElementById('f-obj-hint');
+                  if (hint) hint.textContent = '📍 Адрес выбран на карте: точка ' + (+it.lat).toFixed(5) + ', ' + (+it.lng).toFixed(5);
+                  hideSug();
+                });
+                _sug.appendChild(row);
+              });
+              _sug.style.display = 'block';
+            });
+          }, 380);
+        });
+        _objInp.addEventListener('blur', function () { setTimeout(hideSug, 200); });
+      }
+    } catch (eGs) {}
 
     /* 22.09-147: объект выбран/сменился — АВТОвыбранные строки переподбираем
        под его параметры (линии редуцирования, телеметрия и др. — как автоподбор
@@ -17158,8 +17248,8 @@
 
     // === ГЕОКОДИРОВАНИЕ: получаем координаты один раз и сохраняем в задачу ===
     // Точка с карты («Выбрать на карте») — точные координаты клика, геокодер не нужен
-    var initLat = o ? o.lat : (S.taskModalMapCoords ? S.taskModalMapCoords.lat : null);
-    var initLng = o ? o.lng : (S.taskModalMapCoords ? S.taskModalMapCoords.lng : null);
+    var initLat = o ? o.lat : (S.taskModalGeoCoords ? S.taskModalGeoCoords.lat : (S.taskModalMapCoords ? S.taskModalMapCoords.lat : null)); // 22.09-336: выбранный из подсказок адрес — с координатами
+    var initLng = o ? o.lng : (S.taskModalGeoCoords ? S.taskModalGeoCoords.lng : (S.taskModalMapCoords ? S.taskModalMapCoords.lng : null));
 
     // Геокодирование напрямую через Nominatim (на русском, перевод не нужен)
       function finalizeSave(coords) {
