@@ -932,7 +932,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-337';
+  var SP_BUILD = '22.09-338';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -5425,6 +5425,32 @@
   /* 22.09-336: ПОДСКАЗКИ АДРЕСОВ для поля «Объект (адрес)»: до 5 найденных
      на карте адресов с координатами. Сначала Яндекс (лучше знает Минск),
      при недоступности — Nominatim (OSM). Возвращает [{label, lat, lng}]. */
+  /* 22.09-338: короткий адрес для человека — «Населённый пункт, улица, дом»
+     вместо длинной геокодерной строки со страной, областью, районом и индексом. */
+  function geoShortLabel(full, addr) {
+    try {
+      if (addr) {
+        var loc = addr.city || addr.town || addr.village || addr.hamlet || '';
+        var road = addr.road || '';
+        var hn = addr.house_number || '';
+        if (loc && road) return loc + ', ' + road + (hn ? ', ' + hn : '');
+        if (road) return road + (hn ? ', ' + hn : '');
+      }
+    } catch (e) {}
+    var parts = String(full || '').split(',').map(function (x) { return x.trim(); }).filter(Boolean);
+    var drop = /^(беларусь|belarus|минская область|.*область|.*район|.*сельский совет|.*сельсовет|\d{6})$/i;
+    var keep = parts.filter(function (x) { return !drop.test(x); });
+    var house = '', street = '', loc2 = '';
+    keep.forEach(function (x) {
+      if (!house && /^\d+[а-яa-z]?(\/\d+)?(\s*(корпус|корп\.?|строение|стр\.?).*?)?$/i.test(x)) house = x;
+      else if (!street && /(улиц|проспект|переул|площад|бульвар|шоссе|набереж|тупик|аллея|проезд|тракт)/i.test(x)) street = x;
+      else if (!loc2) loc2 = x;
+    });
+    if (loc2 && street) return loc2 + ', ' + street + (house ? ', ' + house : '');
+    if (street) return street + (house ? ', ' + house : '');
+    return keep.slice(0, 3).join(', ') || String(full || '');
+  }
+
   function geocodeSuggest(qRaw) {
     return new Promise(function (resolve) {
       var q = String(qRaw || '').trim();
@@ -5450,10 +5476,10 @@
         else if (isRegion) { pushC(q + ', Минская область'); pushC(q); }
         else { pushC(q + ', Минская область'); pushC(q + ', Минск'); pushC(q); }
         function fetchNom(qq, bounded) {
-          return fetch('https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(qq) + '&format=json&limit=5&accept-language=ru&countrycodes=by' + (bounded ? '&viewbox=26.90,54.35,28.05,53.65&bounded=1' : ''))
+          return fetch('https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(qq) + '&format=json&limit=5&accept-language=ru&countrycodes=by&addressdetails=1' + (bounded ? '&viewbox=26.90,54.35,28.05,53.65&bounded=1' : ''))
             .then(function (r) { return r.json(); })
             .then(function (d) {
-              return (d || []).map(function (x) { return { label: x.display_name, lat: parseFloat(x.lat), lng: parseFloat(x.lon) }; })
+              return (d || []).map(function (x) { return { label: geoShortLabel(x.display_name, x.address), full: x.display_name, lat: parseFloat(x.lat), lng: parseFloat(x.lon) }; })
                 .filter(function (x) { return isFinite(x.lat) && isFinite(x.lng); });
             })
             .catch(function () { return []; });
@@ -5481,7 +5507,21 @@
               res.geoObjects.each(function (g) {
                 var c = g.geometry.getCoordinates();
                 var name = (g.properties.get('text') || g.properties.get('name') || '');
-                if (c && name && !seen[name]) { seen[name] = 1; out.push({ label: name, lat: c[0], lng: c[1] }); }
+                if (c && name && !seen[name]) {
+                  seen[name] = 1;
+                  var short = '';
+                  try {
+                    var comps = g.properties.get('metaDataProperty.GeocoderMetaData.Address.Components') || [];
+                    var loc = '', st = '', hs = '';
+                    comps.forEach(function (cp) {
+                      if (cp.kind === 'locality' && !loc) loc = cp.name;
+                      if (cp.kind === 'street' && !st) st = cp.name;
+                      if (cp.kind === 'house' && !hs) hs = cp.name;
+                    });
+                    if (loc && st) short = loc + ', ' + st + (hs ? ', ' + hs : '');
+                  } catch (eC) {}
+                  out.push({ label: short || geoShortLabel(name), full: name, lat: c[0], lng: c[1] });
+                }
               });
             } catch (e) {}
             tryVar(i + 1);
