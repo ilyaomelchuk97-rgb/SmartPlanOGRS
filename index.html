@@ -93,14 +93,11 @@
     };
     document.addEventListener('DOMContentLoaded', function () {
       try {
+        // 22.09-351: плашка «ТЕСТОВАЯ СТРАНИЦА» сверху убрана по просьбе пользователя.
+        // Вернуться на главный сайт: выход из системы (doLogout уводит на главный сайт).
         document.title = 'SmartPlan ТЕСТ — тестовая страница';
-        var bd = document.createElement('div');
-        bd.id = 'testgrp-badge';
-        bd.style.cssText = 'position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:2147483001;background:#7c2d12;color:#fff;font-size:12.5px;font-weight:700;padding:5px 16px;border-radius:0 0 12px 12px;box-shadow:0 6px 18px rgba(0,0,0,.3);letter-spacing:.2px;white-space:nowrap';
-        bd.innerHTML = '🧪 ТЕСТОВАЯ СТРАНИЦА · участок «ТЕСТ» · отдельный вход &nbsp;<button type="button" style="background:#fff;color:#7c2d12;border:0;border-radius:7px;font-weight:800;font-size:12px;padding:2px 10px;cursor:pointer" onclick="window.SP_TEST_EXIT && SP_TEST_EXIT()">← На главный сайт</button>';
-        document.body.appendChild(bd);
         var mk = document.getElementById('build-marker');
-        if (mk) mk.textContent = 'Тестовая страница · сборка 22.09-350 · участок «ТЕСТ»';
+        if (mk) mk.textContent = 'Тестовая страница · сборка 22.09-351 · участок «ТЕСТ»';
       } catch (eB) {}
     });
   } catch (e) {}
@@ -1990,7 +1987,7 @@ try {
           <div style="margin-top:6px;font-size:12px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-350 · тестовая страница прямо на главном сайте, без отдельной папки</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-351 · на тестовой странице убрана верхняя плашка</div>
         <div style="margin-top:6px;text-align:center"><a href="#" id="li-cookie-link" class="cookie-link" title="Посмотреть или изменить разрешение">🍪 Cookie и хранилище браузера</a></div>
     </div>
   </div>
@@ -2271,17 +2268,17 @@ try {
      Сайт остаётся на Render, а API (сервер + данные) — на воркере Cloudflare.
      Чтобы вернуться к базе Render — удалить следующую строку. -->
 <script>window.SP_CONFIG_OVERRIDE = 'https://smartplanogrsdb.ilya-omelchuk97.workers.dev/api';</script>
-<script src="root_index/config.js?v=22.09-350"></script>
-<script src="root_index/data.js?v=22.09-350"></script>
-<script src="root_index/users_db.js?v=22.09-350"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-350"></script>
-<script src="root_index/areas_db.js?v=22.09-350"></script>
-<script src="root_index/professions_db.js?v=22.09-350"></script>
-<script src="root_index/work_db.js?v=22.09-350"></script>
-<script src="root_index/objects_db.js?v=22.09-350"></script>
-<script src="root_index/workers_db.js?v=22.09-350"></script>
-<script src="root_index/tasks_db.js?v=22.09-350"></script>
-<script src="root_index/db.js?v=22.09-350"></script>
+<script src="root_index/config.js?v=22.09-351"></script>
+<script src="root_index/data.js?v=22.09-351"></script>
+<script src="root_index/users_db.js?v=22.09-351"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-351"></script>
+<script src="root_index/areas_db.js?v=22.09-351"></script>
+<script src="root_index/professions_db.js?v=22.09-351"></script>
+<script src="root_index/work_db.js?v=22.09-351"></script>
+<script src="root_index/objects_db.js?v=22.09-351"></script>
+<script src="root_index/workers_db.js?v=22.09-351"></script>
+<script src="root_index/tasks_db.js?v=22.09-351"></script>
+<script src="root_index/db.js?v=22.09-351"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -2299,12 +2296,12 @@ try {
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-350"></script>
-      <script src="root_index/error_log.js?v=22.09-350"></script>
-      <script src="root_index/api_client.js?v=22.09-350"></script>
-      <script src="root_index/sync_polling.js?v=22.09-350"></script>
-      <script src="root_index/zip_util.js?v=22.09-350"></script>
-      <script src="root_index/app.js?v=22.09-350"></script>
+<script src="root_index/object_attrs.js?v=22.09-351"></script>
+      <script src="root_index/error_log.js?v=22.09-351"></script>
+      <script src="root_index/api_client.js?v=22.09-351"></script>
+      <script src="root_index/sync_polling.js?v=22.09-351"></script>
+      <script src="root_index/zip_util.js?v=22.09-351"></script>
+      <script src="root_index/app.js?v=22.09-351"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {
