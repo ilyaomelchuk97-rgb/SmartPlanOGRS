@@ -171,6 +171,7 @@ window.SP_USERS_DB = (function () {
         id: newId(), login: data.login, password: h, // 22.09-241: открытый пароль в браузере не храним
         full_name: data.full_name, role: data.role, area: data.area || '',
         prof: data.prof || '',
+        test_branch: !!data.test_branch, // 22.09-348: тестовый участник — после входа отправляется на /testgrp
         table_number: String(data.table_number || '').replace(/\D/g, ''), // 22.09-258: табельный номер (только цифры)
         color: data.color || nextColor(), active: data.active !== false, created: Date.now()
       };
@@ -199,6 +200,7 @@ window.SP_USERS_DB = (function () {
     if (data.role !== undefined) u.role = data.role;
     if (data.area !== undefined) u.area = data.area;
     if (data.prof !== undefined) u.prof = data.prof;
+    if (data.test_branch !== undefined) u.test_branch = !!data.test_branch; // 22.09-348
     if (data.table_number !== undefined) u.table_number = String(data.table_number).replace(/\D/g, ''); // 22.09-258: пустая строка — снять номер
     if (data.active !== undefined) u.active = data.active;
     if (data.color !== undefined) u.color = data.color;

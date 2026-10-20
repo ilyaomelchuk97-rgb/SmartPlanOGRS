@@ -932,7 +932,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-347';
+  var SP_BUILD = '22.09-348';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -14028,7 +14028,7 @@
           (S.role === 'admin' ? '<button class="btn sm" data-action="pwd-user" data-uid="' + esc(u.id) + '" title="Задать пользователю новый пароль для входа">🔑 Сменить пароль</button>' : '') + '</span>';
         var actionsHtml = (S.role === 'admin') ? '<button class="btn sm" data-action="edit-user" data-uid="' + u.id + '">Изменить</button> ' + fireBtn + delBtn : '<span style="color:#94a3b8;font-size:12.5px;">Доступно админу</span>';
         var bulkCell = (S.role === 'admin') ? '<td><input type="checkbox" data-bulk-user="' + esc(u.id) + '" data-action="bulk-check" title="Отметить для массовой операции"></td>' : '';
-        html += '<tr>' + bulkCell + '<td><div style="display:flex;align-items:center;gap:8px">' + avaHtml(u, 28, 10.5) + '<b>' + esc(u.full_name) + '</b>' + me + '</div></td><td style="font-family:monospace;font-weight:700;color:var(--blue);">' + esc(u.login) + '</td><td>' + (u.table_number ? '<span style="font-family:monospace;font-weight:700;">' + esc(u.table_number) + '</span>' : '<span style="color:#cbd5e1">—</span>') + '</td><td>' + passLabel + '</td><td>' + roleChip(u.role) + (u.prof ? '<div style="font-size:12px;color:var(--muted);margin-top:3px">' + esc(u.prof) + '</div>' : '') + '</td><td>' + esc(u.area || '—') + '</td><td>' + (u.active ? '<span class="chip" style="background:#dcfce7;color:#15803d">активен</span>' : '<span class="chip" style="background:#fee2e2;color:#b91c1c">отключён</span>') + '</td><td style="white-space:nowrap;text-align:right">' + actionsHtml + '</td></tr>';
+        html += '<tr>' + bulkCell + '<td><div style="display:flex;align-items:center;gap:8px">' + avaHtml(u, 28, 10.5) + '<b>' + esc(u.full_name) + '</b>' + me + '</div></td><td style="font-family:monospace;font-weight:700;color:var(--blue);">' + esc(u.login) + '</td><td>' + (u.table_number ? '<span style="font-family:monospace;font-weight:700;">' + esc(u.table_number) + '</span>' : '<span style="color:#cbd5e1">—</span>') + '</td><td>' + passLabel + '</td><td>' + roleChip(u.role) + (u.prof ? '<div style="font-size:12px;color:var(--muted);margin-top:3px">' + esc(u.prof) + '</div>' : '') + '</td><td>' + esc(u.area || '—') + '</td><td>' + (u.active ? '<span class="chip" style="background:#dcfce7;color:#15803d">активен</span>' : '<span class="chip" style="background:#fee2e2;color:#b91c1c">отключён</span>') + (u.test_branch ? ' <span class="chip" style="background:#fef9c3;color:#854d0e" title="После входа сайт сам отправит этого пользователя на тестовую страницу (/testgrp, участок «ТЕСТ»)">🧪 тест</span>' : '') + '</td><td style="white-space:nowrap;text-align:right">' + actionsHtml + '</td></tr>';
       });
       html += '</tbody></table></div></div>';
       // 22.09-161: уволенные — без логина/пароля, с восстановлением (для истории задач запись остаётся)
@@ -14920,6 +14920,8 @@
         h += '<div class="fld"><label>Новый пароль <span style="font-weight:400;color:#64748b;font-size:12px;">(оставьте пустым, если не меняется)</span></label><input id="um-pass" type="text" placeholder="Введите новый пароль"></div>';
       }
       h += '<div class="fld"><label class="cb"><input type="checkbox" id="um-active" ' + (u ? (u.active ? 'checked' : '') : 'checked') + '> Учётная запись активна</label></div>';
+      // 22.09-348: тестовый участник — после входа на обычном сайте его само перекинет на тестовую страницу /testgrp (участок «ТЕСТ»)
+      h += '<div class="fld"><label class="cb"><input type="checkbox" id="um-test-branch" ' + (u && u.test_branch ? 'checked' : '') + '> 🧪 Тестовый участник — после входа отправлять на тестовый сайт</label><div style="font-size:12px;color:var(--muted);margin-top:3px">Человек входит как обычно, а сайт сам переводит его на тестовую страницу (участок «ТЕСТ»). Там он работает со своими обычными правами по роли. Снимите галочку — и вход снова будет на главный сайт.</div></div>';
       // 22.09-219: фото-аватар работника (загрузка админом; применяется сразу, без «Сохранить»)
       if (mode === 'edit' && u) {
         h += '<div class="fld" style="margin-top:6px"><label>Фото работника <span style="font-weight:400;color:#64748b;font-size:12px">(кружок-аватар по всей системе)</span></label>' +
@@ -14976,14 +14978,15 @@
     var role = roleKeyOfSel(_roleSel);   // базовая роль или роль профессии
     var profTitle = roleProfOfSel(_roleSel); // название профессии (для базовых ролей — пусто)
     var active = document.getElementById('um-active') ? document.getElementById('um-active').checked : true;
+    var testBranch = document.getElementById('um-test-branch') ? document.getElementById('um-test-branch').checked : false; // 22.09-348
     if (!full_name || !login) { toast('err', 'Заполните ФИО и логин'); return; }
     var op;
     if (mode === 'new') {
       var pw = val('um-pass');
       if (!pw) { toast('err', 'Укажите пароль'); return; }
-      op = DB.addUser({ full_name: full_name, login: login, password: pw, role: role, area: area, active: active, prof: profTitle, table_number: tabel });
+      op = DB.addUser({ full_name: full_name, login: login, password: pw, role: role, area: area, active: active, prof: profTitle, table_number: tabel, test_branch: testBranch });
     } else {
-      var updateData = { full_name: full_name, login: login, role: role, area: area, active: active, prof: profTitle, table_number: tabel };
+      var updateData = { full_name: full_name, login: login, role: role, area: area, active: active, prof: profTitle, table_number: tabel, test_branch: testBranch };
       var newPw = val('um-pass');
       if (newPw) {
         updateData.password = newPw;
@@ -17885,7 +17888,64 @@
     if (tries >= 100) return;
     setTimeout(function () { whenSyncReady(fn, tries + 1); }, 300);
   }
+  /* 22.09-348: ТЕСТОВЫЕ УЧАСТНИКИ → ТЕСТОВАЯ СТРАНИЦА /testgrp.
+     У пользователя в карточке стоит галочка «Тестовый участник» (test_branch).
+     Он входит как обычно на главном сайте, а сайт сам переводит его на
+     /testgrp и переносит туда вход (токен + сессию), чтобы пароль второй
+     раз не вводить. На самой тестовой странице этот переход НЕ работает
+     (иначе был бы круг). Ответ сервера при входе галочку не содержит —
+     она приходит с синхронизацией списка пользователей, поэтому проверяем
+     запись пользователя в локальной базе и ждём первую синхронизацию. */
+  function spOnTestBranchPage() {
+    try { return /(^|\/)testgrp(\/|$)/.test(String(location.pathname || '')); } catch (e) { return false; }
+  }
+  function spTestBranchGo(u) {
+    try {
+      var _full = u;
+      try { var _loc = (window.DB && DB.getUser && u) ? DB.getUser(u.id) : null; if (_loc) _full = _loc; } catch (eF) {}
+      var handover = {
+        token: (window.SP_API && SP_API.getToken) ? SP_API.getToken() : null,
+        user: (window.SP_API && SP_API.getUser) ? SP_API.getUser() : null,
+        full: _full || null, // полная запись пользователя — чтобы тестовая страница сразу узнала вошедшего
+        sess: u && u.id, ts: Date.now()
+      };
+      // кладём в ОБЫЧНОЕ хранилище домена — тестовая страница при загрузке
+      // заберёт это в своё отдельное хранилище и сразу сотрёт
+      window.localStorage.setItem('sp_testgrp_handover', JSON.stringify(handover));
+    } catch (e) {}
+    try { toast('ok', '🧪 Вы — тестовый участник: перевожу на тестовую страницу…'); } catch (e2) {}
+    var base = String(location.pathname || '/').replace(/[^\/]*$/, '');
+    setTimeout(function () { try { location.replace(location.origin + base + 'testgrp/'); } catch (e3) {} }, 350);
+  }
+  var _spTestGateTimer = null;
+  function spTestBranchGate(u) {
+    if (!u || spOnTestBranchPage()) return false;
+    function flagged(rec) { return !!(rec && rec.test_branch); }
+    var local = null;
+    try { local = (window.DB && DB.getUser) ? DB.getUser(u.id) : null; } catch (e) {}
+    if (flagged(u) || flagged(local)) { spTestBranchGo(u); return true; }
+    // запись пользователя ещё не пришла с сервера — подождать синхронизацию и перепроверить
+    if (_spTestGateTimer) clearInterval(_spTestGateTimer);
+    var tries = 0;
+    _spTestGateTimer = setInterval(function () {
+      tries++;
+      var rec = null;
+      try { rec = (window.DB && DB.getUser) ? DB.getUser(u.id) : null; } catch (e) {}
+      var ready = false;
+      try { ready = !!(window.SP_SYNC_POLL && SP_SYNC_POLL.isReady && SP_SYNC_POLL.isReady()); } catch (eR) {}
+      var online = false;
+      try { online = !!(window.SP_API && SP_API.getToken && SP_API.getToken()); } catch (eO) {}
+      if (flagged(rec)) {
+        clearInterval(_spTestGateTimer); _spTestGateTimer = null;
+        spTestBranchGo(u);
+      } else if ((rec && (ready || !online)) || tries >= 50) { // актуальная запись пришла без галочки ИЛИ прошло ~15 с — обычный вход
+        clearInterval(_spTestGateTimer); _spTestGateTimer = null;
+      }
+    }, 300);
+    return false;
+  }
   function enterApp(u) {
+    if (spTestBranchGate(u)) return; // 22.09-348: тестового участника сразу уводим на /testgrp
     S.user = u; S.role = u.role; S.curMaster = u.id;
     // 22.09-286: участок-фильтр берётся из шапки и сохраняется в браузере
     S.dashArea = null;
