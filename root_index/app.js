@@ -932,7 +932,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-339';
+  var SP_BUILD = '22.09-340';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -16577,7 +16577,15 @@
               list.slice(0, 5).forEach(function (it) {
                 var row = document.createElement('div');
                 row.style.cssText = 'padding:8px 10px;font-size:12.5px;cursor:pointer;border-top:1px solid var(--line);line-height:1.35';
-                row.innerHTML = '📍 <b>' + esc(it.label) + '</b>' + (it.note ? ' <span style="color:var(--muted)">(' + esc(it.note) + ')</span>' : '') + '<div style="color:var(--muted);font-size:11.5px">' + (+it.lat).toFixed(5) + ', ' + (+it.lng).toFixed(5) + '</div>'; // 22.09-339: уточнение в скобках
+                row.innerHTML = '📍 <b>' + esc(it.label) + '</b>' + (it.note ? ' <span style="color:var(--muted)">(' + esc(it.note) + ')</span>' : '') +
+                  '<button type="button" class="btn sm" data-pano="1" title="Открыть панораму по этим координатам (широта и долгота подставятся в ссылку)" style="float:right;margin-left:8px;padding:2px 8px;font-size:11.5px">🗺 Панорама</button>' +
+                  '<div style="color:var(--muted);font-size:11.5px">' + (+it.lat).toFixed(5) + ', ' + (+it.lng).toFixed(5) + '</div>'; // 22.09-339: уточнение в скобках; 22.09-340: кнопка панорамы
+                var panoBtn = row.querySelector('[data-pano]');
+                if (panoBtn) panoBtn.addEventListener('mousedown', function (e) {
+                  if (e) { e.preventDefault(); e.stopPropagation(); }
+                  // ссылка пользователя: панорама с широтой и долготой найденного адреса
+                  window.open('https://panorama-mingas.cloud.gas.by/?lat_no_marker=' + (+it.lat).toFixed(6) + '&lon_no_marker=' + (+it.lng).toFixed(6), '_blank');
+                });
                 row.addEventListener('mouseenter', function () { row.style.background = 'var(--panel-2)'; });
                 row.addEventListener('mouseleave', function () { row.style.background = ''; });
                 row.addEventListener('mousedown', function (e) {
@@ -16586,7 +16594,10 @@
                   S.taskModalGeoCoords = { lat: it.lat, lng: it.lng };
                   S.taskModalObjId = null; // адрес выбран с карты, а не из справочника
                   var hint = document.getElementById('f-obj-hint');
-                  if (hint) hint.textContent = '📍 Адрес выбран на карте: точка ' + (+it.lat).toFixed(5) + ', ' + (+it.lng).toFixed(5);
+                  if (hint) {
+                    hint.innerHTML = '📍 Адрес выбран на карте: точка ' + (+it.lat).toFixed(5) + ', ' + (+it.lng).toFixed(5) +
+                      ' · <a href="https://panorama-mingas.cloud.gas.by/?lat_no_marker=' + (+it.lat).toFixed(6) + '&lon_no_marker=' + (+it.lng).toFixed(6) + '" target="_blank" rel="noopener" style="font-weight:700">🗺 Открыть панораму</a>';
+                  }
                   hideSug();
                 });
                 _sug.appendChild(row);
