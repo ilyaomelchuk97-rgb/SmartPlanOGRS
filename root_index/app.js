@@ -932,7 +932,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-338';
+  var SP_BUILD = '22.09-339';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -5451,6 +5451,28 @@
     return keep.slice(0, 3).join(', ') || String(full || '');
   }
 
+  /* 22.09-339: уточнение в скобках — что это за объект (магазин, аптека…),
+     если геокодер это знает. Берём имя объекта или переводим его тип. */
+  function geoNote(cls, type, name) {
+    var nm = String(name || '').trim();
+    // имя-улица («проспект Независимости») — не уточнение, пропускаем к типу объекта
+    if (nm && !/(улиц|проспект|переул|площад|бульвар|шоссе|набереж|тракт)/i.test(nm)) return nm;
+    var m = {
+      supermarket: 'магазин', convenience: 'магазин', shop: 'магазин', marketplace: 'рынок',
+      bakery: 'пекарня', butcher: 'мясной магазин', grocery: 'продукты', clothes: 'одежда',
+      pharmacy: 'аптека', cafe: 'кафе', restaurant: 'ресторан', fast_food: 'кафе', bar: 'бар',
+      fuel: 'АЗС', school: 'школа', kindergarten: 'детский сад', university: 'университет', college: 'колледж',
+      hospital: 'больница', clinic: 'поликлиника', doctors: 'медицина', dentist: 'стоматология',
+      bank: 'банк', atm: 'банкомат', post_office: 'почта', bus_stop: 'остановка', station: 'станция',
+      railway_station: 'вокзал', hotel: 'гостиница', library: 'библиотека', police: 'милиция',
+      hairdresser: 'парикмахерская', car_wash: 'автомойка', car_repair: 'автосервис', parking: 'парковка',
+      church: 'церковь', mosque: 'мечеть', cinema: 'кинотеатр', theatre: 'театр', museum: 'музей',
+      office: 'офис', industrial: 'предприятие', warehouse: 'склад', dormitory: 'общежитие'
+    };
+    if (type && m[type]) return m[type];
+    return '';
+  }
+
   function geocodeSuggest(qRaw) {
     return new Promise(function (resolve) {
       var q = String(qRaw || '').trim();
@@ -5479,7 +5501,7 @@
           return fetch('https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(qq) + '&format=json&limit=5&accept-language=ru&countrycodes=by&addressdetails=1' + (bounded ? '&viewbox=26.90,54.35,28.05,53.65&bounded=1' : ''))
             .then(function (r) { return r.json(); })
             .then(function (d) {
-              return (d || []).map(function (x) { return { label: geoShortLabel(x.display_name, x.address), full: x.display_name, lat: parseFloat(x.lat), lng: parseFloat(x.lon) }; })
+              return (d || []).map(function (x) { return { label: geoShortLabel(x.display_name, x.address), full: x.display_name, note: geoNote(x.class, x.type, x.name), lat: parseFloat(x.lat), lng: parseFloat(x.lon) }; })
                 .filter(function (x) { return isFinite(x.lat) && isFinite(x.lng); });
             })
             .catch(function () { return []; });
@@ -5520,7 +5542,15 @@
                     });
                     if (loc && st) short = loc + ', ' + st + (hs ? ', ' + hs : '');
                   } catch (eC) {}
-                  out.push({ label: short || geoShortLabel(name), full: name, lat: c[0], lng: c[1] });
+                  var noteY = '';
+                try {
+                  var nmY = String(g.properties.get('name') || '').trim();
+                  // имя объекта (аптека, магазин…), но НЕ сам адрес/улица — такие «уточнения» бесполезны
+                  var _nmLow = nmY.toLowerCase();
+                  var _looksAddr = /(улиц|проспект|переул|площад|бульвар|шоссе|набереж|тракт)/.test(_nmLow);
+                  if (nmY && nmY !== name && !_looksAddr && (short || geoShortLabel(name)).toLowerCase().indexOf(_nmLow) === -1 && !/^\d/.test(nmY)) noteY = nmY;
+                } catch (eNY) {}
+                out.push({ label: short || geoShortLabel(name), full: name, note: noteY, lat: c[0], lng: c[1] });
                 }
               });
             } catch (e) {}
@@ -16547,7 +16577,7 @@
               list.slice(0, 5).forEach(function (it) {
                 var row = document.createElement('div');
                 row.style.cssText = 'padding:8px 10px;font-size:12.5px;cursor:pointer;border-top:1px solid var(--line);line-height:1.35';
-                row.innerHTML = '📍 <b>' + esc(it.label) + '</b><div style="color:var(--muted);font-size:11.5px">' + (+it.lat).toFixed(5) + ', ' + (+it.lng).toFixed(5) + '</div>';
+                row.innerHTML = '📍 <b>' + esc(it.label) + '</b>' + (it.note ? ' <span style="color:var(--muted)">(' + esc(it.note) + ')</span>' : '') + '<div style="color:var(--muted);font-size:11.5px">' + (+it.lat).toFixed(5) + ', ' + (+it.lng).toFixed(5) + '</div>'; // 22.09-339: уточнение в скобках
                 row.addEventListener('mouseenter', function () { row.style.background = 'var(--panel-2)'; });
                 row.addEventListener('mouseleave', function () { row.style.background = ''; });
                 row.addEventListener('mousedown', function (e) {
