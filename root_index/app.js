@@ -932,7 +932,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-336';
+  var SP_BUILD = '22.09-337';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -4755,13 +4755,35 @@
     document.head.appendChild(s);
     setTimeout(function () { if (!ymState.loaded) { ymState.waiting.forEach(function (w) { w.fail(); }); ymState.waiting = []; } }, 10000);
   }
+  /* 22.09-337: варианты запроса для города И Минского района. Раньше ко всему
+     принудительно подставлялся «Минск,» — адреса района (Колодищи, Боровляны,
+     Заславль…) от этого находились хуже или не находились вовсе. */
+  function geoQueryVariants(addr) {
+    var a = String(addr || '').trim();
+    var out = [];
+    function push(x) { x = String(x || '').trim(); if (x && out.indexOf(x) === -1) out.push(x); }
+    var hasCity = /минск/i.test(a);
+    var hasRegion = /(минская область|минский район|область|район)/i.test(a);
+    if (hasCity || hasRegion) push(a);
+    else {
+      push('Минская область, Минский район, ' + a); // сначала район — вдруг это посёлок/деревня у города
+      push('Минск, ' + a);                          // потом сам город
+      push(a);
+    }
+    return out;
+  }
   function geocodeAddr(addr) {
     return new Promise(function (resolve) {
       if (!window.ymaps || !window.ymaps.geocode) { resolve(null); return; }
-      var q = addr.indexOf('Минск') !== -1 ? addr : 'Минск, ' + addr;
-      window.ymaps.geocode(q, { results: 1 }).then(function (res) {
-        var g = res.geoObjects.get(0); resolve(g ? g.geometry.getCoordinates() : null);
-      }, function () { resolve(null); });
+      var vars = geoQueryVariants(addr);
+      (function tryVar(i) {
+        if (i >= vars.length) { resolve(null); return; }
+        window.ymaps.geocode(vars[i], { results: 1 }).then(function (res) {
+          var g = res.geoObjects.get(0);
+          if (g) resolve(g.geometry.getCoordinates());
+          else tryVar(i + 1);
+        }, function () { tryVar(i + 1); });
+      })(0);
     });
   }
   // Обратное геокодирование: координаты → адрес («клик по любой точке карты»
@@ -5407,31 +5429,64 @@
     return new Promise(function (resolve) {
       var q = String(qRaw || '').trim();
       if (q.length < 4) { resolve([]); return; }
-      var settled = false;
-      function done(list) { if (!settled) { settled = true; resolve(list || []); } }
+      var settled = false, retried = false;
+      function done(list) {
+        // страховка от разового сетевого сбоя в первые секунды после входа:
+        // всё пусто — один повтор чуть позже, прежде чем сдаться
+        if ((!list || !list.length) && !retried) {
+          retried = true;
+          setTimeout(function () { if (!settled) nom(); }, 1200);
+          return;
+        }
+        if (!settled) { settled = true; resolve(list || []); }
+      }
       function nom() {
-        var qq = q.indexOf('Минск') === -1 ? q + ', Минск' : q;
-        fetch('https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(qq) + '&format=json&limit=5&accept-language=ru&countrycodes=by&viewbox=27.30,54.10,27.90,53.75&bounded=1')
-          .then(function (r) { return r.json(); })
-          .then(function (d) {
-            done((d || []).map(function (x) { return { label: x.display_name, lat: parseFloat(x.lat), lng: parseFloat(x.lon) }; })
-              .filter(function (x) { return isFinite(x.lat) && isFinite(x.lng); }));
-          })['catch'](function () { done([]); });
+        // 22.09-337: варианты для Nominatim. К посёлкам района НЕЛЬЗЯ цеплять
+        // «, Минск» — Nominatim тогда ищет их внутри города и находит пусто.
+        var isRegion = /(минская область|минский район|область|район|аг\.|пос\.|д\.)/i.test(q);
+        var cands = [];
+        function pushC(x) { if (x && cands.indexOf(x) === -1) cands.push(x); }
+        if (/минск/i.test(q)) pushC(q);
+        else if (isRegion) { pushC(q + ', Минская область'); pushC(q); }
+        else { pushC(q + ', Минская область'); pushC(q + ', Минск'); pushC(q); }
+        function fetchNom(qq, bounded) {
+          return fetch('https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(qq) + '&format=json&limit=5&accept-language=ru&countrycodes=by' + (bounded ? '&viewbox=26.90,54.35,28.05,53.65&bounded=1' : ''))
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+              return (d || []).map(function (x) { return { label: x.display_name, lat: parseFloat(x.lat), lng: parseFloat(x.lon) }; })
+                .filter(function (x) { return isFinite(x.lat) && isFinite(x.lng); });
+            })
+            .catch(function () { return []; });
+        }
+        (function tryCand(i) {
+          if (i >= cands.length) {
+            fetchNom(cands[0] + ', Беларусь', false).then(done);
+            return;
+          }
+          fetchNom(cands[i], true).then(function (list) {
+            if (list.length) done(list);
+            else tryCand(i + 1);
+          });
+        })(0);
       }
       function yand() {
         if (!(window.ymaps && window.ymaps.geocode)) { nom(); return; }
-        var qq = q.indexOf('Минск') !== -1 ? q : 'Минск, ' + q;
-        window.ymaps.geocode(qq, { results: 5 }).then(function (res) {
-          var out = [];
-          try {
-            res.geoObjects.each(function (g) {
-              var c = g.geometry.getCoordinates();
-              var name = (g.properties.get('text') || g.properties.get('name') || '');
-              if (c && name) out.push({ label: name, lat: c[0], lng: c[1] });
-            });
-          } catch (e) {}
-          if (out.length) done(out); else nom();
-        }, nom);
+        // 22.09-337: город и район — объединяем найденное из вариантов запроса
+        var vars = geoQueryVariants(q);
+        var out = [], seen = {};
+        (function tryVar(i) {
+          if (i >= vars.length || out.length >= 5) { if (out.length) done(out.slice(0, 5)); else nom(); return; }
+          window.ymaps.geocode(vars[i], { results: 5 }).then(function (res) {
+            try {
+              res.geoObjects.each(function (g) {
+                var c = g.geometry.getCoordinates();
+                var name = (g.properties.get('text') || g.properties.get('name') || '');
+                if (c && name && !seen[name]) { seen[name] = 1; out.push({ label: name, lat: c[0], lng: c[1] }); }
+              });
+            } catch (e) {}
+            tryVar(i + 1);
+          }, function () { tryVar(i + 1); });
+        })(0);
       }
       if (window.ymaps && window.ymaps.geocode) yand();
       else ensureYandex(yand, nom);
@@ -5539,9 +5594,12 @@
     var stored = getTaskCoords(addr);
     if (stored) return Promise.resolve(stored);
 
-    // Нормализуем: убираем «г. Минск» в начале, добавляем «, Минск» если города нет
+    // Нормализуем: убираем «г. Минск» в начале; города нет — добавляем Минск,
+    // а если похоже на населённый пункт района (аг., д., пос., район) — Минскую область
     var cleanAddr = addr.replace(/^г\.?\s*[Мм]инск[,\s]*/, '').trim();
-    if (cleanAddr.indexOf('Минск') === -1 && cleanAddr.indexOf('Мінск') === -1) cleanAddr = cleanAddr + ', Минск';
+    if (cleanAddr.indexOf('Минск') === -1 && cleanAddr.indexOf('Мінск') === -1) {
+      cleanAddr = cleanAddr + (/(минский район|аг\.|пос\.|д\.|район)/i.test(cleanAddr) ? ', Минский район, Минская область' : ', Минск');
+    }
     cleanAddr = expandAbbr(cleanAddr); // раскрыть К.→Карла, пр.→проспект и т.д.
 
     // Паттерны типов улиц (сокращения и полные формы)
@@ -5561,7 +5619,7 @@
       var q = variants[idx];
       var params = 'q=' + encodeURIComponent(q) +
         '&format=json&limit=3&accept-language=ru&countrycodes=by&addressdetails=1' +
-        '&viewbox=27.30,54.10,27.90,53.75&bounded=1';
+        '&viewbox=26.90,54.35,28.05,53.65&bounded=1'; // 22.09-337: рамка — Минск и Минский район
       return fetch('https://nominatim.openstreetmap.org/search?' + params)
         .then(function(r) { return r.json(); })
         .then(function(data) {
