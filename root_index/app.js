@@ -932,7 +932,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-348';
+  var SP_BUILD = '22.09-349';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -17902,7 +17902,7 @@
   function spTestBranchGo(u) {
     try {
       var _full = u;
-      try { var _loc = (window.DB && DB.getUser && u) ? DB.getUser(u.id) : null; if (_loc) _full = _loc; } catch (eF) {}
+      try { var _loc = (DB && DB.getUser && u) ? DB.getUser(u.id) : null; if (_loc) _full = _loc; } catch (eF) {}
       var handover = {
         token: (window.SP_API && SP_API.getToken) ? SP_API.getToken() : null,
         user: (window.SP_API && SP_API.getUser) ? SP_API.getUser() : null,
@@ -17922,7 +17922,7 @@
     if (!u || spOnTestBranchPage()) return false;
     function flagged(rec) { return !!(rec && rec.test_branch); }
     var local = null;
-    try { local = (window.DB && DB.getUser) ? DB.getUser(u.id) : null; } catch (e) {}
+    try { local = (DB && DB.getUser) ? DB.getUser(u.id) : null; } catch (e) {}
     if (flagged(u) || flagged(local)) { spTestBranchGo(u); return true; }
     // запись пользователя ещё не пришла с сервера — подождать синхронизацию и перепроверить
     if (_spTestGateTimer) clearInterval(_spTestGateTimer);
@@ -17930,15 +17930,14 @@
     _spTestGateTimer = setInterval(function () {
       tries++;
       var rec = null;
-      try { rec = (window.DB && DB.getUser) ? DB.getUser(u.id) : null; } catch (e) {}
-      var ready = false;
-      try { ready = !!(window.SP_SYNC_POLL && SP_SYNC_POLL.isReady && SP_SYNC_POLL.isReady()); } catch (eR) {}
-      var online = false;
-      try { online = !!(window.SP_API && SP_API.getToken && SP_API.getToken()); } catch (eO) {}
+      try { rec = (DB && DB.getUser) ? DB.getUser(u.id) : null; } catch (e) {}
+      // 22.09-349: НЕ прекращаем проверку по первой же локальной записи —
+      // отметка может приехать с синхронизацией чуть позже входа.
+      // Следим все ~15 секунд после входа; дальше — обычный вход.
       if (flagged(rec)) {
         clearInterval(_spTestGateTimer); _spTestGateTimer = null;
         spTestBranchGo(u);
-      } else if ((rec && (ready || !online)) || tries >= 50) { // актуальная запись пришла без галочки ИЛИ прошло ~15 с — обычный вход
+      } else if (tries >= 50) {
         clearInterval(_spTestGateTimer); _spTestGateTimer = null;
       }
     }, 300);
