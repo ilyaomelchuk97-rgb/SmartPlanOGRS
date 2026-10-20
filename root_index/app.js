@@ -932,7 +932,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-333';
+  var SP_BUILD = '22.09-335';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -3932,6 +3932,8 @@
     // 22.09-80: мастер в этот день не работает (график смен) — НЕ запрещаем
     // (бывают аварийные вызовы), но предупреждаем после переноса.
     var _wkOffWarn = wkOffDayWarn(newMaster, newOff);
+    var _oldD = t.d;
+    var doMove = function () {
     var moved = [];
     if (t.m !== newMaster) { t.m = newMaster; moved.push('мастер → ' + (target ? target.name : '?')); }
     if (t.d !== newOff) { t.d = newOff; moved.push('дата → ' + fmtShort(newOff)); }
@@ -3952,7 +3954,26 @@
       } else {
         toast('ok', '💡 Аналитика помощника : Перенос успешно выполнен. Текущая загрузка мастера ' + (target ? target.name : '') + ' на этот день составляет ' + fmtH(load) + ' ч / ' + fmtH(masterCapacity(newMaster, newOff)) + ' ч.');
       }
+      // 22.09-334: уведомление мастеру об изменении его плана на ближайшие 3 дня
+      try {
+        if (window.SP_PLAN_NOTIFY && (newOff <= 3 || oldM !== newMaster)) {
+          var _wn = (workOf(t) || {}).name || 'Задача';
+          if (oldM !== newMaster) {
+            SP_PLAN_NOTIFY(newMaster, 'В вашем плане изменение: вам назначена задача «' + _wn + '» (' + addrOf(t) + ') на ' + fmtShort(newOff) + '.');
+            SP_PLAN_NOTIFY(oldM, 'Из вашего плана убрана задача «' + _wn + '» (' + addrOf(t) + '), она была на ' + fmtShort(_oldD) + '.');
+          } else {
+            SP_PLAN_NOTIFY(newMaster, 'В вашем плане изменение: задача «' + _wn + '» (' + addrOf(t) + ') перенесена с ' + fmtShort(_oldD) + ' на ' + fmtShort(newOff) + '.');
+          }
+        }
+      } catch (ePN) {}
     }
+    };
+    // 22.09-334: перенос позже дедлайна — сначала предупредить
+    if (typeof t.dl === 'number' && isFinite(t.dl) && newOff > t.dl && newOff !== t.d) {
+      return spConfirm('Задача уйдёт за дедлайн: дедлайн ' + fmtShort(t.dl) + ', а вы ставите выполнение на ' + fmtShort(newOff) + '. Задача станет просроченной (красной). Всё равно перенести?',
+        { title: 'Перенос за дедлайн', ok: 'Перенести', danger: true }, doMove);
+    }
+    doMove();
   }
 
   /* 22.09-322: КРАСИВОЕ УДАЛЕНИЕ. Карточка задачи не пропадает мгновенно:
@@ -12907,6 +12928,31 @@
       OBJECTS_DB.updateObject(S.objModalOid, data);
       refreshObjects();
       try { if (_chgBefore && window.SP_OBJ_CHANGE) SP_OBJ_CHANGE.notify(_chgBefore, OBJ_MAP[S.objModalOid]); } catch (eCn) {} // 22.09-332
+      // 22.09-334: сменился ответственный — предложить перенести его будущие задачи по объекту
+      try {
+        var _oldResp = null;
+        try { var _oc2 = (window.SP_OBJ_ATTRS && SP_OBJ_ATTRS.getRespCurrent) ? SP_OBJ_ATTRS.getRespCurrent(old) : null; _oldResp = _oc2 ? _oc2.uid : (old ? old.respId : null); } catch (eR0) {}
+        if (_oldResp && respId && String(_oldResp) !== String(respId)) {
+          var _fut = (S.tasks || []).filter(function (t2) {
+            return t2 && t2.o === S.objModalOid && !isDone(t2) && typeof t2.d === 'number' && t2.d >= 0 && String(t2.m) === String(_oldResp);
+          });
+          if (_fut.length) {
+            var _oidCap = S.objModalOid, _newResp = respId, _futIds = _fut.map(function (x) { return x.id; });
+            spConfirm('У объекта есть будущие задачи (' + _fut.length + ' шт.) на прежнего ответственного. Перенести их на нового ответственного?',
+              { title: 'Смена ответственного за объект', ok: 'Перенести задачи' }, function () {
+                var movedN = 0;
+                _futIds.forEach(function (tid) {
+                  var t3 = findTask(tid);
+                  if (t3) { t3.m = _newResp; if (TASKS_DB) TASKS_DB.updateTask(t3.id, t3); movedN++; }
+                });
+                try { if (TASKS_DB) S.tasks = TASKS_DB.getTasks(); } catch (eT3) {}
+                try { logAction('Перенос задач при смене ответственного', 'объект ' + _oidCap + ': задач — ' + movedN); } catch (eL3) {}
+                toast('ok', '✓ Будущие задачи перенесены на нового ответственного: ' + movedN);
+                try { refresh(); } catch (eRf) {}
+              });
+          }
+        }
+      } catch (eRc) {}
       // Синхронизация привязанных задач: адрес и координаты из справочника
       var newAddr = objFullAddr(OBJ_MAP[S.objModalOid]);
       var changed = 0;
@@ -17160,6 +17206,12 @@
         // Задачи «вне плана» график не меняют.
         if (!offplan && t.o) { try { graphSeriesOnCreate(t); } catch (e) {} }
         invalidateRouteCache(t.m, t.d);
+        // 22.09-334: уведомление мастеру о новой задаче на ближайшие 3 дня
+        try {
+          if (window.SP_PLAN_NOTIFY && typeof t.d === 'number' && t.d >= 0 && t.d <= 3) {
+            SP_PLAN_NOTIFY(t.m, 'В вашем плане новая задача: «' + ((w0 && w0.name) || 'Задача') + '» (' + addr + ') на ' + fmtShort(t.d) + '.');
+          }
+        } catch (ePN2) {}
         closeTaskObjectPickers();
         overlay.classList.remove('show');
         logAction('Создание задачи', addr + ' (' + fmtH(taskHours(t)) + ' ч)');
@@ -17450,6 +17502,14 @@
         a.classList.remove('slesar-hide'); a.style.display = ''; // вернули меню после слесаря
       }
     });
+    // 22.09-335: «Разрешения» — не для участка ГРП (администратор видит всё)
+    try {
+      var _pa = document.querySelector('#nav a[data-screen="perms"]');
+      if (_pa) {
+        var _hidePerms = !!(S.user && S.role !== 'admin' && String(S.user.area || '').trim() === 'ГРП');
+        _pa.style.display = _hidePerms ? 'none' : '';
+      }
+    } catch (eP) {}
     // Обёртка «Планирование» с подменю «Графики»: слесарю скрыта целиком
     document.querySelectorAll('#nav .nav-acc').forEach(function (w) {
       var mainLink = w.querySelector('a[data-screen="calendar"]');
@@ -17861,6 +17921,11 @@
 
   /* ---------- НАВИГАЦИЯ ---------- */
   function setScreen(name) {
+    // 22.09-335: участок ГРП страницу «Разрешения» не видит
+    if (name === 'perms' && S.user && S.role !== 'admin' && String(S.user.area || '').trim() === 'ГРП') {
+      toast('err', 'Страница «Разрешения» недоступна для участка ГРП');
+      return;
+    }
     // 22.09-311: вход в «Журналы» из меню открывает первую вкладку — «Журнал изменений»
     if (name === 'journals') S.journalTab = (S.role === 'admin' ? 'changelog' : 'logs');
     // 22.09-310: старые страницы журналов ведут на общую страницу «Журналы» с нужной вкладкой
@@ -18961,6 +19026,8 @@
       else if (el.dataset.tool === 'delworks') { openGraphDelWorksModal(); }
       else if (el.dataset.tool === 'print') { openGraphPrintModal(); }
       else if (el.dataset.tool === 'labor') { openGraphLaborModal(); } // 22.09-158
+      else if (el.dataset.tool === 'check') { openGraphCheckModal(); } // 22.09-334
+      else if (el.dataset.tool === 'history') { openGraphHistoryModal(); } // 22.09-334
     }
     else if (a === 'graphs-add-objs') { graphsAddObjs(); }
     else if (a === 'graphs-del-objs') { graphsDelObjs(); } // 22.09-143
@@ -19435,7 +19502,9 @@
     gift: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 01-2 2H7a2 2 0 01-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 010-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 010 5"/></svg>',
     pencil: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>',
     copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>',
-    team: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.6"/><path d="M15.6 14.2c3 .3 5.4 2.7 5.4 5.8"/></svg>' // 22.09-249: «Настройки бригад»
+    team: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.6"/><path d="M15.6 14.2c3 .3 5.4 2.7 5.4 5.8"/></svg>', // 22.09-249: «Настройки бригад»
+    shieldcheck: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L3 7v6c0 5 4 8.5 9 10 5-1.5 9-5 9-10V7l-9-5z"/><path d="M9 12l2 2 4-4"/></svg>',
+    history: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>'
   };
   function graphsToolbarHtml(g) {
     // 22.09-124: «Сезоны» (бывш. «Настройка периодов») — после «Настроить периодичность».
@@ -19448,6 +19517,8 @@
       { tool: 'legend', tip: 'Обозначения работ', cls: 'gt-rose', icon: 'legend' }
     ];
     var right = [
+      { tool: 'check', tip: 'Проверить график: статусы объектов, нормы, совместные работы, перегрузки и дедлайны — одним списком', cls: 'gt-violet', icon: 'shieldcheck' }, // 22.09-334
+      { tool: 'history', tip: 'История изменений этого графика: кто и когда что поменял', cls: 'gt-slate', icon: 'history' }, // 22.09-334
       { tool: 'labor', tip: 'Трудоёмкость графика (за год, по месяцам, по объектам)', cls: 'gt-green', icon: 'bars' },
       { tool: 'snaps', tip: '22.09-226: Копии графика (автоматически сохраняются при каждой печати) — список, просмотр, восстановление выбранной копии', cls: 'gt-slate', icon: 'copy' }, // 22.09-316: между «Трудоёмкостью» и «Фильтром»
       { tool: 'filter', tip: 'Фильтр', cls: 'gt-slate', icon: 'funnel' },
@@ -22313,6 +22384,121 @@
     modal.innerHTML = h;
     modal.style.width = '60%'; modal.style.maxWidth = '60%'; // сброс — в close-modal
     overlay.classList.add('show');
+  }
+
+  /* ===== 22.09-334: ПРОВЕРКА ГРАФИКА =====
+     Одним списком: объекты без статуса и не в эксплуатации; работы без нормы;
+     совместные работы не в один день; перегрузка мастера по дням; задачи,
+     чья дата выполнения позже дедлайна. */
+  function graphCheckProblems(g) {
+    var out = [];
+    var area = graphAreaDefault(g);
+    try {
+      var l = graphsNonOpList(g);
+      (l.noStatus || []).forEach(function (r) { out.push({ i: '❓', t: 'Объект без статуса: <b>' + esc(r.name) + '</b> — работы ему не строятся' }); });
+      (l.off || []).forEach(function (r) { out.push({ i: '⛔', t: 'Объект не в эксплуатации (' + esc(r.status || '') + '): <b>' + esc(r.name) + '</b>' }); });
+    } catch (e) {}
+    (g.objs || []).forEach(function (ob) {
+      var oname = ob.name || ob.oid || '';
+      gwObjWorks(ob).forEach(function (wrk) {
+        var w = null;
+        try { w = wrk.wid ? WORK.getWork(area, wrk.wid) : null; } catch (eW) {}
+        if (!w) return;
+        if (!(+w.norm > 0)) out.push({ i: '⏱', t: 'Нет нормы времени: «' + esc(w.name || '') + '» (' + esc(oname) + ') — в трудоёмкость не попадёт' });
+      });
+      // совместные не в один день
+      var ws = gwObjWorks(ob).filter(function (x) { return x && x.wid && x.occs && x.occs.length; });
+      for (var i = 0; i < ws.length; i++) for (var j = i + 1; j < ws.length; j++) {
+        var pair = false;
+        try { pair = gwIsJointPairAreaArea(area, ws[i].wid, ws[j].wid); } catch (eP) {}
+        if (!pair) continue;
+        for (var mi = 0; mi < 12; mi++) {
+          var da = null, db = null;
+          (ws[i].occs || []).forEach(function (oc) { if (oc && oc.date && (+oc.date.slice(5, 7) - 1) === mi && (!da || oc.date < da)) da = oc.date; });
+          (ws[j].occs || []).forEach(function (oc) { if (oc && oc.date && (+oc.date.slice(5, 7) - 1) === mi && (!db || oc.date < db)) db = oc.date; });
+          if (da && db && da !== db) {
+            var wa = '', wb = '';
+            try { wa = (WORK.getWork(area, ws[i].wid) || {}).name || ''; wb = (WORK.getWork(area, ws[j].wid) || {}).name || ''; } catch (eN) {}
+            out.push({ i: '🤝', t: 'Совместные не в один день (' + esc(MONTHS_RU[mi]) + '): «' + esc(wa) + '» — ' + esc(da) + ', «' + esc(wb) + '» — ' + esc(db) + ' (' + esc(oname) + ')' });
+            break;
+          }
+        }
+      }
+    });
+    // перегрузка и дедлайны — по задачам этого графика
+    try {
+      var byDay = {};
+      (S.tasks || []).forEach(function (t) {
+        if (!t || t.graphId !== g.id || isDone(t)) return;
+        if (typeof t.dl === 'number' && isFinite(t.dl) && t.d > t.dl) {
+          out.push({ i: '🔴', t: 'Задача позже дедлайна: «' + esc((workOf(t) || {}).name || '?') + '» (' + esc(addrOf(t)) + '), выполнение ' + esc(fmtShort(t.d)) + ', дедлайн ' + esc(fmtShort(t.dl)) });
+        }
+        var k = t.m + '|' + t.d;
+        byDay[k] = byDay[k] || { m: t.m, d: t.d, h: 0 };
+        byDay[k].h += taskDurHours(t);
+      });
+      Object.keys(byDay).forEach(function (k) {
+        var r = byDay[k], cap = 0;
+        try { cap = masterCapacity(r.m, r.d); } catch (eC) {}
+        if (cap > 0 && r.h > cap + 0.001) {
+          var mn = '';
+          try { mn = (masterById(r.m) || {}).name || ''; } catch (eM) {}
+          out.push({ i: '🛑', t: 'Перегрузка: ' + esc(mn) + ', ' + esc(fmtShort(r.d)) + ' — ' + fmtH(r.h) + ' ч при норме дня ' + fmtH(cap) + ' ч' });
+        }
+      });
+    } catch (e) {}
+    return out;
+  }
+  function openGraphCheckModal() {
+    var g = graphsFind(GS.cur);
+    if (!g) { toast('err', 'Сначала создайте или выберите график'); return; }
+    var probs = graphCheckProblems(g);
+    var h = '<div class="modal-h"><h3>🛡 Проверка графика «' + esc(g.name || '') + '» · ' + esc(String(g.year)) + '</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">';
+    if (!probs.length) {
+      h += '<div class="empty" style="padding:22px;font-size:13.5px">✅ Проблем не нашлось: статусы проставлены, нормы заданы, совместные работы в один день, перегрузок и просроченных дедлайнов нет.</div>';
+    } else {
+      h += '<div style="font-size:12.5px;color:var(--muted);margin-bottom:10px">Нашлось проблем: <b style="color:var(--red)">' + probs.length + '</b>. Исправьте их в графике, справочнике или планировании и проверьте снова.</div>';
+      h += '<div style="display:flex;flex-direction:column;gap:6px;max-height:56vh;overflow-y:auto">';
+      probs.slice(0, 80).forEach(function (pr) {
+        h += '<div style="display:flex;gap:8px;align-items:flex-start;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:12.5px;line-height:1.45"><span>' + pr.i + '</span><span>' + pr.t + '</span></div>';
+      });
+      if (probs.length > 80) h += '<div style="font-size:12px;color:var(--muted)">…и ещё ' + (probs.length - 80) + '</div>';
+      h += '</div>';
+    }
+    h += '</div><div class="modal-f"><button type="button" class="btn" data-action="close-modal">Закрыть</button></div>';
+    modal.innerHTML = h;
+    modal.style.maxWidth = '720px';
+    overlay.classList.add('show');
+  }
+  /* ===== 22.09-334: ИСТОРИЯ ИЗМЕНЕНИЙ ГРАФИКА (из журнала действий) ===== */
+  function openGraphHistoryModal() {
+    var g = graphsFind(GS.cur);
+    if (!g) { toast('err', 'Сначала создайте или выберите график'); return; }
+    modal.innerHTML = '<div class="modal-h"><h3>🕓 История графика «' + esc(g.name || '') + '»</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b"><div class="empty">Загружаю журнал…</div></div>';
+    modal.style.maxWidth = '760px';
+    overlay.classList.add('show');
+    var render = function (recs) {
+      var rows = (recs || []).filter(function (r) {
+        var txt = String((r.action || '') + ' ' + (r.details || ''));
+        return txt.indexOf(g.name || '###') !== -1;
+      }).slice(0, 100);
+      var h = '<div class="modal-h"><h3>🕓 История графика «' + esc(g.name || '') + '» · ' + esc(String(g.year)) + '</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">';
+      if (!rows.length) h += '<div class="empty" style="padding:20px;font-size:13px">Записей по этому графику в журнале пока нет (журнал хранит действия пользователей: создание, периодичность, переносы, удаления).</div>';
+      else {
+        h += '<table class="dt"><thead><tr><th style="width:130px">Когда</th><th style="width:170px">Кто</th><th>Что сделал</th></tr></thead><tbody>';
+        rows.forEach(function (r) {
+          var when = '';
+          try { var d = parseLogDate(r.ts || r.created_at); when = d ? d.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''; } catch (e) {}
+          h += '<tr><td style="white-space:nowrap;font-size:12px;color:var(--muted)">' + esc(when) + '</td><td style="font-size:12.5px"><b>' + esc(r.user_name || '—') + '</b></td><td style="font-size:12.5px">' + esc(r.action || '') + (r.details ? '<div style="color:var(--muted);font-size:12px">' + esc(r.details) + '</div>' : '') + '</td></tr>';
+        });
+        h += '</tbody></table>';
+      }
+      h += '</div><div class="modal-f"><button type="button" class="btn" data-action="close-modal">Закрыть</button></div>';
+      modal.innerHTML = h;
+    };
+    if (window.SP_API && SP_API.audit) {
+      SP_API.audit(500, 0).then(function (r) { render((r && r.records) || []); })['catch'](function () { render([]); });
+    } else render([]);
   }
 
   /* 22.09-278: точка доступа к правилам графиков — для самопроверки, тестов и
@@ -27619,8 +27805,35 @@
     try { var a = JSON.parse(localStorage.getItem(annLsKey()) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; }
   }
   function annAnnouncements() {
-    return annList().filter(function (m) { return m && m.id && m.kind !== 'ack' && m.kind !== 'feedback' && m.kind !== 'objchg'; }); // 22.09-318/332: отзывы и изменения объектов — отдельные виды записей
+    return annList().filter(function (m) { return m && m.id && m.kind !== 'ack' && m.kind !== 'feedback' && m.kind !== 'objchg' && m.kind !== 'planchg'; }); // 22.09-318/332/334: отзывы, изменения объектов и плана — отдельные виды записей
   }
+  function planchgList() {
+    return annList().filter(function (m) { return m && m.id && m.kind === 'planchg'; })
+      .sort(function (a, b) { return (b.ts || 0) - (a.ts || 0); });
+  }
+  /* 22.09-334: уведомление мастеру об изменении ЕГО плана (добавили/перенесли
+     задачу на ближайшие дни). Запись — в раздел messages, kind:'planchg'. */
+  function planNotifyUser(uid, text) {
+    if (!uid || !S.user || String(uid) === String(S.user.id || '')) return 0;
+    var rec = {
+      id: 'pln_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6) + '_' + uid,
+      kind: 'planchg', to: String(uid), text: text,
+      from: S.user.full_name || '', from_id: String(S.user.id || ''), ts: Date.now()
+    };
+    try {
+      if (window.SP_API && SP_API.syncPush) {
+        SP_API.syncPush('messages', rec).then(function () {
+          try { if (window.SP_SYNC_POLL && SP_SYNC_POLL.applyRemote) SP_SYNC_POLL.applyRemote('messages', [rec]); } catch (eA) {}
+        })['catch'](function () {
+          try { if (window.SP_SYNC_POLL && SP_SYNC_POLL.applyRemote) SP_SYNC_POLL.applyRemote('messages', [rec]); } catch (eA2) {}
+        });
+      } else if (window.SP_SYNC_POLL && SP_SYNC_POLL.applyRemote) SP_SYNC_POLL.applyRemote('messages', [rec]);
+    } catch (e) {}
+    try { if (window.bellSync) bellSync(); } catch (eB) {}
+    return 1;
+  }
+  window.SP_PLAN_NOTIFY = planNotifyUser;
+
   function objchgList() {
     return annList().filter(function (m) { return m && m.id && m.kind === 'objchg'; })
       .sort(function (a, b) { return (b.ts || 0) - (a.ts || 0); });
@@ -28124,7 +28337,7 @@
   }
   window.SP_ANN = {
     check: annCheck, remind: annRemind, canSend: canSendAnn, perms: annPerms, render: renderAdminCtl, pageRefresh: annPageRefresh, list: annAnnouncements,
-    feedback: fbList, openFeedback: openFeedback, sendFeedback: sendFeedback, feedbackDel: fbDel, objChanges: objchgList,
+    feedback: fbList, openFeedback: openFeedback, sendFeedback: sendFeedback, feedbackDel: fbDel, objChanges: objchgList, planChanges: planchgList,
     send: annSend, reshow: annShowNext, seen: annSeenLoad, start: annStart, stopLoop: annStopLoop, afterSync: annAfterSync
   };
   /* ── часть 20 · app/20_ui_enhance.js — улучшения интерфейса: поиск и сортировка таблиц, липкие шапки, пустые состояния, скелетон загрузки, печать (22.09-266) ── */
@@ -28285,6 +28498,18 @@
         if (r && r.ok) { _sysState.data = r; _sysState.err = ''; }
         else { _sysState.err = (r && r.err) || 'нет связи с сервером'; }
         sysStatusRender();
+        // 22.09-334: подтянуть последние действия пользователей из журнала
+        try {
+          if (window.SP_API && SP_API.audit) SP_API.audit(300, 0).then(function (ar) {
+            var map = {};
+            ((ar && ar.records) || []).forEach(function (rec) {
+              var u = rec && rec.user_name;
+              if (u && !map[u]) map[u] = { action: rec.action || '', ts: rec.ts || rec.created_at || 0 };
+            });
+            _sysState.lastActs = map;
+            sysStatusRender();
+          })['catch'](function () {});
+        } catch (eLA) {}
       })['catch'](function (e) {
         _sysState.loading = false;
         _sysState.err = String((e && e.message) || e);
@@ -28311,7 +28536,13 @@
       ? ('<b>' + esc(sysFmtAgo(lb.ts)) + '</b> (' + esc(new Date(lb.ts).toLocaleString('ru-RU')) + ') · файл ' + esc(lb.file) + ' · ' + lb.size_kb + ' КБ')
       : '<span style="color:var(--yellow)">пока не было — проверьте cron-триггер и скрипт Google</span>';
     var errCol = (d.errors_24h > 0) ? 'var(--yellow)' : 'var(--green)';
-    var onl = (d.online || []).map(function (o) { return esc(o.name) + (o.build ? ' <span style="color:var(--muted);font-size:11px">' + esc(o.build) + '</span>' : ''); }).join(' · ');
+    // 22.09-334: кто на сайте и что делает — последнее действие каждого из журнала
+    var _la = _sysState.lastActs || {};
+    var onl = (d.online || []).map(function (o) {
+      var la = _la[o.name];
+      var act = la ? ('<div style="font-size:11px;color:var(--muted)">последнее действие: ' + esc(la.action || '') + (la.ts ? ' · ' + esc(sysFmtAgo(la.ts)) : '') + '</div>') : '';
+      return '<div style="margin-top:3px">👤 <b>' + esc(o.name) + '</b>' + (o.build ? ' <span style="color:var(--muted);font-size:11px">' + esc(o.build) + '</span>' : '') + act + '</div>';
+    }).join('');
     var outdated = d.outdated || [];
     var outdatedHtml = outdated.length
       ? '<div style="background:var(--yellow-l);border:1px solid #fde68a;border-left:4px solid var(--yellow);border-radius:9px;padding:10px 12px;font-size:12.5px;color:#78350f;margin-top:10px">' +
@@ -29216,6 +29447,36 @@
       '</div></div>';
   }
 
+  /* 22.09-334: непрочитанные изменения МОЕГО плана (добавили/перенесли задачу) */
+  function bellPlanChanges() {
+    var out = [];
+    try {
+      if (!S.user || !S.user.id) return out;
+      var seen = bellSeen();
+      var list = (window.SP_ANN && SP_ANN.planChanges) ? (SP_ANN.planChanges() || []) : [];
+      list.forEach(function (m) {
+        if (!m || !m.id) return;
+        if (!(m.to === 'all' || String(m.to) === String(S.user.id))) return;
+        if (seen[m.id]) return;
+        out.push(m);
+      });
+      out.sort(function (a, b) { return (b.ts || 0) - (a.ts || 0); });
+    } catch (e) {}
+    return out;
+  }
+  function bellPlanItemHtml(m) {
+    var when = '';
+    try { when = m.ts ? new Date(m.ts).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''; } catch (e) {}
+    return '<div class="bl-item" style="border-left:3px solid #2563eb">' +
+      '<div class="bl-top"><span class="bl-prio bl-prio-n" style="background:#2563eb;color:#fff">изменение плана</span>' +
+      '<span class="bl-from">' + esc(m.from || '') + '</span><span class="bl-when">' + esc(when) + '</span></div>' +
+      '<div class="bl-text">' + esc(m.text || '') + '</div>' +
+      '<div style="display:flex;gap:6px;margin-top:7px;flex-wrap:wrap">' +
+      '<button type="button" class="btn sm primary" data-bell-planchg="open" data-mid="' + esc(m.id) + '">Открыть планирование</button>' +
+      '<button type="button" class="btn sm" data-bell-planchg="ok" data-mid="' + esc(m.id) + '">Понятно</button>' +
+      '</div></div>';
+  }
+
   /* Задачи: просрочено / на сегодня (по роли) */
   function bellMyTasks() {
     var my = (S.user && S.user.id) ? String(S.user.id) : '';
@@ -29247,7 +29508,7 @@
   /* Красный кружок на кнопке */
   function bellBadgeSync() {
     try {
-      var n = bellUnread().length + bellObjChanges().length; // 22.09-332: + изменения объектов
+      var n = bellUnread().length + bellObjChanges().length + bellPlanChanges().length; // 22.09-332/334: + изменения объектов и плана
       var b = document.getElementById('sp-bell-badge');
       var btn = document.getElementById('sp-bell');
       if (b) {
@@ -29349,6 +29610,12 @@
     if (unread.length) h += unread.slice(0, 20).map(bellItemHtml).join('');
     else h += '<div class="bl-empty">Новых объявлений нет</div>';
     if (unread.length > 20) h += '<div class="bl-empty">…и ещё ' + (unread.length - 20) + '</div>';
+    var planchg = bellPlanChanges();
+    if (planchg.length) {
+      h += '<div class="bl-sec">Изменения моего плана</div>';
+      h += planchg.slice(0, 10).map(bellPlanItemHtml).join('');
+      if (planchg.length > 10) h += '<div class="bl-empty">…и ещё ' + (planchg.length - 10) + '</div>';
+    }
     var objchg = bellObjChanges();
     if (objchg.length) {
       h += '<div class="bl-sec">Изменения объектов</div>';
@@ -29408,6 +29675,17 @@
         bellCfgSet(patch);
         bellSync();
         toast('ok', '✓ Настройки уведомлений сохранены');
+        return;
+      }
+      var pc = t.closest('[data-bell-planchg]');
+      if (pc) {
+        var pmid = pc.getAttribute('data-mid'), pmode = pc.getAttribute('data-bell-planchg');
+        var pm = null;
+        bellPlanChanges().forEach(function (x) { if (x.id === pmid) pm = x; });
+        if (pm) bellMarkRead(pm, true);
+        if (pmode === 'ok') { bellSync(); return; }
+        bellClose();
+        try { setScreen(bellTaskScreen()); } catch (eP) {}
         return;
       }
       var oc = t.closest('[data-bell-objchg]');
@@ -30406,6 +30684,42 @@
   }
   try { document.addEventListener('visibilitychange', function () { if (!document.hidden) armRecheck(); }); } catch (eV) {}
   try { window.addEventListener('focus', armRecheck); } catch (eF) {}
+
+  /* 22.09-334: ЧЕСТНАЯ плашка синхронизации для слесаря. Задачи дня уже
+     загружены в телефон; отметки выполнения при отсутствии связи уходят
+     в очередь и отправятся сами. Плашка всегда показывает, как дела:
+     зелёная — всё синхронизировано, жёлтая — нет связи или есть очередь. */
+  function slesarSyncPlaque() {
+    try {
+      var el = document.getElementById('sp-slesar-sync');
+      var isSlesar = !!(typeof S !== 'undefined' && S && S.user && S.role === 'slesar');
+      if (!isSlesar) { if (el) el.remove(); return; }
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'sp-slesar-sync';
+        el.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:9000;max-width:92vw;padding:8px 14px;border-radius:999px;font-size:12.5px;font-weight:700;box-shadow:0 8px 22px rgba(15,23,42,.25);cursor:default;text-align:center';
+        document.body.appendChild(el);
+      }
+      var q = 0;
+      try { q = (JSON.parse(localStorage.getItem('smartplan_outbox_records') || '[]') || []).length; } catch (e) {}
+      var st = {};
+      try { st = (window.SP_SYNC_POLL && SP_SYNC_POLL.status) ? SP_SYNC_POLL.status() : {}; } catch (e2) {}
+      var off = (typeof navigator !== 'undefined' && navigator.onLine === false) || st.mode === 'offline' || st.mode === 'error';
+      if (off) {
+        el.style.background = '#fef3c7'; el.style.color = '#92400e'; el.style.border = '1px solid #f59e0b';
+        el.textContent = '📡 Нет связи — работайте спокойно: отметки сохранятся и уйдут сами, когда связь появится' + (q ? ' (ждёт отправки: ' + q + ')' : '');
+      } else if (q > 0) {
+        el.style.background = '#fef3c7'; el.style.color = '#92400e'; el.style.border = '1px solid #f59e0b';
+        el.textContent = '⏳ Ждёт отправки: ' + q + ' — уйдёт при появлении связи';
+      } else {
+        el.style.background = '#dcfce7'; el.style.color = '#15803d'; el.style.border = '1px solid #22c55e';
+        el.textContent = '✓ Всё синхронизировано';
+      }
+    } catch (e) {}
+  }
+  try { setInterval(slesarSyncPlaque, 4000); } catch (e) {}
+  try { window.addEventListener('online', slesarSyncPlaque); window.addEventListener('offline', slesarSyncPlaque); } catch (e) {}
+  try { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', slesarSyncPlaque); else slesarSyncPlaque(); } catch (e) {}
 
   // реагируем сразу на смену сети браузером, а состояние сервера сверяем мелкими шагами
   try { window.addEventListener('online', check); } catch (e) {}
