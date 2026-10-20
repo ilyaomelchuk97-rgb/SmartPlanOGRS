@@ -932,7 +932,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-349';
+  var SP_BUILD = '22.09-350';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -17897,7 +17897,7 @@
      она приходит с синхронизацией списка пользователей, поэтому проверяем
      запись пользователя в локальной базе и ждём первую синхронизацию. */
   function spOnTestBranchPage() {
-    try { return /(^|\/)testgrp(\/|$)/.test(String(location.pathname || '')); } catch (e) { return false; }
+    try { return !!window.SP_TEST_MODE || /(^|\/)testgrp(\/|$)/.test(String(location.pathname || '')); } catch (e) { return false; }
   }
   function spTestBranchGo(u) {
     try {
@@ -17914,8 +17914,9 @@
       window.localStorage.setItem('sp_testgrp_handover', JSON.stringify(handover));
     } catch (e) {}
     try { toast('ok', '🧪 Вы — тестовый участник: перевожу на тестовую страницу…'); } catch (e2) {}
-    var base = String(location.pathname || '/').replace(/[^\/]*$/, '');
-    setTimeout(function () { try { location.replace(location.origin + base + 'testgrp/'); } catch (e3) {} }, 350);
+    // 22.09-350: тестовая страница живёт на самом главном сайте (?sptest=1) —
+    // отдельная папка /testgrp на GitHub больше не нужна
+    setTimeout(function () { try { location.replace(location.origin + String(location.pathname || '/') + '?sptest=1'); } catch (e3) {} }, 350);
   }
   var _spTestGateTimer = null;
   function spTestBranchGate(u) {
@@ -18153,6 +18154,8 @@
     try { if (window.SP_API && SP_API.logout) SP_API.logout(); } catch (e) {}
     try { if (typeof S !== 'undefined') S.wrAsked = false; } catch (eW) {} // 22.09-257: при повторном входе снова предложить восстановление видов работ
     DB.clearSession();
+    // 22.09-350: выход из тестовой страницы возвращает на главный сайт
+    if (window.SP_TEST_MODE && window.SP_TEST_EXIT) { try { SP_TEST_EXIT(); return; } catch (eT) {} }
     showLoginScreen();
   }
   /* экран входа: без разрешения — кнопка «Войти» недоступна, над формой — пояснение и «Разрешить» */

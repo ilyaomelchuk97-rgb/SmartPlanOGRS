@@ -16,6 +16,96 @@
 -->
 <html lang="ru">
 <head>
+<script>
+/* ============================================================
+   22.09-350: ТЕСТОВЫЙ РЕЖИМ на самом главном сайте (?sptest=1).
+   Отдельная папка /testgrp больше НЕ нужна: тестовая «страница» —
+   это тот же сайт, но с отдельным хранилищем браузера (все ключи
+   с префиксом testgrp_), участком «ТЕСТ» и плашкой сверху.
+   Включается: ссылкой вида /?sptest=1 или переходом главного
+   сайта для пользователей с отметкой «Тестовый участник».
+   Выключается: кнопкой «← На главный сайт» на плашке или выходом.
+   ============================================================ */
+(function () {
+  try {
+    var raw = window.localStorage;
+    if (/[?&]sptest=0(&|$)/.test(location.search)) {
+      try { raw.removeItem('sp_test_mode'); raw.removeItem('sp_testgrp_handover'); } catch (e0) {}
+      return;
+    }
+    var want = /[?&]sptest=1(&|$)/.test(location.search) || raw.getItem('sp_test_mode') === '1';
+    if (!want) return;
+    raw.setItem('sp_test_mode', '1');
+    window.SP_TEST_MODE = true;
+    var pfx = 'testgrp_';
+    function wrap(store) {
+      return {
+        getItem: function (k) { return store.getItem(pfx + k); },
+        setItem: function (k, v) { store.setItem(pfx + k, v); },
+        removeItem: function (k) { store.removeItem(pfx + k); },
+        clear: function () {
+          var ks = [];
+          for (var i = 0; i < store.length; i++) { var k = store.key(i); if (k && k.indexOf(pfx) === 0) ks.push(k); }
+          ks.forEach(function (k) { store.removeItem(k); });
+        },
+        key: function (idx) {
+          var n = 0;
+          for (var i = 0; i < store.length; i++) { var k = store.key(i); if (k && k.indexOf(pfx) === 0) { if (n === idx) return k.slice(pfx.length); n++; } }
+          return null;
+        },
+        get length() {
+          var n = 0;
+          for (var i = 0; i < store.length; i++) { var k = store.key(i); if (k && k.indexOf(pfx) === 0) n++; }
+          return n;
+        }
+      };
+    }
+    Object.defineProperty(window, 'localStorage', { value: wrap(raw), configurable: true });
+    Object.defineProperty(window, 'sessionStorage', { value: wrap(window.sessionStorage), configurable: true });
+    // вход, переданный главным сайтом (чтобы пароль не вводить второй раз)
+    try {
+      var _ho = raw.getItem('sp_testgrp_handover');
+      if (_ho) {
+        raw.removeItem('sp_testgrp_handover');
+        var _h = JSON.parse(_ho);
+        if (_h && _h.ts && (Date.now() - _h.ts) < 120000) {
+          if (_h.token) localStorage.setItem('smartplan_api_token', _h.token);
+          if (_h.user) localStorage.setItem('smartplan_api_user', JSON.stringify(_h.user));
+          if (_h.full && _h.full.id) {
+            try {
+              var _db = { schema: 3, users: [] };
+              try { var _ex = localStorage.getItem('smartplan_users_db'); if (_ex) _db = JSON.parse(_ex) || _db; } catch (eD) {}
+              if (!Array.isArray(_db.users)) _db.users = [];
+              var _found = false;
+              for (var _i = 0; _i < _db.users.length; _i++) if (String(_db.users[_i].id) === String(_h.full.id)) { _db.users[_i] = _h.full; _found = true; }
+              if (!_found) _db.users.push(_h.full);
+              localStorage.setItem('smartplan_users_db', JSON.stringify(_db));
+            } catch (eU) {}
+          }
+          if (_h.sess) { localStorage.setItem('smartplan_session', String(_h.sess)); localStorage.setItem('smartplan_logged_in', '1'); }
+        }
+      }
+    } catch (eH) {}
+    try { if (!localStorage.getItem('smartplan_area_filter')) localStorage.setItem('smartplan_area_filter', 'ТЕСТ'); } catch (e2) {}
+    window.SP_TEST_EXIT = function () {
+      try { raw.removeItem('sp_test_mode'); raw.removeItem('sp_testgrp_handover'); } catch (eX) {}
+      location.replace(location.pathname + '?sptest=0');
+    };
+    document.addEventListener('DOMContentLoaded', function () {
+      try {
+        document.title = 'SmartPlan ТЕСТ — тестовая страница';
+        var bd = document.createElement('div');
+        bd.id = 'testgrp-badge';
+        bd.style.cssText = 'position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:2147483001;background:#7c2d12;color:#fff;font-size:12.5px;font-weight:700;padding:5px 16px;border-radius:0 0 12px 12px;box-shadow:0 6px 18px rgba(0,0,0,.3);letter-spacing:.2px;white-space:nowrap';
+        bd.innerHTML = '🧪 ТЕСТОВАЯ СТРАНИЦА · участок «ТЕСТ» · отдельный вход &nbsp;<button type="button" style="background:#fff;color:#7c2d12;border:0;border-radius:7px;font-weight:800;font-size:12px;padding:2px 10px;cursor:pointer" onclick="window.SP_TEST_EXIT && SP_TEST_EXIT()">← На главный сайт</button>';
+        document.body.appendChild(bd);
+        var mk = document.getElementById('build-marker');
+        if (mk) mk.textContent = 'Тестовая страница · сборка 22.09-350 · участок «ТЕСТ»';
+      } catch (eB) {}
+    });
+  } catch (e) {}
+})();
+</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SmartPlan — Планирование · УП «МИНГАЗ»</title>
@@ -1900,7 +1990,7 @@ try {
           <div style="margin-top:6px;font-size:12px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-349 · исправлен переход тестовых участников на тестовый сайт</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-350 · тестовая страница прямо на главном сайте, без отдельной папки</div>
         <div style="margin-top:6px;text-align:center"><a href="#" id="li-cookie-link" class="cookie-link" title="Посмотреть или изменить разрешение">🍪 Cookie и хранилище браузера</a></div>
     </div>
   </div>
@@ -2181,17 +2271,17 @@ try {
      Сайт остаётся на Render, а API (сервер + данные) — на воркере Cloudflare.
      Чтобы вернуться к базе Render — удалить следующую строку. -->
 <script>window.SP_CONFIG_OVERRIDE = 'https://smartplanogrsdb.ilya-omelchuk97.workers.dev/api';</script>
-<script src="root_index/config.js?v=22.09-349"></script>
-<script src="root_index/data.js?v=22.09-349"></script>
-<script src="root_index/users_db.js?v=22.09-349"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-349"></script>
-<script src="root_index/areas_db.js?v=22.09-349"></script>
-<script src="root_index/professions_db.js?v=22.09-349"></script>
-<script src="root_index/work_db.js?v=22.09-349"></script>
-<script src="root_index/objects_db.js?v=22.09-349"></script>
-<script src="root_index/workers_db.js?v=22.09-349"></script>
-<script src="root_index/tasks_db.js?v=22.09-349"></script>
-<script src="root_index/db.js?v=22.09-349"></script>
+<script src="root_index/config.js?v=22.09-350"></script>
+<script src="root_index/data.js?v=22.09-350"></script>
+<script src="root_index/users_db.js?v=22.09-350"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-350"></script>
+<script src="root_index/areas_db.js?v=22.09-350"></script>
+<script src="root_index/professions_db.js?v=22.09-350"></script>
+<script src="root_index/work_db.js?v=22.09-350"></script>
+<script src="root_index/objects_db.js?v=22.09-350"></script>
+<script src="root_index/workers_db.js?v=22.09-350"></script>
+<script src="root_index/tasks_db.js?v=22.09-350"></script>
+<script src="root_index/db.js?v=22.09-350"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -2209,12 +2299,12 @@ try {
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-349"></script>
-      <script src="root_index/error_log.js?v=22.09-349"></script>
-      <script src="root_index/api_client.js?v=22.09-349"></script>
-      <script src="root_index/sync_polling.js?v=22.09-349"></script>
-      <script src="root_index/zip_util.js?v=22.09-349"></script>
-      <script src="root_index/app.js?v=22.09-349"></script>
+<script src="root_index/object_attrs.js?v=22.09-350"></script>
+      <script src="root_index/error_log.js?v=22.09-350"></script>
+      <script src="root_index/api_client.js?v=22.09-350"></script>
+      <script src="root_index/sync_polling.js?v=22.09-350"></script>
+      <script src="root_index/zip_util.js?v=22.09-350"></script>
+      <script src="root_index/app.js?v=22.09-350"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {
@@ -2226,5 +2316,34 @@ try {
     }
   })();
   </script>
+<script>
+/* 22.09-350: тестовая страница — после входа включаем фильтр участка «ТЕСТ»
+   (только в тестовом режиме; на главном сайте этот код молчит) */
+(function () {
+  if (!window.SP_TEST_MODE) return;
+  var tries = 0;
+  var iv = setInterval(function () {
+    tries++;
+    try {
+      if (document.body.classList.contains('logged-in') && window.SP_AREA_FILTER && SP_AREA_FILTER.apply) {
+        if (SP_AREA_FILTER.cur() === 'ТЕСТ') { clearInterval(iv); return; }
+        var sel = document.getElementById('sp-area-sel');
+        var hasOpt = false;
+        if (sel) for (var i = 0; i < sel.options.length; i++) if (sel.options[i].value === 'ТЕСТ') hasOpt = true;
+        if (hasOpt && !sessionStorage.getItem('testgrp_area_applied')) {
+          sessionStorage.setItem('testgrp_area_applied', '1');
+          SP_AREA_FILTER.apply('ТЕСТ');
+          clearInterval(iv);
+        }
+        if (!hasOpt && tries === 14 && !sessionStorage.getItem('testgrp_area_reloaded')) {
+          sessionStorage.setItem('testgrp_area_reloaded', '1');
+          location.reload();
+        }
+      }
+    } catch (e) {}
+    if (tries > 90) clearInterval(iv);
+  }, 500);
+})();
+</script>
 </body>
 </html>
