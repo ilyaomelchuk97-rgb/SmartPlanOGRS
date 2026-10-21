@@ -932,7 +932,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-354';
+  var SP_BUILD = '22.09-355';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -29608,6 +29608,99 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', topbarTipsWire);
   else topbarTipsWire();
+
+  /* ===== 22.09-355: остальные кнопки шапки — в окошке под стрелкой =====
+     Снаружи остаются только индикатор сервера и стрелка. Остальные кнопки
+     ПЕРЕНОСЯТСЯ в окошко как есть (со всеми их обработчиками и значками),
+     рядом — человеческая подпись. Кнопки, которые сайт сам прячет на
+     чужих страницах (настройка панели, автоподбор), в окошке тоже прячутся. */
+  var TB_MENU_BTNS = [
+    ['dash-setup-btn', 'Настройка панели мониторинга'],
+    ['sp-ap-btn', 'Настройки автоподбора работ'],
+    ['sp-search-btn', 'Поиск по системе (Ctrl+K)'],
+    ['sp-feedback-btn', 'Сообщить о проблеме'],
+    ['sp-bell', 'Уведомления'],
+    ['sp-mobile-btn', 'Мобильная версия'],
+    ['theme-toggle', 'Тёмная / светлая тема'],
+    ['a11y-toggle', 'Доступность (для слабовидящих)']
+  ];
+  var _tbMenuBuilt = false;
+  function tbMenuEl() { return document.getElementById('sp-tb-menu'); }
+  function tbMenuBtn() { return document.getElementById('sp-tb-menu-btn'); }
+  function tbMenuBuild() {
+    if (_tbMenuBuilt) return;
+    var panel = tbMenuEl(); if (!panel) return;
+    TB_MENU_BTNS.forEach(function (pair) {
+      var btn = document.getElementById(pair[0]);
+      if (!btn) return;
+      var row = document.createElement('div');
+      row.className = 'tbm-row';
+      row.setAttribute('data-tbm-for', pair[0]);
+      row.setAttribute('role', 'menuitem');
+      row.appendChild(btn); // перенос как есть — обработчики и значок колокольчика сохраняются
+      var lbl = document.createElement('span');
+      lbl.className = 'tbm-lbl';
+      lbl.textContent = pair[1];
+      row.appendChild(lbl);
+      row.addEventListener('click', function (e) {
+        if (e && e.target !== btn && !btn.contains(e.target)) btn.click();
+        // колокольчик и доступность открывают свои окошки — меню не закрываем,
+        // чтобы их окошки не «осиротели»; остальные кнопки меню закрывают
+        if (pair[0] !== 'sp-bell' && pair[0] !== 'a11y-toggle') setTimeout(tbMenuClose, 60);
+      });
+      panel.appendChild(row);
+    });
+    _tbMenuBuilt = true;
+  }
+  function tbMenuSyncRows() {
+    var panel = tbMenuEl(); if (!panel) return;
+    TB_MENU_BTNS.forEach(function (pair) {
+      var btn = document.getElementById(pair[0]);
+      var row = panel.querySelector('[data-tbm-for="' + pair[0] + '"]');
+      if (!btn || !row) return;
+      var hidden = false;
+      try { hidden = (window.getComputedStyle(btn).display === 'none'); } catch (e) {}
+      row.style.display = hidden ? 'none' : '';
+    });
+  }
+  function tbMenuOpen() {
+    tbMenuBuild(); tbMenuSyncRows();
+    var panel = tbMenuEl(), btn = tbMenuBtn();
+    if (!panel || !btn) return;
+    panel.style.display = 'block';
+    btn.classList.add('on');
+    btn.setAttribute('aria-expanded', 'true');
+    try {
+      var r = btn.getBoundingClientRect();
+      panel.style.top = Math.round(r.bottom + 8) + 'px';
+      panel.style.right = Math.max(8, Math.round(window.innerWidth - r.right)) + 'px';
+    } catch (e) {}
+  }
+  function tbMenuClose() {
+    var panel = tbMenuEl(), btn = tbMenuBtn();
+    if (panel) panel.style.display = 'none';
+    if (btn) { btn.classList.remove('on'); btn.setAttribute('aria-expanded', 'false'); }
+  }
+  function tbMenuToggle() {
+    var panel = tbMenuEl();
+    if (panel && panel.style.display === 'block') tbMenuClose(); else tbMenuOpen();
+  }
+  function tbMenuWire() {
+    var btn = tbMenuBtn(); if (!btn) return;
+    tbMenuBuild(); // кнопки переезжают в окошко сразу, а не по первому открытию
+    btn.addEventListener('click', function (e) { if (e && e.stopPropagation) e.stopPropagation(); tbMenuToggle(); });
+    document.addEventListener('click', function (e) {
+      var panel = tbMenuEl();
+      if (!panel || panel.style.display !== 'block') return;
+      if (e && e.target && (panel.contains(e.target) || btn.contains(e.target))) return;
+      tbMenuClose();
+    });
+    document.addEventListener('keydown', function (e) { if (e && e.key === 'Escape') tbMenuClose(); });
+    window.addEventListener('resize', tbMenuClose);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', tbMenuWire);
+  else tbMenuWire();
+  window.SP_TB_MENU = { open: tbMenuOpen, close: tbMenuClose, toggle: tbMenuToggle };
 
   window.SP_TOPBAR = { setupSync: dashSetupBtnSync, tipShow: spTipShow, tipHide: spTipHide, serverTip: serverTipHtml };
   /* ── часть 25 · app/25_selftest.js — «Проверить систему» на странице «Параметры»: самопроверка сайта по кнопке (22.09-276) ── */

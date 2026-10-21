@@ -104,7 +104,7 @@
         // Вернуться на главный сайт: выход из системы (doLogout уводит на главный сайт).
         document.title = 'SmartPlan ТЕСТ — тестовая страница';
         var mk = document.getElementById('build-marker');
-        if (mk) mk.textContent = 'Тестовая страница · сборка 22.09-354 · участок «ТЕСТ»';
+        if (mk) mk.textContent = 'Тестовая страница · сборка 22.09-355 · участок «ТЕСТ»';
       } catch (eB) {}
     });
   } catch (e) {}
@@ -205,6 +205,14 @@
   html.theme-dark ::-webkit-scrollbar-thumb:hover{background:#41547c}
   /* кнопки «тема» и «доступность» в шапке */
   .tb-btns{display:inline-flex;gap:6px;align-items:center}
+  /* 22.09-355: окошко остальных кнопок шапки */
+  #sp-tb-menu{position:fixed;top:60px;right:14px;z-index:9500;width:264px;max-width:calc(100vw - 16px);background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 44px rgba(15,23,42,.28);padding:6px;overflow:hidden}
+  #sp-tb-menu .tbm-row{display:flex;align-items:center;gap:10px;padding:5px 8px;border-radius:9px;cursor:pointer}
+  #sp-tb-menu .tbm-row:hover{background:var(--panel-2)}
+  #sp-tb-menu .tbm-row .tb-btn{flex:0 0 auto}
+  #sp-tb-menu .tbm-lbl{font-size:13px;font-weight:600;color:var(--txt);line-height:1.25}
+  #sp-tb-menu-btn.on{border-color:var(--blue);color:var(--blue);background:var(--panel-2)}
+  #sp-tb-menu-btn.on #sp-tb-menu-caret{transform:rotate(180deg)}
   .tb-btn{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);background:var(--card);border-radius:8px;cursor:pointer;color:var(--muted);padding:0}
   .tb-btn:hover{border-color:var(--blue);color:var(--blue);background:var(--panel-2)}
   .tb-btn.on{border-color:var(--blue);color:var(--blue)}
@@ -1994,7 +2002,7 @@ try {
           <div style="margin-top:6px;font-size:12px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-354 · на экране входа нет уведомлений о связи</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-355 · кнопки шапки убраны в окошко под стрелкой</div>
         <div style="margin-top:6px;text-align:center"><a href="#" id="li-cookie-link" class="cookie-link" title="Посмотреть или изменить разрешение">🍪 Cookie и хранилище браузера</a></div>
     </div>
   </div>
@@ -2084,6 +2092,10 @@ try {
       <span id="sync-indicator" title="">
         <span id="sync-dot" class="sp-dot"></span>
       </span>
+      <!-- 22.09-355: стрелка — все остальные кнопки шапки живут в маленьком окошке под ней -->
+      <button type="button" class="tb-btn" id="sp-tb-menu-btn" title="Ещё кнопки: поиск, уведомления, тема и другие" aria-label="Открыть остальные кнопки шапки" aria-haspopup="true" aria-expanded="false">
+        <svg id="sp-tb-menu-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .18s"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
                 <button type="button" class="tb-btn" id="sp-mobile-btn" data-action="mobile-toggle" title="Мобильная версия: вёрстка под телефон (нажмите, чтобы включить или выключить)" aria-label="Переключить мобильную версию" aria-pressed="false">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>
         </button>
@@ -2095,6 +2107,8 @@ try {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
         </button>
       </span>
+      <!-- 22.09-355: окошко остальных кнопок шапки (кнопки сюда переносит скрипт, подписи — чтобы было понятно) -->
+      <div id="sp-tb-menu" style="display:none" role="menu" aria-label="Остальные кнопки шапки"></div>
       <div id="a11y-dropdown" style="display:none" role="menu" aria-label="Режимы доступности">
         <div class="ad-h">Режимы для слабовидящих</div>
         <label><input type="checkbox" data-pref="large"><span>Крупный шрифт (увеличение на 20%)</span></label>
@@ -2275,17 +2289,17 @@ try {
      Сайт остаётся на Render, а API (сервер + данные) — на воркере Cloudflare.
      Чтобы вернуться к базе Render — удалить следующую строку. -->
 <script>window.SP_CONFIG_OVERRIDE = 'https://smartplanogrsdb.ilya-omelchuk97.workers.dev/api';</script>
-<script src="root_index/config.js?v=22.09-354"></script>
-<script src="root_index/data.js?v=22.09-354"></script>
-<script src="root_index/users_db.js?v=22.09-354"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-354"></script>
-<script src="root_index/areas_db.js?v=22.09-354"></script>
-<script src="root_index/professions_db.js?v=22.09-354"></script>
-<script src="root_index/work_db.js?v=22.09-354"></script>
-<script src="root_index/objects_db.js?v=22.09-354"></script>
-<script src="root_index/workers_db.js?v=22.09-354"></script>
-<script src="root_index/tasks_db.js?v=22.09-354"></script>
-<script src="root_index/db.js?v=22.09-354"></script>
+<script src="root_index/config.js?v=22.09-355"></script>
+<script src="root_index/data.js?v=22.09-355"></script>
+<script src="root_index/users_db.js?v=22.09-355"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-355"></script>
+<script src="root_index/areas_db.js?v=22.09-355"></script>
+<script src="root_index/professions_db.js?v=22.09-355"></script>
+<script src="root_index/work_db.js?v=22.09-355"></script>
+<script src="root_index/objects_db.js?v=22.09-355"></script>
+<script src="root_index/workers_db.js?v=22.09-355"></script>
+<script src="root_index/tasks_db.js?v=22.09-355"></script>
+<script src="root_index/db.js?v=22.09-355"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -2303,12 +2317,12 @@ try {
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-354"></script>
-      <script src="root_index/error_log.js?v=22.09-354"></script>
-      <script src="root_index/api_client.js?v=22.09-354"></script>
-      <script src="root_index/sync_polling.js?v=22.09-354"></script>
-      <script src="root_index/zip_util.js?v=22.09-354"></script>
-      <script src="root_index/app.js?v=22.09-354"></script>
+<script src="root_index/object_attrs.js?v=22.09-355"></script>
+      <script src="root_index/error_log.js?v=22.09-355"></script>
+      <script src="root_index/api_client.js?v=22.09-355"></script>
+      <script src="root_index/sync_polling.js?v=22.09-355"></script>
+      <script src="root_index/zip_util.js?v=22.09-355"></script>
+      <script src="root_index/app.js?v=22.09-355"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {
