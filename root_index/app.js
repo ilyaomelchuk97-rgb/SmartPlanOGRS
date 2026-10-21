@@ -932,7 +932,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-355';
+  var SP_BUILD = '22.09-356';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -11366,6 +11366,7 @@
        Если выбрано «Все участки» — показываем справочники ВСЕХ участков подряд
        (добавление, Excel и групповое изменение требуют конкретного участка). */
     var areaOpts = admin ? areasList() : (S.user.area ? [S.user.area] : areasList());
+    if (window.SP_TEST_MODE) areaOpts = ['ТЕСТ']; // 22.09-356: на тестовой странице справочники — только участок ТЕСТ
     if (S.workArea && areaOpts.indexOf(S.workArea) === -1 && S.user.area) areaOpts.push(S.user.area);
     if (!S.workArea || areaOpts.indexOf(S.workArea) === -1) S.workArea = areaOpts[0];
     var areaLocked = dashAreaActive() && areaOpts.indexOf(S.dashArea) >= 0;   // участок выбран в шапке
@@ -30471,6 +30472,15 @@
     try {
       var sel = document.getElementById('sp-area-sel');
       if (!sel) return;
+      // 22.09-356: тестовая страница — участок навсегда «ТЕСТ», переключить нельзя
+      if (window.SP_TEST_MODE) {
+        sel.innerHTML = '<option value="ТЕСТ" selected>ТЕСТ</option>';
+        sel.value = 'ТЕСТ';
+        sel.disabled = true;
+        sel.style.display = areaFilterCan() ? '' : 'none';
+        sel.setAttribute('title', 'Тестовая страница: всегда показан только участок «ТЕСТ»');
+        return;
+      }
       if (!areaFilterCan()) { sel.style.display = 'none'; return; }
       var areas = areasList();
       var cur = S.dashArea || '';
@@ -30486,6 +30496,7 @@
   }
   /* Применить выбор: S.dashArea + сохранение + перерисовка текущей страницы */
   function areaFilterApply(v, silent) {
+    if (window.SP_TEST_MODE) v = 'ТЕСТ'; // 22.09-356: на тестовой странице — только ТЕСТ
     S.dashArea = v ? String(v) : null;
     try { S.wsel = null; } catch (eWs) {}   // 22.09-286: смена участка сбрасывает галочки группового выбора
     areaFilterSave(S.dashArea || '');
@@ -30507,6 +30518,13 @@
   function areaFilterRestore() {
     try {
       S.dashArea = null;
+      // 22.09-356: тестовая страница всегда работает только с участком «ТЕСТ»
+      if (window.SP_TEST_MODE) {
+        S.dashArea = 'ТЕСТ';
+        areaFilterSave('ТЕСТ');
+        areaFilterRender();
+        return;
+      }
       if (areaFilterCan()) {
         var v = areaFilterSaved();
         if (v && areasList().indexOf(v) >= 0) S.dashArea = v;
