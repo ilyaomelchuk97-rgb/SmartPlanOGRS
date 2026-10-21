@@ -162,6 +162,8 @@ window.SP_OBJECTS = (function () {
       color: (data.color && /^#[0-9a-fA-F]{3,8}$/.test(data.color)) ? data.color : '',
       respId: data.respId || '',
       respName: data.respName || '',
+      area: data.area || '',           // 22.09-360: участок объекта (явная прописка, а не только по ответственному)
+      created_by: data.created_by || '', // 22.09-360: кто создал объект
       zu: data.zu || 0,
       area_obj: data.area_obj || 0, length_km: data.length_km || 0, area_ha: data.area_ha || 0,
       attrs: {},
@@ -204,6 +206,7 @@ window.SP_OBJECTS = (function () {
         if (data.color !== undefined) db.objects[i].color = (data.color && /^#[0-9a-fA-F]{3,8}$/.test(data.color)) ? data.color : '';
         if (data.respId !== undefined) db.objects[i].respId = data.respId || '';
         if (data.respName !== undefined) db.objects[i].respName = data.respName || '';
+        if (data.area !== undefined) db.objects[i].area = data.area || ''; // 22.09-360
         // 22.09-278: дата последнего изменения статуса эксплуатации (для графиков:
         // после возврата в эксплуатацию серия работ начинается заново от этой даты)
         if (data.statusFrom !== undefined) db.objects[i].statusFrom = String(data.statusFrom || '');
@@ -214,7 +217,12 @@ window.SP_OBJECTS = (function () {
         // 22.09-138: общий набор работ объекта для графиков (нормализуем строки)
         if (data.plan_works !== undefined) {
           db.objects[i].plan_works = (Array.isArray(data.plan_works) ? data.plan_works : []).map(function (r) {
-            return { wid: String(r && r.wid || ''), period: parseInt(r && r.period, 10) || 0, dev: parseInt(r && r.dev, 10) || 0, first: String(r && r.first || '') };
+            /* 22.09-309: периодичность может быть ДРОБНОЙ (0,5 — дважды в месяц).
+               Раньше стоял parseInt: «0,5» превращалось в 0, работа теряла периодичность
+               и не получала ни одного проведения. Заодно сохраняем признак 🎯 (manual). */
+            var _per = 0;
+            try { var _pv = parseFloat(String((r && r.period) != null ? r.period : '').replace(',', '.')); if (isFinite(_pv) && _pv > 0) _per = Math.round(_pv * 100) / 100; } catch (eP) {}
+            return { wid: String(r && r.wid || ''), period: _per, dev: parseInt(r && r.dev, 10) || 0, first: String(r && r.first || ''), manual: !!(r && r.manual) };
           }).filter(function (r) { return r.wid; });
         }
         // Атрибуты (schema 3)

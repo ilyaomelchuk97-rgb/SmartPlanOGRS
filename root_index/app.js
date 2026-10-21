@@ -932,7 +932,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-359';
+  var SP_BUILD = '22.09-360';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -11162,7 +11162,7 @@
               updatedIds[exO.id] = 1;
               updatedO++;
             } else {
-              OBJECTS_DB.addObject({ type: typO, num: numO, addr: addrO, lat: latO, lng: lngO, poly: polyO, descr: descrO, color: colorO });
+              OBJECTS_DB.addObject({ type: typO, num: numO, addr: addrO, lat: latO, lng: lngO, poly: polyO, descr: descrO, color: colorO, area: window.SP_TEST_MODE ? 'ТЕСТ' : (S.workArea || ''), created_by: (S.user && S.user.id) || '' }); // 22.09-360: прописка участка при импорте
               addedO++;
             }
           }
@@ -12789,18 +12789,28 @@
   var OBJ_TYPES = ['ГРП', 'ШРП', 'ГРС', 'ПГРП', 'Трасса', 'Просека', 'Область'];
   var OBJ_GAS_TYPES = ['ГРП', 'ШРП', 'ГРС', 'ПГРП']; // нумеруемые точки газоснабжения (справочник + карта + графики)
   function isGasType(t) { return OBJ_GAS_TYPES.indexOf(t) !== -1; }
+  /* 22.09-360: участок объекта. У новых объектов записан прямо в объекте
+     (поле area — где его создали); у старых, где поля ещё нет, — по участку
+     ответственного, как было раньше. */
+  function objAreaOf(o) {
+    if (!o) return '';
+    if (o.area) return String(o.area);
+    var u = null;
+    try { u = o.respId ? DB.getUser(o.respId) : null; } catch (e) {}
+    return (u && u.area) || '';
+  }
   function renderObjectsRefTab(admin, tabsHtml) {
     refreshObjects();
     var objs = OBJECTS.slice();
-    /* 22.09-286: если в шапке выбран участок — показываем объекты этого участка
-       (участок объекта = участок ответственного); объекты без ответственного
-       видны только в режиме «Все участки». */
-    if (dashAreaActive()) {
-      objs = objs.filter(function (o) {
-        var u = null;
-        try { u = DB.getUser(o.respId); } catch (e) {}
-        return !!(u && u.area === S.dashArea);
-      });
+    /* 22.09-360: ТЕСТОВАЯ СТРАНИЦА — в справочниках только объекты участка
+       «ТЕСТ» (созданные людьми участка ТЕСТ и администратором на тестовой
+       странице). Объекты основного сайта сюда не попадают ни у кого. */
+    if (window.SP_TEST_MODE) {
+      objs = objs.filter(function (o) { return objAreaOf(o) === 'ТЕСТ'; });
+    } else if (dashAreaActive()) {
+      /* 22.09-286: если в шапке выбран участок — показываем объекты этого участка;
+         объекты без участка и ответственного видны только в режиме «Все участки». */
+      objs = objs.filter(function (o) { return objAreaOf(o) === S.dashArea; });
     }
     var grp = S.objTab || 'grp'; // grp | shrp | other
     var hasPoly = function (o) { return !!(o.poly && o.poly.length >= 3); };
@@ -13139,6 +13149,19 @@
       }
     }
     var data = { type: type, num: num, addr: addr, lat: lat, lng: lng, poly: poly, respId: respId, respName: respName };
+    // 22.09-360: прописка объекта на участке. На тестовой странице — всегда
+    // «ТЕСТ»; на главной — участок ответственного (или участок создателя).
+    // У уже существующего объекта прописка не переписывается.
+    (function () {
+      var oldArea = '';
+      if (S.objModalMode === 'edit') { var _oo = OBJ_MAP[S.objModalOid]; if (_oo && _oo.area) oldArea = String(_oo.area); }
+      if (oldArea) { data.area = oldArea; return; }
+      var ra = '';
+      if (respId) { try { var _ru2 = DB.getUser(respId); if (_ru2 && _ru2.area) ra = String(_ru2.area); } catch (eRA) {} }
+      data.area = window.SP_TEST_MODE ? 'ТЕСТ'
+        : (ra || (S.user && S.user.area && S.user.area !== 'Все участки' ? String(S.user.area) : '') || (S.workArea || ''));
+      data.created_by = (S.user && S.user.id) || '';
+    })();
     if (attrs) data.attrs = attrs;
     // 22.09-278: смена статуса эксплуатации — запоминаем дату (после возврата
     // в эксплуатацию серия работ объекта начинается заново от этой даты)
