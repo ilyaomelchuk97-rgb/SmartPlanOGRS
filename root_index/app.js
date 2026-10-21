@@ -932,7 +932,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-356';
+  var SP_BUILD = '22.09-357';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -8318,9 +8318,16 @@
   //  · нач. участка / ст. мастер — работники СВОЕГО участка;
   //  · мастер — только сам и слесари СВОЕЙ бригады;
   //  · СЭОГС (начальник и заместитель) — только просмотр, менять ничего нельзя.
+  /* 22.09-357: у МАСТЕРА «Графики смен» — только просмотр (и окно «Настройки
+     бригад» поверх них): нажимать и смотреть можно всё, менять — ничего.
+     На странице «Работники» у мастера права прежние. */
+  function wkMasterRO() {
+    return S.role === 'master' && (S.screen === 'schedules' || !!S.workersModal);
+  }
   function wkCanEdit(u) {
     if (!u) return false;
     if (S.role === 'admin') return true;
+    if (wkMasterRO()) return false; // 22.09-357: мастер в «Графиках смен» — только просмотр
     if (S.role === 'viewer' || S.role === 'slesar') return false;
     if (S.role === 'nach' || S.role === 'smaster' || S.role === 'engineer') return !!(S.user && u.area === S.user.area);
     if (S.role === 'master') {
@@ -8333,6 +8340,7 @@
   // и убирать из своей; чужие бригады ему недоступны.
   function wkCanMoveTo(slesar, targetMasterId) {
     if (!slesar || slesar.role !== 'slesar') return false;
+    if (wkMasterRO()) return false; // 22.09-357: мастер в «Графиках смен» бригады не переставляет
     if (S.role === 'admin') return true;
     if (S.role === 'viewer') return false;
     if (S.role === 'nach' || S.role === 'smaster' || S.role === 'engineer') return wkCanEdit(slesar); // свой участок
@@ -8347,6 +8355,7 @@
   // Карточку слесаря можно перетаскивать?
   function wkCardDraggable(u) {
     if (!u || u.role !== 'slesar') return false;
+    if (wkMasterRO()) return false; // 22.09-357
     if (wkCanEdit(u)) return true; // админ / нач. участка / ст. мастер / своя бригада мастера
     if (S.role === 'master' && S.user && u.area === S.user.area) {
       var b = wkData(u.id).brigade;
@@ -9044,7 +9053,7 @@
     if (free.length) rows.push({ kind: 'free', master: null, members: free });
 
     var html = '<div class="card"><div class="card-h"><h2>📅 Графики смен</h2>';
-    html += '<span class="sub">' + masters.length + ' бригад · ' + slesars.length + ' слесарей · ' + users.length + ' чел.</span><div class="spacer"></div>';
+    html += '<span class="sub">' + masters.length + ' бригад · ' + slesars.length + ' слесарей · ' + users.length + ' чел.</span>' + (S.role === 'master' ? '<span style="font-size:11.5px;font-weight:800;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:999px;padding:3px 10px">👁 только просмотр</span>' : '') + '<div class="spacer"></div>';
     // Управление: переключатель месяца + режим отображения.
     // 22.09-164: «Праздничные дни» перенесены сюда из графика работ — слева от выбора месяца
     // 22.09-249: «Праздничные дни» и «Настройки бригад» — кнопки-значки, подпись появляется при наведении
@@ -9052,7 +9061,7 @@
     html += '<button type="button" class="gt-btn gt-sm gt-rose" data-action="sch-holidays" aria-label="Праздничные дни" data-tip="Праздничные дни (РБ) — список нерабочих дней; учитываются в графиках работ" style="margin-right:6px">' + GT_ICONS.gift + '</button>';
     html += '<button type="button" class="gt-btn gt-sm gt-sky" data-action="wk-settings-open" aria-label="Настройки бригад" data-tip="Настройки бригад — состав бригад, работники, их графики и отсутствия" style="margin-right:10px">' + GT_ICONS.team + '</button>';
     // 22.09-211: редактор графика — отдельное окно (черновик + кнопка «Сохранить»)
-    var _canAnySch = users.some(function (u) { return wkCanEdit(u); });
+    var _canAnySch = users.some(function (u) { return wkCanEdit(u); }) || S.role === 'master'; // 22.09-357: мастеру кнопка видна — окно откроется для просмотра
     html += '<span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">';
     html += '<button type="button" class="btn sm" data-action="sch-month-prev" title="Предыдущий месяц">‹</button>';
     html += '<b data-action="sch-month-label" style="font-size:13px;color:var(--ink);min-width:118px;text-align:center">' + MON_NOM[wm.m] + ' ' + wm.y + '</b>';
@@ -10408,6 +10417,7 @@
     overlay.classList.add('show');
   }
   function schDayEditSave(reset) {
+    if (wkMasterRO()) { toast('warn', 'Только просмотр: у мастера в «Графиках смен» изменения не сохраняются'); return; } // 22.09-357
     if (!S.schDay || !window.SP_WORKERS) return;
     var uid = S.schDay.uid, ds = S.schDay.ds;
     var u = DB.getUser(uid); if (!u) { S.schDay = null; return; }
@@ -10530,7 +10540,7 @@
   }
   // 22.09-213: окошко одного дня (поверх редактора): рабочий/выходной + часы
   function openSchEdDayModal(uid, ds) {
-    var u = DB.getUser(uid); if (!u || !wkCanEdit(u)) return;
+    var u = DB.getUser(uid); if (!u || (!wkCanEdit(u) && !wkMasterRO())) return; // 22.09-357: мастеру — открыть для просмотра
     var todayK = key(TODAY);
     if (!ds) return;
     var isPast = ds < todayK; // 22.09-218: в прошедших днях окошко позволяет поправить ЧАСЫ рабочего дня
@@ -10566,6 +10576,7 @@
     S.schEdDay = null;
   }
   function schEdDayApply() {
+    if (wkMasterRO()) { toast('warn', 'Только просмотр: у мастера в «Графиках смен» изменения не сохраняются'); return; } // 22.09-357
     var sd = S.schEdDay; if (!sd) return;
     var u = DB.getUser(sd.uid); if (!u) { schEdDayClose(); return; }
     var st = (document.getElementById('scheday-off') || {}).checked ? 'off' : 'work';
@@ -10580,6 +10591,7 @@
     toast('ok', '✓ В черновике — применится по кнопке «Сохранить»');
   }
   function schEdDayReset() {
+    if (wkMasterRO()) { toast('warn', 'Только просмотр: у мастера в «Графиках смен» изменения не сохраняются'); return; } // 22.09-357
     var sd = S.schEdDay; if (!sd) return;
     var cur = schEdCur(sd.uid);
     cur.draft[sd.ds] = null; // вернуть к стандартному графику (при сохранении снимет ручное изменение)
@@ -10589,6 +10601,7 @@
   // 22.09-213: перенос одного дня мышью внутри строки. У 5/2 (и любых не-2/2)
   // передвигается ТОЛЬКО этот день — остальной график не перестраивается.
   function schEdMoveDay(uid, src, dst) {
+    if (wkMasterRO()) return; // 22.09-357: мастеру перетаскивание дней ничего не меняет
     var u = DB.getUser(uid); if (!u) return;
     var todayK = key(TODAY);
     if (dst < todayK) { toast('warn', '⚠ В прошедшие дни переносить нельзя'); return; }
@@ -10620,6 +10633,7 @@
     schEdRender();
   }
   function schEdSaveAll() {
+    if (wkMasterRO()) { toast('warn', 'Только просмотр: у мастера в «Графиках смен» изменения не сохраняются'); return; } // 22.09-357
     if (!S.schEdAll) return;
     var touched = 0;
     Object.keys(S.schEdAll).forEach(function (uid) {
@@ -10646,7 +10660,7 @@
     // дни сразу следуют за колонкой ФИО
     // список работников, которых можно править — все правятся прямо в таблице (без списка)
     var users = [];
-    try { users = (wkVisibleUsers() || []).filter(function (x) { return x && wkCanEdit(x); }); } catch (e) {}
+    try { users = (wkVisibleUsers() || []).filter(function (x) { return x && (wkCanEdit(x) || wkMasterRO()); }); } catch (e) {} // 22.09-357: мастеру в окне — все видимые, но только смотреть
     var h = '<div class="modal-h"><h3>✏ Изменение графика смен</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">';
     h += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">' +
       '<button type="button" class="btn sm" data-action="sch-ed-prev" title="Предыдущий месяц">‹</button>' +
@@ -10760,7 +10774,10 @@
     h += '</tbody></table></div>';
     h += '<div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5">В квадратиках — рабочие часы дня. Клик по будущему дню — окошко «рабочий/выходной/часы» (там же «Вернуть по графику»). Перетаскивание дня мышью вдоль строки: у графика 5/2 переносится только этот день, у 2/2 — его график едет следом (с сегодняшнего дня). Дни каждого работника меняются независимо от остальных. Синяя риска снизу — изменён вручную, синяя рамка квадратика — черновое изменение (не сохранено). Прошедшие дни: клик по рабочему квадратику — окошко, где можно поправить часы (рабочий/выходной в прошлом не меняется, перетаскивание недоступно).</div>';
     h += '</div>';
-    h += '<div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="sch-ed-save">💾 Сохранить</button></div>';
+    // 22.09-357: мастеру — без кнопки «Сохранить», с честной пометкой о просмотре
+    h += wkMasterRO()
+      ? '<div class="modal-f"><span style="margin-right:auto;font-size:12.5px;font-weight:700;color:var(--muted)">👁 Только просмотр — изменения не сохраняются</span><button class="btn" data-action="close-modal">Закрыть</button></div>'
+      : '<div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="sch-ed-save">💾 Сохранить</button></div>';
     // 22.09-216: окно редактора — 90% ширины экрана, по центру (центрирует контейнер overlay)
     modal.style.maxWidth = '90vw'; modal.style.width = '90vw';
     modal.innerHTML = h;
@@ -10790,7 +10807,7 @@
   }
   function openSchEditorModal() {
     var users = [];
-    try { users = (wkVisibleUsers() || []).filter(function (x) { return x && wkCanEdit(x); }); } catch (e) {}
+    try { users = (wkVisibleUsers() || []).filter(function (x) { return x && (wkCanEdit(x) || wkMasterRO()); }); } catch (e) {} // 22.09-357: мастеру в окне — все видимые, но только смотреть
     if (!users.length) { toast('err', 'Нет работников с правом на изменение'); return; }
     var wm = wkMonth();
     S.schEd = { y: wm.y, m: wm.m };
@@ -11022,6 +11039,7 @@
   }
 
   function importRefsFromExcel(file, mode) {
+    if (S.role === 'master') { toast('warn', 'Только просмотр: у мастера в «Справочниках» изменения не сохраняются'); return; } // 22.09-357
     if (!window.XLSX) { ensureXlsxRetry(function () { importRefsFromExcel(file, mode); }); return; } // ленивая загрузка xlsx
     var reader = new FileReader();
     reader.onload = function (e) {
@@ -11383,7 +11401,7 @@
     html += '<div style="margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">';
     html += '<span style="font-size:12px;font-weight:600;color:var(--muted)" title="Участок выбирается в шапке — слева от даты, и действует на всех вкладках">Участок: <b style="color:var(--txt)">' +
       (areaLocked ? esc(area) + ' (из шапки)' : (mergedAreas ? 'все участки' : esc(area))) + '</b></span>';
-    html += '<span class="sub" style="font-size:12px;color:var(--muted)">Видов работ: ' + worksTotal + '</span>';
+    html += '<span class="sub" style="font-size:12px;color:var(--muted)">Видов работ: ' + worksTotal + '</span>' + (S.role === 'master' ? '<span style="font-size:11.5px;font-weight:800;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:999px;padding:3px 10px">👁 только просмотр</span>' : '');
     html += '<div style="flex:1"></div>';
     html += '<div style="flex:1"></div>';
 
@@ -19281,6 +19299,19 @@
     }
     var el = e.target.closest('[data-action]'); if (!el) return;
     var a = el.dataset.action;
+    /* 22.09-357: МАСТЕР — только просмотр в «Графиках смен» и «Справочниках».
+       Нажимать кнопки можно, но изменяющие действия останавливаем здесь,
+       в одном месте, чтобы ни одна кнопка ничего не поменяла. */
+    if (S.role === 'master' && typeof wkMasterRO === 'function' && wkMasterRO() &&
+        ['wk-quick-abs', 'wk-day-save', 'wk-day-del', 'wk-comment-save', 'sch-day-save', 'sch-day-reset', 'scheday-apply', 'scheday-reset', 'sch-ed-save', 'holiday-add', 'holiday-del'].indexOf(a) >= 0) {
+      toast('warn', 'Только просмотр: у мастера в «Графиках смен» изменения не сохраняются');
+      return;
+    }
+    if (S.role === 'master' && S.screen === 'refs' &&
+        ['ul-works-excel', 'ul-norms-excel', 'ul-objects-excel', 'ul-areas-excel'].indexOf(a) >= 0) {
+      toast('warn', 'Только просмотр: у мастера в «Справочниках» изменения не сохраняются');
+      return;
+    }
     /* 22.09-286: в справочнике может быть показан «Все участки» — у кнопок строк
        и групп есть data-area; переключаем рабочий участок на участок строки,
        чтобы правка/удаление/переименование попали в нужный справочник. */
