@@ -932,7 +932,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-351';
+  var SP_BUILD = '22.09-353';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -11297,6 +11297,46 @@
   /* =====================================================================
      РЕНДЕР: СПРАВОЧНИКИ
      ===================================================================== */
+  /* 22.09-353: окно полного копирования видов работ между участками */
+  function openCopyWorksModal() {
+    if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
+    var dst = S.workArea;
+    var areas = areasList().filter(function (a) { return a !== dst; });
+    if (!areas.length) { toast('warn', 'Нет другого участка, с которого копировать'); return; }
+    var h = '<div class="modal-h"><h3>Копировать виды работ на участок «' + esc(dst) + '»</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">';
+    h += '<div style="font-size:13px;line-height:1.55;margin-bottom:12px">Скопируются <b>все виды работ в полном виде</b>, как они сейчас заполнены на участке-источнике: группы, нормы, периодичность, составы бригад, совместные работы, телеметрия и остальные настройки. Это не Excel — там только 4 колонки, а здесь работа целиком.</div>';
+    h += '<div class="fld"><label>Участок, С которого копируем</label><select id="cw-src">';
+    areas.forEach(function (a) {
+      var n = 0; try { n = (WORK.getWorks(a) || []).length; } catch (e) {}
+      h += '<option value="' + esc(a) + '"' + (a === 'ГРП' ? ' selected' : '') + '>' + esc(a) + ' — видов работ: ' + n + '</option>';
+    });
+    h += '</select></div>';
+    h += '<div class="fld"><label>Как копируем</label>';
+    h += '<label class="cb" style="display:block;margin-bottom:6px"><input type="radio" name="cw-mode" value="add" checked> <b>Добавить недостающие</b> — что уже есть на участке «' + esc(dst) + '» (по названию), не трогаем; добавим только новые. Безопасно.</label>';
+    h += '<label class="cb" style="display:block"><input type="radio" name="cw-mode" value="replace"> <b>Заменить полностью</b> — список участка «' + esc(dst) + '» станет точной копией участка-источника (нынешние работы участка «' + esc(dst) + '» удалятся!).</label></div>';
+    h += '<div style="font-size:12.5px;color:var(--muted);line-height:1.5">У копий будут новые внутренние номера, связи между работами (совместные, зависимости) переведутся автоматически. Участок-источник не изменится.</div>';
+    h += '</div><div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="copy-works-go">📋 Копировать</button></div>';
+    modal.style.maxWidth = '';
+    modal.innerHTML = h; overlay.classList.add('show');
+  }
+  function doCopyWorks() {
+    var srcEl = document.getElementById('cw-src');
+    var src = srcEl ? srcEl.value : '';
+    var modeEl = document.querySelector('input[name="cw-mode"]:checked');
+    var mode = modeEl ? modeEl.value : 'add';
+    var dst = S.workArea;
+    if (!src || src === dst) { toast('err', 'Выберите другой участок'); return; }
+    function run() {
+      overlay.classList.remove('show');
+      var r = WORK.copyAreaWorks(src, dst, mode);
+      try { logAction('Виды работ: копирование между участками', 'с участка «' + src + '» на «' + dst + '» (' + (mode === 'replace' ? 'замена полностью' : 'только недостающие') + '): добавлено ' + r.added + ', пропущено ' + r.skipped + ', удалено ' + r.removed); } catch (eL) {}
+      toast('ok', '✓ Готово: на участок «' + dst + '» добавлено работ: ' + r.added + (r.skipped ? ' · уже были (пропущено): ' + r.skipped : '') + (r.removed ? ' · удалено старых: ' + r.removed : '') + ' · всего у источника: ' + r.total + '. Синхронизация с сервером идёт фоном — дайте минутку.');
+      refresh();
+    }
+    if (mode === 'replace') {
+      spConfirm('Список работ участка «' + dst + '» будет ПОЛНОСТЬЮ заменён списком участка «' + src + '». Нынешние работы участка «' + dst + '» удалятся. Продолжить?', { title: 'Заменить виды работ', ok: 'Заменить', danger: true }, run);
+    } else run();
+  }
   function renderRefs() {
     var admin = S.role === 'admin';
     var refsTabsHtml = '<div class="tabs">' + tabBtn('profs', 'Профессии') + tabBtn('tree', 'Виды работ') + tabBtn('norms', 'Нормы времени') + tabBtn('areas', 'Участки') + tabBtn('objects', 'Объекты (ГРП/ШРП/ГРС/ПГРП)') + '</div>';
@@ -11359,6 +11399,7 @@
       html += '<button class="btn ghost" data-action="' + dlAction + '" style="border:1px solid var(--line);background:var(--card);padding:7px 11px;font-size:12.5px;display:inline-flex;align-items:center;gap:6px;" title="Скачать шаблон Excel со списком колонок">' + dlText + '</button>';
       html += '<button class="btn ghost" data-action="' + ulAction + '" style="border:1px solid var(--line);background:var(--card);padding:7px 11px;font-size:12.5px;display:inline-flex;align-items:center;gap:6px;" title="Загрузить заполненный Excel файл в справочник">' + ulText + '</button>';
       if (admin) html += '<button class="btn primary" data-action="new-work">' + IC.plus + ' Добавить работу</button>';
+      if (admin) html += '<button class="btn ghost" data-action="copy-works-area" style="border:1px solid var(--line);background:var(--card);padding:7px 11px;font-size:12.5px;display:inline-flex;align-items:center;gap:6px;" title="Скопировать ВСЕ виды работ с другого участка на этот — в полном виде, со всеми настройками (нормы, периодичность, бригады, совместные работы), а не только 4 колонки как через Excel">📋 Копировать работы с другого участка</button>';
     }
     html += '</div>';
 
@@ -17930,6 +17971,11 @@
     var tries = 0;
     _spTestGateTimer = setInterval(function () {
       tries++;
+      // 22.09-352: если человек уже вышел из системы — не перекидывать его
+      // обратно на тестовую страницу (проверка останавливается)
+      if (!document.body.classList.contains('logged-in')) {
+        clearInterval(_spTestGateTimer); _spTestGateTimer = null; return;
+      }
       var rec = null;
       try { rec = (DB && DB.getUser) ? DB.getUser(u.id) : null; } catch (e) {}
       // 22.09-349: НЕ прекращаем проверку по первой же локальной записи —
@@ -19615,6 +19661,8 @@
       }
     }
     else if (a === 'new-work') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } openWorkModal('new'); }
+    else if (a === 'copy-works-area') { openCopyWorksModal(); } // 22.09-353
+    else if (a === 'copy-works-go') { doCopyWorks(); } // 22.09-353
     else if (a === 'edit-work') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } openWorkModal('edit', el.dataset.wid); }
     else if (a === 'del-work') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } delWork(el.dataset.wid); }
     else if (a === 'grp-rename') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } openGroupRenameModal(el.dataset.path); }

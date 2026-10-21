@@ -236,7 +236,6 @@ window.SP_WORK = (function () {
       telemetry_req:        '',          // 22.09-115: '' | 'equipped' (объект с ТМ) | 'not_equipped' (без ТМ)
       telemetry_type:       '',          // 22.09-115: конкретный тип телеметрии (из списка видов ТМ)
       diag_equipment:       false,       // 22.09-115: с приборным диагност. оборудованием (нужен вид обслуживания Region-gas)
-      region_gaz:           false,       // 22.09-288: работа выполняется на объектах с видом обслуживания REGION-gaz (кроме «диагностики»)
       heating_req:          false,       // 22.09-115: ТО отопительного оборудования (объект с отоплением — ГРП)
       heating_kind:         '',          // 22.09-278: вид отопления объекта для автоподбора: '' | 'Газовое' | 'Электрическое'
       group_flags:          []           // 22.09-137: свойства ГРУППЫ работ («Телеметрия», «ГРП», произвольные метки)
@@ -292,7 +291,6 @@ window.SP_WORK = (function () {
       telemetry_req:           (d.telemetry_req === 'equipped' ? 'equipped' : (d.telemetry_req === 'not_equipped' ? 'not_equipped' : '')),
       telemetry_type:          String(d.telemetry_type || '').trim(),
       diag_equipment:          toBool(d.diag_equipment),
-      region_gaz:              toBool(d.region_gaz), // 22.09-288: работы для объектов REGION-gaz
       heating_req:             toBool(d.heating_req),
       heating_kind:            (['Газовое', 'Электрическое'].indexOf(d.heating_kind) >= 0 ? d.heating_kind : ''), // 22.09-278
       group_flags:             toArr(d.group_flags) // 22.09-137: свойства группы работ
@@ -503,9 +501,61 @@ window.SP_WORK = (function () {
     }
   }
 
+  /* 22.09-353: ПОЛНОЕ КОПИРОВАНИЕ видов работ с одного участка на другой.
+     Копируется ВСЯ работа как заполнена (группы, нормы, периодичность,
+     состав бригады, совместные работы, телеметрия и остальные настройки),
+     а не только 4 колонки как через Excel. У копий — новые номера (id),
+     ссылки внутри списка (совместные, зависимость периодичности)
+     переводятся на новые номера; ссылки на пропущенные при режиме
+     «только недостающие» работы — на уже существующие работы участка.
+     mode: 'add' — добавить недостающие (по названию); 'replace' —
+     полностью заменить список участка-приёмника списком источника. */
+  function copyAreaWorks(srcArea, dstArea, mode) {
+    var db = init();
+    var srcArr = (db.areas[srcArea] || []).slice();
+    if (!db.areas[dstArea]) db.areas[dstArea] = [];
+    var removed = [];
+    if (mode === 'replace') { removed = db.areas[dstArea].slice(); db.areas[dstArea] = []; }
+    var dstArr = db.areas[dstArea];
+    var byName = {};
+    dstArr.forEach(function (w) { if (w && w.name) byName[String(w.name).trim().toLowerCase()] = w; });
+    var idMap = {}, toAdd = [], skipped = 0;
+    srcArr.forEach(function (w, i) {
+      if (!w || !w.name) return;
+      var key = String(w.name).trim().toLowerCase();
+      if (mode !== 'replace' && byName[key]) { idMap[w.id] = byName[key].id; skipped++; return; }
+      var nid = newId() + 'c' + i;
+      idMap[w.id] = nid;
+      var nw = JSON.parse(JSON.stringify(w));
+      nw.id = nid;
+      toAdd.push(nw);
+      byName[key] = nw;
+    });
+    toAdd.forEach(function (nw) {
+      ['joint_with', 'periodicity_depends_on'].forEach(function (f) {
+        if (Array.isArray(nw[f])) nw[f] = nw[f].map(function (id) { return idMap[id] || id; });
+      });
+      dstArr.push(nw);
+    });
+    save(db);
+    // на сервер: удалённые при замене — убрать, новые — отправить порциями
+    // (в списке ГРП работ много, не стреляем всеми сразу)
+    if (window.SP_API && window.SP_API.getToken && window.SP_API.getToken()) {
+      if (window.SP_API.del) removed.forEach(function (w) { if (w && w.id) window.SP_API.del('work_catalog', w.id).catch(function () {}); });
+      var idx = 0;
+      (function pushChunk() {
+        var chunk = toAdd.slice(idx, idx + 8); idx += 8;
+        chunk.forEach(function (w) { pushWork(dstArea, w); });
+        if (idx < toAdd.length) setTimeout(pushChunk, 200);
+      })();
+    }
+    return { added: toAdd.length, skipped: skipped, removed: removed.length, total: srcArr.length };
+  }
+
   return {
     ensureSeed: ensureSeed, getAreas: getAreas, getWorks: getWorks, getWork: getWork,
     getWorkById: getWorkById, getWorkTree: getWorkTree, addWork: addWork, updateWork: updateWork, deleteWork: deleteWork, renameGroup: renameGroup,
+    copyAreaWorks: copyAreaWorks, // 22.09-353
     setGroupFlags: setGroupFlags, groupFlagsOf: groupFlagsOf,
     ensureArea: ensureArea, renameArea: renameArea, deleteArea: deleteArea,
     DEFAULTS: DEFAULTS, reloadFromCloud: reloadFromCloud, SCHEMA: SCHEMA,
