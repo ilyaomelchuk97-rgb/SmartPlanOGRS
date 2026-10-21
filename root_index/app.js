@@ -932,7 +932,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-362';
+  var SP_BUILD = '22.09-363';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -14221,11 +14221,11 @@
     bar.style.display = isJ ? 'flex' : 'none';
     if (!isJ) return;
     var tab = S.journalTab || (S.role === 'admin' ? 'changelog' : 'logs');
-    if ((tab === 'changelog' || tab === 'feedback') && S.role !== 'admin') tab = 'logs';
+    if ((tab === 'changelog' || tab === 'feedback' || tab === 'mapreqs') && S.role !== 'admin') tab = 'logs';
     bar.querySelectorAll('.jr-tab').forEach(function (b) {
       var t = b.dataset.jtab;
       b.classList.toggle('active', t === tab);
-      if (t === 'changelog' || t === 'feedback') b.style.display = (S.role === 'admin') ? '' : 'none';
+      if (t === 'changelog' || t === 'feedback' || t === 'mapreqs') b.style.display = (S.role === 'admin') ? '' : 'none';
       if (!b._jrBound) {
         b._jrBound = true;
         b.addEventListener('click', function () {
@@ -14240,11 +14240,47 @@
   }
   function renderJournalsBody() {
     var tab = S.journalTab || (S.role === 'admin' ? 'changelog' : 'logs');
-    if ((tab === 'changelog' || tab === 'feedback') && S.role !== 'admin') tab = 'logs';
+    if ((tab === 'changelog' || tab === 'feedback' || tab === 'mapreqs') && S.role !== 'admin') tab = 'logs';
     if (tab === 'errlogs') renderErrLogs();
     else if (tab === 'changelog') renderChangelog();
     else if (tab === 'feedback') renderFeedback();
+    else if (tab === 'mapreqs') renderMapRequests();
     else renderLogs();
+  }
+  /* 22.09-363: ЗАПРОСЫ ДОСТУПА К КАРТЕ МЕСТОПОЛОЖЕНИЯ — вся история:
+     ожидающие, выданные (и с вышедшим сроком), отклонённые и проигнорированные */
+  function renderMapRequests() {
+    var list = (window.SP_ANN && SP_ANN.mapRequests) ? SP_ANN.mapRequests().slice().sort(function (a, b) { return (b.ts || 0) - (a.ts || 0); }) : [];
+    function fmtTs(ts) { try { return ts ? new Date(ts).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''; } catch (e) { return ''; } }
+    function stOf(m) {
+      if (!m.status || m.status === 'pending') return '<span style="font-weight:800;color:#b45309">⏳ ожидает решения</span>';
+      if (m.status === 'granted') return (+m.until || 0) > Date.now()
+        ? '<span style="font-weight:800;color:#15803d">✅ открыт до ' + fmtTs(+m.until) + '</span>'
+        : '<span style="font-weight:800;color:#64748b">⌛ выдан, срок вышел (' + fmtTs(+m.until) + ')</span>';
+      if (m.status === 'denied') return '<span style="font-weight:800;color:#b91c1c">❌ отклонён</span>';
+      if (m.status === 'ignored') return '<span style="font-weight:800;color:#64748b">🙈 проигнорирован</span>';
+      return esc(m.status);
+    }
+    var html = '<div class="card"><div class="card-h"><h2>🔓 Запросы доступа к карте местоположения</h2><span class="sub">' + list.length + ' запросов · новые сверху</span></div><div class="card-b">';
+    if (!list.length) {
+      html += '<div class="empty">Пока пусто. Когда работник нажмёт на карте «Запросить доступ к другому участку», запрос появится здесь и всплывёт у администратора окном.</div>';
+    } else {
+      html += '<table class="dt"><thead><tr><th style="width:130px">Когда</th><th style="width:230px">Кто просит</th><th style="width:150px">Участок</th><th>Комментарий и решение</th><th style="width:210px">Статус</th><th style="width:110px"></th></tr></thead><tbody>';
+      list.forEach(function (m) {
+        var pend = (!m.status || m.status === 'pending');
+        html += '<tr><td style="white-space:nowrap;font-size:12px;color:var(--muted)">' + esc(fmtTs(m.ts)) + '</td>' +
+          '<td style="font-size:12.5px"><b>' + esc(m.from || '—') + '</b>' + (m.from_area ? '<div style="color:var(--muted);font-size:12px">свой участок: ' + esc(m.from_area) + '</div>' : '') + '</td>' +
+          '<td style="font-size:12.5px"><b>' + esc(m.area || '—') + '</b></td>' +
+          '<td style="font-size:12.5px">' + (m.text ? '<div style="white-space:pre-wrap">' + esc(m.text) + '</div>' : '<span style="color:var(--muted)">без комментария</span>') +
+            (m.admin_msg ? '<div style="margin-top:4px;color:#1d4ed8">Сообщение администратора: «' + esc(m.admin_msg) + '»</div>' : '') +
+            (m.decided_ts ? '<div style="margin-top:4px;color:var(--muted);font-size:12px">решение: ' + esc(fmtTs(m.decided_ts)) + '</div>' : '') + '</td>' +
+          '<td style="font-size:12.5px">' + stOf(m) + '</td>' +
+          '<td style="text-align:right">' + (pend ? '<button class="btn sm primary" data-action="mapreq-open" data-mid="' + esc(m.id) + '">Решить</button>' : '') + '</td></tr>';
+      });
+      html += '</tbody></table>';
+    }
+    html += '</div></div>';
+    document.getElementById('view').innerHTML = html;
   }
   function fbShowImg(id) {
     var list = (window.SP_ANN && SP_ANN.feedback) ? SP_ANN.feedback() : [];
@@ -19815,6 +19851,7 @@
     else if (a === 'new-work') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } openWorkModal('new'); }
     else if (a === 'copy-works-area') { openCopyWorksModal(); } // 22.09-353
     else if (a === 'copy-works-go') { doCopyWorks(); } // 22.09-353
+    else if (a === 'mapreq-open') { if (window.SP_ANN && SP_ANN.mapReqShow) SP_ANN.mapReqShow(el.dataset.mid); } // 22.09-363: решить запрос из Журналов
     else if (a === 'edit-work') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } openWorkModal('edit', el.dataset.wid); }
     else if (a === 'del-work') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } delWork(el.dataset.wid); }
     else if (a === 'grp-rename') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } openGroupRenameModal(el.dataset.path); }
@@ -28388,48 +28425,62 @@
     } catch (e) {}
   }
   var _mapReqShown = {}, _mapReqShowing = false;
+  function mapReqAdminDialog(req) {
+    if (!req || _mapReqShowing) return;
+    _mapReqShowing = true;
+    var st = { dur: 60, msg: '' };
+    spDialog('', {
+      title: 'Запрос доступа к карте местоположения', icon: '🔓', cancel: 'Решу позже',
+      html: '<div style="font-size:14px;line-height:1.6;margin-bottom:10px"><b>' + esc(req.from || 'Работник') + '</b>' +
+        (req.from_area ? ' (участок «' + esc(req.from_area) + '»)' : '') +
+        ' просит открыть просмотр <b>карты местоположения</b> участка <b>«' + esc(req.area || '') + '»</b>.' +
+        (req.text ? '<br>Комментарий: «' + esc(req.text) + '»' : '') + '</div>' +
+        '<div class="fld"><label>Открыть доступ на</label><select id="mapreq-dur">' +
+        MAPREQ_DURS.map(function (d) { return '<option value="' + d[0] + '"' + (d[0] === 60 ? ' selected' : '') + '>' + d[1] + '</option>'; }).join('') + '</select></div>' +
+        '<div class="fld"><label>Сообщение работнику <span style="font-weight:400;color:#64748b">(необязательно; при «Игнорировать» не отправляется)</span></label><input id="mapreq-msg" placeholder="например: открыто до конца смены"></div>',
+      choices: [
+        { label: '✅ Выдать доступ', value: 'grant', cls: 'primary' },
+        { label: 'Отклонить', value: 'deny', cls: 'danger' },
+        { label: '🙈 Игнорировать', value: 'ignore', cls: '' }
+      ]
+    }, function (pick) {
+      _mapReqShowing = false;
+      _mapReqShown[req.id] = 1;
+      mapReqDecide(req, pick, st.dur, st.msg);
+    }, function () {
+      _mapReqShowing = false;
+      _mapReqShown[req.id] = 1; // «позже» — в этот раз не всплывёт снова; запрос останется «ожидает» в Журналах → Запросы
+    });
+    try {
+      var sel = document.getElementById('mapreq-dur');
+      if (sel) sel.addEventListener('change', function () { st.dur = parseInt(sel.value, 10) || 60; });
+      var inp = document.getElementById('mapreq-msg');
+      if (inp) inp.addEventListener('input', function () { st.msg = String(inp.value || '').trim(); });
+    } catch (e) {}
+  }
+  function mapReqShowById(id) {
+    if (!S.user || S.role !== 'admin') { toast('err', 'Только для администратора'); return; }
+    var req = null;
+    mapReqList().forEach(function (m) { if (m.id === id) req = m; });
+    if (!req) { toast('err', 'Запрос не найден'); return; }
+    if (req.status && req.status !== 'pending') { toast('warn', 'По этому запросу уже принято решение'); return; }
+    delete _mapReqShown[req.id];
+    mapReqAdminDialog(req);
+  }
   function mapReqAdminCheck() {
     try {
       if (!S.user || S.role !== 'admin' || _mapReqShowing) return;
       var pend = mapReqList().filter(function (m) { return (!m.status || m.status === 'pending') && !_mapReqShown[m.id]; });
       if (!pend.length) return;
-      var req = pend[0];
-      _mapReqShowing = true;
-      var st = { dur: 60, msg: '' };
-      spDialog('', {
-        title: 'Запрос доступа к карте местоположения', icon: '🔓', cancel: 'Решу позже',
-        html: '<div style="font-size:14px;line-height:1.6;margin-bottom:10px"><b>' + esc(req.from || 'Работник') + '</b>' +
-          (req.from_area ? ' (участок «' + esc(req.from_area) + '»)' : '') +
-          ' просит открыть просмотр <b>карты местоположения</b> участка <b>«' + esc(req.area || '') + '»</b>.' +
-          (req.text ? '<br>Комментарий: «' + esc(req.text) + '»' : '') + '</div>' +
-          '<div class="fld"><label>Открыть доступ на</label><select id="mapreq-dur">' +
-          MAPREQ_DURS.map(function (d) { return '<option value="' + d[0] + '"' + (d[0] === 60 ? ' selected' : '') + '>' + d[1] + '</option>'; }).join('') + '</select></div>' +
-          '<div class="fld"><label>Сообщение работнику <span style="font-weight:400;color:#64748b">(необязательно)</span></label><input id="mapreq-msg" placeholder="например: открыто до конца смены"></div>',
-        choices: [
-          { label: '✅ Выдать доступ', value: 'grant', cls: 'primary' },
-          { label: 'Отклонить', value: 'deny', cls: 'danger' }
-        ]
-      }, function (pick) {
-        _mapReqShowing = false;
-        _mapReqShown[req.id] = 1;
-        mapReqDecide(req, pick === 'grant', st.dur, st.msg);
-      }, function () {
-        _mapReqShowing = false;
-        _mapReqShown[req.id] = 1; // «позже» — в этот раз не всплывёт снова; недоделанные запросы покажутся при следующем входе
-      });
-      try {
-        var sel = document.getElementById('mapreq-dur');
-        if (sel) sel.addEventListener('change', function () { st.dur = parseInt(sel.value, 10) || 60; });
-        var inp = document.getElementById('mapreq-msg');
-        if (inp) inp.addEventListener('input', function () { st.msg = String(inp.value || '').trim(); });
-      } catch (e) {}
+      mapReqAdminDialog(pend[0]);
     } catch (e) {}
   }
-  function mapReqDecide(req, grant, durMin, msg) {
+  function mapReqDecide(req, pick, durMin, msg) {
+    var grant = (pick === 'grant'), ignore = (pick === 'ignore');
     var until = grant ? (Date.now() + (durMin || 60) * 60000) : 0;
     var upd = {};
     Object.keys(req).forEach(function (k) { upd[k] = req[k]; });
-    upd.status = grant ? 'granted' : 'denied';
+    upd.status = grant ? 'granted' : (ignore ? 'ignored' : 'denied');
     upd.until = until;
     upd.admin_msg = msg || '';
     upd.decided_ts = Date.now();
@@ -28454,6 +28505,13 @@
     }
     send(upd, function (r) {
       if (!r || !r.ok) { toast('err', 'Не удалось сохранить решение — проверьте связь и попробуйте ещё раз из колокольчика'); return; }
+      if (ignore) {
+        // проигнорированный запрос молча ложится в Журналы → Запросы, работник не уведомляется
+        toast('ok', 'Запрос проигнорирован — он останется в Журналах во вкладке «Запросы»');
+        try { logAction('Карта местоположения: запрос проигнорирован', (req.from || '') + ' · ' + (req.area || '')); } catch (eL) {}
+        if (S.screen === 'journals') { try { renderJournalsBody(); } catch (eJ) {} }
+        return;
+      }
       send(res, function () {
         toast('ok', grant ? ('✓ Доступ к участку «' + (req.area || '') + '» открыт' + whenTxt) : 'Запрос отклонён, работник уведомлён');
         try { logAction('Карта местоположения: ' + (grant ? 'доступ выдан' : 'доступ отклонён'), (req.from || '') + ' · ' + (req.area || '') + (grant ? ' · на ' + (durMin || 60) + ' мин' : '')); } catch (eL) {}
@@ -28994,7 +29052,7 @@
   window.SP_ANN = {
     check: annCheck, remind: annRemind, canSend: canSendAnn, perms: annPerms, render: renderAdminCtl, pageRefresh: annPageRefresh, list: annAnnouncements,
     feedback: fbList, openFeedback: openFeedback, sendFeedback: sendFeedback, feedbackDel: fbDel, objChanges: objchgList, planChanges: planchgList,
-    mapRequests: mapReqList, mapReqCheck: mapReqAdminCheck, openMapReq: openMapReqModal,
+    mapRequests: mapReqList, mapReqCheck: mapReqAdminCheck, openMapReq: openMapReqModal, mapReqShow: mapReqShowById,
     send: annSend, reshow: annShowNext, seen: annSeenLoad, start: annStart, stopLoop: annStopLoop, afterSync: annAfterSync
   };
   /* ── часть 20 · app/20_ui_enhance.js — улучшения интерфейса: поиск и сортировка таблиц, липкие шапки, пустые состояния, скелетон загрузки, печать (22.09-266) ── */
@@ -29902,7 +29960,7 @@
     ['sp-ap-btn', 'Настройки автоподбора работ'],
     ['sp-search-btn', 'Поиск по системе (Ctrl+K)'],
     ['sp-feedback-btn', 'Сообщить о проблеме'],
-    ['sp-bell', 'Уведомления'],
+    // 22.09-363: колокольчик уведомлений — НЕ в окошке, он стоит снаружи слева от индикатора сервера
     ['sp-mobile-btn', 'Мобильная версия'],
     ['theme-toggle', 'Тёмная / светлая тема'],
     ['a11y-toggle', 'Доступность (для слабовидящих)']
