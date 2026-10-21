@@ -104,7 +104,7 @@
         // Вернуться на главный сайт: выход из системы (doLogout уводит на главный сайт).
         document.title = 'SmartPlan ТЕСТ — тестовая страница';
         var mk = document.getElementById('build-marker');
-        if (mk) mk.textContent = 'Тестовая страница · сборка 22.09-357 · участок «ТЕСТ»';
+        if (mk) mk.textContent = 'Тестовая страница · сборка 22.09-359 · участок «ТЕСТ»';
       } catch (eB) {}
     });
   } catch (e) {}
@@ -583,9 +583,11 @@
   .nav .badge{margin-left:auto;background:var(--red);color:#fff;font-size:12px;font-weight:700;border-radius:20px;padding:1px 7px}
   .sb-foot{padding:2px 16px;line-height:1.2;border-top:1px solid rgba(255,255,255,.08);font-size:12px;color:#64748b;display:flex;align-items:center;justify-content:center;text-align:center}
   .jr-tabs{display:flex;gap:6px;flex-wrap:wrap;padding:14px 18px 0;margin-bottom:14px;border-bottom:2px solid var(--line)}
-  .jr-tab{appearance:none;border:1px solid var(--line);border-bottom:none;background:var(--panel-3,#f1f5f9);color:var(--muted);font:inherit;font-size:13.5px;font-weight:600;padding:9px 18px;border-radius:10px 10px 0 0;cursor:pointer;margin-bottom:-2px;transition:background .15s,color .15s}
-  .jr-tab:hover{color:var(--ink);background:var(--card)}
-  .jr-tab.active{background:var(--card);color:var(--blue);border-bottom:2px solid var(--card);box-shadow:0 -2px 8px rgba(0,0,0,.05)}
+  .jr-tab{appearance:none;border:1px solid var(--line);border-bottom:none;background:var(--card);color:var(--muted);font:inherit;font-size:13.5px;font-weight:600;padding:9px 18px;border-radius:10px 10px 0 0;cursor:pointer;margin-bottom:-2px;transition:background .15s,color .15s}
+  .jr-tab:hover{color:var(--ink);background:var(--panel-2)}
+  /* 22.09-358: открытая вкладка — серая, остальные — белые (по просьбе пользователя) */
+  .jr-tab.active{background:#dde5ee;color:var(--ink);border-bottom:2px solid #dde5ee;box-shadow:0 -2px 8px rgba(0,0,0,.05)}
+  html.theme-dark .jr-tab.active{background:#334155;border-bottom-color:#334155}
   .base-sel{padding:10px 16px 12px;border-bottom:1px solid rgba(255,255,255,.08)}
   .base-lbl{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:#64748b;margin-bottom:5px;font-weight:600}
   .base-sel select{width:100%;padding:7px 9px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:12px;font-family:inherit;cursor:pointer;font-weight:600;}
@@ -2002,7 +2004,7 @@ try {
           <div style="margin-top:6px;font-size:12px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-357 · у мастера графики смен и справочники — только просмотр</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-359 · копирование работ между участками доезжает до сервера</div>
         <div style="margin-top:6px;text-align:center"><a href="#" id="li-cookie-link" class="cookie-link" title="Посмотреть или изменить разрешение">🍪 Cookie и хранилище браузера</a></div>
     </div>
   </div>
@@ -2289,17 +2291,17 @@ try {
      Сайт остаётся на Render, а API (сервер + данные) — на воркере Cloudflare.
      Чтобы вернуться к базе Render — удалить следующую строку. -->
 <script>window.SP_CONFIG_OVERRIDE = 'https://smartplanogrsdb.ilya-omelchuk97.workers.dev/api';</script>
-<script src="root_index/config.js?v=22.09-357"></script>
-<script src="root_index/data.js?v=22.09-357"></script>
-<script src="root_index/users_db.js?v=22.09-357"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-357"></script>
-<script src="root_index/areas_db.js?v=22.09-357"></script>
-<script src="root_index/professions_db.js?v=22.09-357"></script>
-<script src="root_index/work_db.js?v=22.09-357"></script>
-<script src="root_index/objects_db.js?v=22.09-357"></script>
-<script src="root_index/workers_db.js?v=22.09-357"></script>
-<script src="root_index/tasks_db.js?v=22.09-357"></script>
-<script src="root_index/db.js?v=22.09-357"></script>
+<script src="root_index/config.js?v=22.09-359"></script>
+<script src="root_index/data.js?v=22.09-359"></script>
+<script src="root_index/users_db.js?v=22.09-359"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-359"></script>
+<script src="root_index/areas_db.js?v=22.09-359"></script>
+<script src="root_index/professions_db.js?v=22.09-359"></script>
+<script src="root_index/work_db.js?v=22.09-359"></script>
+<script src="root_index/objects_db.js?v=22.09-359"></script>
+<script src="root_index/workers_db.js?v=22.09-359"></script>
+<script src="root_index/tasks_db.js?v=22.09-359"></script>
+<script src="root_index/db.js?v=22.09-359"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -2317,12 +2319,12 @@ try {
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-357"></script>
-      <script src="root_index/error_log.js?v=22.09-357"></script>
-      <script src="root_index/api_client.js?v=22.09-357"></script>
-      <script src="root_index/sync_polling.js?v=22.09-357"></script>
-      <script src="root_index/zip_util.js?v=22.09-357"></script>
-      <script src="root_index/app.js?v=22.09-357"></script>
+<script src="root_index/object_attrs.js?v=22.09-359"></script>
+      <script src="root_index/error_log.js?v=22.09-359"></script>
+      <script src="root_index/api_client.js?v=22.09-359"></script>
+      <script src="root_index/sync_polling.js?v=22.09-359"></script>
+      <script src="root_index/zip_util.js?v=22.09-359"></script>
+      <script src="root_index/app.js?v=22.09-359"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {

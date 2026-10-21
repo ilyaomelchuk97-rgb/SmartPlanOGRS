@@ -101,17 +101,21 @@ window.SP_WORK = (function () {
       if (!Array.isArray(arr)) return;
       arr.forEach(function (w) {
         if (!w || !w.id) return;
-        // Добавляем area в запись чтобы знать куда положить на сервере
-        window.SP_API.syncPush('work_catalog', Object.assign({ area: area }, w)).catch(function (e) {
+        // Добавляем area в запись чтобы знать куда положить на сервере.
+        // 22.09-359: area — ПОСЛЕДНИМ! У записи внутри уже есть поле area
+        // (участок, откуда она пришла), и оно перебивало новый участок:
+        // копии на другой участок уезжали обратно в старый.
+        window.SP_API.syncPush('work_catalog', Object.assign({}, w, { area: area })).catch(function (e) {
           try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log("warn", "sync", "sync failed", { err: String(e && e.err || e), where: "work_db.js" }); } catch(_){ }
         });
       });
     });
   }
   // 22.09-254: явная отправка одной работы — всегда с участком (по нему её раскладывают другие браузеры)
+  // 22.09-359: area ставится ПОСЛЕДНИМ — поле area внутри самой записи не должно перебивать участок назначения
   function pushWork(area, w) {
     if (!w || !w.id || !window.SP_API || !window.SP_API.getToken || !window.SP_API.getToken()) return;
-    window.SP_API.upsert('work_catalog', Object.assign({ area: area }, w)).catch(function (e) {
+    window.SP_API.upsert('work_catalog', Object.assign({}, w, { area: area })).catch(function (e) {
       try { if (window.SP_ERRORS && SP_ERRORS.log) SP_ERRORS.log("warn", "sync", "sync failed", { err: String(e && e.err || e), where: "work_db.js" }); } catch(_){ }
     });
   }
@@ -528,6 +532,7 @@ window.SP_WORK = (function () {
       idMap[w.id] = nid;
       var nw = JSON.parse(JSON.stringify(w));
       nw.id = nid;
+      nw.area = dstArea; // 22.09-359: внутри копии — участок назначения, а не источник
       toAdd.push(nw);
       byName[key] = nw;
     });

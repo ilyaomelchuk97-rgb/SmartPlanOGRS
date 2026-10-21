@@ -932,7 +932,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-357';
+  var SP_BUILD = '22.09-359';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -15708,8 +15708,12 @@
       return;
     }
     var html = '';
-    // Количество дней прогноза — без ограничения (максимум 15 дней от API)
-    var daysCount = 15;
+    // 22.09-358: количество карточек — сколько влезает по ширине экрана
+    // (маленький экран — 7, широкий — сколько поместится, но не больше 15)
+    var _wdAvail = 0;
+    try { _wdAvail = (dd.getBoundingClientRect().width) || (dd.parentElement && dd.parentElement.clientWidth) || window.innerWidth || 1200; } catch (eW) {}
+    var _wdFit = Math.floor((_wdAvail - 24) / (95 + 8)); // карточка 95px + промежуток 8px
+    var daysCount = Math.max(7, Math.min(15, _wdFit || 15));
 
     html += '<div class="wd-head"><div><div class="wd-title">Прогноз погоды</div><div class="wd-sub">Минск · ' + daysCount + ' дн. (нажмите для деталей)</div></div><button class="wd-close" onclick="document.getElementById(\'weather-dropdown\').classList.remove(\'open\')">×</button></div>';
     html += '<div class="wd-grid">';
@@ -15732,6 +15736,22 @@
     html += '</div>';
     dd.innerHTML = html;
     dd.classList.add('open');
+    // 22.09-358: окно изменило размер — открытый прогноз пересчитывает карточки под новую ширину
+    try {
+      if (!window.__spWxResizeBound) {
+        window.__spWxResizeBound = true;
+        var _wxRszT = null;
+        window.addEventListener('resize', function () {
+          var d2 = document.getElementById('weather-dropdown');
+          if (!d2 || !d2.classList.contains('open')) return;
+          clearTimeout(_wxRszT);
+          _wxRszT = setTimeout(function () {
+            var d3 = document.getElementById('weather-dropdown');
+            if (d3 && d3.classList.contains('open')) { d3.classList.remove('open'); toggleWeatherDropdown(); }
+          }, 250);
+        });
+      }
+    } catch (eR) {}
     // 22.09-231: фон карточек прогноза — та же анимация погоды с облачками,
     // что над ними, только облачков больше, во весь блок и размыто (blur)
     var _cl = document.createElement('div');
