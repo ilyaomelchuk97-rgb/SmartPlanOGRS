@@ -932,7 +932,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-361';
+  var SP_BUILD = '22.09-362';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -7277,14 +7277,48 @@
     return (name ? name + ', ' : '') + d.getDate() + ' ' + MON[d.getMonth()] + (name ? '' : ' ' + d.getFullYear());
   }
 
+  /* 22.09-362: КАРТА МЕСТОПОЛОЖЕНИЯ — доступ по участкам.
+     Каждый работник видит только СВОЙ участок. Чужие участки администратор
+     может открыть на время по запросу (записи kind:'mapreq' в messages:
+     status 'granted' + until — срок в миллисекундах). Администратор и люди
+     без участка («Все участки») видят всё. */
+  function lmMyArea() {
+    if (!S.user || S.role === 'admin') return '';
+    var a = String(S.user.area || '').trim();
+    // участок может ещё не стоять в сессии (пришёл ответ сервера без него) — берём из справочника
+    if (!a && S.user.id) { try { var u = DB.getUser(S.user.id); if (u && u.area) a = String(u.area).trim(); } catch (e) {} }
+    return a;
+  }
+  function lmGrantedAreas() {
+    var out = {}, now = Date.now();
+    try {
+      if (!S.user || !S.user.id) return out;
+      var key = 'smartplan_messages';
+      try { if (window.SP_SYNC_POLL && SP_SYNC_POLL.LS_KEYS && SP_SYNC_POLL.LS_KEYS.messages) key = SP_SYNC_POLL.LS_KEYS.messages; } catch (eK) {}
+      var a = JSON.parse(localStorage.getItem(key) || '[]');
+      (Array.isArray(a) ? a : []).forEach(function (m) {
+        if (m && m.kind === 'mapreq' && String(m.from_id || '') === String(S.user.id) && m.status === 'granted' && m.area && (+m.until || 0) > now) {
+          if (!out[m.area] || (+m.until) > out[m.area]) out[m.area] = +m.until;
+        }
+      });
+    } catch (e) {}
+    return out;
+  }
+  function lmCanSeeArea(area) {
+    var my = lmMyArea();
+    if (!my || my === 'Все участки') return true;
+    if (String(area || '').trim() === my) return true;
+    return !!lmGrantedAreas()[String(area || '').trim()];
+  }
+  window.SP_LM_ACCESS = { myArea: lmMyArea, granted: lmGrantedAreas, canSee: lmCanSeeArea };
+
   function renderLiveMap(force) {
     var view = document.getElementById('view');
     var dayOff = (S.lmDay != null) ? S.lmDay : 0; // выбранный день (0 = сегодня)
     if (!lmState.virt) lmSetVirt(new Date()); // виртуальные часы = реальные (идут 1:1)
     // --- Данные: мастера с задачами выбранного дня ---
-    // roleMasters (а НЕ visibleMasters): на карте местоположения ВСЕГДА все участки —
-    // выбранный на панели мониторинга участок здесь не действует
-    var masters = roleMasters();
+    // 22.09-362: видны мастера СВОЕГО участка + участков, открытых администратором по запросу
+    var masters = roleMasters().filter(function (m) { return lmCanSeeArea(m.area); });
     var todayByMaster = {};
     masters.forEach(function (m) {
       var ts = S.tasks.filter(function (t) { return t.m === m.id && t.d === dayOff && !isDone(t); });
@@ -7293,7 +7327,9 @@
     var active = masters.filter(function (m) { return todayByMaster[m.id]; });
 
     // Сигнатура данных: авто-обновление не перестраивает карту, если ничего не изменилось
-    var sig = active.map(function (m) {
+    // 22.09-362: участок пользователя и выданные доступы — тоже часть подписи:
+    // подтянулись с сервера — карта перестроится и покажет кнопку/чужие участки
+    var sig = lmMyArea() + '|' + Object.keys(lmGrantedAreas()).join(',') + '|' + active.map(function (m) {
       return m.id + ':' + todayByMaster[m.id].map(function (t) { return t.id + (t.s || t.status || ''); }).join(',');
     }).join('|');
     if (!force && sig === lmState.lastSig && lmState.ymap && document.getElementById('lm-map')) return;
@@ -7360,6 +7396,19 @@
       '<div><div style="font-size:14px;font-weight:800;color:var(--ink)">🗺 Маршруты</div>' +
       '<div class="sub" style="font-size:12.5px">' + lmDayLabel(dayOff) + ' · 🚩 ' + esc(base.name) + '</div></div>' +
       '<div style="flex:1"></div><button class="btn sm" id="lm-refresh" title="Перестроить все маршруты">⟳ Обновить</button></div>';
+    // 22.09-362: кнопка запроса доступа к другим участкам + что уже открыто
+    (function () {
+      var myA = lmMyArea();
+      if (myA && myA !== 'Все участки') {
+        var gr = lmGrantedAreas(), gNames = Object.keys(gr);
+        html += '<div style="padding:8px 14px;border-bottom:1px solid var(--line);font-size:12.5px">' +
+          '<button class="btn sm" id="lm-req-btn" title="Попросить администратора открыть просмотр карты другого участка на время">🔓 Запросить доступ к другому участку</button>' +
+          (gNames.length ? '<div style="margin-top:6px;color:#15803d;font-weight:700">Открыто по разрешению: ' + gNames.map(function (a) {
+            return esc(a) + ' (до ' + new Date(gr[a]).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + ')';
+          }).join(', ') + '</div>' : '') +
+          '</div>';
+      }
+    })();
     html += '<div style="padding:8px 14px;border-bottom:1px solid var(--line);font-size:12.5px;color:var(--muted)" id="lm-summary">' +
       (active.length ? '👨‍🔧 ' + active.length + ' ' + (active.length === 1 ? 'мастер' : 'мастеров') + ' · 📋 ' + totalTasks + ' задач · ⏱ ' + fmtH(totalHours) + ' ч' : 'Нет активных маршрутов') + '</div>';
     html += '<div id="lm-list" style="flex:1;overflow:auto;padding:8px">';
@@ -7385,11 +7434,22 @@
     html += '<div style="padding:9px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)">🚗 Выезд с базы в ' + lmFmtTime(LM_START_MIN) + ' · время поездки — по оптимизации маршрута · стоянка на объекте — человеко-часы задачи</div>';
     html += '</aside></div>';
     view.innerHTML = html;
+    // 22.09-362: участок пользователя и доступы могли ещё не подтянуться с сервера
+    // к первой отрисовке — через пару секунд перепроверяем и, если изменились, перерисовываем
+    var _lmAccessAtRender = lmMyArea() + '|' + Object.keys(lmGrantedAreas()).join(',');
+    setTimeout(function () {
+      try {
+        if (S.screen === 'livemap' && document.getElementById('lm-map') &&
+            (lmMyArea() + '|' + Object.keys(lmGrantedAreas()).join(',')) !== _lmAccessAtRender) renderLiveMap(true);
+      } catch (e) {}
+    }, 2500);
     try { spMapsFit(); } catch (e) {} // 22.09-321: высота — ровно до низа окна, без пустого пробела
 
     setTimeout(function () { lmHideLoading(); }, 12000); // страховка: скелетон не висит вечно
     var refreshBtn = document.getElementById('lm-refresh');
     if (refreshBtn) refreshBtn.addEventListener('click', function () { lmOsrmCacheClear(); renderLiveMap(true); }); // обновить = свежие данные от роутера
+    var reqBtn = document.getElementById('lm-req-btn'); // 22.09-362
+    if (reqBtn) reqBtn.addEventListener('click', function () { try { openMapReqModal(); } catch (e) { toast('err', 'Не удалось открыть запрос'); } });
 
     // Смена даты: строим маршруты выбранного дня (время суток сохраняется)
     var dateInp = document.getElementById('lm-date-inp');
@@ -17829,6 +17889,14 @@
   function roleLabel() { return (ROLE_INFO[S.role] || { label: S.role }).label; }
   function roleChip(role) { var i = ROLE_INFO[role] || { label: role, cls: '' }; return '<span class="chip ' + i.cls + '">' + i.label + '</span>'; }
 
+  /* 22.09-362: начальник и старший мастер участка «ТЕСТ»: «Оперативная работа» —
+     полностью, «Администрирование» — никак, виден только свой участок */
+  function spTestLeader() {
+    if (!S.user || (S.role !== 'nach' && S.role !== 'smaster')) return false;
+    var a = String(S.user.area || '').trim();
+    if (!a && S.user.id) { try { var u = DB.getUser(S.user.id); if (u && u.area) a = String(u.area).trim(); } catch (e) {} }
+    return a === 'ТЕСТ';
+  }
   function applyUser() {
     var u = S.user; if (!u) return;
     snapshotAuto(); // автоснимок базы при входе (страховка от сбросов)
@@ -17856,7 +17924,8 @@
           next = next.nextElementSibling;
         }
         // 22.09-268: роли с правом viewLogs видят журналы (даже не будучи админом)
-        if (!isAdmin && typeof permCan === 'function' && permCan('viewLogs')) {
+        // 22.09-362: у начальника/старшего мастера участка «ТЕСТ» «Администрирования» нет совсем
+        if (!isAdmin && !spTestLeader() && typeof permCan === 'function' && permCan('viewLogs')) {
           g.style.display = '';
           ['journals', 'logs', 'errlogs'].forEach(function (sc) {
             var a = document.querySelector('#nav a[data-screen="' + sc + '"]');
@@ -18381,6 +18450,11 @@
     if (name === 'journals' && (S.journalTab === 'changelog' || S.journalTab === 'feedback') && S.role !== 'admin') S.journalTab = 'logs';
     if ((name === 'users' || name === 'adminctl') && S.role !== 'admin') { // 22.09-264: + «Управление администрированием»
       toast('err', 'Доступ только для администратора');
+      return;
+    }
+    // 22.09-362: начальник/старший мастер участка «ТЕСТ» в «Администрирование» не ходит
+    if (spTestLeader() && (name === 'adminctl' || name === 'users' || name === 'backup' || name === 'journals')) {
+      toast('err', 'Раздел «Администрирование» недоступен');
       return;
     }
     // «Работники»: слесарю недоступна (остальные роли — со своими правами)
@@ -28257,7 +28331,135 @@
     try { var a = JSON.parse(localStorage.getItem(annLsKey()) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; }
   }
   function annAnnouncements() {
-    return annList().filter(function (m) { return m && m.id && m.kind !== 'ack' && m.kind !== 'feedback' && m.kind !== 'objchg' && m.kind !== 'planchg'; }); // 22.09-318/332/334: отзывы, изменения объектов и плана — отдельные виды записей
+    return annList().filter(function (m) { return m && m.id && m.kind !== 'ack' && m.kind !== 'feedback' && m.kind !== 'objchg' && m.kind !== 'planchg' && m.kind !== 'mapreq'; }); // 22.09-318/332/334/362: отзывы, изменения и запросы карты — отдельные виды записей
+  }
+
+  /* ===== 22.09-362: ДОСТУП К КАРТЕ МЕСТОПОЛОЖЕНИЯ ДРУГИХ УЧАСТКОВ =====
+     Работник жмёт «Запросить доступ» на карте → запись kind:'mapreq'
+     (status:'pending'). Администратору всплывает окно поверх всего:
+     на сколько открыть (от минуты до месяца), можно отклонить и написать
+     сообщение. Решение пишется обратно в ту же запись (status/until),
+     а работнику уходит уведомление kind:'mapres' (всплывёт как объявление
+     и встанет в колокольчик). Доступ действует, пока granted и until > сейчас. */
+  function mapReqList() {
+    return annList().filter(function (m) { return m && m.id && m.kind === 'mapreq'; })
+      .sort(function (a, b) { return (a.ts || 0) - (b.ts || 0); });
+  }
+  var MAPREQ_DURS = [
+    [1, '1 минуту'], [5, '5 минут'], [15, '15 минут'], [30, '30 минут'],
+    [60, '1 час'], [180, '3 часа'], [360, '6 часов'], [1440, '1 день'],
+    [10080, '1 неделю'], [43200, '1 месяц']
+  ];
+  function openMapReqModal() {
+    if (!S.user) return;
+    var myA = (window.SP_LM_ACCESS && SP_LM_ACCESS.myArea) ? SP_LM_ACCESS.myArea() : String(S.user.area || '').trim();
+    var granted = (window.SP_LM_ACCESS && SP_LM_ACCESS.granted) ? SP_LM_ACCESS.granted() : {};
+    var areas = areasList().filter(function (a) { return a && a !== myA && !granted[a]; });
+    if (!areas.length) { toast('warn', 'Нет участков, к которым можно запросить доступ'); return; }
+    var st = { area: areas[0], text: '' };
+    spDialog('', {
+      title: 'Доступ к карте другого участка', icon: '🔓', cancel: 'Отмена',
+      html: '<div style="font-size:13.5px;line-height:1.55;margin-bottom:10px">Администратор получит ваш запрос и решит, открыть ли вам просмотр карты местоположения другого участка и на какое время. Ответ придёт уведомлением.</div>' +
+        '<div class="fld"><label>Участок</label><select id="mapreq-area">' + areas.map(function (a) { return '<option value="' + esc(a) + '">' + esc(a) + '</option>'; }).join('') + '</select></div>' +
+        '<div class="fld"><label>Комментарий администратору <span style="font-weight:400;color:#64748b">(необязательно)</span></label><input id="mapreq-text" placeholder="например: помочь соседней бригаде в пятницу"></div>',
+      choices: [{ label: 'Отправить запрос', value: true, cls: 'primary' }]
+    }, function () {
+      var rec = {
+        id: 'mapreq_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+        kind: 'mapreq', status: 'pending',
+        from_id: S.user.id, from: S.user.full_name || '', from_area: myA || '',
+        area: st.area, text: st.text || '', ts: Date.now()
+      };
+      if (window.SP_API && SP_API.syncPush) {
+        SP_API.syncPush('messages', rec).then(function (r) {
+          if (r && r.ok) {
+            try { SP_SYNC_POLL.applyRemote('messages', [rec]); } catch (eA) {}
+            toast('ok', '✓ Запрос отправлен администратору (участок «' + rec.area + '»)');
+            try { logAction('Карта местоположения: запрос доступа', rec.area); } catch (eL) {}
+          } else toast('err', 'Не удалось отправить: ' + ((r && r.err) || 'нет связи с сервером'));
+        })['catch'](function () { toast('err', 'Не удалось отправить — нет связи с сервером'); });
+      } else toast('err', 'Нет связи с сервером');
+    });
+    try {
+      var sel = document.getElementById('mapreq-area');
+      if (sel) sel.addEventListener('change', function () { st.area = sel.value; });
+      var inp = document.getElementById('mapreq-text');
+      if (inp) inp.addEventListener('input', function () { st.text = String(inp.value || '').trim(); });
+    } catch (e) {}
+  }
+  var _mapReqShown = {}, _mapReqShowing = false;
+  function mapReqAdminCheck() {
+    try {
+      if (!S.user || S.role !== 'admin' || _mapReqShowing) return;
+      var pend = mapReqList().filter(function (m) { return (!m.status || m.status === 'pending') && !_mapReqShown[m.id]; });
+      if (!pend.length) return;
+      var req = pend[0];
+      _mapReqShowing = true;
+      var st = { dur: 60, msg: '' };
+      spDialog('', {
+        title: 'Запрос доступа к карте местоположения', icon: '🔓', cancel: 'Решу позже',
+        html: '<div style="font-size:14px;line-height:1.6;margin-bottom:10px"><b>' + esc(req.from || 'Работник') + '</b>' +
+          (req.from_area ? ' (участок «' + esc(req.from_area) + '»)' : '') +
+          ' просит открыть просмотр <b>карты местоположения</b> участка <b>«' + esc(req.area || '') + '»</b>.' +
+          (req.text ? '<br>Комментарий: «' + esc(req.text) + '»' : '') + '</div>' +
+          '<div class="fld"><label>Открыть доступ на</label><select id="mapreq-dur">' +
+          MAPREQ_DURS.map(function (d) { return '<option value="' + d[0] + '"' + (d[0] === 60 ? ' selected' : '') + '>' + d[1] + '</option>'; }).join('') + '</select></div>' +
+          '<div class="fld"><label>Сообщение работнику <span style="font-weight:400;color:#64748b">(необязательно)</span></label><input id="mapreq-msg" placeholder="например: открыто до конца смены"></div>',
+        choices: [
+          { label: '✅ Выдать доступ', value: 'grant', cls: 'primary' },
+          { label: 'Отклонить', value: 'deny', cls: 'danger' }
+        ]
+      }, function (pick) {
+        _mapReqShowing = false;
+        _mapReqShown[req.id] = 1;
+        mapReqDecide(req, pick === 'grant', st.dur, st.msg);
+      }, function () {
+        _mapReqShowing = false;
+        _mapReqShown[req.id] = 1; // «позже» — в этот раз не всплывёт снова; недоделанные запросы покажутся при следующем входе
+      });
+      try {
+        var sel = document.getElementById('mapreq-dur');
+        if (sel) sel.addEventListener('change', function () { st.dur = parseInt(sel.value, 10) || 60; });
+        var inp = document.getElementById('mapreq-msg');
+        if (inp) inp.addEventListener('input', function () { st.msg = String(inp.value || '').trim(); });
+      } catch (e) {}
+    } catch (e) {}
+  }
+  function mapReqDecide(req, grant, durMin, msg) {
+    var until = grant ? (Date.now() + (durMin || 60) * 60000) : 0;
+    var upd = {};
+    Object.keys(req).forEach(function (k) { upd[k] = req[k]; });
+    upd.status = grant ? 'granted' : 'denied';
+    upd.until = until;
+    upd.admin_msg = msg || '';
+    upd.decided_ts = Date.now();
+    upd.decided_by = (S.user && S.user.id) || '';
+    var whenTxt = grant ? (' до ' + new Date(until).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })) : '';
+    var text = grant
+      ? ('Администратор открыл вам просмотр карты местоположения участка «' + (req.area || '') + '»' + whenTxt + '.')
+      : ('Администратор отклонил ваш запрос на просмотр карты местоположения участка «' + (req.area || '') + '».');
+    if (msg) text += '\nСообщение от администратора: ' + msg;
+    var res = {
+      id: 'mapres_' + req.id, kind: 'mapres', to: req.from_id,
+      from: (S.user && S.user.full_name) || 'Администратор', from_id: (S.user && S.user.id) || '',
+      text: text, ts: Date.now(), area: req.area || '', granted: !!grant, until: until
+    };
+    function send(rec, after) {
+      if (window.SP_API && SP_API.syncPush) {
+        SP_API.syncPush('messages', rec).then(function (r) {
+          if (r && r.ok) { try { SP_SYNC_POLL.applyRemote('messages', [rec]); } catch (eA) {} }
+          if (after) after(r);
+        })['catch'](function () { if (after) after(null); });
+      } else if (after) after(null);
+    }
+    send(upd, function (r) {
+      if (!r || !r.ok) { toast('err', 'Не удалось сохранить решение — проверьте связь и попробуйте ещё раз из колокольчика'); return; }
+      send(res, function () {
+        toast('ok', grant ? ('✓ Доступ к участку «' + (req.area || '') + '» открыт' + whenTxt) : 'Запрос отклонён, работник уведомлён');
+        try { logAction('Карта местоположения: ' + (grant ? 'доступ выдан' : 'доступ отклонён'), (req.from || '') + ' · ' + (req.area || '') + (grant ? ' · на ' + (durMin || 60) + ' мин' : '')); } catch (eL) {}
+        if (S.screen === 'livemap') { try { renderLiveMap(true); } catch (eR) {} }
+      });
+    });
   }
   function planchgList() {
     return annList().filter(function (m) { return m && m.id && m.kind === 'planchg'; })
@@ -28515,6 +28717,7 @@
         .sort(function (a, b) { return (a.ts || 0) - (b.ts || 0); });
       fresh.forEach(function (m) { if (!_annQueue.some(function (x) { return x.id === m.id; })) _annQueue.push(m); });
       annShowNext();
+      try { mapReqAdminCheck(); } catch (eM) {} // 22.09-362
     } catch (e) {}
   }
   function annShowNext() {
@@ -28785,11 +28988,13 @@
   function annAfterSync() {
     if (!S.user || !S.user.id) return;
     try { annCheck(); } catch (e) {}
+    try { mapReqAdminCheck(); } catch (eM) {} // 22.09-362: администратору — окно запроса доступа к карте
     try { if (S.screen === 'adminctl') annRenderList(); } catch (e2) {}
   }
   window.SP_ANN = {
     check: annCheck, remind: annRemind, canSend: canSendAnn, perms: annPerms, render: renderAdminCtl, pageRefresh: annPageRefresh, list: annAnnouncements,
     feedback: fbList, openFeedback: openFeedback, sendFeedback: sendFeedback, feedbackDel: fbDel, objChanges: objchgList, planChanges: planchgList,
+    mapRequests: mapReqList, mapReqCheck: mapReqAdminCheck, openMapReq: openMapReqModal,
     send: annSend, reshow: annShowNext, seen: annSeenLoad, start: annStart, stopLoop: annStopLoop, afterSync: annAfterSync
   };
   /* ── часть 20 · app/20_ui_enhance.js — улучшения интерфейса: поиск и сортировка таблиц, липкие шапки, пустые состояния, скелетон загрузки, печать (22.09-266) ── */
@@ -30544,13 +30749,25 @@
   function areaFilterSaved() { try { return String(localStorage.getItem(AREA_FILTER_KEY) || ''); } catch (e) { return ''; } }
   function areaFilterSave(v) { try { localStorage.setItem(AREA_FILTER_KEY, String(v || '')); } catch (e) {} }
 
+  /* 22.09-362: пользователь участка «ТЕСТ» (не администратор) на любом сайте
+     видит только свой участок; на главном сайте «ТЕСТ» из выбора участков
+     убран для всех остальных */
+  function areaTestLocked() {
+    try {
+      if (window.SP_TEST_MODE) return true;
+      if (!S.user || S.role === 'admin') return false;
+      var a = String(S.user.area || '').trim();
+      if (!a && S.user.id && typeof DB !== 'undefined' && DB.getUser) { var u = DB.getUser(S.user.id); if (u && u.area) a = String(u.area).trim(); }
+      return a === 'ТЕСТ';
+    } catch (e) { return false; }
+  }
   /* Нарисовать список в шапке (и показать/скрыть его по роли) */
   function areaFilterRender() {
     try {
       var sel = document.getElementById('sp-area-sel');
       if (!sel) return;
-      // 22.09-356: тестовая страница — участок навсегда «ТЕСТ», переключить нельзя
-      if (window.SP_TEST_MODE) {
+      // тестовая страница и люди участка «ТЕСТ» — участок навсегда «ТЕСТ», переключить нельзя
+      if (areaTestLocked()) {
         sel.innerHTML = '<option value="ТЕСТ" selected>ТЕСТ</option>';
         sel.value = 'ТЕСТ';
         sel.disabled = true;
@@ -30559,8 +30776,10 @@
         return;
       }
       if (!areaFilterCan()) { sel.style.display = 'none'; return; }
-      var areas = areasList();
+      // 22.09-362: на главном сайте участка «ТЕСТ» в выборе нет
+      var areas = areasList().filter(function (a) { return String(a).trim() !== 'ТЕСТ'; });
       var cur = S.dashArea || '';
+      if (String(cur).trim() === 'ТЕСТ') cur = '';
       var h = '<option value="">Все участки</option>';
       areas.forEach(function (a) { h += '<option value="' + esc(a) + '"' + (a === cur ? ' selected' : '') + '>' + esc(a) + '</option>'; });
       sel.innerHTML = h;
@@ -30573,7 +30792,8 @@
   }
   /* Применить выбор: S.dashArea + сохранение + перерисовка текущей страницы */
   function areaFilterApply(v, silent) {
-    if (window.SP_TEST_MODE) v = 'ТЕСТ'; // 22.09-356: на тестовой странице — только ТЕСТ
+    if (areaTestLocked()) v = 'ТЕСТ'; // тестовая страница и люди участка «ТЕСТ» — только ТЕСТ
+    else if (String(v || '').trim() === 'ТЕСТ') v = ''; // 22.09-362: на главном сайте «ТЕСТ» не выбирается
     S.dashArea = v ? String(v) : null;
     try { S.wsel = null; } catch (eWs) {}   // 22.09-286: смена участка сбрасывает галочки группового выбора
     areaFilterSave(S.dashArea || '');
@@ -30595,8 +30815,8 @@
   function areaFilterRestore() {
     try {
       S.dashArea = null;
-      // 22.09-356: тестовая страница всегда работает только с участком «ТЕСТ»
-      if (window.SP_TEST_MODE) {
+      // тестовая страница и люди участка «ТЕСТ» всегда работают только с участком «ТЕСТ»
+      if (areaTestLocked()) {
         S.dashArea = 'ТЕСТ';
         areaFilterSave('ТЕСТ');
         areaFilterRender();
@@ -30622,7 +30842,7 @@
   }
   window.SP_AREA_FILTER = {
     render: areaFilterRender, apply: areaFilterApply, restore: areaFilterRestore,
-    init: areaFilterInit, can: areaFilterCan, saved: areaFilterSaved,
+    init: areaFilterInit, can: areaFilterCan, saved: areaFilterSaved, testLocked: areaTestLocked,
     /* для «Проверить систему» и автотестов: что сейчас выбрано и что из-за этого видно */
     cur: function () { return S.dashArea || ''; },
     masters: function () {
