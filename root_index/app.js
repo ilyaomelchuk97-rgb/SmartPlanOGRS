@@ -932,7 +932,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-360';
+  var SP_BUILD = '22.09-361';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -11401,7 +11401,7 @@
     html += '<div style="margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">';
     html += '<span style="font-size:12px;font-weight:600;color:var(--muted)" title="Участок выбирается в шапке — слева от даты, и действует на всех вкладках">Участок: <b style="color:var(--txt)">' +
       (areaLocked ? esc(area) + ' (из шапки)' : (mergedAreas ? 'все участки' : esc(area))) + '</b></span>';
-    html += '<span class="sub" style="font-size:12px;color:var(--muted)">Видов работ: ' + worksTotal + '</span>' + (S.role === 'master' ? '<span style="font-size:11.5px;font-weight:800;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:999px;padding:3px 10px">👁 только просмотр</span>' : '');
+    html += '<span class="sub" style="font-size:12px;color:var(--muted)">Видов работ: ' + worksTotal + '</span>' + (S.role === 'master' && !window.SP_TEST_MODE ? '<span style="font-size:11.5px;font-weight:800;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:999px;padding:3px 10px">👁 только просмотр</span>' : ''); // 22.09-361: на тестовой странице мастер правит объекты — плашки нет
     html += '<div style="flex:1"></div>';
     html += '<div style="flex:1"></div>';
 
@@ -12800,6 +12800,9 @@
     return (u && u.area) || '';
   }
   function renderObjectsRefTab(admin, tabsHtml) {
+    // 22.09-361: на ТЕСТОВОЙ странице мастер участка ТЕСТ может добавлять и
+    // редактировать объекты ГРП/ШРП (удаление — по-прежнему только администратор)
+    var canObjEdit = admin || !!(window.SP_TEST_MODE && S.role === 'master');
     refreshObjects();
     var objs = OBJECTS.slice();
     /* 22.09-360: ТЕСТОВАЯ СТРАНИЦА — в справочниках только объекты участка
@@ -12833,7 +12836,7 @@
     html += '<div style="flex:1"></div>';
     html += '<button class="btn ghost" data-action="dl-objects-excel" style="border:1px solid var(--line);background:var(--card);padding:7px 11px;font-size:12.5px;display:inline-flex;align-items:center;gap:6px;" title="Скачать справочник объектов (ГРП/ШРП) в Excel">📥 Экспорт объектов (Excel)</button>';
     html += '<button class="btn ghost" data-action="ul-objects-excel" style="border:1px solid var(--line);background:var(--card);padding:7px 11px;font-size:12.5px;display:inline-flex;align-items:center;gap:6px;" title="Загрузить объекты из Excel (новые добавятся, существующие обновятся)">📤 Импорт объектов (Excel)</button>';
-    if (admin) html += '<button class="btn primary" data-action="new-object">' + IC.plus + ' Добавить объект</button>';
+    if (canObjEdit) html += '<button class="btn primary" data-action="new-object">' + IC.plus + ' Добавить объект</button>';
     html += '</div>';
     html += tabsHtml;
 
@@ -12920,9 +12923,9 @@
     if (typeLabel && window.SP_OBJ_ATTRS && SP_OBJ_ATTRS.supportsAttrs(typeLabel)) {
       html += '<th>Атрибуты</th>';
     }
-    html += (admin ? '<th style="text-align:right">Действия</th>' : '');
+    html += (canObjEdit ? '<th style="text-align:right">Действия</th>' : '');
     html += '</tr></thead><tbody>';
-    var colCount = typeLabel ? (SP_OBJ_ATTRS && SP_OBJ_ATTRS.supportsAttrs(typeLabel) ? (admin ? 5 : 4) : (admin ? 4 : 3)) : (admin ? 4 : 3);
+    var colCount = typeLabel ? (SP_OBJ_ATTRS && SP_OBJ_ATTRS.supportsAttrs(typeLabel) ? (canObjEdit ? 5 : 4) : (canObjEdit ? 4 : 3)) : (canObjEdit ? 4 : 3);
     if (!list.length) {
       html += '<tr><td colspan="' + colCount + '" class="empty">' + (typeLabel ? 'Объектов типа ' + typeLabel + ' пока нет. Нажмите «Добавить объект».' : 'Прочих объектов нет') + '</td></tr>';
     }
@@ -12938,7 +12941,7 @@
       if (typeLabel && window.SP_OBJ_ATTRS && SP_OBJ_ATTRS.supportsAttrs(typeLabel)) {
         html += '<td style="font-size:12px">' + SP_OBJ_ATTRS.renderSummary(o) + '</td>';
       }
-      if (admin) html += '<td style="text-align:right;white-space:nowrap"><button class="btn sm" data-action="edit-object" data-oid="' + esc(o.id) + '">Изменить</button> <button class="btn sm" data-action="del-object" data-oid="' + esc(o.id) + '" style="color:var(--red)">Удалить</button></td>';
+      if (canObjEdit) html += '<td style="text-align:right;white-space:nowrap"><button class="btn sm" data-action="edit-object" data-oid="' + esc(o.id) + '">Изменить</button>' + (admin ? ' <button class="btn sm" data-action="del-object" data-oid="' + esc(o.id) + '" style="color:var(--red)">Удалить</button>' : '') + '</td>'; // 22.09-361: удаление — только администратор
       html += '</tr>';
     });
     html += '</tbody></table></div>';
@@ -19702,7 +19705,7 @@
     else if (a === 'dl-objects-excel') { exportObjectsExcel(); }
     else if (a === 'ul-objects-excel') { S.excelImportMode = 'objects'; var fiO = document.getElementById('ref-excel-file'); if (fiO) fiO.click(); }
     // --- Справочник: объекты (ГРП/ШРП) ---
-    else if (a === 'new-object') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } openObjectModal('new'); }
+    else if (a === 'new-object') { if (S.role !== 'admin' && !(window.SP_TEST_MODE && S.role === 'master')) { toast('err', 'Только для администратора'); return; } openObjectModal('new'); } // 22.09-361: на тестовой странице мастер участка ТЕСТ добавляет и правит объекты
     else if (a === 'new-zone') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } openZoneModal('new'); }
     else if (a === 'edit-zone') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } openZoneModal('edit', el.dataset.oid); }
     else if (a === 'save-zone') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } saveZone(); }
@@ -19722,9 +19725,9 @@
     else if (a === 'om-draw-area') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } openZoneDraw('om-poly'); }
     else if (a === 'ul-areas-excel') { S.excelImportMode = 'objects'; var fiAx = document.getElementById('ref-excel-file'); if (fiAx) fiAx.click(); }
     else if (a === 'ul-areas-kml') { var fiK = document.getElementById('areas-kml-file'); if (fiK) fiK.click(); }
-    else if (a === 'edit-object') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } openObjectModal('edit', el.dataset.oid); }
+    else if (a === 'edit-object') { if (S.role !== 'admin' && !(window.SP_TEST_MODE && S.role === 'master')) { toast('err', 'Только для администратора'); return; } openObjectModal('edit', el.dataset.oid); } // 22.09-361
     else if (a === 'del-object') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } delObjectAction(el.dataset.oid); }
-    else if (a === 'save-object') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } saveObject(); }
+    else if (a === 'save-object') { if (S.role !== 'admin' && !(window.SP_TEST_MODE && S.role === 'master')) { toast('err', 'Только для администратора'); return; } saveObject(); } // 22.09-361
     else if (a === 'toggle-tree') {
       var ul = el.nextElementSibling;
       if (ul) {
