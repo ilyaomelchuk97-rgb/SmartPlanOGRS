@@ -104,7 +104,7 @@
         // Вернуться на главный сайт: выход из системы (doLogout уводит на главный сайт).
         document.title = 'SmartPlan ТЕСТ — тестовая страница';
         var mk = document.getElementById('build-marker');
-        if (mk) mk.textContent = 'Тестовая страница · сборка 22.09-363 · участок «ТЕСТ»';
+        if (mk) mk.textContent = 'Тестовая страница · сборка 22.09-364 · участок «ТЕСТ»';
       } catch (eB) {}
     });
   } catch (e) {}
@@ -1024,7 +1024,7 @@
   .ap-f{display:flex;gap:10px;padding:10px 16px;border-top:1px solid var(--line);background:var(--panel-2)}
   html.theme-dark .ap-note{background:var(--panel-3)}
   html.theme-dark .ap-f{background:var(--panel-3)}
-  #sp-bell-badge{position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;border-radius:9px;background:#dc2626;color:#fff;font-size:10.5px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 4px;line-height:1;box-shadow:0 0 0 2px var(--card)}
+  #sp-bell-badge{position:absolute;left:-4px;bottom:-4px;min-width:16px;height:16px;border-radius:9px;background:#dc2626;color:#fff;font-size:10.5px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 4px;line-height:1;box-shadow:0 0 0 2px var(--card)} /* 22.09-364: счётчик — в левом НИЖНЕМ углу колокольчика (как просит пользователь) */
   #sp-bell-pop{position:fixed;z-index:9000;width:392px;max-width:calc(100vw - 16px);background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 44px rgba(15,23,42,.28);overflow:hidden}
   .bl-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);font-size:13.5px;font-weight:800;color:var(--txt)}
   .bl-head>span:first-child{margin-right:auto}
@@ -2004,7 +2004,7 @@ try {
           <div style="margin-top:6px;font-size:12px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-363 · запросы доступа — в Журналах, колокольчик снова снаружи</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-364 · счётчик уведомлений — в левом нижнем углу колокольчика</div>
         <div style="margin-top:6px;text-align:center"><a href="#" id="li-cookie-link" class="cookie-link" title="Посмотреть или изменить разрешение">🍪 Cookie и хранилище браузера</a></div>
     </div>
   </div>
@@ -2292,17 +2292,17 @@ try {
      Сайт остаётся на Render, а API (сервер + данные) — на воркере Cloudflare.
      Чтобы вернуться к базе Render — удалить следующую строку. -->
 <script>window.SP_CONFIG_OVERRIDE = 'https://smartplanogrsdb.ilya-omelchuk97.workers.dev/api';</script>
-<script src="root_index/config.js?v=22.09-363"></script>
-<script src="root_index/data.js?v=22.09-363"></script>
-<script src="root_index/users_db.js?v=22.09-363"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-363"></script>
-<script src="root_index/areas_db.js?v=22.09-363"></script>
-<script src="root_index/professions_db.js?v=22.09-363"></script>
-<script src="root_index/work_db.js?v=22.09-363"></script>
-<script src="root_index/objects_db.js?v=22.09-363"></script>
-<script src="root_index/workers_db.js?v=22.09-363"></script>
-<script src="root_index/tasks_db.js?v=22.09-363"></script>
-<script src="root_index/db.js?v=22.09-363"></script>
+<script src="root_index/config.js?v=22.09-364"></script>
+<script src="root_index/data.js?v=22.09-364"></script>
+<script src="root_index/users_db.js?v=22.09-364"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-364"></script>
+<script src="root_index/areas_db.js?v=22.09-364"></script>
+<script src="root_index/professions_db.js?v=22.09-364"></script>
+<script src="root_index/work_db.js?v=22.09-364"></script>
+<script src="root_index/objects_db.js?v=22.09-364"></script>
+<script src="root_index/workers_db.js?v=22.09-364"></script>
+<script src="root_index/tasks_db.js?v=22.09-364"></script>
+<script src="root_index/db.js?v=22.09-364"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -2320,12 +2320,12 @@ try {
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-363"></script>
-      <script src="root_index/error_log.js?v=22.09-363"></script>
-      <script src="root_index/api_client.js?v=22.09-363"></script>
-      <script src="root_index/sync_polling.js?v=22.09-363"></script>
-      <script src="root_index/zip_util.js?v=22.09-363"></script>
-      <script src="root_index/app.js?v=22.09-363"></script>
+<script src="root_index/object_attrs.js?v=22.09-364"></script>
+      <script src="root_index/error_log.js?v=22.09-364"></script>
+      <script src="root_index/api_client.js?v=22.09-364"></script>
+      <script src="root_index/sync_polling.js?v=22.09-364"></script>
+      <script src="root_index/zip_util.js?v=22.09-364"></script>
+      <script src="root_index/app.js?v=22.09-364"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {
