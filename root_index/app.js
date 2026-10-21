@@ -475,11 +475,22 @@
       if (!rml.length) rml = [woSelfMaster()]; // 22.09-189: страховка — вошедший мастер видит себя даже при устаревшей базе
       return rml;
     }
-    return all.filter(function (m) { return S.user && m.area === S.user.area; }); // smaster, slesar
+    return all.filter(function (m) { return S.user && userEffArea(m) === userEffArea(S.user); }); // smaster, slesar (22.09-367)
   }
   // Действует ли фильтр участка с панели мониторинга (админ / начальник участка / нач. СЭОГС)
   function dashAreaActive() {
     return !!S.dashArea && (S.role === 'admin' || S.role === 'nach' || S.role === 'viewer');
+  }
+  /* 22.09-367: ЕДИНОЕ ПРАВИЛО «тестовый пользователь»: отметка «Тестовый
+     участник» в карточке ИЛИ участок «ТЕСТ». Действующий участок такого
+     человека — всегда «ТЕСТ», какой бы участок ни стоял в карточке:
+     его объекты, бригады и маршруты живут в тесте, а не в боевой части. */
+  function userIsTest(u) {
+    return !!(u && (u.test_branch || String(u.area || '').trim() === 'ТЕСТ'));
+  }
+  function userEffArea(u) {
+    if (!u) return '';
+    return userIsTest(u) ? 'ТЕСТ' : (String(u.area || '').trim());
   }
   // Выбранный на панели мониторинга участок (S.dashArea) действует во ВСЕХ вкладках —
   // календарь, карта маршрутов, отчёты, карточка задачи и т.д. показывают данные
@@ -491,8 +502,8 @@
     var list;
     if (S.role === 'admin' || S.role === 'viewer') list = all;
     else if (S.role === 'master') list = all.filter(function (m) { return S.user && String(m.id) === String(S.user.id); }); // 22.09-188
-    else list = all.filter(function (m) { return S.user && m.area === S.user.area; }); // nach, smaster, slesar
-    if (dashAreaActive()) list = all.filter(function (m) { return m.area === S.dashArea; });
+    else list = all.filter(function (m) { return S.user && userEffArea(m) === userEffArea(S.user); }); // nach, smaster, slesar (22.09-367: по действующему участку)
+    if (dashAreaActive()) list = all.filter(function (m) { return userEffArea(m) === S.dashArea; }); // 22.09-367: тестовый участник считается участком ТЕСТ
     // 22.09-189: СТРАХОВКА — вошедший мастер всегда видит себя, даже если локальная
     // база пользователей устарела или его записи в ней нет (иначе — «мастер не видит свои работы»)
     if (S.user && S.role === 'master' && !dashAreaActive() && !list.some(function (m) { return String(m.id) === String(S.user.id); })) {
@@ -932,7 +943,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-366';
+  var SP_BUILD = '22.09-367';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -7318,7 +7329,7 @@
     if (!lmState.virt) lmSetVirt(new Date()); // виртуальные часы = реальные (идут 1:1)
     // --- Данные: мастера с задачами выбранного дня ---
     // 22.09-362: видны мастера СВОЕГО участка + участков, открытых администратором по запросу
-    var masters = roleMasters().filter(function (m) { return lmCanSeeArea(m.area); });
+    var masters = roleMasters().filter(function (m) { return lmCanSeeArea(userEffArea(m)); }); // 22.09-367: участок мастера — действующий (тестовый участник = ТЕСТ)
     var todayByMaster = {};
     masters.forEach(function (m) {
       var ts = S.tasks.filter(function (t) { return t.m === m.id && t.d === dayOff && !isDone(t); });
@@ -8358,19 +8369,19 @@
       return u && u.active !== false && ['nach', 'smaster', 'engineer', 'master', 'slesar'].indexOf(u.role) !== -1;
     });
     if (S.role === 'admin' || S.role === 'viewer') {
-      return us.filter(function (u) { return !dashAreaActive() || u.area === S.dashArea; });
+      return us.filter(function (u) { return !dashAreaActive() || userEffArea(u) === S.dashArea; }); // 22.09-367
     }
     if (S.role === 'master') {
       return us.filter(function (u) {
         if (u.id === (S.user && S.user.id)) return true; // сам мастер
-        if (u.role !== 'slesar' || !S.user || u.area !== S.user.area) return false;
+        if (u.role !== 'slesar' || !S.user || userEffArea(u) !== userEffArea(S.user)) return false; // 22.09-367
         var b = wkData(u.id).brigade;
         return !b || b === S.user.id; // его слесари + свободные слесари участка
       });
     }
     return us.filter(function (u) {
-      if (dashAreaActive()) return u.area === S.dashArea; // участок выбран на дашборде
-      return S.user && u.area === S.user.area;            // свой участок (nach / smaster)
+      if (dashAreaActive()) return userEffArea(u) === S.dashArea; // участок выбран на дашборде (22.09-367: действующий)
+      return S.user && userEffArea(u) === userEffArea(S.user);     // свой участок (nach / smaster)
     });
   }
   // Право менять настройки работника:
@@ -12859,7 +12870,7 @@
     if (!o) return '';
     var u = null;
     try { u = o.respId ? DB.getUser(o.respId) : null; } catch (e) {}
-    if (u && (u.test_branch || String(u.area || '').trim() === 'ТЕСТ')) return 'ТЕСТ';
+    if (u && userIsTest(u)) return 'ТЕСТ'; // 22.09-367: единое правило тестового пользователя
     if (o.area) return String(o.area);
     return (u && u.area) || '';
   }
@@ -17938,9 +17949,10 @@
      полностью, «Администрирование» — никак, виден только свой участок */
   function spTestLeader() {
     if (!S.user || (S.role !== 'nach' && S.role !== 'smaster')) return false;
-    var a = String(S.user.area || '').trim();
-    if (!a && S.user.id) { try { var u = DB.getUser(S.user.id); if (u && u.area) a = String(u.area).trim(); } catch (e) {} }
-    return a === 'ТЕСТ';
+    var rec = S.user;
+    if (S.user.id) { try { var u = DB.getUser(S.user.id); if (u) rec = u; } catch (e) {} }
+    // 22.09-367: руководитель тестовый по отметке «Тестовый участник» — тоже руководитель участка ТЕСТ
+    return (typeof userIsTest === 'function') ? userIsTest(rec) : (String(rec.area || '').trim() === 'ТЕСТ');
   }
   function applyUser() {
     var u = S.user; if (!u) return;
@@ -30823,9 +30835,10 @@
     try {
       if (window.SP_TEST_MODE) return true;
       if (!S.user || S.role === 'admin') return false;
-      var a = String(S.user.area || '').trim();
-      if (!a && S.user.id && typeof DB !== 'undefined' && DB.getUser) { var u = DB.getUser(S.user.id); if (u && u.area) a = String(u.area).trim(); }
-      return a === 'ТЕСТ';
+      var rec = S.user;
+      if (S.user.id && typeof DB !== 'undefined' && DB.getUser) { var du = DB.getUser(S.user.id); if (du) rec = du; }
+      // 22.09-367: отметка «Тестовый участник» — тоже замок на «ТЕСТ», как и участок ТЕСТ
+      return (typeof userIsTest === 'function') ? userIsTest(rec) : (String(rec.area || '').trim() === 'ТЕСТ');
     } catch (e) { return false; }
   }
   /* Нарисовать список в шапке (и показать/скрыть его по роли) */
