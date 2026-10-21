@@ -932,7 +932,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-353';
+  var SP_BUILD = '22.09-354';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -30964,11 +30964,24 @@
     } catch (e) {}
   }
 
+  /* 22.09-354: на экране входа уведомлений о связи НЕ показываем —
+     ни полоску, ни карточки «Сайт не в сети / в сети», ни плашку.
+     Человек ещё не вошёл, пугать его нечем; внутри системы всё как раньше. */
+  function isLoggedIn() {
+    try { return !!(document.body && document.body.classList && document.body.classList.contains('logged-in')); } catch (e) { return false; }
+  }
+
   function set(mode) {
     mode = mode || 'connecting';
     prevState = curState;
     curState = mode;
+    if (!isLoggedIn()) {
+      try { var _el = document.getElementById(LINE_ID); if (_el && _el.classList) _el.classList.remove('cl-on', 'cl-ok', 'cl-warn', 'cl-bad'); } catch (eL) {}
+      hideCard();
+      return;
+    }
     if (lineTimer) { clearTimeout(lineTimer); lineTimer = null; }
+    try { if (window.SP_NET && SP_NET.banner) SP_NET.banner(); } catch (eB2) {} // 22.09-354: после входа плашка пересчитается уже по-настоящему
     linePaint(mode);
     paintIndicator(mode);
     // зелёная линия радуется подключению и через несколько секунд гаснет — она не мешает работе
@@ -31026,6 +31039,7 @@
   }
 
   function showCard(kind, wasOff) {
+    if (!isLoggedIn()) return; // 22.09-354: на экране входа карточек связи нет
     if (kind === true) kind = 'offline';       // совместимость с прежним вызовом show(true)
     if (kind === false || !kind) kind = 'ok';
     var bad = (kind !== 'ok');

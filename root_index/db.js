@@ -32,6 +32,8 @@ window.SP_DB = (function () {
   function netBannerUpdate() {
     var b = document.getElementById('net-banner');
     if (!b) return;
+    // 22.09-354: на экране входа плашку «Нет соединения» не показываем
+    try { if (!(document.body && document.body.classList && document.body.classList.contains('logged-in'))) { b.classList.remove('show'); return; } } catch (eNB) {}
     var q = outboxRead();
     if (!navigator.onLine) {
       b.textContent = q.length
