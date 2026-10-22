@@ -943,7 +943,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-378';
+  var SP_BUILD = '22.09-379';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -8833,6 +8833,7 @@
   }
   function hdFmtDate(ds) { var p = String(ds || '').split('-'); if (p.length === 2) return p[1] + '.' + p[0]; if (p.length === 3) return p[2] + '.' + p[1]; return String(ds || '—'); } // 22.09-110: без года → ДД.ММ
   function openHolidaysModal() {
+    modal.classList.add('modal-fit'); // 22.09-379: окно целиком в экране, без прокрутки страницы
     var canEdit = S.role === 'admin';
     var list = holidaysLoad().slice().sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); });
     var h = '<div class="modal-h"><h3>🎉 Праздничные дни (РБ)</h3><button class="x" data-action="close-modal">×</button></div>';
@@ -8844,7 +8845,7 @@
         '<div class="fld" style="margin:0;flex:1;min-width:170px"><label>Наименование праздника</label><input id="hd-name" placeholder="напр.: День Победы"></div>' +
         '<button type="button" class="btn primary" data-action="holiday-add">+ Добавить</button></div>';
     }
-    h += '<div style="max-height:340px;overflow-y:auto;border:1px solid var(--line);border-radius:8px">';
+    h += '<div style="max-height:min(430px,calc(100dvh - 330px));overflow-y:auto;border:1px solid var(--line);border-radius:8px">'; // 22.09-379: список подгоняется под экран — окно целиком влезает
     if (!list.length) h += '<div style="padding:14px;color:var(--muted);font-size:12.5px">Праздников нет' + (canEdit ? ' — добавьте первую дату выше' : '') + '</div>';
     list.forEach(function (it) {
       h += '<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--line)">' +
@@ -8945,6 +8946,7 @@
   function openProdcalModal() {
     var y = new Date().getFullYear();
     S.prodcal = { year: y, mode: 'd52', draft: {} };
+    modal.classList.add('modal-fit'); // 22.09-379: окно целиком в экране, без прокрутки страницы
     prodcalRender();
     overlay.classList.add('show');
   }
@@ -8985,7 +8987,7 @@
     h += '<table class="dt" style="margin-top:0"><thead><tr><th>Месяц</th><th>Календарные дни</th><th>Рабочие дни</th><th>Нерабочие дни</th><th>Норма времени, часов</th></tr></thead><tbody>';    rows.forEach(function (r, i) {
       h += '<tr><td style="font-weight:700;color:var(--ink)">' + MON_NOM[i] + '</td>' +
         ['cal', 'work', 'off', 'norm'].map(function (f) {
-          return '<td><input data-pc="' + f + '" data-pcm="' + (i + 1) + '" type="text" inputmode="decimal" value="' + String(r[f]).replace('.', ',') + '" style="width:100%;box-sizing:border-box;padding:5px 7px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:12.5px;text-align:center;background:var(--card);color:var(--ink)"></td>';
+          return '<td><input data-pc="' + f + '" data-pcm="' + (i + 1) + '" type="text" inputmode="decimal" value="' + String(r[f]).replace('.', ',') + '" style="width:100%;box-sizing:border-box;padding:2px 4px;border:1px solid var(--line);border-radius:6px;font-family:inherit;font-size:12.5px;text-align:center;background:var(--card);color:var(--ink)"></td>';
         }).join('') + '</tr>';
     });
     h += '</tbody></table>';
@@ -9028,6 +9030,7 @@
       if (ok) { try { if (window.SP_SYNC_POLL && SP_SYNC_POLL.applyRemote) SP_SYNC_POLL.applyRemote('settings', [rec]); } catch (e) {} }
       overlay.classList.remove('show');
       modal.style.maxWidth = '';
+      modal.classList.remove('modal-fit'); // 22.09-379
       S.prodcal = null;
       try { logAction('Производственный календарь', 'сохранён'); } catch (eL) {}
       // 22.09-378: сразу пересчитать часы и значки перебора на странице —
@@ -19767,7 +19770,7 @@
     else if (a === 'wo-save') { woSaveWriteoff(); } // 22.09-186: сохранить списания (окно остаётся открытым)
     else if (a === 'wo-save-close') { woSaveWriteoff(); closeTaskObjectPickers(); overlay.classList.remove('show'); modal.style.maxWidth = ''; modal.style.width = ''; S.wkModalUid = null; S.wmJointSel = null; } // 22.09-186: сохранить и закрыть карточку
     else if (a === 'wo-work-pick') { woPickWork(parseInt(el.dataset.idx, 10) || 0); } // 22.09-185: выбор вида работ для списания
-    else if (a === 'close-modal') { closeTaskObjectPickers(); overlay.classList.remove('show'); modal.style.maxWidth = ''; modal.style.width = ''; if (S.wkModalUid && S.screen === 'workers') renderWorkers(); S.wkModalUid = null; S.wmJointSel = null; /* 22.09-162 */ S.schEd = null; S.schEdAll = null; S.schEdDay = null; S.schEdMode = null; /* 22.09-211/213 */ S.workersModal = false; S.factModal = false; /* 22.09-220 */ }
+    else if (a === 'close-modal') { closeTaskObjectPickers(); overlay.classList.remove('show'); modal.style.maxWidth = ''; modal.style.width = ''; modal.classList.remove('modal-fit'); /* 22.09-379 */ if (S.wkModalUid && S.screen === 'workers') renderWorkers(); S.wkModalUid = null; S.wmJointSel = null; /* 22.09-162 */ S.schEd = null; S.schEdAll = null; S.schEdDay = null; S.schEdMode = null; /* 22.09-211/213 */ S.workersModal = false; S.factModal = false; /* 22.09-220 */ }
     else if (a === 'close-modal2') { var ov2 = document.getElementById('overlay2'); if (ov2) ov2.classList.remove('show'); var md2 = document.getElementById('modal2'); if (md2) { md2.style.width = ''; md2.style.maxWidth = ''; } /* 22.09-235: ширина окна — снова по умолчанию */ if (S.wkModalUid && S.workersModal) { renderWorkers(); } S.wkModalUid = null; /* 22.09-220 */ } // 22.09-162
     else if (a === 'close-modal3') { var ov3 = document.getElementById('overlay3'); if (ov3) ov3.classList.remove('show'); var md3 = document.getElementById('modal3'); if (md3) { md3.style.width = ''; md3.style.maxWidth = ''; } /* 22.09-238: ширина окна — снова по умолчанию */ S.wkDay = null; } // 22.09-220
     else if (a === 'wm-joint-pick') { openWmJointPickModal(); } // 22.09-162

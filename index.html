@@ -104,7 +104,7 @@
         // Вернуться на главный сайт: выход из системы (doLogout уводит на главный сайт).
         document.title = 'SmartPlan ТЕСТ — тестовая страница';
         var mk = document.getElementById('build-marker');
-        if (mk) mk.textContent = 'Тестовая страница · сборка 22.09-378 · участок «ТЕСТ»';
+        if (mk) mk.textContent = 'Тестовая страница · сборка 22.09-379 · участок «ТЕСТ»';
       } catch (eB) {}
     });
   } catch (e) {}
@@ -913,6 +913,14 @@
   .modal-h h3{margin:0;font-size:15px;color:var(--ink)}
   .modal-h .x{margin-left:auto;cursor:pointer;color:var(--muted);font-size:20px;background:none;border:none}
   .modal-b{padding:18px;overflow-y:auto;flex:1;min-height:0}
+  /* 22.09-379: окна, которые должны целиком влезать в экран без прокрутки страницы
+     (производственный календарь, праздничные дни): высота — по окну, внутри компактно */
+  .modal.modal-fit{max-height:calc(100dvh - 96px)}
+  .modal.modal-fit .modal-h{padding:10px 18px}
+  .modal.modal-fit .modal-b{padding:10px 16px}
+  .modal.modal-fit table.dt th,.modal.modal-fit table.dt td{padding:2px 5px}
+  .modal.modal-fit .modal-f{padding:10px 18px}
+  .modal.modal-fit .pc-tab{padding:6px 16px}
   .fld{margin-bottom:14px}
   .fld label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:5px}
   /* Образцы цвета области (модалка области + карта рисования) */
@@ -2022,7 +2030,7 @@ try {
           <div style="margin-top:6px;font-size:12px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-378 · годовая таблица на всю ширину, новая иконка, пересчёт после календаря</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-379 · окна календаря и праздников влезают в экран без прокрутки</div>
         <div style="margin-top:6px;text-align:center"><a href="#" id="li-cookie-link" class="cookie-link" title="Посмотреть или изменить разрешение">🍪 Cookie и хранилище браузера</a></div>
     </div>
   </div>
@@ -2308,17 +2316,17 @@ try {
      Сайт остаётся на Render, а API (сервер + данные) — на воркере Cloudflare.
      Чтобы вернуться к базе Render — удалить следующую строку. -->
 <script>window.SP_CONFIG_OVERRIDE = 'https://smartplanogrsdb.ilya-omelchuk97.workers.dev/api';</script>
-<script src="root_index/config.js?v=22.09-378"></script>
-<script src="root_index/data.js?v=22.09-378"></script>
-<script src="root_index/users_db.js?v=22.09-378"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-378"></script>
-<script src="root_index/areas_db.js?v=22.09-378"></script>
-<script src="root_index/professions_db.js?v=22.09-378"></script>
-<script src="root_index/work_db.js?v=22.09-378"></script>
-<script src="root_index/objects_db.js?v=22.09-378"></script>
-<script src="root_index/workers_db.js?v=22.09-378"></script>
-<script src="root_index/tasks_db.js?v=22.09-378"></script>
-<script src="root_index/db.js?v=22.09-378"></script>
+<script src="root_index/config.js?v=22.09-379"></script>
+<script src="root_index/data.js?v=22.09-379"></script>
+<script src="root_index/users_db.js?v=22.09-379"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-379"></script>
+<script src="root_index/areas_db.js?v=22.09-379"></script>
+<script src="root_index/professions_db.js?v=22.09-379"></script>
+<script src="root_index/work_db.js?v=22.09-379"></script>
+<script src="root_index/objects_db.js?v=22.09-379"></script>
+<script src="root_index/workers_db.js?v=22.09-379"></script>
+<script src="root_index/tasks_db.js?v=22.09-379"></script>
+<script src="root_index/db.js?v=22.09-379"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -2336,12 +2344,12 @@ try {
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-378"></script>
-      <script src="root_index/error_log.js?v=22.09-378"></script>
-      <script src="root_index/api_client.js?v=22.09-378"></script>
-      <script src="root_index/sync_polling.js?v=22.09-378"></script>
-      <script src="root_index/zip_util.js?v=22.09-378"></script>
-      <script src="root_index/app.js?v=22.09-378"></script>
+<script src="root_index/object_attrs.js?v=22.09-379"></script>
+      <script src="root_index/error_log.js?v=22.09-379"></script>
+      <script src="root_index/api_client.js?v=22.09-379"></script>
+      <script src="root_index/sync_polling.js?v=22.09-379"></script>
+      <script src="root_index/zip_util.js?v=22.09-379"></script>
+      <script src="root_index/app.js?v=22.09-379"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {
