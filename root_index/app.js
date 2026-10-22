@@ -943,7 +943,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-382';
+  var SP_BUILD = '22.09-383';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -8898,10 +8898,10 @@
   /* ---------- ПРОИЗВОДСТВЕННЫЙ КАЛЕНДАРЬ (22.09-373, упрощён в 22.09-382) ----
      Кнопка слева от «Праздничных дней» в «Графиках смен». Окно: год и ОДНА
      таблица по месяцам (без вкладок): календарные дни (автоматом), рабочие и
-     нерабочие дни (автоматом по 5/2 без праздников), норма времени ДВУМЯ
-     колонками — для 8-часового и 12-часового графика (подставляется
-     автоматически, правится руками). Сравнение часов работника идёт со
-     СВОЕЙ нормой (по его графику). Хранится на сервере: settings/prodcal. */
+     нерабочие дни (автоматом по 5/2 без праздников) и ОДНА норма времени
+     часов на оба графика (подставляется автоматически, правится руками).
+     Сравнение часов работника идёт с этой общей нормой. Хранится на
+     сервере: settings/prodcal. */
   function prodcalStored() {
     try {
       var lsKey = (window.SP_SYNC_POLL && SP_SYNC_POLL.LS_KEYS && SP_SYNC_POLL.LS_KEYS.settings) || 'smartplan_settings';
@@ -8930,7 +8930,7 @@
         if ((dayIdx % 4) < 2) work22++;
         dayIdx++;
       }
-      out.push({ cal: dim, work: work, off: dim - work, norm8: work * 8, norm12: work22 * 12 });
+      out.push({ cal: dim, work: work, off: dim - work, norm: work * 8 });
     }
     return out;
   }
@@ -8946,15 +8946,15 @@
         cal: (sv.cal != null ? +sv.cal : (s5.cal != null ? +s5.cal : a.cal)),
         work: (sv.work != null ? +sv.work : (s5.work != null ? +s5.work : a.work)),
         off: (sv.off != null ? +sv.off : (s5.off != null ? +s5.off : a.off)),
-        norm8: (sv.norm8 != null ? +sv.norm8 : (s5.norm != null ? +s5.norm : a.norm8)),
-        norm12: (sv.norm12 != null ? +sv.norm12 : (s2.norm != null ? +s2.norm : a.norm12))
+        // 22.09-383: норма ОДНА на оба графика (по уточнению пользователя)
+        norm: (sv.norm != null ? +sv.norm : (sv.norm8 != null ? +sv.norm8 : (s5.norm != null ? +s5.norm : (sv.norm12 != null ? +sv.norm12 : (s2.norm != null ? +s2.norm : a.norm)))))
       };
     });
   }
-  // норма работника по его графику (для сравнения часов)
+  // норма месяца — одна для всех графиков (и 5/2, и 2/2)
   function prodcalNormFor(year, monthIdx, mode) {
     var r = prodcalRows(year)[monthIdx] || {};
-    return (mode === 'd22' ? (+r.norm12 || 0) : (+r.norm8 || 0));
+    return (+r.norm || 0);
   }
   function openProdcalModal() {
     var y = new Date().getFullYear();
@@ -8969,7 +8969,7 @@
     var rows = [];
     for (var m = 1; m <= 12; m++) {
       var r = {};
-      ['cal', 'work', 'off', 'norm8', 'norm12'].forEach(function (f) {
+      ['cal', 'work', 'off', 'norm'].forEach(function (f) {
         var el = document.querySelector('[data-pc="' + f + '"][data-pcm="' + m + '"]');
         r[f] = el ? (parseFloat(String(el.value).replace(',', '.')) || 0) : 0;
       });
@@ -8992,10 +8992,10 @@
       '<span style="grid-column:1/-1;display:flex;align-items:center;gap:6px"><button type="button" class="pc-year-cell" data-pcynav="-10" title="На 10 лет назад">‹</button><span style="flex:1;text-align:center;font-size:12.5px;font-weight:800;color:var(--muted)">' + years[0] + '–' + years[years.length - 1] + '</span><button type="button" class="pc-year-cell" data-pcynav="10" title="На 10 лет вперёд">›</button></span>' +
       years.map(function (y) { return '<button type="button" class="pc-year-cell' + (y === pc.year ? ' cur' : '') + '" data-pcyear="' + y + '">' + y + '</button>'; }).join('') + '</span></span>' +
       '<span style="font-size:12px;color:var(--muted)">Календарные и рабочие дни посчитаны автоматически — но всё можно править руками.</span></div>';
-    h += '<table class="dt" style="margin-top:0"><thead><tr><th>Месяц</th><th>Календарные дни</th><th>Рабочие дни</th><th>Нерабочие дни</th><th>Норма времени, 8 часов</th><th>Норма времени, 12 часов</th></tr></thead><tbody>';
+    h += '<table class="dt" style="margin-top:0"><thead><tr><th>Месяц</th><th>Календарные дни</th><th>Рабочие дни</th><th>Нерабочие дни</th><th>Норма времени, часов</th></tr></thead><tbody>';
     rows.forEach(function (r, i) {
       h += '<tr><td style="font-weight:700;color:var(--ink)">' + MON_NOM[i] + '</td>' +
-        ['cal', 'work', 'off', 'norm8', 'norm12'].map(function (f) {
+        ['cal', 'work', 'off', 'norm'].map(function (f) {
           return '<td><input data-pc="' + f + '" data-pcm="' + (i + 1) + '" type="text" inputmode="decimal" value="' + String(r[f]).replace('.', ',') + '" style="width:100%;box-sizing:border-box;padding:2px 4px;border:1px solid var(--line);border-radius:6px;font-family:inherit;font-size:12.5px;text-align:center;background:var(--card);color:var(--ink)"></td>';
         }).join('') + '</tr>';
     });
