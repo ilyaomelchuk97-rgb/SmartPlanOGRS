@@ -943,7 +943,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-383';
+  var SP_BUILD = '22.09-384';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -13256,7 +13256,12 @@
     /* 22.09-380: ВКЛАДКИ КАРТОЧКИ ОБЪЕКТА (как в Журналах и производственном календаре).
        Нынешняя страница целиком — вкладка «Основные» (в ней ничего не меняем),
        остальные — системы объекта, пока пустые заготовки под будущие поля. */
-    var OM_TABS = [['main', 'Основные'], ['tech', 'Технологическое оборудование'], ['telemetry', 'Система телеметрии'], ['power', 'Система электроснабжения'], ['fence', 'Ограждение'], ['lightning', 'Система молниезащиты'], ['building', 'Здание'], ['fire', 'Система пожарной сигнализации'], ['solar', 'Система солнечной батареи'], ['heating', 'Система отопления']];
+    var OM_TABS = [['main', 'Основные'], ['tech', 'Технологическое оборудование'], ['telemetry', 'Система телеметрии'], ['power', 'Электроснабжение и солнечная батарея'], ['fence', 'Ограждение'], ['lightning', 'Система молниезащиты'], ['building', 'Здание и пожарная сигнализация'], ['heating', 'Система отопления']];
+    // 22.09-384: две вкладки — объединённые, внутри два отдельных блока
+    var OM_TAB_BLOCKS = {
+      power: ['Система электроснабжения', 'Система солнечной батареи'],
+      building: ['Здание', 'Система пожарной сигнализации']
+    };
     var _tabsOn = !!(window.SP_OBJ_ATTRS && SP_OBJ_ATTRS.supportsAttrs(type));
     html += '<div class="pc-tabs" id="om-tabs" style="margin-bottom:14px' + (_tabsOn ? '' : ';display:none') + '">' +
       OM_TABS.map(function (t, i) { return '<button type="button" class="pc-tab' + (i === 0 ? ' active' : '') + '" data-omtab="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>';
@@ -13299,7 +13304,17 @@
     html += '<div class="calc" id="om-hint">📍 Нажмите «Выбрать на карте» и кликните точку — координаты подставятся сами. Или введите их вручную. Для ГРП/ШРП и обычных объектов это точка на карте.</div>';
     html += '</div>'; // /om-pane-main (вкладка «Основные» — как было, без изменений)
     OM_TABS.slice(1).forEach(function (t) {
-      html += '<div id="om-pane-' + t[0] + '" style="display:none"><div class="empty" style="padding:26px;font-size:13.5px">Вкладка «' + t[1] + '» — пока заготовка. Скажите, какие поля здесь нужны, — добавим.</div></div>';
+      var blocks = OM_TAB_BLOCKS[t[0]];
+      if (blocks) {
+        // объединённая вкладка: два разных блока друг под другом
+        html += '<div id="om-pane-' + t[0] + '" style="display:none">' + blocks.map(function (b) {
+          return '<div style="border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px;background:var(--panel-2)">' +
+            '<div style="font-size:13px;font-weight:800;color:var(--ink);margin-bottom:8px">' + b + '</div>' +
+            '<div class="empty" style="padding:18px;font-size:13.5px">Блок «' + b + '» — пока заготовка. Скажите, какие поля здесь нужны, — добавим.</div></div>';
+        }).join('') + '</div>';
+      } else {
+        html += '<div id="om-pane-' + t[0] + '" style="display:none"><div class="empty" style="padding:26px;font-size:13.5px">Вкладка «' + t[1] + '» — пока заготовка. Скажите, какие поля здесь нужны, — добавим.</div></div>';
+      }
     });
     html += '</div><div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="save-object">' + (mode === 'edit' ? 'Сохранить' : 'Добавить объект') + '</button></div>';
     // Ширина модалки: для ГРП/ШРП/ПГРП — 880px (вмещает 2-колоночные атрибуты),
