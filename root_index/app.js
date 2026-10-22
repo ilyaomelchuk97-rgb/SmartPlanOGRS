@@ -943,7 +943,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-374';
+  var SP_BUILD = '22.09-375';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -8788,7 +8788,10 @@
     var _wkO = _wko2 ? document.getElementById('overlay2') : overlay;
     var _wkM = _wko2 ? document.getElementById('modal2') : modal;
     _wkM.style.maxWidth = '560px'; // 22.09-172: окно — ровно по ширине карточки работника (как карточка задачи); базовая 80%-ширина прочих окон не меняется
-    _wkM.innerHTML = '<div class="modal-h"><h3>' + esc(u.full_name) + ' · ' + wkRoleLabel(u.role) + (isRO ? ' <span class="tag" style="background:#eff6ff;color:#1d4ed8;font-weight:800;font-size:11.5px;vertical-align:2px">просмотр</span>' : '') + '</h3><button class="x" data-action="close-modal' + (_wko2 ? '2' : '') + '">×</button></div>' +
+    var _over = wkOverNorm(u); // 22.09-375: перебор часов против производственного календаря
+    _wkM.innerHTML = '<div class="modal-h"><h3>' + esc(u.full_name) + ' · ' + wkRoleLabel(u.role) + (isRO ? ' <span class="tag" style="background:#eff6ff;color:#1d4ed8;font-weight:800;font-size:11.5px;vertical-align:2px">просмотр</span>' : '') + '</h3>' +
+      (_over ? '<span title="У работника перебор часов за ' + MON_NOM[_over.m] + ' ' + _over.y + ': по графику смен — ' + fmtH3(_over.hrs) + ' ч, а норма производственного календаря — ' + fmtH3(_over.norm) + ' ч. Перебор: ' + fmtH3(_over.over) + ' ч." style="flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;background:#dc2626;color:#fff;font-size:11.5px;font-weight:800;border-radius:999px;padding:4px 10px;margin-left:auto;cursor:help;box-shadow:0 2px 8px rgba(220,38,38,.4)">⚠ Attention</span>' : '') +
+      '<button class="x" data-action="close-modal' + (_wko2 ? '2' : '') + '">×</button></div>' +
       '<div class="modal-b">' + wkPanelHtml(u, masters) + '</div>';
     _wkO.classList.add('show');
     wireWkControls(_wkM);
@@ -8966,32 +8969,29 @@
   function prodcalRender() {
     var pc = S.prodcal; if (!pc) return;
     var rows = pc.draft[pc.year + '|' + pc.mode] || prodcalRows(pc.year, pc.mode);
+    // 22.09-375: годы без ограничений — окно календарика листается стрелками по 10 лет
+    if (!pc.popFrom) pc.popFrom = pc.year - 4;
     var years = [];
-    var cy = new Date().getFullYear();
-    for (var yy = cy - 4; yy <= cy + 5; yy++) years.push(yy);
+    for (var yy = pc.popFrom; yy <= pc.popFrom + 9; yy++) years.push(yy);
     var h = '<div class="modal-h"><h3>📅 Производственный календарь</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">';
     // 22.09-374: год — календариком (всплывающая сетка годов), а не списком
     h += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><label style="font-size:13px;font-weight:700;color:var(--ink)">Год:</label>' +
       '<span class="pc-year-wrap"><button type="button" class="pc-year-btn" id="pc-year-btn">' + pc.year + ' ▾</button>' +
-      '<span class="pc-year-pop" id="pc-year-pop">' + years.map(function (y) { return '<button type="button" class="pc-year-cell' + (y === pc.year ? ' cur' : '') + '" data-pcyear="' + y + '">' + y + '</button>'; }).join('') + '</span></span>' +
+      '<span class="pc-year-pop" id="pc-year-pop">' +
+      '<span style="grid-column:1/-1;display:flex;align-items:center;gap:6px"><button type="button" class="pc-year-cell" data-pcynav="-10" title="На 10 лет назад">‹</button><span style="flex:1;text-align:center;font-size:12.5px;font-weight:800;color:var(--muted)">' + years[0] + '–' + years[years.length - 1] + '</span><button type="button" class="pc-year-cell" data-pcynav="10" title="На 10 лет вперёд">›</button></span>' +
+      years.map(function (y) { return '<button type="button" class="pc-year-cell' + (y === pc.year ? ' cur' : '') + '" data-pcyear="' + y + '">' + y + '</button>'; }).join('') + '</span></span>' +
       '<span style="font-size:12px;color:var(--muted)">Календарные и рабочие дни посчитаны автоматически — но всё можно править руками.</span></div>';
     // 22.09-374: вкладки этого окна — выбранная белая, неактивная серая (наоборот к Журналам)
     h += '<div class="pc-tabs">' +
       '<button type="button" class="pc-tab' + (pc.mode === 'd52' ? ' active' : '') + '" data-pctab="d52">8 часов · 5/2</button>' +
       '<button type="button" class="pc-tab' + (pc.mode === 'd22' ? ' active' : '') + '" data-pctab="d22">12 часов · 2/2</button></div>';
-    h += '<table class="dt" style="margin-top:0"><thead><tr><th>Месяц</th><th>Календарные дни</th><th>Рабочие дни</th><th>Нерабочие дни</th><th>Норма времени, часов</th></tr></thead><tbody>';
-    rows.forEach(function (r, i) {
+    h += '<table class="dt" style="margin-top:0"><thead><tr><th>Месяц</th><th>Календарные дни</th><th>Рабочие дни</th><th>Нерабочие дни</th><th>Норма времени, часов</th></tr></thead><tbody>';    rows.forEach(function (r, i) {
       h += '<tr><td style="font-weight:700;color:var(--ink)">' + MON_NOM[i] + '</td>' +
         ['cal', 'work', 'off', 'norm'].map(function (f) {
-          return '<td><input data-pc="' + f + '" data-pcm="' + (i + 1) + '" type="text" inputmode="decimal" value="' + String(r[f]).replace('.', ',') + '" style="width:90px;padding:5px 7px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:12.5px;text-align:center;background:var(--card);color:var(--ink)"></td>';
+          return '<td><input data-pc="' + f + '" data-pcm="' + (i + 1) + '" type="text" inputmode="decimal" value="' + String(r[f]).replace('.', ',') + '" style="width:100%;box-sizing:border-box;padding:5px 7px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:12.5px;text-align:center;background:var(--card);color:var(--ink)"></td>';
         }).join('') + '</tr>';
     });
     h += '</tbody></table>';
-    h += '<div style="font-size:12px;color:var(--muted);margin-top:8px;line-height:1.5">' +
-      (pc.mode === 'd22'
-        ? 'График 2/2 считается циклом от 1 января: два рабочих — два выходных. Нерабочие — дни отдыха по циклу. Норма подставлена как рабочие × 12 часов.'
-        : 'График 5/2: рабочие — с понедельника по пятницу, кроме праздничных дней (список — кнопка 🎁 рядом). Нерабочие — выходные и праздники, выпавшие на будни. Норма подставлена как рабочие × 8 часов.') +
-      ' Всё можно поправить вручную — сохранится именно то, что в полях.</div>';
     h += '</div><div class="modal-f"><button class="btn" data-action="close-modal">Отменить</button><button class="btn primary" data-action="sch-prodcal-save">💾 Сохранить</button></div>';
     modal.style.maxWidth = '760px';
     modal.innerHTML = h;
@@ -9006,7 +9006,10 @@
       });
     }
     modal.querySelectorAll('[data-pcyear]').forEach(function (b) {
-      b.addEventListener('click', function () { prodcalCollect(); S.prodcal.year = parseInt(b.getAttribute('data-pcyear'), 10) || new Date().getFullYear(); prodcalRender(); });
+      b.addEventListener('click', function () { prodcalCollect(); S.prodcal.year = parseInt(b.getAttribute('data-pcyear'), 10) || new Date().getFullYear(); S.prodcal.popFrom = S.prodcal.year - 4; prodcalRender(); });
+    });
+    modal.querySelectorAll('[data-pcynav]').forEach(function (b) {
+      b.addEventListener('click', function (e) { if (e && e.stopPropagation) e.stopPropagation(); prodcalCollect(); S.prodcal.popFrom += parseInt(b.getAttribute('data-pcynav'), 10) || 0; prodcalRender(); var p2 = document.getElementById('pc-year-pop'); if (p2) p2.classList.add('open'); });
     });
     modal.querySelectorAll('[data-pctab]').forEach(function (b) {
       b.addEventListener('click', function () { prodcalCollect(); S.prodcal.mode = b.getAttribute('data-pctab'); prodcalRender(); });
@@ -9035,6 +9038,33 @@
     if (window.SP_API && SP_API.syncPush) {
       SP_API.syncPush('settings', rec).then(function (r) { done(!!(r && r.ok)); })['catch'](function () { done(false); });
     } else done(false);
+  }
+  /* 22.09-375: ПЕРЕБОР ЧАСОВ против производственного календаря.
+     Часы работника по графику смен за месяц сравниваются с нормой того же
+     месяца/года из производственного календаря (по его графику: 5/2 или 2/2).
+     Перебор — красная иконка «Attention» в карточке работника. */
+  function wkSchedMode(u) {
+    var wd = wkData(u.id);
+    return (wd.sched === '2/2' || +wd.hours === 12) ? 'd22' : 'd52';
+  }
+  function wkMonthHoursTotal(u, y, m) {
+    var dim = new Date(y, m + 1, 0).getDate(), sum = 0;
+    for (var d = 1; d <= dim; d++) {
+      var ds = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+      if (wkDayState(u.id, ds) === 'work') sum += schDayHours(u, ds);
+    }
+    return Math.round(sum * 100) / 100;
+  }
+  function wkOverNorm(u) {
+    try {
+      if (!u) return null;
+      var wm = wkMonth();
+      var mode = wkSchedMode(u);
+      var norm = (prodcalRows(wm.y, mode)[wm.m] || {}).norm || 0;
+      if (!norm) return null;
+      var hrs = wkMonthHoursTotal(u, wm.y, wm.m);
+      return (hrs > norm + 0.001) ? { hrs: hrs, norm: norm, over: Math.round((hrs - norm) * 100) / 100, y: wm.y, m: wm.m, mode: mode } : null;
+    } catch (e) { return null; }
   }
 
   /* ---------- ВИДЫ ТЕЛЕМЕТРИИ (22.09-111) ----------
