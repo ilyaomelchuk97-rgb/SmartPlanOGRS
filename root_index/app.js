@@ -943,7 +943,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-381';
+  var SP_BUILD = '22.09-382';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -8895,13 +8895,13 @@
     openHolidaysModal();
   }
 
-  /* ---------- ПРОИЗВОДСТВЕННЫЙ КАЛЕНДАРЬ (22.09-373) ----------
-     Кнопка слева от «Праздничных дней» в «Графиках смен». Окно: год,
-     вкладки графиков «8 часов 5/2» и «12 часов 2/2» (как вкладки Журналов),
-     таблица по месяцам: календарные дни (автоматом), рабочие (автоматом по
-     графику), нерабочие (календарные − рабочие), норма времени (вручную,
-     подставляется по графику). Автоматику можно править руками.
-     Хранится на сервере: раздел settings, запись 'prodcal' — одна на всех. */
+  /* ---------- ПРОИЗВОДСТВЕННЫЙ КАЛЕНДАРЬ (22.09-373, упрощён в 22.09-382) ----
+     Кнопка слева от «Праздничных дней» в «Графиках смен». Окно: год и ОДНА
+     таблица по месяцам (без вкладок): календарные дни (автоматом), рабочие и
+     нерабочие дни (автоматом по 5/2 без праздников), норма времени ДВУМЯ
+     колонками — для 8-часового и 12-часового графика (подставляется
+     автоматически, правится руками). Сравнение часов работника идёт со
+     СВОЕЙ нормой (по его графику). Хранится на сервере: settings/prodcal. */
   function prodcalStored() {
     try {
       var lsKey = (window.SP_SYNC_POLL && SP_SYNC_POLL.LS_KEYS && SP_SYNC_POLL.LS_KEYS.settings) || 'smartplan_settings';
@@ -8913,61 +8913,73 @@
     } catch (e) {}
     return {};
   }
-  function prodcalAuto(year, mode) {
+  function prodcalAuto(year) {
     var hols = {};
     holidaysLoad().forEach(function (h) { if (h && h.date) hols[String(h.date)] = 1; });
     function isHol(iso) { return !!(hols[iso] || hols[iso.slice(5)]); }
     var out = [];
-    var dayIdx = 0; // для 2/2: цикл от 1 января (2 рабочих / 2 выходных)
+    var dayIdx = 0; // для нормы 12 ч: рабочие дни цикла 2/2 от 1 января
     for (var m = 0; m < 12; m++) {
       var dim = new Date(year, m + 1, 0).getDate();
-      var work = 0;
+      var work = 0, work22 = 0;
       for (var d = 1; d <= dim; d++) {
         var dt = new Date(year, m, d);
         var iso = year + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
-        if (mode === 'd22') { if ((dayIdx % 4) < 2) work++; dayIdx++; }
-        else { var dow = dt.getDay(); if (dow >= 1 && dow <= 5 && !isHol(iso)) work++; }
+        var dow = dt.getDay();
+        if (dow >= 1 && dow <= 5 && !isHol(iso)) work++;
+        if ((dayIdx % 4) < 2) work22++;
+        dayIdx++;
       }
-      out.push({ cal: dim, work: work, off: dim - work, norm: (mode === 'd22' ? work * 12 : work * 8) });
+      out.push({ cal: dim, work: work, off: dim - work, norm8: work * 8, norm12: work22 * 12 });
     }
     return out;
   }
-  function prodcalRows(year, mode) {
-    var auto = prodcalAuto(year, mode);
-    var saved = (((prodcalStored()[String(year)] || {})[mode]) || {}).months || {};
+  function prodcalRows(year) {
+    var auto = prodcalAuto(year);
+    var yRec = prodcalStored()[String(year)] || {};
+    var saved = yRec.months || {};
+    // старый формат (до 382): вкладки d52/d22 — норма 8 ч оттуда, норма 12 ч оттуда
+    var saved52 = ((yRec.d52 || {}).months) || {}, saved22 = ((yRec.d22 || {}).months) || {};
     return auto.map(function (a, i) {
-      var sv = saved[String(i + 1)] || {};
+      var sv = saved[String(i + 1)] || {}, s5 = saved52[String(i + 1)] || {}, s2 = saved22[String(i + 1)] || {};
       return {
-        cal: (sv.cal != null ? +sv.cal : a.cal), work: (sv.work != null ? +sv.work : a.work),
-        off: (sv.off != null ? +sv.off : a.off), norm: (sv.norm != null ? +sv.norm : a.norm)
+        cal: (sv.cal != null ? +sv.cal : (s5.cal != null ? +s5.cal : a.cal)),
+        work: (sv.work != null ? +sv.work : (s5.work != null ? +s5.work : a.work)),
+        off: (sv.off != null ? +sv.off : (s5.off != null ? +s5.off : a.off)),
+        norm8: (sv.norm8 != null ? +sv.norm8 : (s5.norm != null ? +s5.norm : a.norm8)),
+        norm12: (sv.norm12 != null ? +sv.norm12 : (s2.norm != null ? +s2.norm : a.norm12))
       };
     });
   }
+  // норма работника по его графику (для сравнения часов)
+  function prodcalNormFor(year, monthIdx, mode) {
+    var r = prodcalRows(year)[monthIdx] || {};
+    return (mode === 'd22' ? (+r.norm12 || 0) : (+r.norm8 || 0));
+  }
   function openProdcalModal() {
     var y = new Date().getFullYear();
-    S.prodcal = { year: y, mode: 'd52', draft: {} };
+    S.prodcal = { year: y, draft: {} };
     modal.classList.add('modal-fit'); // 22.09-379: окно целиком в экране, без прокрутки страницы
     prodcalRender();
     overlay.classList.add('show');
   }
   function prodcalCollect() {
-    // снять текущие поля таблицы в черновик (год+график), чтобы не терять правки при переключении
+    // снять текущие поля таблицы в черновик (по году), чтобы не терять правки при смене года
     var pc = S.prodcal; if (!pc) return;
-    var key = pc.year + '|' + pc.mode;
     var rows = [];
     for (var m = 1; m <= 12; m++) {
       var r = {};
-      ['cal', 'work', 'off', 'norm'].forEach(function (f) {
+      ['cal', 'work', 'off', 'norm8', 'norm12'].forEach(function (f) {
         var el = document.querySelector('[data-pc="' + f + '"][data-pcm="' + m + '"]');
         r[f] = el ? (parseFloat(String(el.value).replace(',', '.')) || 0) : 0;
       });
       rows.push(r);
     }
-    pc.draft[key] = rows;
+    pc.draft[String(pc.year)] = rows;
   }
   function prodcalRender() {
     var pc = S.prodcal; if (!pc) return;
-    var rows = pc.draft[pc.year + '|' + pc.mode] || prodcalRows(pc.year, pc.mode);
+    var rows = pc.draft[String(pc.year)] || prodcalRows(pc.year);
     // 22.09-375: годы без ограничений — окно календарика листается стрелками по 10 лет
     if (!pc.popFrom) pc.popFrom = pc.year - 4;
     var years = [];
@@ -8980,19 +8992,16 @@
       '<span style="grid-column:1/-1;display:flex;align-items:center;gap:6px"><button type="button" class="pc-year-cell" data-pcynav="-10" title="На 10 лет назад">‹</button><span style="flex:1;text-align:center;font-size:12.5px;font-weight:800;color:var(--muted)">' + years[0] + '–' + years[years.length - 1] + '</span><button type="button" class="pc-year-cell" data-pcynav="10" title="На 10 лет вперёд">›</button></span>' +
       years.map(function (y) { return '<button type="button" class="pc-year-cell' + (y === pc.year ? ' cur' : '') + '" data-pcyear="' + y + '">' + y + '</button>'; }).join('') + '</span></span>' +
       '<span style="font-size:12px;color:var(--muted)">Календарные и рабочие дни посчитаны автоматически — но всё можно править руками.</span></div>';
-    // 22.09-374: вкладки этого окна — выбранная белая, неактивная серая (наоборот к Журналам)
-    h += '<div class="pc-tabs">' +
-      '<button type="button" class="pc-tab' + (pc.mode === 'd52' ? ' active' : '') + '" data-pctab="d52">8 часов · 5/2</button>' +
-      '<button type="button" class="pc-tab' + (pc.mode === 'd22' ? ' active' : '') + '" data-pctab="d22">12 часов · 2/2</button></div>';
-    h += '<table class="dt" style="margin-top:0"><thead><tr><th>Месяц</th><th>Календарные дни</th><th>Рабочие дни</th><th>Нерабочие дни</th><th>Норма времени, часов</th></tr></thead><tbody>';    rows.forEach(function (r, i) {
+    h += '<table class="dt" style="margin-top:0"><thead><tr><th>Месяц</th><th>Календарные дни</th><th>Рабочие дни</th><th>Нерабочие дни</th><th>Норма времени, 8 часов</th><th>Норма времени, 12 часов</th></tr></thead><tbody>';
+    rows.forEach(function (r, i) {
       h += '<tr><td style="font-weight:700;color:var(--ink)">' + MON_NOM[i] + '</td>' +
-        ['cal', 'work', 'off', 'norm'].map(function (f) {
+        ['cal', 'work', 'off', 'norm8', 'norm12'].map(function (f) {
           return '<td><input data-pc="' + f + '" data-pcm="' + (i + 1) + '" type="text" inputmode="decimal" value="' + String(r[f]).replace('.', ',') + '" style="width:100%;box-sizing:border-box;padding:2px 4px;border:1px solid var(--line);border-radius:6px;font-family:inherit;font-size:12.5px;text-align:center;background:var(--card);color:var(--ink)"></td>';
         }).join('') + '</tr>';
     });
     h += '</tbody></table>';
     h += '</div><div class="modal-f"><button class="btn" data-action="close-modal">Отменить</button><button class="btn primary" data-action="sch-prodcal-save">💾 Сохранить</button></div>';
-    modal.style.maxWidth = '760px';
+    modal.style.maxWidth = '880px';
     modal.innerHTML = h;
     // 22.09-374: календарик годов — открыть/закрыть и выбрать год
     var yBtn = document.getElementById('pc-year-btn'), yPop = document.getElementById('pc-year-pop');
@@ -9010,20 +9019,15 @@
     modal.querySelectorAll('[data-pcynav]').forEach(function (b) {
       b.addEventListener('click', function (e) { if (e && e.stopPropagation) e.stopPropagation(); prodcalCollect(); S.prodcal.popFrom += parseInt(b.getAttribute('data-pcynav'), 10) || 0; prodcalRender(); var p2 = document.getElementById('pc-year-pop'); if (p2) p2.classList.add('open'); });
     });
-    modal.querySelectorAll('[data-pctab]').forEach(function (b) {
-      b.addEventListener('click', function () { prodcalCollect(); S.prodcal.mode = b.getAttribute('data-pctab'); prodcalRender(); });
-    });
   }
   function prodcalSave() {
     prodcalCollect();
     var pc = S.prodcal; if (!pc) return;
     var years = prodcalStored();
-    Object.keys(pc.draft).forEach(function (key) {
-      var parts = key.split('|'), y = parts[0], mode = parts[1];
-      if (!years[y]) years[y] = {};
+    Object.keys(pc.draft).forEach(function (y) {
       var months = {};
-      pc.draft[key].forEach(function (r, i) { months[String(i + 1)] = r; });
-      years[y][mode] = { months: months };
+      pc.draft[y].forEach(function (r, i) { months[String(i + 1)] = r; });
+      years[y] = { months: months }; // 22.09-382: одна таблица на год (старые вкладки d52/d22 заменяются ею)
     });
     var rec = { id: 'prodcal', years: years, updated_at: Date.now() };
     function done(ok) {
@@ -9064,7 +9068,7 @@
       if (!u) return null;
       var wm = wkMonth();
       var mode = wkSchedMode(u);
-      var norm = (prodcalRows(wm.y, mode)[wm.m] || {}).norm || 0;
+      var norm = prodcalNormFor(wm.y, wm.m, mode);
       if (!norm) return null;
       var hrs = wkMonthHoursTotal(u, wm.y, wm.m);
       return (hrs > norm + 0.001) ? { hrs: hrs, norm: norm, over: Math.round((hrs - norm) * 100) / 100, y: wm.y, m: wm.m, mode: mode } : null;
@@ -9734,8 +9738,8 @@
     var _ovIco = '';
     try {
       var _mode = wkSchedMode(u), _norm = 0;
-      if (period.kind === 'year') prodcalRows(period.y, _mode).forEach(function (r) { _norm += (+r.norm || 0); });
-      else _norm = +((prodcalRows(period.y, _mode)[period.m] || {}).norm || 0);
+      if (period.kind === 'year') { for (var _pm = 0; _pm < 12; _pm++) _norm += prodcalNormFor(period.y, _pm, _mode); }
+      else _norm = prodcalNormFor(period.y, period.m, _mode);
       if (_norm && pH > _norm + 0.001) {
         var _per = (period.kind === 'year') ? ('за ' + period.y + ' год') : ('за ' + MON_NOM[period.m] + ' ' + period.y);
         _ovIco = '<span data-tip="У работника перебор часов ' + _per + ': по графику смен — ' + fmtH3(pH) + ' ч, а норма производственного календаря — ' + fmtH3(_norm) + ' ч. Перебор: ' + fmtH3(Math.round((pH - _norm) * 100) / 100) + ' ч." style="position:absolute;top:6px;right:6px;width:21px;height:21px;border-radius:50%;background:#dc2626;color:#fff;font-size:12.5px;font-weight:800;display:flex;align-items:center;justify-content:center;cursor:help;box-shadow:0 2px 7px rgba(220,38,38,.5);z-index:2">⚠</span>'; // 22.09-377: подсказка — фирменная (data-tip), не медленная браузерная
