@@ -943,7 +943,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-384';
+  var SP_BUILD = '22.09-385';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -13264,7 +13264,7 @@
     };
     var _tabsOn = !!(window.SP_OBJ_ATTRS && SP_OBJ_ATTRS.supportsAttrs(type));
     html += '<div class="pc-tabs" id="om-tabs" style="margin-bottom:14px' + (_tabsOn ? '' : ';display:none') + '">' +
-      OM_TABS.map(function (t, i) { return '<button type="button" class="pc-tab' + (i === 0 ? ' active' : '') + '" data-omtab="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>';
+      OM_TABS.map(function (t, i) { return '<button type="button" class="pc-tab' + (i === 0 ? ' active' : '') + '" data-omtab="' + t[0] + '" title="' + esc(t[1]) + '">' + t[1] + '</button>'; }).join('') + '</div>';
     html += '<div id="om-pane-main">';
     html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">';
     html += '<div class="fld"><label>Тип объекта</label><select id="om-type">';
