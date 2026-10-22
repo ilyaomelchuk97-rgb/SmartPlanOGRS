@@ -104,7 +104,7 @@
         // Вернуться на главный сайт: выход из системы (doLogout уводит на главный сайт).
         document.title = 'SmartPlan ТЕСТ — тестовая страница';
         var mk = document.getElementById('build-marker');
-        if (mk) mk.textContent = 'Тестовая страница · сборка 22.09-369 · участок «ТЕСТ»';
+        if (mk) mk.textContent = 'Тестовая страница · сборка 22.09-371 · участок «ТЕСТ»';
       } catch (eB) {}
     });
   } catch (e) {}
@@ -558,19 +558,10 @@
     object-fit:contain;box-shadow:0 4px 12px rgba(0,0,0,.25)}
   .brand .bt{font-size:15px;font-weight:700;color:#fff;line-height:1.15}
   .brand .bs{font-size:12px;color:#7dd3fc;letter-spacing:.3px}
-  /* 22.09-369: ЛОГОТИП «ОГРС» ЧИСТЫМ CSS (перерисовка присланной картинки без файла):
-     скруглённый синий квадрат, внутри — волны градиентами и белые высокие
-     буквы с тёмной обводкой. Волны — два псевдоэлемента с радиальными
-     градиентами и поворотами, буквы — текст с растяжением по вертикали. */
-  .ogrs-logo{position:relative;flex:0 0 auto;width:62px;height:62px;border-radius:17px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:linear-gradient(155deg,#2563eb 0%,#1d4ed8 38%,#1e40af 68%,#172554 100%);box-shadow:0 4px 14px rgba(2,8,30,.45),inset 0 1px 0 rgba(255,255,255,.25)}
-  .ogrs-logo::before{content:"";position:absolute;inset:-30%;background:
-    radial-gradient(45% 32% at 18% 22%,rgba(125,211,252,.85) 0%,rgba(125,211,252,0) 70%),
-    radial-gradient(55% 38% at 82% 30%,rgba(59,130,246,.9) 0%,rgba(59,130,246,0) 72%),
-    radial-gradient(60% 40% at 50% 88%,rgba(14,165,233,.75) 0%,rgba(14,165,233,0) 70%);transform:rotate(-8deg)}
-  .ogrs-logo::after{content:"";position:absolute;inset:0;background:
-    radial-gradient(120% 46% at 50% 118%,rgba(191,219,254,.5) 0%,rgba(191,219,254,0) 55%),
-    radial-gradient(90% 34% at 50% -12%,rgba(29,78,216,.55) 0%,rgba(29,78,216,0) 60%)}
-  .ogrs-letters{position:relative;z-index:1;font-family:"Arial Narrow","Liberation Sans Narrow","Roboto Condensed",Arial,sans-serif;font-size:23px;font-weight:800;letter-spacing:-1.5px;white-space:nowrap;color:#fff;line-height:1;transform:scale(.86,1.32);-webkit-text-stroke:1.2px #0a1128;text-shadow:0 1px 0 #0a1128,1px 0 0 #0a1128,-1px 0 0 #0a1128,0 -1px 0 #0a1128}
+  /* 22.09-371: баннер «ОГРС» — картинка на ВЕСЬ блок brand (без отступов):
+     ширина блока = ширина меню, высота — по пропорциям картинки (1680×486) */
+  .brand:has(.brand-banner){padding:0;min-height:0}
+  .brand-banner{display:block;width:100%;height:auto}
   .nav{padding:12px 10px;flex:1;overflow-y:auto}
   .nav .grp{font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#64748b;padding:14px 10px 6px}
   .nav a{
@@ -2017,7 +2008,7 @@ try {
           <div style="margin-top:6px;font-size:12px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-369 · логотип «ОГРС» в шапке меню нарисован CSS</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-371 · в шапке меню — баннер «ОГРС» картинкой на весь блок</div>
         <div style="margin-top:6px;text-align:center"><a href="#" id="li-cookie-link" class="cookie-link" title="Посмотреть или изменить разрешение">🍪 Cookie и хранилище браузера</a></div>
     </div>
   </div>
@@ -2029,8 +2020,8 @@ try {
   <!-- SIDEBAR -->
   <aside class="sidebar" id="sidebar">
     <div class="brand">
-      <!-- 22.09-369: логотип «ОГРС» — нарисован CSS (без картинки): синий скруглённый квадрат с волнами и белыми буквами -->
-      <div class="ogrs-logo" role="img" aria-label="ОГРС" title="ОГРС"><span class="ogrs-letters">ОГРС</span></div>
+      <!-- 22.09-371: баннер «ОГРС» картинкой на весь блок (файл пользователя, root_index/brand_banner.jpg) -->
+      <img class="brand-banner" src="root_index/brand_banner.jpg" alt="ОГРС">
     </div>
     <div class="base-sel">
       <label class="base-lbl">База:</label>
@@ -2303,17 +2294,17 @@ try {
      Сайт остаётся на Render, а API (сервер + данные) — на воркере Cloudflare.
      Чтобы вернуться к базе Render — удалить следующую строку. -->
 <script>window.SP_CONFIG_OVERRIDE = 'https://smartplanogrsdb.ilya-omelchuk97.workers.dev/api';</script>
-<script src="root_index/config.js?v=22.09-369"></script>
-<script src="root_index/data.js?v=22.09-369"></script>
-<script src="root_index/users_db.js?v=22.09-369"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-369"></script>
-<script src="root_index/areas_db.js?v=22.09-369"></script>
-<script src="root_index/professions_db.js?v=22.09-369"></script>
-<script src="root_index/work_db.js?v=22.09-369"></script>
-<script src="root_index/objects_db.js?v=22.09-369"></script>
-<script src="root_index/workers_db.js?v=22.09-369"></script>
-<script src="root_index/tasks_db.js?v=22.09-369"></script>
-<script src="root_index/db.js?v=22.09-369"></script>
+<script src="root_index/config.js?v=22.09-371"></script>
+<script src="root_index/data.js?v=22.09-371"></script>
+<script src="root_index/users_db.js?v=22.09-371"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-371"></script>
+<script src="root_index/areas_db.js?v=22.09-371"></script>
+<script src="root_index/professions_db.js?v=22.09-371"></script>
+<script src="root_index/work_db.js?v=22.09-371"></script>
+<script src="root_index/objects_db.js?v=22.09-371"></script>
+<script src="root_index/workers_db.js?v=22.09-371"></script>
+<script src="root_index/tasks_db.js?v=22.09-371"></script>
+<script src="root_index/db.js?v=22.09-371"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -2331,12 +2322,12 @@ try {
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-369"></script>
-      <script src="root_index/error_log.js?v=22.09-369"></script>
-      <script src="root_index/api_client.js?v=22.09-369"></script>
-      <script src="root_index/sync_polling.js?v=22.09-369"></script>
-      <script src="root_index/zip_util.js?v=22.09-369"></script>
-      <script src="root_index/app.js?v=22.09-369"></script>
+<script src="root_index/object_attrs.js?v=22.09-371"></script>
+      <script src="root_index/error_log.js?v=22.09-371"></script>
+      <script src="root_index/api_client.js?v=22.09-371"></script>
+      <script src="root_index/sync_polling.js?v=22.09-371"></script>
+      <script src="root_index/zip_util.js?v=22.09-371"></script>
+      <script src="root_index/app.js?v=22.09-371"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {
