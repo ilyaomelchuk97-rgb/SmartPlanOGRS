@@ -943,7 +943,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-379';
+  var SP_BUILD = '22.09-380';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -13249,6 +13249,14 @@
     // форма объекта: точка или область (для ГРП/ШРП — всегда точка)
     S.objKind = (!isGasType(type) && o && o.poly && o.poly.length >= 3) ? 'area' : 'point';
     var html = '<div class="modal-h"><h3>' + (mode === 'edit' ? 'Изменение объекта' : 'Новый объект') + '</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">';
+    /* 22.09-380: ВКЛАДКИ КАРТОЧКИ ОБЪЕКТА (как в Журналах и производственном календаре).
+       Нынешняя страница целиком — вкладка «Основные» (в ней ничего не меняем),
+       остальные — системы объекта, пока пустые заготовки под будущие поля. */
+    var OM_TABS = [['main', 'Основные'], ['tech', 'Технологическое оборудование'], ['telemetry', 'Система телеметрии'], ['power', 'Система электроснабжения'], ['fence', 'Ограждение'], ['lightning', 'Система молниезащиты'], ['building', 'Здание'], ['fire', 'Система пожарной сигнализации'], ['solar', 'Система солнечной батареи'], ['heating', 'Система отопления']];
+    var _tabsOn = !!(window.SP_OBJ_ATTRS && SP_OBJ_ATTRS.supportsAttrs(type));
+    html += '<div class="pc-tabs" id="om-tabs" style="margin-bottom:14px' + (_tabsOn ? '' : ';display:none') + '">' +
+      OM_TABS.map(function (t, i) { return '<button type="button" class="pc-tab' + (i === 0 ? ' active' : '') + '" data-omtab="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>';
+    html += '<div id="om-pane-main">';
     html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">';
     html += '<div class="fld"><label>Тип объекта</label><select id="om-type">';
     OBJ_TYPES.forEach(function (t) { html += '<option value="' + t + '"' + (t === type ? ' selected' : '') + '>' + t + '</option>'; });
@@ -13285,11 +13293,26 @@
       '<textarea id="om-poly" rows="5" style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-family:monospace;font-size:12.5px;box-sizing:border-box" placeholder="53.90228, 27.56190&#10;53.90431, 27.56512&#10;53.90011, 27.56788&#10;(минимум 3 точки)">' + esc(polyTxt) + '</textarea></div>';
     html += '</div>';
     html += '<div class="calc" id="om-hint">📍 Нажмите «Выбрать на карте» и кликните точку — координаты подставятся сами. Или введите их вручную. Для ГРП/ШРП и обычных объектов это точка на карте.</div>';
+    html += '</div>'; // /om-pane-main (вкладка «Основные» — как было, без изменений)
+    OM_TABS.slice(1).forEach(function (t) {
+      html += '<div id="om-pane-' + t[0] + '" style="display:none"><div class="empty" style="padding:26px;font-size:13.5px">Вкладка «' + t[1] + '» — пока заготовка. Скажите, какие поля здесь нужны, — добавим.</div></div>';
+    });
     html += '</div><div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="save-object">' + (mode === 'edit' ? 'Сохранить' : 'Добавить объект') + '</button></div>';
     // Ширина модалки: для ГРП/ШРП/ПГРП — 880px (вмещает 2-колоночные атрибуты),
     // для остальных типов — 620px (как было).
     modal.style.width = '80%'; modal.style.maxWidth = '80%'; // 22.09-107: карточки справочников — 80% по центру
     modal.innerHTML = html; overlay.classList.add('show');
+    // 22.09-380: переключение вкладок карточки (поля «Основных» не теряются — они остаются в окне)
+    modal.querySelectorAll('[data-omtab]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var key = b.getAttribute('data-omtab');
+        modal.querySelectorAll('[data-omtab]').forEach(function (x) { x.classList.toggle('active', x === b); });
+        OM_TABS.forEach(function (t) {
+          var pane = document.getElementById('om-pane-' + t[0]);
+          if (pane) pane.style.display = (t[0] === key) ? '' : 'none';
+        });
+      });
+    });
     // переключение формы: точка/область по типу объекта
     var typeSel = document.getElementById('om-type'), numLabel = document.getElementById('om-num-label');
     function syncNumLabel() {
@@ -13333,6 +13356,16 @@
         if (sec) { sec.innerHTML = '<div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">📋 Атрибуты объекта</div>' + html2; sec.style.display = 'block'; }
       } else {
         if (sec) { sec.innerHTML = ''; sec.style.display = 'none'; }
+      }
+      // 22.09-380: вкладки систем — только для ГРП/ШРП/ПГРП; тип сменили на другой — прячем и возвращаемся на «Основные»
+      var _tabs = document.getElementById('om-tabs');
+      if (_tabs) {
+        var _on = SP_OBJ_ATTRS.supportsAttrs(cur);
+        _tabs.style.display = _on ? '' : 'none';
+        if (!_on) {
+          modal.querySelectorAll('[data-omtab]').forEach(function (x) { x.classList.toggle('active', x.getAttribute('data-omtab') === 'main'); });
+          OM_TABS.forEach(function (t) { var pane = document.getElementById('om-pane-' + t[0]); if (pane) pane.style.display = (t[0] === 'main') ? '' : 'none'; });
+        }
       }
       // Ширина модалки зависит от типа
       modal.style.width = '80%'; modal.style.maxWidth = '80%'; // 22.09-107: ширина не зависит от секций
