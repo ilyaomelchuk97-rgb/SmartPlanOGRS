@@ -943,7 +943,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-372';
+  var SP_BUILD = '22.09-373';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -8894,6 +8894,136 @@
     openHolidaysModal();
   }
 
+  /* ---------- ПРОИЗВОДСТВЕННЫЙ КАЛЕНДАРЬ (22.09-373) ----------
+     Кнопка слева от «Праздничных дней» в «Графиках смен». Окно: год,
+     вкладки графиков «8 часов 5/2» и «12 часов 2/2» (как вкладки Журналов),
+     таблица по месяцам: календарные дни (автоматом), рабочие (автоматом по
+     графику), нерабочие (календарные − рабочие), норма времени (вручную,
+     подставляется по графику). Автоматику можно править руками.
+     Хранится на сервере: раздел settings, запись 'prodcal' — одна на всех. */
+  function prodcalStored() {
+    try {
+      var lsKey = (window.SP_SYNC_POLL && SP_SYNC_POLL.LS_KEYS && SP_SYNC_POLL.LS_KEYS.settings) || 'smartplan_settings';
+      var arr = JSON.parse(localStorage.getItem(lsKey) || '[]');
+      if (Array.isArray(arr)) {
+        var rec = arr.filter(function (x) { return x && x.id === 'prodcal'; })[0];
+        if (rec && rec.years && typeof rec.years === 'object') return rec.years;
+      }
+    } catch (e) {}
+    return {};
+  }
+  function prodcalAuto(year, mode) {
+    var hols = {};
+    holidaysLoad().forEach(function (h) { if (h && h.date) hols[String(h.date)] = 1; });
+    function isHol(iso) { return !!(hols[iso] || hols[iso.slice(5)]); }
+    var out = [];
+    var dayIdx = 0; // для 2/2: цикл от 1 января (2 рабочих / 2 выходных)
+    for (var m = 0; m < 12; m++) {
+      var dim = new Date(year, m + 1, 0).getDate();
+      var work = 0;
+      for (var d = 1; d <= dim; d++) {
+        var dt = new Date(year, m, d);
+        var iso = year + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+        if (mode === 'd22') { if ((dayIdx % 4) < 2) work++; dayIdx++; }
+        else { var dow = dt.getDay(); if (dow >= 1 && dow <= 5 && !isHol(iso)) work++; }
+      }
+      out.push({ cal: dim, work: work, off: dim - work, norm: (mode === 'd22' ? work * 12 : work * 8) });
+    }
+    return out;
+  }
+  function prodcalRows(year, mode) {
+    var auto = prodcalAuto(year, mode);
+    var saved = (((prodcalStored()[String(year)] || {})[mode]) || {}).months || {};
+    return auto.map(function (a, i) {
+      var sv = saved[String(i + 1)] || {};
+      return {
+        cal: (sv.cal != null ? +sv.cal : a.cal), work: (sv.work != null ? +sv.work : a.work),
+        off: (sv.off != null ? +sv.off : a.off), norm: (sv.norm != null ? +sv.norm : a.norm)
+      };
+    });
+  }
+  function openProdcalModal() {
+    var y = new Date().getFullYear();
+    S.prodcal = { year: y, mode: 'd52', draft: {} };
+    prodcalRender();
+    overlay.classList.add('show');
+  }
+  function prodcalCollect() {
+    // снять текущие поля таблицы в черновик (год+график), чтобы не терять правки при переключении
+    var pc = S.prodcal; if (!pc) return;
+    var key = pc.year + '|' + pc.mode;
+    var rows = [];
+    for (var m = 1; m <= 12; m++) {
+      var r = {};
+      ['cal', 'work', 'off', 'norm'].forEach(function (f) {
+        var el = document.querySelector('[data-pc="' + f + '"][data-pcm="' + m + '"]');
+        r[f] = el ? (parseFloat(String(el.value).replace(',', '.')) || 0) : 0;
+      });
+      rows.push(r);
+    }
+    pc.draft[key] = rows;
+  }
+  function prodcalRender() {
+    var pc = S.prodcal; if (!pc) return;
+    var rows = pc.draft[pc.year + '|' + pc.mode] || prodcalRows(pc.year, pc.mode);
+    var years = [];
+    var cy = new Date().getFullYear();
+    for (var yy = cy - 2; yy <= cy + 3; yy++) years.push(yy);
+    var h = '<div class="modal-h"><h3>📅 Производственный календарь</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">';
+    h += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><label style="font-size:13px;font-weight:700;color:var(--ink)">Год:</label>' +
+      '<select id="pc-year" style="padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13.5px;font-weight:700;background:var(--card);color:var(--ink)">' +
+      years.map(function (y) { return '<option value="' + y + '"' + (y === pc.year ? ' selected' : '') + '>' + y + '</option>'; }).join('') + '</select>' +
+      '<span style="font-size:12px;color:var(--muted)">Календарные и рабочие дни посчитаны автоматически — но всё можно править руками.</span></div>';
+    h += '<div class="jr-tabs" style="padding:0;margin-bottom:0">' +
+      '<button type="button" class="jr-tab' + (pc.mode === 'd52' ? ' active' : '') + '" data-pctab="d52">8 часов · 5/2</button>' +
+      '<button type="button" class="jr-tab' + (pc.mode === 'd22' ? ' active' : '') + '" data-pctab="d22">12 часов · 2/2</button></div>';
+    h += '<table class="dt" style="margin-top:0"><thead><tr><th>Месяц</th><th>Календарные дни</th><th>Рабочие дни</th><th>Нерабочие дни</th><th>Норма времени, часов</th></tr></thead><tbody>';
+    rows.forEach(function (r, i) {
+      h += '<tr><td style="font-weight:700;color:var(--ink)">' + MON_NOM[i] + '</td>' +
+        ['cal', 'work', 'off', 'norm'].map(function (f) {
+          return '<td><input data-pc="' + f + '" data-pcm="' + (i + 1) + '" type="text" inputmode="decimal" value="' + String(r[f]).replace('.', ',') + '" style="width:90px;padding:5px 7px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:12.5px;text-align:center;background:var(--card);color:var(--ink)"></td>';
+        }).join('') + '</tr>';
+    });
+    h += '</tbody></table>';
+    h += '<div style="font-size:12px;color:var(--muted);margin-top:8px;line-height:1.5">' +
+      (pc.mode === 'd22'
+        ? 'График 2/2 считается циклом от 1 января: два рабочих — два выходных. Нерабочие — дни отдыха по циклу. Норма подставлена как рабочие × 12 часов.'
+        : 'График 5/2: рабочие — с понедельника по пятницу, кроме праздничных дней (список — кнопка 🎁 рядом). Нерабочие — выходные и праздники, выпавшие на будни. Норма подставлена как рабочие × 8 часов.') +
+      ' Всё можно поправить вручную — сохранится именно то, что в полях.</div>';
+    h += '</div><div class="modal-f"><button class="btn" data-action="close-modal">Отменить</button><button class="btn primary" data-action="sch-prodcal-save">💾 Сохранить</button></div>';
+    modal.style.maxWidth = '760px';
+    modal.innerHTML = h;
+    var sel = document.getElementById('pc-year');
+    if (sel) sel.addEventListener('change', function () { prodcalCollect(); S.prodcal.year = parseInt(sel.value, 10) || new Date().getFullYear(); prodcalRender(); });
+    modal.querySelectorAll('[data-pctab]').forEach(function (b) {
+      b.addEventListener('click', function () { prodcalCollect(); S.prodcal.mode = b.getAttribute('data-pctab'); prodcalRender(); });
+    });
+  }
+  function prodcalSave() {
+    prodcalCollect();
+    var pc = S.prodcal; if (!pc) return;
+    var years = prodcalStored();
+    Object.keys(pc.draft).forEach(function (key) {
+      var parts = key.split('|'), y = parts[0], mode = parts[1];
+      if (!years[y]) years[y] = {};
+      var months = {};
+      pc.draft[key].forEach(function (r, i) { months[String(i + 1)] = r; });
+      years[y][mode] = { months: months };
+    });
+    var rec = { id: 'prodcal', years: years, updated_at: Date.now() };
+    function done(ok) {
+      if (ok) { try { if (window.SP_SYNC_POLL && SP_SYNC_POLL.applyRemote) SP_SYNC_POLL.applyRemote('settings', [rec]); } catch (e) {} }
+      overlay.classList.remove('show');
+      modal.style.maxWidth = '';
+      S.prodcal = null;
+      try { logAction('Производственный календарь', 'сохранён'); } catch (eL) {}
+      toast(ok ? 'ok' : 'warn', ok ? '✓ Производственный календарь сохранён — он общий для всех устройств' : 'Сохранено на этом устройстве (сервер недоступен — уйдёт при появлении связи)');
+    }
+    if (window.SP_API && SP_API.syncPush) {
+      SP_API.syncPush('settings', rec).then(function (r) { done(!!(r && r.ok)); })['catch'](function () { done(false); });
+    } else done(false);
+  }
+
   /* ---------- ВИДЫ ТЕЛЕМЕТРИИ (22.09-111) ----------
      Общий список раздела telemetry на сервере (LS-кэш 'smartplan_telemetry').
      Выбирается в атрибутах объектов ГРП/ШРП/ПГРП — «Тип телеметрии». */
@@ -9129,6 +9259,7 @@
     // 22.09-164: «Праздничные дни» перенесены сюда из графика работ — слева от выбора месяца
     // 22.09-249: «Праздничные дни» и «Настройки бригад» — кнопки-значки, подпись появляется при наведении
     // (как на панели «Графика работ»: data-tip → всплывающее окошко #gt-tip); «Изменить график» — слева от «Печать»
+    html += '<button type="button" class="gt-btn gt-sm gt-green" data-action="sch-prodcal" aria-label="Производственный календарь" data-tip="Производственный календарь — календарные, рабочие и нерабочие дни и норма времени по месяцам для графиков 5/2 и 2/2" style="margin-right:6px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h2v2H8zM14 14h2v2h-4z"/></svg></button>';
     html += '<button type="button" class="gt-btn gt-sm gt-rose" data-action="sch-holidays" aria-label="Праздничные дни" data-tip="Праздничные дни (РБ) — список нерабочих дней; учитываются в графиках работ" style="margin-right:6px">' + GT_ICONS.gift + '</button>';
     html += '<button type="button" class="gt-btn gt-sm gt-sky" data-action="wk-settings-open" aria-label="Настройки бригад" data-tip="Настройки бригад — состав бригад, работники, их графики и отсутствия" style="margin-right:10px">' + GT_ICONS.team + '</button>';
     // 22.09-211: редактор графика — отдельное окно (черновик + кнопка «Сохранить»)
@@ -19801,6 +19932,8 @@
     else if (a === 'telemetry-add') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } telemetryAddFromModal(); }
     else if (a === 'telemetry-del') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } telemetryDelete(el.dataset.id); }
     else if (a === 'sch-holidays') { openHolidaysModal(); } // 22.09-109
+    else if (a === 'sch-prodcal') { openProdcalModal(); } // 22.09-373
+    else if (a === 'sch-prodcal-save') { prodcalSave(); } // 22.09-373
     else if (a === 'holiday-add') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } holidayAddFromModal(); }
     else if (a === 'holiday-del') { if (S.role !== 'admin') { toast('err', 'Только для администратора'); return; } holidayDelete(el.dataset.id); }
     else if (a === 'usr-menu') { // 22.09-106: стрелочка на сенсоре — открыть/закрыть меню пользователя
