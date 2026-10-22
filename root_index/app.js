@@ -943,7 +943,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-376';
+  var SP_BUILD = '22.09-377';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -9730,7 +9730,7 @@
       else _norm = +((prodcalRows(period.y, _mode)[period.m] || {}).norm || 0);
       if (_norm && pH > _norm + 0.001) {
         var _per = (period.kind === 'year') ? ('за ' + period.y + ' год') : ('за ' + MON_NOM[period.m] + ' ' + period.y);
-        _ovIco = '<span title="У работника перебор часов ' + _per + ': по графику смен — ' + fmtH3(pH) + ' ч, а норма производственного календаря — ' + fmtH3(_norm) + ' ч. Перебор: ' + fmtH3(Math.round((pH - _norm) * 100) / 100) + ' ч." style="position:absolute;top:6px;right:6px;width:21px;height:21px;border-radius:50%;background:#dc2626;color:#fff;font-size:12.5px;font-weight:800;display:flex;align-items:center;justify-content:center;cursor:help;box-shadow:0 2px 7px rgba(220,38,38,.5);z-index:2">⚠</span>';
+        _ovIco = '<span data-tip="У работника перебор часов ' + _per + ': по графику смен — ' + fmtH3(pH) + ' ч, а норма производственного календаря — ' + fmtH3(_norm) + ' ч. Перебор: ' + fmtH3(Math.round((pH - _norm) * 100) / 100) + ' ч." style="position:absolute;top:6px;right:6px;width:21px;height:21px;border-radius:50%;background:#dc2626;color:#fff;font-size:12.5px;font-weight:800;display:flex;align-items:center;justify-content:center;cursor:help;box-shadow:0 2px 7px rgba(220,38,38,.5);z-index:2">⚠</span>'; // 22.09-377: подсказка — фирменная (data-tip), не медленная браузерная
       }
     } catch (eO) {}
     var prof = wkProfLabel(u) || '';
@@ -20324,7 +20324,7 @@
       return el;
     }
     document.addEventListener('mouseover', function (e) {
-      var b = e.target && e.target.closest ? e.target.closest('.gt-btn[data-tip]') : null;
+      var b = e.target && e.target.closest ? e.target.closest('[data-tip]') : null; // 22.09-377: подсказка — у всех элементов с data-tip (кнопки и значки, напр. перебор часов)
       var el = tipEl();
       if (!b) { el.classList.remove('show'); return; }
       el.textContent = b.getAttribute('data-tip');
