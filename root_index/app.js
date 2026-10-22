@@ -943,7 +943,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-373';
+  var SP_BUILD = '22.09-374';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -8968,15 +8968,17 @@
     var rows = pc.draft[pc.year + '|' + pc.mode] || prodcalRows(pc.year, pc.mode);
     var years = [];
     var cy = new Date().getFullYear();
-    for (var yy = cy - 2; yy <= cy + 3; yy++) years.push(yy);
+    for (var yy = cy - 4; yy <= cy + 5; yy++) years.push(yy);
     var h = '<div class="modal-h"><h3>📅 Производственный календарь</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">';
+    // 22.09-374: год — календариком (всплывающая сетка годов), а не списком
     h += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><label style="font-size:13px;font-weight:700;color:var(--ink)">Год:</label>' +
-      '<select id="pc-year" style="padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13.5px;font-weight:700;background:var(--card);color:var(--ink)">' +
-      years.map(function (y) { return '<option value="' + y + '"' + (y === pc.year ? ' selected' : '') + '>' + y + '</option>'; }).join('') + '</select>' +
+      '<span class="pc-year-wrap"><button type="button" class="pc-year-btn" id="pc-year-btn">' + pc.year + ' ▾</button>' +
+      '<span class="pc-year-pop" id="pc-year-pop">' + years.map(function (y) { return '<button type="button" class="pc-year-cell' + (y === pc.year ? ' cur' : '') + '" data-pcyear="' + y + '">' + y + '</button>'; }).join('') + '</span></span>' +
       '<span style="font-size:12px;color:var(--muted)">Календарные и рабочие дни посчитаны автоматически — но всё можно править руками.</span></div>';
-    h += '<div class="jr-tabs" style="padding:0;margin-bottom:0">' +
-      '<button type="button" class="jr-tab' + (pc.mode === 'd52' ? ' active' : '') + '" data-pctab="d52">8 часов · 5/2</button>' +
-      '<button type="button" class="jr-tab' + (pc.mode === 'd22' ? ' active' : '') + '" data-pctab="d22">12 часов · 2/2</button></div>';
+    // 22.09-374: вкладки этого окна — выбранная белая, неактивная серая (наоборот к Журналам)
+    h += '<div class="pc-tabs">' +
+      '<button type="button" class="pc-tab' + (pc.mode === 'd52' ? ' active' : '') + '" data-pctab="d52">8 часов · 5/2</button>' +
+      '<button type="button" class="pc-tab' + (pc.mode === 'd22' ? ' active' : '') + '" data-pctab="d22">12 часов · 2/2</button></div>';
     h += '<table class="dt" style="margin-top:0"><thead><tr><th>Месяц</th><th>Календарные дни</th><th>Рабочие дни</th><th>Нерабочие дни</th><th>Норма времени, часов</th></tr></thead><tbody>';
     rows.forEach(function (r, i) {
       h += '<tr><td style="font-weight:700;color:var(--ink)">' + MON_NOM[i] + '</td>' +
@@ -8993,8 +8995,19 @@
     h += '</div><div class="modal-f"><button class="btn" data-action="close-modal">Отменить</button><button class="btn primary" data-action="sch-prodcal-save">💾 Сохранить</button></div>';
     modal.style.maxWidth = '760px';
     modal.innerHTML = h;
-    var sel = document.getElementById('pc-year');
-    if (sel) sel.addEventListener('change', function () { prodcalCollect(); S.prodcal.year = parseInt(sel.value, 10) || new Date().getFullYear(); prodcalRender(); });
+    // 22.09-374: календарик годов — открыть/закрыть и выбрать год
+    var yBtn = document.getElementById('pc-year-btn'), yPop = document.getElementById('pc-year-pop');
+    if (yBtn && yPop) yBtn.addEventListener('click', function (e) { if (e && e.stopPropagation) e.stopPropagation(); yPop.classList.toggle('open'); });
+    if (!modal._pcPopWired) {
+      modal._pcPopWired = true;
+      modal.addEventListener('click', function (e) {
+        var pop = document.getElementById('pc-year-pop');
+        if (pop && pop.classList.contains('open') && !(e.target && e.target.closest && e.target.closest('.pc-year-wrap'))) pop.classList.remove('open');
+      });
+    }
+    modal.querySelectorAll('[data-pcyear]').forEach(function (b) {
+      b.addEventListener('click', function () { prodcalCollect(); S.prodcal.year = parseInt(b.getAttribute('data-pcyear'), 10) || new Date().getFullYear(); prodcalRender(); });
+    });
     modal.querySelectorAll('[data-pctab]').forEach(function (b) {
       b.addEventListener('click', function () { prodcalCollect(); S.prodcal.mode = b.getAttribute('data-pctab'); prodcalRender(); });
     });
