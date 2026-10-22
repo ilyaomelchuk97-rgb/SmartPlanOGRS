@@ -943,7 +943,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-385';
+  var SP_BUILD = '22.09-386';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -3848,6 +3848,7 @@
       }
     } catch (eW2) {}
     attachCalDnD();
+    try { if (S.multiSel && S.multiSel.on) multiSelPaint(); } catch (eMP) {} // 22.09-386: выбор не теряется при перерисовке
   }
   function buildDayWindow() {
     var arr = [];
@@ -4190,6 +4191,130 @@
     else doDelete();
     });
   }
+
+  /* ===== 22.09-386: МУЛЬТИВЫБОР ЗАДАЧ ПРАВОЙ КНОПКОЙ =====
+     Правая кнопка по задаче → меню «Выбрать объекты» → режим выбора:
+     задачи при нажатии становятся синими с галочкой, внизу панель
+     «Выбрано: N» с кнопками «В корзину» и «Отмена». По корзине все
+     выбранные со случайными задержками комкаются и улетают в корзину. */
+  function multiSelState() {
+    if (!S.multiSel) S.multiSel = { on: false, ids: {} };
+    return S.multiSel;
+  }
+  function multiSelCount() { return Object.keys(multiSelState().ids).length; }
+  function multiSelBarSync() {
+    var bar = document.getElementById('sp-multisel-bar');
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'sp-multisel-bar';
+      bar.innerHTML = '<span id="sp-multisel-txt">Выбрано: 0</span>' +
+        '<button type="button" class="btn sm" id="sp-multisel-trash" style="background:#dc2626;color:#fff;border-color:#dc2626">🗑 В корзину</button>' +
+        '<button type="button" class="btn sm" id="sp-multisel-cancel">Отмена</button>';
+      document.body.appendChild(bar);
+      bar.querySelector('#sp-multisel-trash').addEventListener('click', multiSelTrashGo);
+      bar.querySelector('#sp-multisel-cancel').addEventListener('click', function () { multiSelExit(); });
+    }
+    var ms = multiSelState();
+    bar.classList.toggle('show', !!(ms.on));
+    var tx = document.getElementById('sp-multisel-txt');
+    if (tx) tx.textContent = 'Выбрано: ' + multiSelCount();
+  }
+  function multiSelEnter(firstId) {
+    var ms = multiSelState();
+    ms.on = true;
+    if (firstId) ms.ids[firstId] = 1;
+    multiSelPaint();
+    multiSelBarSync();
+    toast('info', 'Режим выбора: нажимайте на задачи — они станут синими. Затем «В корзину» внизу.');
+  }
+  function multiSelExit() {
+    var ms = multiSelState();
+    ms.on = false; ms.ids = {};
+    document.querySelectorAll('.tile.sp-sel').forEach(function (t) { t.classList.remove('sp-sel'); });
+    multiSelBarSync();
+  }
+  function multiSelPaint() {
+    var ms = multiSelState();
+    document.querySelectorAll('.tile[data-tid]').forEach(function (t) {
+      t.classList.toggle('sp-sel', !!(ms.on && ms.ids[t.getAttribute('data-tid')]));
+    });
+  }
+  function multiSelToggle(id, tile) {
+    var ms = multiSelState();
+    if (ms.ids[id]) delete ms.ids[id]; else ms.ids[id] = 1;
+    if (tile) tile.classList.toggle('sp-sel', !!ms.ids[id]);
+    multiSelBarSync();
+  }
+  function multiSelTrashGo() {
+    var ms = multiSelState();
+    var ids = Object.keys(ms.ids);
+    if (!ids.length) { toast('warn', 'Ничего не выбрано'); return; }
+    if (S.role !== 'admin' && (typeof permCan !== 'function' || !permCan('delTasks'))) {
+      toast('err', 'Удалять задачи можно только с разрешения (Права доступа)');
+      return;
+    }
+    var deletable = ids.filter(function (id) { var t = findTask(id); return t && canEditTask(t); });
+    if (!deletable.length) { toast('err', 'Нет прав на удаление этих задач'); return; }
+    spConfirm('Удалить выбранные задачи (' + deletable.length + ' шт.) в корзину? Их можно будет вернуть из корзины.', { title: 'Удаление задач пачкой', ok: 'В корзину', danger: true }, function () {
+      var trashEl = document.getElementById('trash-zone');
+      var pending = deletable.length;
+      function oneDone() { if (--pending <= 0) { try { drawCalendarGrid(); } catch (e) {} } }
+      function doDeleteOne(id) {
+        try {
+          var t = findTask(id); if (!t) { oneDone(); return; }
+          addToTrash(JSON.parse(JSON.stringify(t)));
+          if (TASKS_DB) { TASKS_DB.deleteTask(id); S.tasks = TASKS_DB.getTasks(); }
+          else S.tasks = S.tasks.filter(function (x) { return x.id !== id; });
+          invalidateRouteCache(t.m, t.d);
+        } catch (e) {}
+        oneDone();
+      }
+      multiSelExit();
+      deletable.forEach(function (id, i) {
+        // случайно, но не все в один кадр: очередь с джиттером — комки летят врассыпную
+        var delay = i * 170 + Math.round(Math.random() * 160);
+        setTimeout(function () {
+          var tileEl = document.querySelector('.tile[data-tid="' + id + '"]');
+          if (tileEl && trashEl) spFlyToTrashAnim(tileEl, trashEl, function () { doDeleteOne(id); });
+          else doDeleteOne(id);
+        }, delay);
+      });
+      try { logAction('Удаление задач пачкой', deletable.length + ' шт. — в корзину'); } catch (eL) {}
+      toast('ok', '🗑 В корзину улетает задач: ' + deletable.length);
+    });
+  }
+  // контекстное меню по правой кнопке на задаче
+  function multiSelCtxClose() { var m = document.getElementById('sp-ctx-menu'); if (m) m.remove(); }
+  document.addEventListener('contextmenu', function (e) {
+    var tile = e.target && e.target.closest ? e.target.closest('.tile[data-tid]') : null;
+    if (!tile || S.screen !== 'calendar') return;
+    e.preventDefault();
+    multiSelCtxClose();
+    var id = tile.getAttribute('data-tid');
+    var m = document.createElement('div');
+    m.id = 'sp-ctx-menu';
+    m.innerHTML = '<button type="button" id="sp-ctx-pick">☑ Выбрать объекты</button>';
+    document.body.appendChild(m);
+    var x = Math.min(e.clientX, window.innerWidth - 230), y = Math.min(e.clientY, window.innerHeight - 70);
+    m.style.left = Math.max(4, x) + 'px'; m.style.top = Math.max(4, y) + 'px';
+    m.querySelector('#sp-ctx-pick').addEventListener('click', function () { multiSelCtxClose(); multiSelEnter(id); });
+  });
+  document.addEventListener('click', function (e) {
+    var m = document.getElementById('sp-ctx-menu');
+    if (m && !(e.target && e.target.closest && e.target.closest('#sp-ctx-menu'))) multiSelCtxClose();
+    // в режиме выбора клик по задаче — выбрать/снять, а не открывать карточку
+    var ms = S.multiSel;
+    if (ms && ms.on && e.target && e.target.closest) {
+      var tile = e.target.closest('.tile[data-tid]');
+      if (tile && S.screen === 'calendar') {
+        e.preventDefault(); e.stopPropagation();
+        multiSelToggle(tile.getAttribute('data-tid'), tile);
+      }
+    }
+  }, true);
+  document.addEventListener('keydown', function (e) {
+    if (e && e.key === 'Escape') { multiSelCtxClose(); if (S.multiSel && S.multiSel.on && !document.getElementById('sp-dlg')) multiSelExit(); }
+  });
 
   function reorderMapCard(fromId, toId) {
     var pts = ymState.pts;
