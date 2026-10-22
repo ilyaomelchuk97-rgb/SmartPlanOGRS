@@ -943,7 +943,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-386';
+  var SP_BUILD = '22.09-387';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -9549,7 +9549,9 @@
     html2 += '<div style="margin-top:10px;display:flex;gap:14px;align-items:center;font-size:12px;color:var(--muted);flex-wrap:wrap;font-weight:700">' +
       '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#dcfce7;border:1px solid #16a34a"></span>рабочий по графику</span>' +
       '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#f1f5f9;border:1px solid #cbd5e1"></span>выходной по графику</span>' +
-      '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#fee2e2;border:1px solid #dc2626"></span>отсутствие (отпуск/больничный)</span>' +
+      '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#fee2e2;border:1px solid #dc2626"></span>больничный / отсутствие</span>' +
+      '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#ffedd5;border:1px solid #f97316"></span>отпуск</span>' +
+      '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#e0e7ff;border:1px solid #6366f1"></span>командировка</span>' +
       '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#fef9c3;border:1px solid #eab308"></span>праздник</span>' + // 22.09-109
       '<span style="color:#94a3b8">· клик по ячейке — отметить/снять отсутствие</span>' +
       '</div>';
@@ -9627,6 +9629,12 @@
     var title = state === 'work' ? (esc(ds) + ' · рабочий · ' + fmtH3(schDayHours(user, ds)) + ' ч') // 22.09-204
               : state === 'abs'  ? (esc(ds) + ' · отсутствие' + (wkData(user.id).abs[ds] ? ' (' + esc(wkData(user.id).abs[ds]) + ')' : ''))
               : (esc(ds) + ' · выходной');
+    // 22.09-387: у видов отсутствия свои цвета (отпуск — оранжевый, командировка — синий, больничный и прочее — красный)
+    if (state === 'abs') {
+      var _ak = wkAbsKind(user.id, ds);
+      if (_ak === 'vac') { bg = '#ffedd5'; bd = '#f97316'; }
+      else if (_ak === 'trip') { bg = '#e0e7ff'; bd = '#6366f1'; }
+    }
     if (_hol) title += ' · 🎉 ' + esc(_hol) + ' (праздник)';
     // Подсветка «сегодня» — только снизу и слева (inset 0/2px), чтобы не ломать общую сетку.
     // 22.09-207: дни с ручным изменением графика — синяя риска снизу + пометка в подсказке
@@ -10938,8 +10946,10 @@
     if (!ds) return;
     var isPast = ds < todayK; // 22.09-218: в прошедших днях окошко позволяет поправить ЧАСЫ рабочего дня
     var ci = schEdCellInfo(uid, ds);
-    if (ci.st === 'abs') { toast('warn', 'Этот день — отсутствие (отпуск/больничный): снимается кликом по красному дню в общей таблице'); return; }
-    if (isPast && ci.st !== 'work') { toast('warn', 'В прошедшие дни можно менять только часы рабочего дня'); return; }
+    // 22.09-387: отсутствие теперь редактируется прямо здесь (вид + период), а не «снимается в общей таблице»
+    var isAbs = (ci.st === 'abs');
+    var absTxt = isAbs ? String((wkData(uid).abs || {})[ds] || '') : '';
+    if (isPast && ci.st !== 'work' && !isAbs) { toast('warn', 'В прошедшие дни можно менять только часы рабочего дня'); return; }
     var overlay2 = document.getElementById('overlay2'), modal2 = document.getElementById('modal2');
     if (!overlay2 || !modal2) return;
     S.schEdDay = { uid: uid, ds: ds, past: isPast };
@@ -10957,6 +10967,22 @@
       '</div>' +
       '<div class="fld" style="max-width:200px"><label>Часов в этот день</label><input id="scheday-hours" type="text" inputmode="decimal" value="' + String(hrs).replace('.', ',') + '" placeholder="напр.: 8,25"></div>' +
       '<div style="font-size:12px;color:var(--muted);margin:-4px 0 10px">' + (isPast ? 'Прошедший день: здесь можно поправить только количество часов (фактическая отработка). ' : 'Учитывается, если день рабочий. ') + 'Изменение уйдёт в черновик и применится по кнопке «Сохранить» в окне редактора.</div>' +
+      // 22.09-387: отсутствие — вид и период, применяется сразу на все дни периода
+      '<div style="border-top:1px solid var(--line);padding-top:12px;margin-top:2px">' +
+      '<div style="font-size:12.5px;font-weight:800;color:var(--ink);margin-bottom:8px">🤒 Отсутствие (отпуск, больничный…)</div>' +
+      (isAbs ? '<div style="font-size:12.5px;margin-bottom:8px">Сейчас на этот день стоит: <b style="color:#b91c1c">' + esc(absTxt || 'отсутствие') + '</b></div>' : '') +
+      '<div class="fld"><label>Вид отсутствия</label><select id="scheday-abs-type">' +
+      ['Отпуск', 'Больничный', 'Командировка', 'Другое'].map(function (t) { return '<option value="' + t + '"' + (absTxt === t ? ' selected' : '') + '>' + t + '</option>'; }).join('') + '</select></div>' +
+      '<div class="fld"><label>Свой текст <span style="font-weight:400;color:#64748b">(если выше выбрано «Другое»)</span></label><input id="scheday-abs-custom" value="' + (['Отпуск', 'Больничный', 'Командировка'].indexOf(absTxt) >= 0 ? '' : esc(absTxt)) + '" placeholder="например: учёба, отгул…"></div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' +
+      '<div class="fld"><label>Период с</label><input id="scheday-abs-from" type="date" value="' + ds + '"></div>' +
+      '<div class="fld"><label>по</label><input id="scheday-abs-to" type="date" value="' + ds + '"></div></div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+      '<button type="button" class="btn sm" data-action="scheday-abs-set" style="background:#dc2626;color:#fff;border-color:#dc2626">🤒 Поставить отсутствие на период</button>' +
+      (isAbs ? '<button type="button" class="btn sm" data-action="scheday-abs-clear">Снять отсутствие за период</button>' : '') +
+      '</div>' +
+      '<div style="font-size:11.5px;color:var(--muted);margin-top:7px">Отсутствие применяется сразу (кнопка «Сохранить» редактора для него не нужна).</div>' +
+      '</div>' +
       '</div>' +
       '<div class="modal-f"><button class="btn" data-action="close-modal2">Отмена</button>' +
       (changed ? '<button class="btn" data-action="scheday-reset" style="color:var(--red);border-color:var(--red)">Вернуть по графику</button>' : '') +
@@ -10990,6 +11016,48 @@
     cur.draft[sd.ds] = null; // вернуть к стандартному графику (при сохранении снимет ручное изменение)
     schEdDayClose();
     schEdRender();
+  }
+  /* 22.09-387: отсутствие периодом прямо из редактора графика.
+     remove=false — поставить вид отсутствия на все дни периода;
+     remove=true — снять отсутствие за период. Применяется сразу. */
+  function schEdAbsApply(remove) {
+    if (wkMasterRO()) { toast('warn', 'Только просмотр: у мастера в «Графиках смен» изменения не сохраняются'); return; }
+    var sd = S.schEdDay; if (!sd || !window.SP_WORKERS) return;
+    var u = DB.getUser(sd.uid); if (!u || !wkCanEdit(u)) { toast('err', 'Нет прав на этого работника'); return; }
+    var fEl = document.getElementById('scheday-abs-from'), tEl = document.getElementById('scheday-abs-to');
+    var from = fEl && fEl.value ? fEl.value : sd.ds;
+    var to = tEl && tEl.value ? tEl.value : sd.ds;
+    if (from > to) { var _t = from; from = to; to = _t; }
+    var text = '';
+    if (!remove) {
+      var sel = document.getElementById('scheday-abs-type');
+      text = sel ? sel.value : 'Отпуск';
+      if (text === 'Другое') {
+        var cEl = document.getElementById('scheday-abs-custom');
+        text = (cEl && cEl.value.trim()) || 'Другое';
+      }
+    }
+    var d0 = new Date(from + 'T00:00:00'), d1 = new Date(to + 'T00:00:00');
+    var days = Math.round((d1 - d0) / 86400000) + 1;
+    if (!isFinite(days) || days < 1 || days > 366) { toast('err', 'Проверьте даты периода'); return; }
+    for (var i = 0; i < days; i++) {
+      var dd = new Date(d0.getFullYear(), d0.getMonth(), d0.getDate() + i);
+      var iso = dd.getFullYear() + '-' + String(dd.getMonth() + 1).padStart(2, '0') + '-' + String(dd.getDate()).padStart(2, '0');
+      SP_WORKERS.setAbsence(sd.uid, iso, remove ? null : text);
+    }
+    try { logAction(remove ? 'График смен: отсутствие снято' : 'График смен: отсутствие поставлено', (u.full_name || '') + ' · ' + (remove ? '' : text + ' · ') + from + ' — ' + to + ' (' + days + ' дн.)'); } catch (eL) {}
+    schEdDayClose();
+    try { schEdRender(); } catch (eR) {}
+    try { renderSchedules(); } catch (eR2) {} // 22.09-387: и общая таблица за редактором — сразу с новыми цветами
+    toast('ok', remove ? ('✓ Отсутствие снято за период (' + days + ' дн.)') : ('✓ ' + text + ' поставлен: ' + days + ' дн. (' + from + ' — ' + to + ')'));
+  }
+  /* 22.09-387: вид отсутствия по тексту отметки (для цвета в графике) */
+  function wkAbsKind(uid, ds) {
+    var txt = String(((wkData(uid).abs || {})[ds]) || '');
+    if (/отпуск/i.test(txt)) return 'vac';
+    if (/больнич/i.test(txt)) return 'sick';
+    if (/командиров/i.test(txt)) return 'trip';
+    return txt ? 'other' : '';
   }
   // 22.09-213: перенос одного дня мышью внутри строки. У 5/2 (и любых не-2/2)
   // передвигается ТОЛЬКО этот день — остальной график не перестраивается.
@@ -20065,6 +20133,8 @@
     else if (a === 'sch-ed-prev') { schEdMonthNav(-1); } // 22.09-211
     else if (a === 'sch-ed-next') { schEdMonthNav(1); } // 22.09-211
     else if (a === 'scheday-apply') { schEdDayApply(); } // 22.09-213
+    else if (a === 'scheday-abs-set') { schEdAbsApply(false); } // 22.09-387: отсутствие периодом
+    else if (a === 'scheday-abs-clear') { schEdAbsApply(true); } // 22.09-387: снять отсутствие за период
     else if (a === 'scheday-reset') { schEdDayReset(); } // 22.09-213
     else if (a === 'sch-ed-save') { schEdSaveAll(); } // 22.09-211
     else if (a === 'wk-edit-comment') { openWkCommentModal(el.dataset.uid); }
