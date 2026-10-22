@@ -943,7 +943,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-377';
+  var SP_BUILD = '22.09-378';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -9030,7 +9030,11 @@
       modal.style.maxWidth = '';
       S.prodcal = null;
       try { logAction('Производственный календарь', 'сохранён'); } catch (eL) {}
-      toast(ok ? 'ok' : 'warn', ok ? '✓ Производственный календарь сохранён — он общий для всех устройств' : 'Сохранено на этом устройстве (сервер недоступен — уйдёт при появлении связи)');
+      // 22.09-378: сразу пересчитать часы и значки перебора на странице —
+      // чтобы правки норм не «застревали» до следующей перезагрузки
+      try { if (S.screen === 'schedules') renderSchedules(); } catch (eR) {}
+      try { if (typeof refresh === 'function') refresh(); } catch (eR2) {}
+      toast(ok ? 'ok' : 'warn', ok ? '✓ Производственный календарь сохранён — часы в графике смен пересчитаны' : 'Сохранено на этом устройстве (сервер недоступен — уйдёт при появлении связи)');
     }
     if (window.SP_API && SP_API.syncPush) {
       SP_API.syncPush('settings', rec).then(function (r) { done(!!(r && r.ok)); })['catch'](function () { done(false); });
@@ -9321,7 +9325,7 @@
     });
     html += '</select>';
     html += '<span style="display:inline-flex;gap:6px;align-items:center;white-space:nowrap;margin-left:4px">'; // 22.09-249: «Изменить график» · «Печать» · «Excel» — переносятся только вместе
-    if (_canAnySch) html += '<button type="button" class="btn sm" data-action="sch-ed-open" title="Открыть окно редактирования графика смен: клик по дню — рабочий/выходной и часы, перетаскивание дней мышью (у 5/2 — только этот день, у 2/2 — весь график следом) — применяются по кнопке «Сохранить». Отработанные дни не редактируются. Если слева в списке выбрана конкретная бригада — в окне будет только она; «Все бригады» — все работники">✏ Изменить график</button>'; // 22.09-249: слева от «Печать»
+    if (_canAnySch) html += '<button type="button" class="btn sm" data-action="sch-ed-open" title="Открыть окно редактирования графика смен: клик по дню — рабочий/выходной и часы, перетаскивание дней мышью (у 5/2 — только этот день, у 2/2 — весь график следом) — применяются по кнопке «Сохранить». Отработанные дни не редактируются. Если слева в списке выбрана конкретная бригада — в окне будет только она; «Все бригады» — все работники"><svg viewBox="0 0 48 48" width="15" height="15" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><path d="M41.5,10.22H6.5a2,2,0,0,0-2,2v23.3a2,2,0,0,0,2,2h35a2,2,0,0,0,2-2V12.22A2,2,0,0,0,41.5,10.22Z"/><line x1="9.38" y1="15.44" x2="21.64" y2="15.44"/><line x1="9.38" y1="21.11" x2="21.64" y2="21.11"/><line x1="9.38" y1="26.79" x2="21.64" y2="26.79"/><line x1="21.64" y1="32.47" x2="9.38" y2="32.47"/><line x1="26.36" y1="15.44" x2="38.63" y2="15.44"/><line x1="26.36" y1="21.11" x2="38.63" y2="21.11"/><line x1="26.36" y1="26.79" x2="38.63" y2="26.79"/><line x1="38.63" y1="32.47" x2="26.36" y2="32.47"/></svg>Изменить график</button>'; // 22.09-378: иконка — aard (SVG Repo 514408), слева от «Печать»
     html += '<button type="button" class="btn sm" data-action="sch-print" title="Печать сводного графика (текущий период, выбранный режим)" style="background:#475569;color:#fff;border-color:#475569">🖨 Печать</button>';
     html += '<button type="button" class="btn sm" data-action="sch-excel" title="Скачать в Excel — текущий период, выбранный режим" style="background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border-color:#15803d">📥 Excel</button>';
     html += '</span>';
@@ -9586,7 +9590,8 @@
     if (nameColW > 360) nameColW = 360;
     var monthW = 78; // ширина ячейки месяца
     var html = '<div style="overflow:auto;border:1px solid var(--line);border-radius:12px;background:var(--card)">';
-    html += '<table style="border-collapse:separate;border-spacing:0;width:auto;font-size:11px">';
+    // 22.09-378: годовая таблица — на ВСЮ ширину страницы, как месячная (была width:auto и обрывалась)
+    html += '<table style="border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed;font-size:11px">';
     // Шапка: ФИО + 12 месяцев
     html += '<thead><tr style="background:var(--panel-2)">';
     html += '<th rowspan="2" style="position:sticky;left:0;background:var(--panel-2);z-index:2;padding:8px 10px;text-align:left;border-bottom:1px solid var(--line);border-right:1px solid var(--line);font-size:11px;color:var(--muted);font-weight:700;width:' + nameColW + 'px">Сотрудник</th>';
@@ -9594,7 +9599,7 @@
       html += '<th colspan="3" style="padding:4px 8px;font-size:11px;color:var(--ink);border-bottom:1px solid var(--line);border-right:1px solid var(--line);text-align:center;font-weight:800;min-width:' + monthW + 'px">' + MON_NOM[mm] + '</th>';
     }
     // 22.09-217: справа — колонка с количеством рабочих часов за выбранный год
-    html += '<th rowspan="2" title="Сумма рабочих часов за год" style="padding:4px 8px;font-size:10px;color:#1d4ed8;border-bottom:1px solid var(--line);text-align:center;font-weight:800;white-space:nowrap;background:var(--panel-2)">⏱ часы<br>за год</th>';
+    html += '<th rowspan="2" title="Сумма рабочих часов за год" style="width:96px;padding:4px 8px;font-size:10px;color:#1d4ed8;border-bottom:1px solid var(--line);text-align:center;font-weight:800;white-space:nowrap;background:var(--panel-2)">⏱ часы<br>за год</th>';
     html += '</tr><tr style="background:var(--panel-2)">';
     for (var mm2 = 0; mm2 < 12; mm2++) {
       html += '<th style="padding:2px 4px;font-size:9.5px;color:#16a34a;border-bottom:1px solid var(--line);border-right:1px solid var(--line);font-weight:800">раб</th>';
