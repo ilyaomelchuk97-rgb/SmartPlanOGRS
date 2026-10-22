@@ -943,7 +943,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-387';
+  var SP_BUILD = '22.09-388';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -10964,12 +10964,15 @@
       '<div style="display:flex;gap:8px;margin-bottom:12px">' +
       '<label class="cb" style="flex:1;display:flex;align-items:center;gap:6px;justify-content:center;padding:9px 8px;border:1px solid ' + (ci.st === 'work' ? '#16a34a;background:#dcfce7' : 'var(--line);background:#fff') + ';border-radius:8px;cursor:' + (isPast ? 'default' : 'pointer') + ';font-weight:700;font-size:13px;' + (isPast ? 'opacity:.55;' : '') + '"' + (isPast ? ' title="В прошедшие дни рабочий/выходной не меняется — только часы"' : '') + '><input type="radio" name="scheday-st" id="scheday-work"' + (ci.st === 'work' ? ' checked' : '') + (isPast ? ' disabled' : '') + '> Рабочий</label>' +
       '<label class="cb" style="flex:1;display:flex;align-items:center;gap:6px;justify-content:center;padding:9px 8px;border:1px solid ' + (ci.st === 'off' ? '#64748b;background:#f1f5f9' : 'var(--line);background:#fff') + ';border-radius:8px;cursor:' + (isPast ? 'default' : 'pointer') + ';font-weight:700;font-size:13px;' + (isPast ? 'opacity:.55;' : '') + '"' + (isPast ? ' title="В прошедшие дни рабочий/выходной не меняется — только часы"' : '') + '><input type="radio" name="scheday-st" id="scheday-off"' + (ci.st === 'off' ? ' checked' : '') + (isPast ? ' disabled' : '') + '> Выходной</label>' +
+      // 22.09-388: «Отсутствие» — третий вариант в том же выборе, что рабочий/выходной
+      '<label class="cb" style="flex:1;display:flex;align-items:center;gap:6px;justify-content:center;padding:9px 8px;border:1px solid ' + (isAbs ? '#dc2626;background:#fee2e2' : 'var(--line);background:#fff') + ';border-radius:8px;cursor:pointer;font-weight:700;font-size:13px"><input type="radio" name="scheday-st" id="scheday-abs-radio"' + (isAbs ? ' checked' : '') + '> Отсутствие</label>' +
       '</div>' +
+      '<div id="scheday-work-block">' +
       '<div class="fld" style="max-width:200px"><label>Часов в этот день</label><input id="scheday-hours" type="text" inputmode="decimal" value="' + String(hrs).replace('.', ',') + '" placeholder="напр.: 8,25"></div>' +
       '<div style="font-size:12px;color:var(--muted);margin:-4px 0 10px">' + (isPast ? 'Прошедший день: здесь можно поправить только количество часов (фактическая отработка). ' : 'Учитывается, если день рабочий. ') + 'Изменение уйдёт в черновик и применится по кнопке «Сохранить» в окне редактора.</div>' +
-      // 22.09-387: отсутствие — вид и период, применяется сразу на все дни периода
-      '<div style="border-top:1px solid var(--line);padding-top:12px;margin-top:2px">' +
-      '<div style="font-size:12.5px;font-weight:800;color:var(--ink);margin-bottom:8px">🤒 Отсутствие (отпуск, больничный…)</div>' +
+      '</div>' +
+      // вид и период — показываются, когда выше выбрано «Отсутствие»
+      '<div id="scheday-abs-block" style="display:' + (isAbs ? '' : 'none') + '">' +
       (isAbs ? '<div style="font-size:12.5px;margin-bottom:8px">Сейчас на этот день стоит: <b style="color:#b91c1c">' + esc(absTxt || 'отсутствие') + '</b></div>' : '') +
       '<div class="fld"><label>Вид отсутствия</label><select id="scheday-abs-type">' +
       ['Отпуск', 'Больничный', 'Командировка', 'Другое'].map(function (t) { return '<option value="' + t + '"' + (absTxt === t ? ' selected' : '') + '>' + t + '</option>'; }).join('') + '</select></div>' +
@@ -10977,17 +10980,29 @@
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' +
       '<div class="fld"><label>Период с</label><input id="scheday-abs-from" type="date" value="' + ds + '"></div>' +
       '<div class="fld"><label>по</label><input id="scheday-abs-to" type="date" value="' + ds + '"></div></div>' +
-      '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
-      '<button type="button" class="btn sm" data-action="scheday-abs-set" style="background:#dc2626;color:#fff;border-color:#dc2626">🤒 Поставить отсутствие на период</button>' +
-      (isAbs ? '<button type="button" class="btn sm" data-action="scheday-abs-clear">Снять отсутствие за период</button>' : '') +
-      '</div>' +
-      '<div style="font-size:11.5px;color:var(--muted);margin-top:7px">Отсутствие применяется сразу (кнопка «Сохранить» редактора для него не нужна).</div>' +
+      (isAbs ? '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn sm" data-action="scheday-abs-clear">Снять отсутствие за период</button></div>' : '') +
+      '<div style="font-size:11.5px;color:var(--muted);margin-top:7px">Отсутствие применяется сразу по кнопке «Применить» (кнопка «Сохранить» редактора для него не нужна).</div>' +
       '</div>' +
       '</div>' +
       '<div class="modal-f"><button class="btn" data-action="close-modal2">Отмена</button>' +
       (changed ? '<button class="btn" data-action="scheday-reset" style="color:var(--red);border-color:var(--red)">Вернуть по графику</button>' : '') +
       '<button class="btn primary" data-action="scheday-apply">Применить</button></div>';
     overlay2.classList.add('show');
+    // 22.09-388: выбор «Отсутствие» показывает вид и период, «Рабочий/Выходной» — часы
+    (function () {
+      var wB = document.getElementById('scheday-work-block'), aB = document.getElementById('scheday-abs-block');
+      function sync() {
+        var absR = document.getElementById('scheday-abs-radio');
+        var isA = !!(absR && absR.checked);
+        if (wB) wB.style.display = isA ? 'none' : '';
+        if (aB) aB.style.display = isA ? '' : 'none';
+      }
+      ['scheday-work', 'scheday-off', 'scheday-abs-radio'].forEach(function (id) {
+        var r = document.getElementById(id);
+        if (r) r.addEventListener('change', sync);
+      });
+      sync();
+    })();
   }
   function schEdDayClose() {
     var overlay2 = document.getElementById('overlay2');
@@ -10997,9 +11012,19 @@
   function schEdDayApply() {
     if (wkMasterRO()) { toast('warn', 'Только просмотр: у мастера в «Графиках смен» изменения не сохраняются'); return; } // 22.09-357
     var sd = S.schEdDay; if (!sd) return;
+    // 22.09-388: выбрано «Отсутствие» — ставим отсутствие на период (сразу)
+    var absR = document.getElementById('scheday-abs-radio');
+    if (absR && absR.checked === true) { schEdAbsApply(false); return; }
     var u = DB.getUser(sd.uid); if (!u) { schEdDayClose(); return; }
     var st = (document.getElementById('scheday-off') || {}).checked ? 'off' : 'work';
     if (sd.past) st = 'work'; // 22.09-218: в прошедшем дне меняются только часы — рабочий/выходной не трогаем
+    // 22.09-388: день был отсутствием, а выбрали рабочий/выходной — отсутствие с этого дня снимаем
+    try {
+      if (window.SP_WORKERS && ((wkData(sd.uid).abs || {})[sd.ds] !== undefined)) {
+        SP_WORKERS.setAbsence(sd.uid, sd.ds, null);
+        try { renderSchedules(); } catch (eRS) {}
+      }
+    } catch (eUA) {}
     var hRaw = ((document.getElementById('scheday-hours') || {}).value || '').trim().replace(',', '.');
     var h = (hRaw === '') ? null : parseFloat(hRaw);
     if (st === 'work' && (h == null || !isFinite(h) || h <= 0 || h > 24)) { toast('err', 'Часы — от 0 до 24 (например 8,25)'); return; }
