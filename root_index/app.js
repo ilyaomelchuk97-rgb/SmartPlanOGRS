@@ -943,7 +943,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-375';
+  var SP_BUILD = '22.09-376';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -8788,10 +8788,7 @@
     var _wkO = _wko2 ? document.getElementById('overlay2') : overlay;
     var _wkM = _wko2 ? document.getElementById('modal2') : modal;
     _wkM.style.maxWidth = '560px'; // 22.09-172: окно — ровно по ширине карточки работника (как карточка задачи); базовая 80%-ширина прочих окон не меняется
-    var _over = wkOverNorm(u); // 22.09-375: перебор часов против производственного календаря
-    _wkM.innerHTML = '<div class="modal-h"><h3>' + esc(u.full_name) + ' · ' + wkRoleLabel(u.role) + (isRO ? ' <span class="tag" style="background:#eff6ff;color:#1d4ed8;font-weight:800;font-size:11.5px;vertical-align:2px">просмотр</span>' : '') + '</h3>' +
-      (_over ? '<span title="У работника перебор часов за ' + MON_NOM[_over.m] + ' ' + _over.y + ': по графику смен — ' + fmtH3(_over.hrs) + ' ч, а норма производственного календаря — ' + fmtH3(_over.norm) + ' ч. Перебор: ' + fmtH3(_over.over) + ' ч." style="flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;background:#dc2626;color:#fff;font-size:11.5px;font-weight:800;border-radius:999px;padding:4px 10px;margin-left:auto;cursor:help;box-shadow:0 2px 8px rgba(220,38,38,.4)">⚠ Attention</span>' : '') +
-      '<button class="x" data-action="close-modal' + (_wko2 ? '2' : '') + '">×</button></div>' +
+    _wkM.innerHTML = '<div class="modal-h"><h3>' + esc(u.full_name) + ' · ' + wkRoleLabel(u.role) + (isRO ? ' <span class="tag" style="background:#eff6ff;color:#1d4ed8;font-weight:800;font-size:11.5px;vertical-align:2px">просмотр</span>' : '') + '</h3><button class="x" data-action="close-modal' + (_wko2 ? '2' : '') + '">×</button></div>' +
       '<div class="modal-b">' + wkPanelHtml(u, masters) + '</div>';
     _wkO.classList.add('show');
     wireWkControls(_wkM);
@@ -9723,9 +9720,23 @@
         if (st2 === 'work') { pW++; pH += schDayHours(u, ds2); } else if (st2 === 'abs') pA++; else pO++;
       }
     }
+    // 22.09-376: перебор часов против производственного календаря — красный значок
+    // в ПРАВОМ ВЕРХНЕМ углу прямоугольника работника (месяц — против нормы месяца,
+    // год — против суммы норм по месяцам)
+    var _ovIco = '';
+    try {
+      var _mode = wkSchedMode(u), _norm = 0;
+      if (period.kind === 'year') prodcalRows(period.y, _mode).forEach(function (r) { _norm += (+r.norm || 0); });
+      else _norm = +((prodcalRows(period.y, _mode)[period.m] || {}).norm || 0);
+      if (_norm && pH > _norm + 0.001) {
+        var _per = (period.kind === 'year') ? ('за ' + period.y + ' год') : ('за ' + MON_NOM[period.m] + ' ' + period.y);
+        _ovIco = '<span title="У работника перебор часов ' + _per + ': по графику смен — ' + fmtH3(pH) + ' ч, а норма производственного календаря — ' + fmtH3(_norm) + ' ч. Перебор: ' + fmtH3(Math.round((pH - _norm) * 100) / 100) + ' ч." style="position:absolute;top:6px;right:6px;width:21px;height:21px;border-radius:50%;background:#dc2626;color:#fff;font-size:12.5px;font-weight:800;display:flex;align-items:center;justify-content:center;cursor:help;box-shadow:0 2px 7px rgba(220,38,38,.5);z-index:2">⚠</span>';
+      }
+    } catch (eO) {}
     var prof = wkProfLabel(u) || '';
     // 22.09-222: карточка — не шире 200 px; длинные ФИО/должность обрезаются с троеточием, как было раньше
-    return '<div style="flex:0 0 auto;width:200px;max-width:200px;border:1px solid var(--line);border-bottom:4px solid ' + (u.color || '#94a3b8') + ';border-radius:12px;padding:8px 10px;background:var(--panel-2);display:flex;flex-direction:column;gap:4px">' +
+    return '<div style="position:relative;flex:0 0 auto;width:200px;max-width:200px;border:1px solid var(--line);border-bottom:4px solid ' + (u.color || '#94a3b8') + ';border-radius:12px;padding:8px 10px;background:var(--panel-2);display:flex;flex-direction:column;gap:4px">' +
+      _ovIco +
       '<div style="display:flex;align-items:center;gap:8px">' +
         avaHtml(u, 34, 12.5) + // 22.09-219: фото-аватар, если загружен
         '<div style="display:flex;flex-direction:column;line-height:1.2;min-width:0;flex:1">' +
