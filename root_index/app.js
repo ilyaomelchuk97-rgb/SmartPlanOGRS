@@ -943,7 +943,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-393';
+  var SP_BUILD = '22.09-394';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -13509,6 +13509,59 @@
     } catch (e) {}
     return out;
   }
+  /* 22.09-394: КЛАССИФИКАТОР оборудования (из таблицы пользователя, 491 запись):
+     вид → производитель → марка → модель + нормативный срок и гарантия.
+     Лежит на сервере: settings/equip_classifier. */
+  function equipClassifierLoad() {
+    try {
+      var lsKey = (window.SP_SYNC_POLL && SP_SYNC_POLL.LS_KEYS && SP_SYNC_POLL.LS_KEYS.settings) || 'smartplan_settings';
+      var arr = JSON.parse(localStorage.getItem(lsKey) || '[]');
+      if (Array.isArray(arr)) {
+        var rec = arr.filter(function (x) { return x && x.id === 'equip_classifier'; })[0];
+        if (rec && Array.isArray(rec.entries)) return rec.entries;
+      }
+    } catch (e) {}
+    return [];
+  }
+  var EQ_TYPE_ALIASES = {
+    'Регулятор': ['Регулятор давления'],
+    'Предохранительно-запорная арматура': ['ПЗК'],
+    'Предохранительно-сбросная арматура': ['ПСК'],
+    'Оборудование КИПиА': ['КИП', 'Интелектуальный КИП']
+  };
+  function equipTypeMatch(entryType, instType) {
+    if (!entryType || !instType) return false;
+    if (entryType === instType) return true;
+    var al = EQ_TYPE_ALIASES[instType] || [];
+    return al.indexOf(entryType) >= 0;
+  }
+  function equipClassEntries() {
+    if (!S.objClassifier) S.objClassifier = equipClassifierLoad();
+    return S.objClassifier;
+  }
+  function equipRefOptions(ref, inst) {
+    // варианты справочника с учётом цепочки вид → производитель → марка → модель
+    var dicts = S.objDicts || { manuf: [], brand: [], model: [] };
+    var entries = equipClassEntries().filter(function (e) { return equipTypeMatch(e.type, inst.type); });
+    var vals = inst.vals || {};
+    var set = {};
+    if (ref === 'manuf') {
+      entries.forEach(function (e) { if (e.manuf) set[e.manuf] = 1; });
+      if (!Object.keys(set).length) (dicts.manuf || []).forEach(function (x) { set[x] = 1; });
+    } else if (ref === 'brand') {
+      entries.forEach(function (e) { if (e.brand && (!vals['Производитель'] || e.manuf === vals['Производитель'])) set[e.brand] = 1; });
+      if (!Object.keys(set).length) (dicts.brand || []).forEach(function (x) { set[x] = 1; });
+    } else if (ref === 'model') {
+      entries.forEach(function (e) {
+        if (!e.model) return;
+        if (vals['Производитель'] && e.manuf !== vals['Производитель']) return;
+        if (vals['Марка'] && e.brand !== vals['Марка']) return;
+        set[e.model] = 1;
+      });
+      if (!Object.keys(set).length) (dicts.model || []).forEach(function (x) { set[x] = 1; });
+    }
+    return Object.keys(set).sort(function (a, b) { return String(a).localeCompare(String(b), 'ru'); });
+  }
   function equipTabDef(key) {
     var tabs = (window.SP_EQUIP_SCHEMA && SP_EQUIP_SCHEMA.tabs) || [];
     for (var i = 0; i < tabs.length; i++) if (tabs[i].key === key) return tabs[i];
@@ -13523,7 +13576,8 @@
     }
     return null;
   }
-  function eqFieldHtml(tabKey, idx, f, v) {
+  function eqFieldHtml(tabKey, idx, f, inst) {
+    var v = (inst.vals || {})[f.n];
     var id = 'data-eqf="1" data-eqtab="' + esc(tabKey) + '" data-eqidx="' + idx + '" data-eqfield="' + esc(f.n) + '"';
     var lbl = esc(f.n) + (f.u ? ' <span style="color:var(--muted);font-weight:600">(' + esc(f.u) + ')</span>' : '');
     var inp = '';
@@ -13533,9 +13587,9 @@
     if (f.k === 'date') inp = '<input type="date" ' + id + ' value="' + esc(v || '') + '">';
     else if (f.k === 'const') inp = '<input ' + id + ' value="' + esc(f.v || '') + '" disabled>';
     else if (f.k === 'list' && f.ref) {
-      var dl = (S.objDicts && S.objDicts[f.ref]) || [];
-      inp = '<input ' + id + ' list="eq-dl-' + f.ref + '" value="' + esc(v || '') + '" placeholder="выбрать или вписать">' +
-        '<datalist id="eq-dl-' + f.ref + '">' + dl.map(function (x) { return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>';
+      var dl = equipRefOptions(f.ref, inst);
+      inp = '<input ' + id + ' list="eq-dl-' + f.ref + '-' + idx + '" value="' + esc(v || '') + '" placeholder="выбрать или вписать">' +
+        '<datalist id="eq-dl-' + f.ref + '-' + idx + '">' + dl.map(function (x) { return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>';
     }
     else if (f.k === 'list') inp = '<select ' + id + '><option value=""></option>' + (f.o || []).map(function (o) { return '<option value="' + esc(o) + '"' + (String(v) === o ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') + '</select>';
     else if (f.k === 'int' || f.k === 'float') inp = '<input ' + id + ' type="text" inputmode="decimal" value="' + esc(v == null ? '' : String(v).replace('.', ',')) + '">';
@@ -13569,7 +13623,7 @@
             '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><b style="font-size:12.5px;color:var(--ink)">' + esc(td.type) + ' №' + (n + 1) + '</b>' +
             '<span style="flex:1"></span><button type="button" class="btn sm" data-eqdel="1" data-eqtab="' + esc(tabKey) + '" data-eqidx="' + ii + '" style="color:var(--red)">Удалить</button></div>' +
             '<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px 12px">' +
-            (td.fields || []).map(function (f) { return eqFieldHtml(tabKey, ii, f, (inst.vals || {})[f.n]); }).join('') +
+            (td.fields || []).map(function (f) { return eqFieldHtml(tabKey, ii, f, inst); }).join('') +
             '</div></div>';
         });
         h += '</div>';
@@ -13616,6 +13670,26 @@
       if (!inst) return;
       if (!inst.vals) inst.vals = {};
       inst.vals[fn] = (el.type === 'checkbox') ? !!el.checked : el.value;
+      // 22.09-394: по выбранной модели классификатор сам подставляет сроки и пропускную способность
+      if (fn === 'Модель' && el.value) {
+        var ent = null;
+        equipClassEntries().forEach(function (en) {
+          if (ent) return;
+          if (!equipTypeMatch(en.type, inst.type) || en.model !== el.value) return;
+          if (inst.vals['Производитель'] && en.manuf !== inst.vals['Производитель']) return;
+          if (inst.vals['Марка'] && en.brand !== inst.vals['Марка']) return;
+          ent = en;
+        });
+        if (ent) {
+          if (ent.life != null) inst.vals['Нормативный срок службы, мес.'] = ent.life;
+          if (ent.warranty != null) inst.vals['Гарантийный срок'] = ent.warranty;
+          if (ent.capacity && inst.vals['Пропускная способность'] !== undefined) inst.vals['Пропускная способность'] = ent.capacity;
+          omEquipRerender(tab);
+          toast('ok', 'По классификатору подставлены сроки для модели «' + el.value + '»');
+        }
+      }
+      // при смене производителя/марки перерисовать, чтобы списки сузились по цепочке
+      if (fn === 'Производитель' || fn === 'Марка') omEquipRerender(tab);
     });
   }
 
@@ -13626,6 +13700,7 @@
     S.objEquip = {};
     try { S.objEquip = JSON.parse(JSON.stringify((o && o.systems) || {})); } catch (eEq) {}
     S.objDicts = equipDictsLoad();
+    S.objClassifier = equipClassifierLoad();
     try { omEquipWire(); } catch (eW) {}
     var type = o ? (o.type || 'ГРП') : (S.objTab === 'shrp' ? 'ШРП' : (S.objTab === 'grs' ? 'ГРС' : (S.objTab === 'pgrp' ? 'ПГРП' : 'ГРП')));
     var num = o ? objNumOf(o) : '';
