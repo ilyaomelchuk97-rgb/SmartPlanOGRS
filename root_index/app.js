@@ -943,7 +943,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-391';
+  var SP_BUILD = '22.09-392';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -5189,6 +5189,24 @@
     } catch (e) {}
   }
   window.spMapsFit = spMapsFit;
+  /* 22.09-392: СТОРОЖ РАЗМЕРА КАРТЫ. Пустая полоса была ВНУТРИ карты: блок
+     карты менял высоту уже после создания Яндекс-карты (подгонка, шапка,
+     масштаб браузера), а карта не пересчитывала свой холст. Теперь при любом
+     изменении размера блока карта сама подгоняется под него. */
+  function spMapAutoFit(map, el) {
+    try {
+      if (!map || !el || typeof ResizeObserver === 'undefined') return;
+      if (el._spRoFit) { try { el._spRoFit.disconnect(); } catch (e) {} }
+      var t = null;
+      var ro = new ResizeObserver(function () {
+        clearTimeout(t);
+        t = setTimeout(function () { try { if (map.container && map.container.fitToViewport) map.container.fitToViewport(); } catch (e) {} }, 120);
+      });
+      ro.observe(el);
+      el._spRoFit = ro;
+    } catch (e) {}
+  }
+  window.SP_MAP_AUTOFIT = spMapAutoFit;
   function rmFitLayoutRun() {
     if (S.screen !== 'map' || typeof window.getComputedStyle !== 'function') return;
     var v = document.getElementById('view');
@@ -5270,6 +5288,7 @@
           // подложка всегда Яндекс (стандартная схема)
           // 22.09-256: autoFitToViewport — карта всегда по размеру своего блока (окно развернули/свернули, меню, масштаб)
           ymState.ymap = new ymaps.Map(mapDiv, { center: [53.9023, 27.5619], zoom: 11, controls: ['zoomControl'] }, { suppressMapOpenBlock: true, autoFitToViewport: 'always' });
+          try { spMapAutoFit(ymState.ymap, mapDiv); } catch (eAF2) {} // 22.09-392
           // слой Яндекс.Пробок (включается кнопкой «🚦 Пробки»)
           try {
             ymState.traffic = new ymaps.traffic.provider.Actual({}, { infoLayerShown: true });
@@ -7068,8 +7087,9 @@
         var map = new ymaps.Map(mapDiv, {
           center: [53.9023, 27.5619], zoom: 11, type: null,
           controls: ['zoomControl', 'fullscreenControl']
-        }, { projection: ymaps.projection.sphericalMercator, suppressMapOpenBlock: true });
+        }, { projection: ymaps.projection.sphericalMercator, suppressMapOpenBlock: true, autoFitToViewport: 'always' }); // 22.09-392: карта всегда по размеру блока — без пустой полосы внутри карты
         omState.map = map;
+        try { spMapAutoFit(map, mapDiv); } catch (eAF) {}
         // 22.09-390: непрерывно запоминаем вид (центр+масштаб) при каждом движении
         // карты — тогда любая перестройка вернёт пользователя ровно туда, где он был
         try {
@@ -7696,7 +7716,8 @@
         lmState.ymap = new ymaps.Map('lm-map', {
           center: [base.lat, base.lng], zoom: 11,
           controls: ['zoomControl', 'typeSelector', 'fullscreenControl', 'geolocationControl']
-        }, { suppressMapOpenBlock: true });
+        }, { suppressMapOpenBlock: true, autoFitToViewport: 'always' }); // 22.09-392: карта всегда по размеру блока
+        try { if (window.SP_MAP_AUTOFIT) SP_MAP_AUTOFIT(lmState.ymap, document.getElementById('lm-map')); } catch (eAF) {}
       } catch (e) { mapFail(); return; }
       // Метка базы (прозрачна для кликов — как все метки на этой карте)
       lmState.ymap.geoObjects.add(new ymaps.Placemark([base.lat, base.lng], {}, {
