@@ -943,7 +943,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-392';
+  var SP_BUILD = '22.09-393';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -13491,9 +13491,142 @@
   }
 
   // Модал добавления/изменения объекта
+  /* ===== 22.09-393: ОБОРУДОВАНИЕ ОБЪЕКТА ПО СИСТЕМАМ (вкладки карточки) =====
+     Схема — SP_EQUIP_SCHEMA (документ пользователя): системы → виды
+     оборудования → поля. В объекте хранится o.systems = { вкладка:
+     [{sys, type, vals:{поле: значение}}] } — единиц одного вида может
+     быть несколько. Справочники производителей/марок/моделей — общие
+     списки на сервере (settings/equip_dicts), дополняются прямо из формы. */
+  function equipDictsLoad() {
+    var out = { manuf: [], brand: [], model: [] };
+    try {
+      var lsKey = (window.SP_SYNC_POLL && SP_SYNC_POLL.LS_KEYS && SP_SYNC_POLL.LS_KEYS.settings) || 'smartplan_settings';
+      var arr = JSON.parse(localStorage.getItem(lsKey) || '[]');
+      if (Array.isArray(arr)) {
+        var rec = arr.filter(function (x) { return x && x.id === 'equip_dicts'; })[0];
+        if (rec) { out.manuf = rec.manuf || []; out.brand = rec.brand || []; out.model = rec.model || []; }
+      }
+    } catch (e) {}
+    return out;
+  }
+  function equipTabDef(key) {
+    var tabs = (window.SP_EQUIP_SCHEMA && SP_EQUIP_SCHEMA.tabs) || [];
+    for (var i = 0; i < tabs.length; i++) if (tabs[i].key === key) return tabs[i];
+    return null;
+  }
+  function equipTypeDef(tabDef, sysName, typeName) {
+    if (!tabDef) return null;
+    for (var i = 0; i < tabDef.systems.length; i++) {
+      if (tabDef.systems[i].name !== sysName) continue;
+      var ts = tabDef.systems[i].types;
+      for (var j = 0; j < ts.length; j++) if (ts[j].type === typeName) return ts[j];
+    }
+    return null;
+  }
+  function eqFieldHtml(tabKey, idx, f, v) {
+    var id = 'data-eqf="1" data-eqtab="' + esc(tabKey) + '" data-eqidx="' + idx + '" data-eqfield="' + esc(f.n) + '"';
+    var lbl = esc(f.n) + (f.u ? ' <span style="color:var(--muted);font-weight:600">(' + esc(f.u) + ')</span>' : '');
+    var inp = '';
+    if (f.k === 'check') {
+      return '<label class="cb" style="display:flex;align-items:center;gap:7px;padding:6px 0;font-size:12.5px"><input type="checkbox" ' + id + (v ? ' checked' : '') + '> ' + lbl + '</label>';
+    }
+    if (f.k === 'date') inp = '<input type="date" ' + id + ' value="' + esc(v || '') + '">';
+    else if (f.k === 'const') inp = '<input ' + id + ' value="' + esc(f.v || '') + '" disabled>';
+    else if (f.k === 'list' && f.ref) {
+      var dl = (S.objDicts && S.objDicts[f.ref]) || [];
+      inp = '<input ' + id + ' list="eq-dl-' + f.ref + '" value="' + esc(v || '') + '" placeholder="выбрать или вписать">' +
+        '<datalist id="eq-dl-' + f.ref + '">' + dl.map(function (x) { return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>';
+    }
+    else if (f.k === 'list') inp = '<select ' + id + '><option value=""></option>' + (f.o || []).map(function (o) { return '<option value="' + esc(o) + '"' + (String(v) === o ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') + '</select>';
+    else if (f.k === 'int' || f.k === 'float') inp = '<input ' + id + ' type="text" inputmode="decimal" value="' + esc(v == null ? '' : String(v).replace('.', ',')) + '">';
+    else inp = '<input ' + id + ' type="text" value="' + esc(v || '') + '">';
+    return '<div class="fld" style="margin:0"><label>' + lbl + '</label>' + inp + '</div>';
+  }
+  function omEquipPaneHtml(tabKey) {
+    var tab = equipTabDef(tabKey);
+    if (!tab) return '<div class="empty">Нет схемы</div>';
+    var insts = (S.objEquip && S.objEquip[tabKey]) || [];
+    var h = '';
+    tab.systems.forEach(function (sys) {
+      if (tab.systems.length > 1) h += '<div style="font-size:13px;font-weight:800;color:var(--ink);margin:14px 0 4px">' + esc(sys.name) + '</div>';
+      if (!sys.types.length) {
+        h += '<div class="empty" style="padding:16px;font-size:13px">Пока не заполняем</div>';
+        return;
+      }
+      sys.types.forEach(function (td) {
+        var mine = [];
+        insts.forEach(function (inst, ii) { if (inst.sys === sys.name && inst.type === td.type) mine.push(ii); });
+        h += '<div style="margin-top:12px"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+          '<b style="font-size:13px;color:var(--ink)">' + esc(td.type) + '</b>' +
+          (mine.length ? '<span style="font-size:11.5px;color:var(--muted);font-weight:700">' + mine.length + ' шт.</span>' : '') +
+          (td.fields
+            ? '<button type="button" class="btn sm" data-eqadd="1" data-eqtab="' + esc(tabKey) + '" data-eqsys="' + esc(sys.name) + '" data-eqtype="' + esc(td.type) + '">＋ Добавить</button>'
+            : '<span style="font-size:12px;color:var(--muted)">Пока не заполняем</span>') +
+          '</div>';
+        mine.forEach(function (ii, n) {
+          var inst = insts[ii];
+          h += '<div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:8px;background:var(--card)">' +
+            '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><b style="font-size:12.5px;color:var(--ink)">' + esc(td.type) + ' №' + (n + 1) + '</b>' +
+            '<span style="flex:1"></span><button type="button" class="btn sm" data-eqdel="1" data-eqtab="' + esc(tabKey) + '" data-eqidx="' + ii + '" style="color:var(--red)">Удалить</button></div>' +
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px 12px">' +
+            (td.fields || []).map(function (f) { return eqFieldHtml(tabKey, ii, f, (inst.vals || {})[f.n]); }).join('') +
+            '</div></div>';
+        });
+        h += '</div>';
+      });
+    });
+    return h;
+  }
+  function omEquipRerender(tabKey) {
+    var pane = document.getElementById('om-pane-' + tabKey);
+    if (pane) pane.innerHTML = omEquipPaneHtml(tabKey);
+  }
+  function omEquipWire() {
+    if (modal._eqWired) return;
+    modal._eqWired = true;
+    modal.addEventListener('click', function (e) {
+      var add = e.target.closest ? e.target.closest('[data-eqadd]') : null;
+      var del = e.target.closest ? e.target.closest('[data-eqdel]') : null;
+      if (add) {
+        var tab = add.getAttribute('data-eqtab');
+        if (!S.objEquip[tab]) S.objEquip[tab] = [];
+        S.objEquip[tab].push({ sys: add.getAttribute('data-eqsys'), type: add.getAttribute('data-eqtype'), vals: {} });
+        omEquipRerender(tab);
+      } else if (del) {
+        var tab2 = del.getAttribute('data-eqtab');
+        var idx = parseInt(del.getAttribute('data-eqidx'), 10);
+        if (S.objEquip[tab2]) S.objEquip[tab2].splice(idx, 1);
+        omEquipRerender(tab2);
+      }
+    });
+    modal.addEventListener('input', function (e) {
+      var el = e.target;
+      if (!el.getAttribute || !el.getAttribute('data-eqf')) return;
+      var tab = el.getAttribute('data-eqtab'), idx = parseInt(el.getAttribute('data-eqidx'), 10), fn = el.getAttribute('data-eqfield');
+      var inst = S.objEquip && S.objEquip[tab] && S.objEquip[tab][idx];
+      if (!inst) return;
+      if (!inst.vals) inst.vals = {};
+      inst.vals[fn] = (el.type === 'checkbox') ? !!el.checked : el.value;
+    });
+    modal.addEventListener('change', function (e) {
+      var el = e.target;
+      if (!el.getAttribute || !el.getAttribute('data-eqf')) return;
+      var tab = el.getAttribute('data-eqtab'), idx = parseInt(el.getAttribute('data-eqidx'), 10), fn = el.getAttribute('data-eqfield');
+      var inst = S.objEquip && S.objEquip[tab] && S.objEquip[tab][idx];
+      if (!inst) return;
+      if (!inst.vals) inst.vals = {};
+      inst.vals[fn] = (el.type === 'checkbox') ? !!el.checked : el.value;
+    });
+  }
+
   function openObjectModal(mode, oid) {
     S.objModalMode = mode; S.objModalOid = oid || null;
     var o = (mode === 'edit' && oid) ? OBJ_MAP[oid] : null;
+    // 22.09-393: черновик оборудования и общие справочники производителей/марок/моделей
+    S.objEquip = {};
+    try { S.objEquip = JSON.parse(JSON.stringify((o && o.systems) || {})); } catch (eEq) {}
+    S.objDicts = equipDictsLoad();
+    try { omEquipWire(); } catch (eW) {}
     var type = o ? (o.type || 'ГРП') : (S.objTab === 'shrp' ? 'ШРП' : (S.objTab === 'grs' ? 'ГРС' : (S.objTab === 'pgrp' ? 'ПГРП' : 'ГРП')));
     var num = o ? objNumOf(o) : '';
     var addr = o ? objStreetAddr(o) : '';
@@ -13568,18 +13701,8 @@
     html += '</div>';
     html += '<div class="calc" id="om-hint">📍 Нажмите «Выбрать на карте» и кликните точку — координаты подставятся сами. Или введите их вручную. Для ГРП/ШРП и обычных объектов это точка на карте.</div>';
     html += '</div>'; // /om-pane-main (вкладка «Основные» — как было, без изменений)
-    OM_TABS.slice(1).forEach(function (t) {
-      var blocks = OM_TAB_BLOCKS[t[0]];
-      if (blocks) {
-        // объединённая вкладка: два разных блока друг под другом
-        html += '<div id="om-pane-' + t[0] + '" style="display:none">' + blocks.map(function (b) {
-          return '<div style="border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px;background:var(--panel-2)">' +
-            '<div style="font-size:13px;font-weight:800;color:var(--ink);margin-bottom:8px">' + b + '</div>' +
-            '<div class="empty" style="padding:18px;font-size:13.5px">Блок «' + b + '» — пока заготовка. Скажите, какие поля здесь нужны, — добавим.</div></div>';
-        }).join('') + '</div>';
-      } else {
-        html += '<div id="om-pane-' + t[0] + '" style="display:none"><div class="empty" style="padding:26px;font-size:13.5px">Вкладка «' + t[1] + '» — пока заготовка. Скажите, какие поля здесь нужны, — добавим.</div></div>';
-      }
+    (window.SP_EQUIP_SCHEMA ? SP_EQUIP_SCHEMA.tabs : []).forEach(function (tab) {
+      html += '<div id="om-pane-' + tab.key + '" style="display:none">' + omEquipPaneHtml(tab.key) + '</div>';
     });
     html += '</div><div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="save-object">' + (mode === 'edit' ? 'Сохранить' : 'Добавить объект') + '</button></div>';
     // Ширина модалки: для ГРП/ШРП/ПГРП — 880px (вмещает 2-колоночные атрибуты),
@@ -13755,6 +13878,31 @@
         : (ra || (S.user && S.user.area && S.user.area !== 'Все участки' ? String(S.user.area) : '') || (S.workArea || ''));
       data.created_by = (S.user && S.user.id) || '';
     })();
+    // 22.09-393: оборудование по системам + новые значения в общие справочники
+    try {
+      data.systems = JSON.parse(JSON.stringify(S.objEquip || {}));
+      var _nd = equipDictsLoad(), _ndCh = false;
+      ((window.SP_EQUIP_SCHEMA && SP_EQUIP_SCHEMA.tabs) || []).forEach(function (tab) {
+        tab.systems.forEach(function (sys) {
+          sys.types.forEach(function (td) {
+            (td.fields || []).forEach(function (f) {
+              if (!f.ref) return;
+              ((S.objEquip || {})[tab.key] || []).forEach(function (inst) {
+                if (inst.type !== td.type) return;
+                var v = String(((inst.vals || {})[f.n]) || '').trim();
+                if (v && _nd[f.ref].indexOf(v) < 0) { _nd[f.ref].push(v); _ndCh = true; }
+              });
+            });
+          });
+        });
+      });
+      if (_ndCh && window.SP_API && SP_API.syncPush) {
+        var _drec = { id: 'equip_dicts', manuf: _nd.manuf, brand: _nd.brand, model: _nd.model, updated_at: Date.now() };
+        SP_API.syncPush('settings', _drec).then(function (r) {
+          if (r && r.ok) { try { SP_SYNC_POLL.applyRemote('settings', [_drec]); } catch (eA) {} }
+        })['catch'](function () {});
+      }
+    } catch (eEq2) {}
     if (attrs) data.attrs = attrs;
     // 22.09-278: смена статуса эксплуатации — запоминаем дату (после возврата
     // в эксплуатацию серия работ объекта начинается заново от этой даты)

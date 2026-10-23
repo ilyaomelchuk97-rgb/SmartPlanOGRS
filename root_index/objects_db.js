@@ -164,6 +164,7 @@ window.SP_OBJECTS = (function () {
       respName: data.respName || '',
       area: data.area || '',           // 22.09-360: участок объекта (явная прописка, а не только по ответственному)
       created_by: data.created_by || '', // 22.09-360: кто создал объект
+      systems: data.systems || {},     // 22.09-393: оборудование по системам (вкладки карточки)
       zu: data.zu || 0,
       area_obj: data.area_obj || 0, length_km: data.length_km || 0, area_ha: data.area_ha || 0,
       attrs: {},
@@ -207,6 +208,7 @@ window.SP_OBJECTS = (function () {
         if (data.respId !== undefined) db.objects[i].respId = data.respId || '';
         if (data.respName !== undefined) db.objects[i].respName = data.respName || '';
         if (data.area !== undefined) db.objects[i].area = data.area || ''; // 22.09-360
+        if (data.systems !== undefined) db.objects[i].systems = data.systems || {}; // 22.09-393: оборудование по системам
         // 22.09-278: дата последнего изменения статуса эксплуатации (для графиков:
         // после возврата в эксплуатацию серия работ начинается заново от этой даты)
         if (data.statusFrom !== undefined) db.objects[i].statusFrom = String(data.statusFrom || '');
