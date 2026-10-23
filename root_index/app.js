@@ -943,7 +943,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-395';
+  var SP_BUILD = '22.09-396';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -13653,16 +13653,33 @@
             ? '<button type="button" class="btn sm" data-eqadd="1" data-eqtab="' + esc(tabKey) + '" data-eqsys="' + esc(sys.name) + '" data-eqtype="' + esc(td.type) + '">＋ Добавить</button>'
             : '<span style="font-size:12px;color:var(--muted)">Пока не заполняем</span>') +
           '</div>';
+        /* 22.09-396: единица оборудования — компактная карточка с основной
+           информацией; все поля открываются окном поверх страницы по клику. */
+        if (mine.length) h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;margin-top:8px">';
         mine.forEach(function (ii, n) {
           var inst = insts[ii];
           equipSanitizeInst(inst);
-          h += '<div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:8px;background:var(--card)">' +
-            '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><b style="font-size:12.5px;color:var(--ink)">' + esc(td.type) + ' №' + (n + 1) + '</b>' +
-            '<span style="flex:1"></span><button type="button" class="btn sm" data-eqdel="1" data-eqtab="' + esc(tabKey) + '" data-eqidx="' + ii + '" style="color:var(--red)">Удалить</button></div>' +
-            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px 12px">' +
-            (td.fields || []).map(function (f) { return eqFieldHtml(tabKey, ii, f, inst); }).join('') +
-            '</div></div>';
+          var vals = inst.vals || {};
+          var main = [vals['Производитель'], vals['Марка'], vals['Модель']].filter(function (x) { return String(x || '').trim(); }).join(' · ');
+          var dIn = String(vals['Дата ввода в эксплуатацию'] || '').trim();
+          try { if (dIn) dIn = fmtDmyIso(dIn); } catch (eD) {}
+          var filled = 0, total = (td.fields || []).length;
+          (td.fields || []).forEach(function (f) { var x = vals[f.n]; if (x !== undefined && x !== null && String(x).trim() !== '' && x !== false) filled++; });
+          function row(lbl, val) {
+            return '<div style="display:flex;gap:6px;font-size:12.5px;margin-top:3px"><span style="color:var(--muted);font-weight:600">' + lbl + '</span><span style="color:var(--ink);font-weight:700">' + esc(val || '—') + '</span></div>';
+          }
+          h += '<div data-eqopen="1" data-eqtab="' + esc(tabKey) + '" data-eqidx="' + ii + '" tabindex="0" title="Нажмите, чтобы открыть настройки" style="border:1px solid var(--line);border-radius:12px;padding:11px 13px;background:var(--card);cursor:pointer;box-shadow:0 1px 4px rgba(15,35,70,.06)">' +
+            '<div style="display:flex;align-items:center;gap:8px"><b style="font-size:13px;color:var(--ink)">🔧 ' + esc(td.type) + ' №' + (n + 1) + '</b>' +
+            '<span style="flex:1"></span><button type="button" class="btn sm" data-eqdel="1" data-eqtab="' + esc(tabKey) + '" data-eqidx="' + ii + '" title="Удалить единицу оборудования" style="color:var(--red);padding:2px 8px">✕</button></div>' +
+            '<div style="font-size:13px;font-weight:800;color:var(--blue);margin-top:5px;word-break:break-word">' + esc(main || 'Не заполнено — нажмите, чтобы заполнить') + '</div>' +
+            row('Ввод в эксплуатацию:', dIn) +
+            row('Гарантийный срок:', String(vals['Гарантийный срок'] || '').trim() ? String(vals['Гарантийный срок']).replace('.', ',') + ' мес.' : '') +
+            row('Нормативный срок службы:', String(vals['Нормативный срок службы, мес.'] || '').trim() ? String(vals['Нормативный срок службы, мес.']).replace('.', ',') + ' мес.' : '') +
+            (String(vals['Заводской номер'] || '').trim() ? row('Заводской №:', vals['Заводской номер']) : '') +
+            '<div style="display:flex;align-items:center;gap:8px;margin-top:8px"><span style="font-size:11.5px;color:var(--muted);font-weight:700">Заполнено полей: ' + filled + ' из ' + total + '</span><span style="flex:1"></span><span style="font-size:11.5px;color:var(--blue);font-weight:800">✏ Настройки ›</span></div>' +
+            '</div>';
         });
+        if (mine.length) h += '</div>';
         h += '</div>';
       });
     });
@@ -13671,6 +13688,37 @@
   function omEquipRerender(tabKey) {
     var pane = document.getElementById('om-pane-' + tabKey);
     if (pane) pane.innerHTML = omEquipPaneHtml(tabKey);
+  }
+  /* 22.09-396: окно настроек единицы оборудования — поверх карточки объекта
+     (overlay2/modal2). Все поля с цепочкой производитель→марка→модель живут
+     здесь; на вкладке остаётся только карточка с основной информацией. */
+  function omEquipEditorRender() {
+    var ed = S.objEquipEdit; if (!ed) return;
+    var inst = S.objEquip && S.objEquip[ed.tab] && S.objEquip[ed.tab][ed.idx];
+    var box = document.getElementById('eq-ed-fields'); if (!box || !inst) return;
+    var tab = equipTabDef(ed.tab);
+    var td = tab ? equipTypeDef(tab, inst.sys, inst.type) : null;
+    equipSanitizeInst(inst);
+    box.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px 12px">' +
+      ((td && td.fields) || []).map(function (f) { return eqFieldHtml(ed.tab, ed.idx, f, inst); }).join('') + '</div>';
+  }
+  function omEquipEditorOpen(tabKey, idx) {
+    var inst = S.objEquip && S.objEquip[tabKey] && S.objEquip[tabKey][idx];
+    var overlay2 = document.getElementById('overlay2'), modal2 = document.getElementById('modal2');
+    if (!inst || !overlay2 || !modal2) return;
+    var tab = equipTabDef(tabKey);
+    var td = tab ? equipTypeDef(tab, inst.sys, inst.type) : null;
+    if (!td || !td.fields) return;
+    var num = 1;
+    (S.objEquip[tabKey] || []).forEach(function (x, ii) { if (x.sys === inst.sys && x.type === inst.type && ii < idx) num++; });
+    S.objEquipEdit = { tab: tabKey, idx: idx };
+    modal2.style.width = 'min(780px,96vw)'; modal2.style.maxWidth = '780px';
+    modal2.innerHTML = '<div class="modal-h"><h3>🔧 ' + esc(inst.type) + ' №' + num + ' — настройки</h3><button class="x" data-action="close-modal2">×</button></div>' +
+      '<div class="modal-b"><div id="eq-ed-fields"></div></div>' +
+      '<div class="modal-f"><button type="button" class="btn" data-eqeddel="1" style="color:var(--red);border-color:var(--red)">Удалить</button><span style="flex:1"></span>' +
+      '<button type="button" class="btn primary" data-eqeddone="1">Готово</button></div>';
+    overlay2.classList.add('show');
+    omEquipEditorRender();
   }
   function omEquipWire() {
     if (modal._eqWired) return;
@@ -13688,7 +13736,7 @@
       return box ? box.querySelector('.eq-combo-list') : null;
     }
     function eqShowList(el, all) {
-      modal.querySelectorAll('.eq-combo-list').forEach(function (l) { if (l !== eqListOf(el)) l.hidden = true; });
+      (el.closest('.modal') || document).querySelectorAll('.eq-combo-list').forEach(function (l) { if (l !== eqListOf(el)) l.hidden = true; });
       var list = eqListOf(el); if (!list) return;
       var q = all ? '' : String(el.value || '').trim().toLowerCase().replace(/ё/g, 'е');
       var seen = 0;
@@ -13730,9 +13778,12 @@
         }
       }
       omEquipRerender(c.tab);
+      if (S.objEquipEdit && S.objEquipEdit.tab === c.tab) omEquipEditorRender();
       if (c.fn === 'Модель' && ent) toast('ok', 'По классификатору подставлены сроки для модели «' + value + '»');
     }
-    modal.addEventListener('mousedown', function (e) {
+    function eqWireBox(root) {
+      if (!root || root._eqBox) return; root._eqBox = true;
+    root.addEventListener('mousedown', function (e) {
       var pick = e.target.closest ? e.target.closest('[data-eqpick]') : null;
       if (!pick) return;
       var box = pick.closest('.eq-combo');
@@ -13741,11 +13792,15 @@
       e.preventDefault();
       eqPick(inp, pick.getAttribute('data-eqpick'));
     });
-    modal.addEventListener('focusin', function (e) {
+    root.addEventListener('keydown', function (e) {
+      var card = e.target && e.target.getAttribute && e.target.getAttribute('data-eqopen') ? e.target : null;
+      if (card && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); omEquipEditorOpen(card.getAttribute('data-eqtab'), parseInt(card.getAttribute('data-eqidx'), 10)); }
+    });
+    root.addEventListener('focusin', function (e) {
       var el = e.target;
       if (el.getAttribute && el.getAttribute('data-eqref') && !el.disabled) eqShowList(el, true);
     });
-    modal.addEventListener('focusout', function (e) {
+    root.addEventListener('focusout', function (e) {
       var el = e.target;
       if (!el.getAttribute || !el.getAttribute('data-eqref')) return;
       setTimeout(function () {
@@ -13755,7 +13810,7 @@
         var list = eqListOf(el); if (list) list.hidden = true;
       }, 120);
     });
-    modal.addEventListener('keydown', function (e) {
+    root.addEventListener('keydown', function (e) {
       var el = e.target;
       if (!el.getAttribute || !el.getAttribute('data-eqref')) return;
       var list = eqListOf(el);
@@ -13770,9 +13825,23 @@
         else if (vis.length === 1) eqPick(el, vis[0].getAttribute('data-eqpick'));
       }
     });
-    modal.addEventListener('click', function (e) {
+    root.addEventListener('click', function (e) {
       var add = e.target.closest ? e.target.closest('[data-eqadd]') : null;
       var del = e.target.closest ? e.target.closest('[data-eqdel]') : null;
+      var edDone = e.target.closest ? e.target.closest('[data-eqeddone]') : null;
+      var edDel = e.target.closest ? e.target.closest('[data-eqeddel]') : null;
+      var edX = e.target.closest ? e.target.closest('[data-action="close-modal2"]') : null;
+      if (edX && S.objEquipEdit) { var edTab = S.objEquipEdit.tab; S.objEquipEdit = null; omEquipRerender(edTab); }
+      if (edDone || edDel) {
+        var ed = S.objEquipEdit;
+        if (edDel && ed && S.objEquip[ed.tab]) S.objEquip[ed.tab].splice(ed.idx, 1);
+        S.objEquipEdit = null;
+        var ov2 = document.getElementById('overlay2'); if (ov2) ov2.classList.remove('show');
+        if (ed) omEquipRerender(ed.tab);
+        return;
+      }
+      var openCard = (!del && e.target.closest) ? e.target.closest('[data-eqopen]') : null;
+      if (openCard) { omEquipEditorOpen(openCard.getAttribute('data-eqtab'), parseInt(openCard.getAttribute('data-eqidx'), 10)); return; }
       if (add) {
         var tab = add.getAttribute('data-eqtab');
         if (!S.objEquip[tab]) S.objEquip[tab] = [];
@@ -13785,7 +13854,7 @@
         omEquipRerender(tab2);
       }
     });
-    modal.addEventListener('input', function (e) {
+    root.addEventListener('input', function (e) {
       var el = e.target;
       if (!el.getAttribute || !el.getAttribute('data-eqf')) return;
       if (el.getAttribute('data-eqref')) { eqShowList(el, false); return; } // в справочных полях печать — только поиск по списку, значение не пишется
@@ -13795,7 +13864,7 @@
       if (!inst.vals) inst.vals = {};
       inst.vals[fn] = (el.type === 'checkbox') ? !!el.checked : el.value;
     });
-    modal.addEventListener('change', function (e) {
+    root.addEventListener('change', function (e) {
       var el = e.target;
       if (!el.getAttribute || !el.getAttribute('data-eqf')) return;
       if (el.getAttribute('data-eqref')) return; // справочные поля обрабатывает eqPick (выбор из списка)
@@ -13825,6 +13894,9 @@
       // при смене производителя/марки перерисовать, чтобы списки сузились по цепочке
       if (fn === 'Производитель' || fn === 'Марка') omEquipRerender(tab);
     });
+    } // eqWireBox
+    eqWireBox(modal);
+    eqWireBox(document.getElementById('modal2'));
   }
 
   function openObjectModal(mode, oid) {
