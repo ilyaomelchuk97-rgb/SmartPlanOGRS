@@ -943,7 +943,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-388';
+  var SP_BUILD = '22.09-389';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -4172,6 +4172,8 @@
       return;
     }
     var t = findTask(id); if (!t) return;
+    // 22.09-389: выполненную (закрытую) задачу удалить нельзя
+    if (isDone(t)) { toast('err', 'Выполненную задачу удалить нельзя'); return; }
     if (!canEditTask(t)) { toast('err', 'Нет прав на удаление этой задачи'); return; }
     var w = workOf(t);
     return spConfirm('Удалить задачу «' + (w ? w.name : '?') + ' — ' + addrOf(t) + '»?', { title: 'Удаление задачи', ok: 'Удалить', danger: true }, function () { // 22.09-244: оформленное окно
@@ -4222,7 +4224,11 @@
   function multiSelEnter(firstId) {
     var ms = multiSelState();
     ms.on = true;
-    if (firstId) ms.ids[firstId] = 1;
+    if (firstId) {
+      var _ft = findTask(firstId);
+      if (_ft && isDone(_ft)) toast('warn', 'Выполненную задачу удалить нельзя — она не выбрана. Выбирайте невыполненные задачи.');
+      else ms.ids[firstId] = 1;
+    }
     multiSelPaint();
     multiSelBarSync();
     toast('info', 'Режим выбора: нажимайте на задачи — они станут синими. Затем «В корзину» внизу.');
@@ -4241,6 +4247,8 @@
   }
   function multiSelToggle(id, tile) {
     var ms = multiSelState();
+    // 22.09-389: выполненные задачи в выбор не берём — их удалить нельзя
+    if (!ms.ids[id]) { var _t = findTask(id); if (_t && isDone(_t)) { toast('warn', 'Выполненную задачу удалить нельзя — она не выбирается'); return; } }
     if (ms.ids[id]) delete ms.ids[id]; else ms.ids[id] = 1;
     if (tile) tile.classList.toggle('sp-sel', !!ms.ids[id]);
     multiSelBarSync();
@@ -4253,9 +4261,10 @@
       toast('err', 'Удалять задачи можно только с разрешения (Права доступа)');
       return;
     }
-    var deletable = ids.filter(function (id) { var t = findTask(id); return t && canEditTask(t); });
-    if (!deletable.length) { toast('err', 'Нет прав на удаление этих задач'); return; }
-    spConfirm('Удалить выбранные задачи (' + deletable.length + ' шт.) в корзину? Их можно будет вернуть из корзины.', { title: 'Удаление задач пачкой', ok: 'В корзину', danger: true }, function () {
+    var deletable = ids.filter(function (id) { var t = findTask(id); return t && canEditTask(t) && !isDone(t); });
+    var doneSkipped = ids.filter(function (id) { var t = findTask(id); return t && isDone(t); }).length;
+    if (!deletable.length) { toast('err', doneSkipped ? 'Все выбранные задачи выполнены — их удалить нельзя' : 'Нет прав на удаление этих задач'); return; }
+    spConfirm('Удалить выбранные задачи (' + deletable.length + ' шт.) в корзину? Их можно будет вернуть из корзины.' + (doneSkipped ? ' Выполненные (' + doneSkipped + ' шт.) не трогаем — их удалить нельзя.' : ''), { title: 'Удаление задач пачкой', ok: 'В корзину', danger: true }, function () {
       var trashEl = document.getElementById('trash-zone');
       var pending = deletable.length;
       function oneDone() { if (--pending <= 0) { try { drawCalendarGrid(); } catch (e) {} } }
