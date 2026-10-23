@@ -943,7 +943,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-394';
+  var SP_BUILD = '22.09-395';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -13541,16 +13541,19 @@
   }
   function equipRefOptions(ref, inst) {
     // варианты справочника с учётом цепочки вид → производитель → марка → модель
+    // 22.09-395: строго по классификатору: если для вида оборудования записи
+    // есть, варианты берутся ТОЛЬКО из них (без общего списка «всё подряд»);
+    // общие справочники — запасной вариант, когда классификатор по виду пуст.
     var dicts = S.objDicts || { manuf: [], brand: [], model: [] };
     var entries = equipClassEntries().filter(function (e) { return equipTypeMatch(e.type, inst.type); });
     var vals = inst.vals || {};
     var set = {};
     if (ref === 'manuf') {
       entries.forEach(function (e) { if (e.manuf) set[e.manuf] = 1; });
-      if (!Object.keys(set).length) (dicts.manuf || []).forEach(function (x) { set[x] = 1; });
+      if (!entries.length) (dicts.manuf || []).forEach(function (x) { set[x] = 1; });
     } else if (ref === 'brand') {
       entries.forEach(function (e) { if (e.brand && (!vals['Производитель'] || e.manuf === vals['Производитель'])) set[e.brand] = 1; });
-      if (!Object.keys(set).length) (dicts.brand || []).forEach(function (x) { set[x] = 1; });
+      if (!entries.length) (dicts.brand || []).forEach(function (x) { set[x] = 1; });
     } else if (ref === 'model') {
       entries.forEach(function (e) {
         if (!e.model) return;
@@ -13558,9 +13561,34 @@
         if (vals['Марка'] && e.brand !== vals['Марка']) return;
         set[e.model] = 1;
       });
-      if (!Object.keys(set).length) (dicts.model || []).forEach(function (x) { set[x] = 1; });
+      if (!entries.length) (dicts.model || []).forEach(function (x) { set[x] = 1; });
     }
     return Object.keys(set).sort(function (a, b) { return String(a).localeCompare(String(b), 'ru'); });
+  }
+  /* 22.09-395: цепочка «Производитель → Марка → Модель» — строгая:
+     пока не выбран производитель, марку выбрать нельзя; пока не выбрана
+     марка — нельзя модель. Значения вне списка (вписанные руками раньше)
+     при открытии карточки сбрасываются вместе со всем, что ниже по цепочке. */
+  function equipRefLocked(ref, inst) {
+    var vals = (inst && inst.vals) || {};
+    if (ref === 'brand') return !String(vals['Производитель'] || '').trim();
+    if (ref === 'model') return !String(vals['Марка'] || '').trim();
+    return false;
+  }
+  function equipSanitizeInst(inst) {
+    if (!inst || !inst.vals) return;
+    var vals = inst.vals;
+    if (String(vals['Производитель'] || '').trim() && equipRefOptions('manuf', inst).indexOf(vals['Производитель']) < 0) vals['Производитель'] = '';
+    if (!String(vals['Производитель'] || '').trim()) { vals['Марка'] = ''; vals['Модель'] = ''; }
+    else if (String(vals['Марка'] || '').trim() && equipRefOptions('brand', inst).indexOf(vals['Марка']) < 0) vals['Марка'] = '';
+    if (!String(vals['Марка'] || '').trim()) vals['Модель'] = '';
+    else if (String(vals['Модель'] || '').trim() && equipRefOptions('model', inst).indexOf(vals['Модель']) < 0) vals['Модель'] = '';
+  }
+  function equipComboListHtml(opts, cur) {
+    if (!opts.length) return '<div style="padding:8px 10px;font-size:12.5px;color:var(--muted)">Список пуст — для этого вида оборудования в классификаторе вариантов нет</div>';
+    return opts.map(function (x) {
+      return '<button type="button" data-eqpick="' + esc(x) + '" style="display:block;width:100%;text-align:left;padding:7px 10px;border:none;background:' + (x === cur ? 'var(--blue-soft,#e8f0fe)' : 'transparent') + ';font:inherit;font-size:13px;cursor:pointer;color:var(--ink)">' + esc(x) + '</button>';
+    }).join('');
   }
   function equipTabDef(key) {
     var tabs = (window.SP_EQUIP_SCHEMA && SP_EQUIP_SCHEMA.tabs) || [];
@@ -13587,9 +13615,17 @@
     if (f.k === 'date') inp = '<input type="date" ' + id + ' value="' + esc(v || '') + '">';
     else if (f.k === 'const') inp = '<input ' + id + ' value="' + esc(f.v || '') + '" disabled>';
     else if (f.k === 'list' && f.ref) {
-      var dl = equipRefOptions(f.ref, inst);
-      inp = '<input ' + id + ' list="eq-dl-' + f.ref + '-' + idx + '" value="' + esc(v || '') + '" placeholder="выбрать или вписать">' +
-        '<datalist id="eq-dl-' + f.ref + '-' + idx + '">' + dl.map(function (x) { return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>';
+      // 22.09-395: выбор ТОЛЬКО из выпадающего списка: в строке можно лишь
+      // искать (печатать для фильтра), своё значение ввести нельзя.
+      var locked = equipRefLocked(f.ref, inst);
+      var opts = locked ? [] : equipRefOptions(f.ref, inst);
+      var ph = locked
+        ? (f.ref === 'brand' ? 'сначала выберите производителя' : 'сначала выберите марку')
+        : '🔍 искать в списке…';
+      if (!locked && !opts.length) ph = 'нет вариантов в классификаторе';
+      inp = '<div class="eq-combo" style="position:relative">' +
+        '<input ' + id + ' data-eqref="' + f.ref + '" value="' + esc(locked ? '' : (v || '')) + '" autocomplete="off" spellcheck="false" placeholder="' + ph + '"' + (locked || !opts.length ? ' disabled' : '') + ' style="width:100%">' +
+        '<div class="eq-combo-list" hidden style="position:absolute;left:0;right:0;top:calc(100% + 3px);z-index:60;max-height:230px;overflow-y:auto;background:var(--card);border:1px solid var(--line);border-radius:9px;box-shadow:0 10px 28px rgba(15,35,70,.18);padding:4px 0">' + equipComboListHtml(opts, v || '') + '</div></div>';
     }
     else if (f.k === 'list') inp = '<select ' + id + '><option value=""></option>' + (f.o || []).map(function (o) { return '<option value="' + esc(o) + '"' + (String(v) === o ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') + '</select>';
     else if (f.k === 'int' || f.k === 'float') inp = '<input ' + id + ' type="text" inputmode="decimal" value="' + esc(v == null ? '' : String(v).replace('.', ',')) + '">';
@@ -13619,6 +13655,7 @@
           '</div>';
         mine.forEach(function (ii, n) {
           var inst = insts[ii];
+          equipSanitizeInst(inst);
           h += '<div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:8px;background:var(--card)">' +
             '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><b style="font-size:12.5px;color:var(--ink)">' + esc(td.type) + ' №' + (n + 1) + '</b>' +
             '<span style="flex:1"></span><button type="button" class="btn sm" data-eqdel="1" data-eqtab="' + esc(tabKey) + '" data-eqidx="' + ii + '" style="color:var(--red)">Удалить</button></div>' +
@@ -13638,6 +13675,101 @@
   function omEquipWire() {
     if (modal._eqWired) return;
     modal._eqWired = true;
+    /* 22.09-395: выпадающие списки цепочки производитель/марка/модель:
+       печатать в строке можно только для поиска, значение встаёт лишь
+       кликом по пункту списка (или Enter при единственном варианте). */
+    function eqInstOf(el) {
+      var tab = el.getAttribute('data-eqtab'), idx = parseInt(el.getAttribute('data-eqidx'), 10);
+      var inst = S.objEquip && S.objEquip[tab] && S.objEquip[tab][idx];
+      return { tab: tab, inst: inst, fn: el.getAttribute('data-eqfield') };
+    }
+    function eqListOf(el) {
+      var box = el.closest ? el.closest('.eq-combo') : null;
+      return box ? box.querySelector('.eq-combo-list') : null;
+    }
+    function eqShowList(el, all) {
+      modal.querySelectorAll('.eq-combo-list').forEach(function (l) { if (l !== eqListOf(el)) l.hidden = true; });
+      var list = eqListOf(el); if (!list) return;
+      var q = all ? '' : String(el.value || '').trim().toLowerCase().replace(/ё/g, 'е');
+      var seen = 0;
+      list.querySelectorAll('[data-eqpick]').forEach(function (b) {
+        var t = String(b.getAttribute('data-eqpick') || '').toLowerCase().replace(/ё/g, 'е');
+        var ok = !q || t.indexOf(q) >= 0;
+        b.style.display = ok ? '' : 'none';
+        if (ok) seen++;
+      });
+      var empty = list.querySelector('[data-eqempty]');
+      if (!seen) {
+        if (!empty) { empty = document.createElement('div'); empty.setAttribute('data-eqempty', '1'); empty.style.cssText = 'padding:8px 10px;font-size:12.5px;color:var(--muted)'; empty.textContent = 'Ничего не найдено — выбрать можно только из списка'; list.appendChild(empty); }
+        empty.style.display = '';
+      } else if (empty) empty.style.display = 'none';
+      list.hidden = false;
+    }
+    function eqPick(el, value) {
+      var c = eqInstOf(el); if (!c.inst) return;
+      if (!c.inst.vals) c.inst.vals = {};
+      var vals = c.inst.vals;
+      if (equipRefOptions(el.getAttribute('data-eqref'), c.inst).indexOf(value) < 0) return; // только из списка
+      vals[c.fn] = value;
+      // смена звена цепочки сбрасывает всё, что ниже
+      if (c.fn === 'Производитель') { vals['Марка'] = ''; vals['Модель'] = ''; }
+      if (c.fn === 'Марка') { vals['Модель'] = ''; }
+      if (c.fn === 'Модель') {
+        var ent = null;
+        equipClassEntries().forEach(function (en) {
+          if (ent) return;
+          if (!equipTypeMatch(en.type, c.inst.type) || en.model !== value) return;
+          if (vals['Производитель'] && en.manuf !== vals['Производитель']) return;
+          if (vals['Марка'] && en.brand !== vals['Марка']) return;
+          ent = en;
+        });
+        if (ent) {
+          if (ent.life != null) vals['Нормативный срок службы, мес.'] = ent.life;
+          if (ent.warranty != null) vals['Гарантийный срок'] = ent.warranty;
+          if (ent.capacity && vals['Пропускная способность'] !== undefined) vals['Пропускная способность'] = ent.capacity;
+        }
+      }
+      omEquipRerender(c.tab);
+      if (c.fn === 'Модель' && ent) toast('ok', 'По классификатору подставлены сроки для модели «' + value + '»');
+    }
+    modal.addEventListener('mousedown', function (e) {
+      var pick = e.target.closest ? e.target.closest('[data-eqpick]') : null;
+      if (!pick) return;
+      var box = pick.closest('.eq-combo');
+      var inp = box ? box.querySelector('input[data-eqref]') : null;
+      if (!inp) return;
+      e.preventDefault();
+      eqPick(inp, pick.getAttribute('data-eqpick'));
+    });
+    modal.addEventListener('focusin', function (e) {
+      var el = e.target;
+      if (el.getAttribute && el.getAttribute('data-eqref') && !el.disabled) eqShowList(el, true);
+    });
+    modal.addEventListener('focusout', function (e) {
+      var el = e.target;
+      if (!el.getAttribute || !el.getAttribute('data-eqref')) return;
+      setTimeout(function () {
+        if (!document.body.contains(el)) return;
+        var c = eqInstOf(el);
+        el.value = (c.inst && c.inst.vals && c.inst.vals[c.fn]) || ''; // напечатанное без выбора не принимается
+        var list = eqListOf(el); if (list) list.hidden = true;
+      }, 120);
+    });
+    modal.addEventListener('keydown', function (e) {
+      var el = e.target;
+      if (!el.getAttribute || !el.getAttribute('data-eqref')) return;
+      var list = eqListOf(el);
+      if (e.key === 'Escape') { if (list) list.hidden = true; el.blur(); return; }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (!list) return;
+        var vis = [];
+        list.querySelectorAll('[data-eqpick]').forEach(function (b) { if (b.style.display !== 'none') vis.push(b); });
+        var exact = vis.filter(function (b) { return b.getAttribute('data-eqpick') === el.value.trim(); })[0];
+        if (exact) eqPick(el, exact.getAttribute('data-eqpick'));
+        else if (vis.length === 1) eqPick(el, vis[0].getAttribute('data-eqpick'));
+      }
+    });
     modal.addEventListener('click', function (e) {
       var add = e.target.closest ? e.target.closest('[data-eqadd]') : null;
       var del = e.target.closest ? e.target.closest('[data-eqdel]') : null;
@@ -13656,6 +13788,7 @@
     modal.addEventListener('input', function (e) {
       var el = e.target;
       if (!el.getAttribute || !el.getAttribute('data-eqf')) return;
+      if (el.getAttribute('data-eqref')) { eqShowList(el, false); return; } // в справочных полях печать — только поиск по списку, значение не пишется
       var tab = el.getAttribute('data-eqtab'), idx = parseInt(el.getAttribute('data-eqidx'), 10), fn = el.getAttribute('data-eqfield');
       var inst = S.objEquip && S.objEquip[tab] && S.objEquip[tab][idx];
       if (!inst) return;
@@ -13665,6 +13798,7 @@
     modal.addEventListener('change', function (e) {
       var el = e.target;
       if (!el.getAttribute || !el.getAttribute('data-eqf')) return;
+      if (el.getAttribute('data-eqref')) return; // справочные поля обрабатывает eqPick (выбор из списка)
       var tab = el.getAttribute('data-eqtab'), idx = parseInt(el.getAttribute('data-eqidx'), 10), fn = el.getAttribute('data-eqfield');
       var inst = S.objEquip && S.objEquip[tab] && S.objEquip[tab][idx];
       if (!inst) return;
@@ -13955,6 +14089,8 @@
     })();
     // 22.09-393: оборудование по системам + новые значения в общие справочники
     try {
+      // 22.09-395: перед сохранением — контроль цепочки: значения вне списка не сохраняются
+      Object.keys(S.objEquip || {}).forEach(function (tk) { (S.objEquip[tk] || []).forEach(equipSanitizeInst); });
       data.systems = JSON.parse(JSON.stringify(S.objEquip || {}));
       var _nd = equipDictsLoad(), _ndCh = false;
       ((window.SP_EQUIP_SCHEMA && SP_EQUIP_SCHEMA.tabs) || []).forEach(function (tab) {
