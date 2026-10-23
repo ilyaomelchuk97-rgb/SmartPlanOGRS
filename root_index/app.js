@@ -943,7 +943,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-389';
+  var SP_BUILD = '22.09-390';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -5168,7 +5168,10 @@
       }
       var cs = window.getComputedStyle(v);
       var padTop = parseFloat(cs.paddingTop) || 0, padBot = parseFloat(cs.paddingBottom) || 0;
-      var avail = Math.floor(v.clientHeight - padTop - padBot);
+      // 22.09-390: доступная высота — от верха страницы до НИЗА ОКНА браузера,
+      // а не clientHeight (он растягивается содержимым, и под картой оставалась пустая полоса)
+      var avail = Math.floor(window.innerHeight - v.getBoundingClientRect().top - padBot);
+      if (!(avail > 0)) avail = Math.floor(v.clientHeight - padTop - padBot);
       var minH = 420;                                   // совсем низкое окно — оставляем прокрутку
       var h = Math.max(minH, avail);
       var box = null;
@@ -7067,6 +7070,20 @@
           controls: ['zoomControl', 'fullscreenControl']
         }, { projection: ymaps.projection.sphericalMercator, suppressMapOpenBlock: true });
         omState.map = map;
+        // 22.09-390: непрерывно запоминаем вид (центр+масштаб) при каждом движении
+        // карты — тогда любая перестройка вернёт пользователя ровно туда, где он был
+        try {
+          var _omViewT = 0;
+          map.events.add('boundschange', function () {
+            var t = Date.now();
+            if (t - _omViewT < 250) return;
+            _omViewT = t;
+            try {
+              var c2 = map.getCenter(), z2 = map.getZoom();
+              if (c2 && isFinite(z2)) omState.view = { c: [c2[0], c2[1]], z: z2 };
+            } catch (eV) {}
+          });
+        } catch (eVB) {}
 
         // зум-кнопки — вправо (левый верхний угол занимает панель «Слои»)
         try {
@@ -19023,7 +19040,9 @@
     _crEl.title = 'История изменений системы: Администрирование → Журнал изменений';
     document.getElementById('sidebar').classList.remove('open');
     refresh();
-    if (name !== 'objmap') { try { omState.view = null; } catch (eOv) {} } // 22.09-320: ушёл с карты объектов — следующий вход снова покажет все объекты
+    // 22.09-390: вид карты объектов НЕ забываем при уходе — пользователь, вернувшись,
+    // видит тот же центр и масштаб, а не «все объекты в экран» (раньше здесь стоял
+    // сброс omState.view = null, и карта сама приближалась обратно)
   }
   /* ── часть 12 · app/12_writeoffs.js — списания, «Приступил/Закончил», карточки работ на день, факт работ, окно списания ── */
   /* =====================================================================
