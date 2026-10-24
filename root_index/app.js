@@ -943,7 +943,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-400';
+  var SP_BUILD = '22.09-401';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -9339,6 +9339,7 @@
     S.bpOpen = true;
     S.bpEditId = null;
     if (!S.bpGen) S.bpGen = { year: new Date().getFullYear(), len: 3, months: [true, true, true, true, true, true, true, true, true, true, true, true] }; // 22.09-398: генератор «год периодами»
+    if (!S.bpFilter) S.bpFilter = { q: '', year: '', warn: '', len: '' }; // 22.09-401: поиск и фильтры списка периодов
     var overlay2 = document.getElementById('overlay2'), modal2 = document.getElementById('modal2');
     if (!overlay2 || !modal2) return;
     modal2.style.width = 'min(880px,96vw)'; modal2.style.maxWidth = '880px';
@@ -9455,150 +9456,238 @@
     h += '</div><div class="modal-f"><button class="btn primary" data-action="close-modal3">Готово</button></div>';
     modal3.innerHTML = h;
   }
-  function bpRender() {
-    var modal2 = document.getElementById('modal2'); if (!modal2 || !S.bpOpen) return;
-    var can = bperiodCanEdit();
-    var list = bperiodsLoad();
+  /* 22.09-401: окно «Периоды работы бригад»: сверху кнопка «Создать» —
+     по ней поверх открываются два окна на выбор: «Создать целый год
+     периодами» и «Новый период работы бригады» (изменение периода —
+     тоже окном поверх). Список периодов остался на месте, в него
+     добавлены поиск и фильтры (год, перебор, длительность). */
+  function bpPeople() {
     var users = wkVisibleUsers();
     var masters = users.filter(function (u) { return u.role === 'master'; });
     var slesars = users.filter(function (u) { return u.role === 'slesar'; });
     var rows = buildBrigadeRows(masters, slesars, 'all');
-    var ed = S.bpEditId ? list.filter(function (p) { return p.id === S.bpEditId; })[0] : null;
-    var todayIso = new Date().toISOString().slice(0, 10);
-    var defStart = ed ? ed.start : (todayIso.slice(0, 8) + '01');
-    var h = '<div class="modal-h"><h3>🗓 Периоды работы бригад</h3><button class="x" data-action="close-modal2">×</button></div><div class="modal-b">';
-    h += '<div style="font-size:12.5px;color:var(--muted);margin-bottom:12px">Период общий для всех бригад. Периодов может быть несколько — они хранятся и доступны для просмотра и изменения. ' +
-      'Часы каждого работника за период сравниваются с нормой производственного календаря за те же месяцы — при переборе на карточке работника в «Графиках смен» появляется красный ⚠. Дни вне периодов на графике помечены серым.</div>';
-    if (can) {
-      // 22.09-398: целый год периодами — год, длина периода и выбор месяцев
-      var g = S.bpGen || { year: new Date().getFullYear(), len: 3, months: [] };
-      var gen = bpGenBuild();
-      var MON_S = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
-      h += '<div style="border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:16px;background:var(--panel-2)">' +
-        '<div style="font-size:13px;font-weight:800;color:var(--ink);margin-bottom:9px">📅 Создать целый год периодами</div>' +
-        '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:9px">' +
-        '<span style="display:inline-flex;align-items:center;gap:7px"><button type="button" class="btn sm" id="bpgy-prev" title="Год назад">‹</button><b style="font-size:14px;color:var(--ink);min-width:52px;text-align:center">' + g.year + ' год</b><button type="button" class="btn sm" id="bpgy-next" title="Год вперёд">›</button></span>' +
-        '<label style="font-size:12.5px;color:var(--muted);font-weight:700">Периоды по: <select id="bpgy-len" style="padding:4px 7px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:12.5px;font-weight:700;background:var(--card)">' +
-        [1, 2, 3, 4, 6, 12].map(function (L) { return '<option value="' + L + '"' + (+g.len === L ? ' selected' : '') + '>' + (L === 12 ? 'весь год' : L + ' мес.') + '</option>'; }).join('') + '</select></label>' +
-        '<span style="font-size:12px;color:var(--muted)">месяцы года (нажимайте, чтобы включить или выключить):</span></div>' +
-        '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:9px">' +
-        MON_S.map(function (mn, i) {
-          var on = !!g.months[i];
-          return '<button type="button" data-bpgy-m="' + i + '" style="padding:5px 10px;border-radius:999px;border:1px solid ' + (on ? '#2563eb' : 'var(--line)') + ';background:' + (on ? '#2563eb' : 'var(--card)') + ';color:' + (on ? '#fff' : 'var(--muted)') + ';font-family:inherit;font-size:12px;font-weight:800;cursor:pointer">' + mn + '</button>';
-        }).join('') + '</div>' +
-        '<div style="font-size:12.5px;color:var(--muted);margin-bottom:9px">' + (gen.length
-          ? 'Будет создано периодов: <b style="color:var(--ink)">' + gen.length + '</b> — ' + gen.map(function (p) { return esc(bperiodLabel(p)); }).join(' · ')
-          : 'Ни одного месяца не выбрано — создавать нечего.') + '</div>' +
-        '<button type="button" class="btn primary" id="bpgy-create"' + (gen.length ? '' : ' disabled') + '>📅 Создать периоды года (' + gen.length + ')</button>' +
-        '<span style="font-size:12px;color:var(--muted);margin-left:9px">уже существующие такие же периоды пропускаются</span></div>';
-      var mopts = '';
-      for (var mi = 1; mi <= 12; mi++) mopts += '<option value="' + mi + '"' + (ed && +ed.months === mi ? ' selected' : '') + '>' + mi + ' мес.</option>';
-      h += '<div style="border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:16px;background:var(--panel-2)">' +
-        '<div style="font-size:13px;font-weight:800;color:var(--ink);margin-bottom:9px">' + (ed ? '✏ Изменить период' : '➕ Новый период работы бригады') + '</div>' +
-        '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">' +
-        '<div class="fld" style="margin:0"><label>День начала периода</label><input type="date" id="bp-start" value="' + esc(defStart) + '"></div>' +
-        '<div class="fld" style="margin:0"><label>Количество месяцев</label><select id="bp-months">' + mopts + '</select></div>' +
-        '<div class="fld" style="margin:0"><label>Дата окончания (сама)</label><input type="text" id="bp-end" disabled value=""></div>' +
-        '<button type="button" class="btn primary" id="bp-save">' + (ed ? '💾 Сохранить изменения' : '➕ Создать период') + '</button>' +
-        (ed ? '<button type="button" class="btn" id="bp-cancel">Отмена</button>' : '') +
-        '</div><div id="bp-preview" style="font-size:12.5px;color:var(--muted);margin-top:9px"></div></div>';
-    } else {
-      h += '<div style="font-size:12.5px;font-weight:700;color:#1d4ed8;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:9px 12px;margin-bottom:14px">👁 Только просмотр: периоды создают и меняют начальник участка и старший мастер.</div>';
-    }
-    if (!list.length) h += '<div class="empty" style="padding:22px">Периодов пока нет' + (can ? ' — создайте первый формой выше' : '') + '</div>';
-    list.forEach(function (p, pi) {
-      var norm = bperiodNorm(p);
-      // 22.09-398: на карточке периода — такой же красный значок, как на
-      // карточках бригад, если у кого-то из работников перебор по периоду
-      var pplAll = [];
-      rows.forEach(function (row) { (row.kind === 'brigade' ? [row.master].concat(row.members) : row.members).forEach(function (u) { pplAll.push(u); }); });
-      var pOvers = [];
-      pplAll.forEach(function (u) { var st = bperiodStats(u, p); if (norm && st.hrs > norm + 0.001) pOvers.push(u.full_name + ' (+' + fmtH3(Math.round((st.hrs - norm) * 100) / 100) + ' ч)'); });
-      /* 22.09-399/400: карточка периода: сверху сам период, под ним норма,
-         значок-уведомление — в правом верхнем углу, «Изменить» и «Удалить» —
-         в правом нижнем углу. Таблицы — в окне периода по клику на карточку. */
-      h += '<div data-bp-open="' + esc(p.id) + '" title="Нажмите, чтобы открыть период: итоги и все предупреждения по месяцам" style="position:relative;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:var(--card);cursor:pointer">' +
-        (pOvers.length ? '<span data-tip="В этом периоде перебор часов у ' + pOvers.length + ' чел.: ' + esc(pOvers.join(', ')) + '. Нажмите на карточку периода — откроются все предупреждения по месяцам." style="position:absolute;top:9px;right:11px;width:21px;height:21px;border-radius:50%;background:#dc2626;color:#fff;font-size:12.5px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;cursor:help;box-shadow:0 2px 7px rgba(220,38,38,.5);z-index:2">⚠</span>' : '') +
-        '<div style="padding-right:32px"><b style="font-size:13.5px;color:var(--ink)">Период №' + (pi + 1) + ': ' + esc(bperiodLabel(p)) + '</b></div>' +
-        '<div style="display:flex;align-items:flex-end;gap:9px;flex-wrap:wrap;margin-top:8px">' +
-        '<span style="font-size:12px;color:var(--muted);font-weight:700">норма производственного календаря за эти месяцы: ' + fmtH3(norm) + ' ч</span><span style="flex:1"></span>' +
-        (can ? '<span style="display:inline-flex;gap:6px"><button type="button" class="btn sm" data-bp-edit="' + esc(p.id) + '">✏ Изменить</button><button type="button" class="btn sm" data-bp-del="' + esc(p.id) + '" style="color:var(--red)">Удалить</button></span>' : '') + '</div>';
-      h += '</div>';
-    });
-    h += '</div><div class="modal-f"><button class="btn primary" data-action="close-modal2">Готово</button></div>';
-    modal2.innerHTML = h;
-    // форма: конец периода и предпросмотр считаются сами при выборе дня/месяцев
-    var stEl = document.getElementById('bp-start'), moEl = document.getElementById('bp-months');
-    function bpPreview() {
-      var endEl = document.getElementById('bp-end'), pv = document.getElementById('bp-preview');
-      if (!stEl || !moEl || !/^\d{4}-\d{2}-\d{2}$/.test(stEl.value)) return;
-      var p = { start: stEl.value, months: parseInt(moEl.value, 10) || 1 };
-      if (endEl) endEl.value = fmtDmyIso(bperiodEndIso(p));
-      if (pv) pv.innerHTML = 'Период: <b style="color:var(--ink)">' + esc(bperiodLabel(p)) + '</b> · норма производственного календаря за эти месяцы: <b style="color:var(--ink)">' + fmtH3(bperiodNorm(p)) + ' ч</b>. Рабочие дни и часы каждой бригады откроются по нажатию на карточку периода внизу.';
-    }
-    if (stEl) stEl.addEventListener('change', bpPreview);
-    if (moEl) moEl.addEventListener('change', bpPreview);
-    bpPreview();
-    var sv = document.getElementById('bp-save');
-    if (sv) sv.addEventListener('click', function () {
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(stEl.value)) { toast('err', 'Выберите день начала периода'); return; }
-      var nl = bperiodsLoad().slice();
-      if (S.bpEditId) {
-        nl = nl.map(function (p) { return p.id === S.bpEditId ? { id: p.id, start: stEl.value, months: parseInt(moEl.value, 10) || 1 } : p; });
-      } else {
-        nl.push({ id: 'bp' + Date.now().toString(36), start: stEl.value, months: parseInt(moEl.value, 10) || 1 });
+    var people = [];
+    rows.forEach(function (row) { (row.kind === 'brigade' ? [row.master].concat(row.members) : row.members).forEach(function (u) { people.push(u); }); });
+    return { rows: rows, people: people };
+  }
+  function bpOversOf(p, people) {
+    var norm = bperiodNorm(p), out = [];
+    (people || []).forEach(function (u) { var st = bperiodStats(u, p); if (norm && st.hrs > norm + 0.001) out.push(u.full_name + ' (+' + fmtH3(Math.round((st.hrs - norm) * 100) / 100) + ' ч)'); });
+    return out;
+  }
+  function bpSearchText(p) {
+    var d0 = new Date(String(p.start) + 'T00:00:00');
+    var months = [];
+    for (var i = 0; i < (+p.months || 0); i++) { var dt = new Date(d0.getFullYear(), d0.getMonth() + i, 1); months.push(MON_NOM[dt.getMonth()] + ' ' + dt.getFullYear()); }
+    return (bperiodLabel(p) + ' ' + p.start + ' ' + bperiodEndIso(p) + ' ' + months.join(' ') + ' ' + (+p.months) + ' мес').toLowerCase().replace(/ё/g, 'е');
+  }
+  function bpCardHtml(p, pi, can, people) {
+    var norm = bperiodNorm(p);
+    var pOvers = bpOversOf(p, people);
+    // 22.09-400: сверху период, под ним норма, значок — в правом верхнем
+    // углу, «Изменить» и «Удалить» — в правом нижнем углу
+    return '<div data-bp-open="' + esc(p.id) + '" title="Нажмите, чтобы открыть период: итоги и все предупреждения по месяцам" style="position:relative;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:var(--card);cursor:pointer">' +
+      (pOvers.length ? '<span data-tip="В этом периоде перебор часов у ' + pOvers.length + ' чел.: ' + esc(pOvers.join(', ')) + '. Нажмите на карточку периода — откроются все предупреждения по месяцам." style="position:absolute;top:9px;right:11px;width:21px;height:21px;border-radius:50%;background:#dc2626;color:#fff;font-size:12.5px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;cursor:help;box-shadow:0 2px 7px rgba(220,38,38,.5);z-index:2">⚠</span>' : '') +
+      '<div style="padding-right:32px"><b style="font-size:13.5px;color:var(--ink)">Период №' + (pi + 1) + ': ' + esc(bperiodLabel(p)) + '</b></div>' +
+      '<div style="display:flex;align-items:flex-end;gap:9px;flex-wrap:wrap;margin-top:8px">' +
+      '<span style="font-size:12px;color:var(--muted);font-weight:700">норма производственного календаря за эти месяцы: ' + fmtH3(norm) + ' ч</span><span style="flex:1"></span>' +
+      (can ? '<span style="display:inline-flex;gap:6px"><button type="button" class="btn sm" data-bp-edit="' + esc(p.id) + '">✏ Изменить</button><button type="button" class="btn sm" data-bp-del="' + esc(p.id) + '" style="color:var(--red)">Удалить</button></span>' : '') + '</div></div>';
+  }
+  function bpListRender() {
+    var box = document.getElementById('bp-list'); if (!box) return;
+    var can = bperiodCanEdit();
+    var all = bperiodsLoad();
+    var f = S.bpFilter || { q: '', year: '', warn: '', len: '' };
+    var people = bpPeople().people;
+    var q = String(f.q || '').trim().toLowerCase().replace(/ё/g, 'е');
+    var shown = all.filter(function (p, pi) {
+      if (q && bpSearchText(p).indexOf(q) < 0) return false;
+      if (f.year && String(new Date(String(p.start) + 'T00:00:00').getFullYear()) !== String(f.year)) return false;
+      if (f.warn) {
+        var has = bpOversOf(p, people).length > 0;
+        if (f.warn === 'over' && !has) return false;
+        if (f.warn === 'ok' && has) return false;
       }
-      S.bpEditId = null;
-      bperiodsSave(nl, function (ok) { toast(ok ? 'ok' : 'warn', ok ? '✓ Период сохранён' : 'Сохранено на этом устройстве (сервер недоступен)'); bpRender(); try { renderSchedules(); } catch (eR) {} });
+      if (f.len) {
+        var mn = +p.months || 0;
+        if (f.len === '1' && mn !== 1) return false;
+        if (f.len === '2-3' && (mn < 2 || mn > 3)) return false;
+        if (f.len === '4-6' && (mn < 4 || mn > 6)) return false;
+        if (f.len === '7-12' && (mn < 7 || mn > 12)) return false;
+      }
+      return true;
     });
-    var cc = document.getElementById('bp-cancel');
-    if (cc) cc.addEventListener('click', function () { S.bpEditId = null; bpRender(); });
-    modal2.querySelectorAll('[data-bp-edit]').forEach(function (b) {
-      b.addEventListener('click', function () { S.bpEditId = b.getAttribute('data-bp-edit'); bpRender(); });
-    });
-    modal2.querySelectorAll('[data-bp-del]').forEach(function (b) {
-      b.addEventListener('click', function () {
-        var id = b.getAttribute('data-bp-del');
-        var nl = bperiodsLoad().filter(function (p) { return p.id !== id; });
-        if (S.bpEditId === id) S.bpEditId = null;
-        bperiodsSave(nl, function (ok) { toast(ok ? 'ok' : 'warn', ok ? '✓ Период удалён' : 'Удалено на этом устройстве (сервер недоступен)'); bpRender(); try { renderSchedules(); } catch (eR) {} });
-      });
-    });
-    // 22.09-398: клик по карточке периода — открыть окно периода (по месяцам)
-    modal2.querySelectorAll('[data-bp-open]').forEach(function (card) {
+    var cnt = document.getElementById('bp-count');
+    if (cnt) cnt.textContent = 'Показано: ' + shown.length + ' из ' + all.length;
+    if (!all.length) { box.innerHTML = '<div class="empty" style="padding:22px">Периодов пока нет' + (can ? ' — нажмите «➕ Создать» сверху' : '') + '</div>'; return; }
+    if (!shown.length) { box.innerHTML = '<div class="empty" style="padding:22px">По поиску и фильтрам ничего не нашлось — измените запрос или сбросьте фильтры</div>'; bpWireList(box); return; }
+    box.innerHTML = shown.map(function (p) { return bpCardHtml(p, all.indexOf(p), can, people); }).join('');
+    bpWireList(box);
+  }
+  function bpWireList(box) {
+    box.querySelectorAll('[data-bp-open]').forEach(function (card) {
       card.addEventListener('click', function (e) {
         if (e.target.closest && e.target.closest('[data-bp-edit],[data-bp-del]')) return;
         openPeriodDetail(card.getAttribute('data-bp-open'));
       });
     });
-    // 22.09-398: генератор «год периодами»
-    var gPrev = document.getElementById('bpgy-prev'), gNext = document.getElementById('bpgy-next'), gLen = document.getElementById('bpgy-len'), gCreate = document.getElementById('bpgy-create');
-    if (gPrev) gPrev.addEventListener('click', function () { S.bpGen.year--; bpRender(); });
-    if (gNext) gNext.addEventListener('click', function () { S.bpGen.year++; bpRender(); });
-    if (gLen) gLen.addEventListener('change', function () { S.bpGen.len = parseInt(gLen.value, 10) || 3; bpRender(); });
-    modal2.querySelectorAll('[data-bpgy-m]').forEach(function (chip) {
-      chip.addEventListener('click', function () {
-        var i = parseInt(chip.getAttribute('data-bpgy-m'), 10);
-        S.bpGen.months[i] = !S.bpGen.months[i];
-        bpRender();
+    box.querySelectorAll('[data-bp-edit]').forEach(function (b) {
+      b.addEventListener('click', function () { bpNewFormRender(b.getAttribute('data-bp-edit')); });
+    });
+    box.querySelectorAll('[data-bp-del]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var id = b.getAttribute('data-bp-del');
+        var nl = bperiodsLoad().filter(function (p) { return p.id !== id; });
+        bperiodsSave(nl, function (ok) { toast(ok ? 'ok' : 'warn', ok ? '✓ Период удалён' : 'Удалено на этом устройстве (сервер недоступен)'); bpRender(); try { renderSchedules(); } catch (eR) {} });
       });
     });
-    if (gCreate) gCreate.addEventListener('click', function () {
-      var gen = bpGenBuild();
-      var nl = bperiodsLoad().slice();
-      var added = 0, skipped = 0;
-      gen.forEach(function (p) {
+  }
+  function bpCloseTop() {
+    var ov3 = document.getElementById('overlay3'); if (ov3) ov3.classList.remove('show');
+    var md3 = document.getElementById('modal3'); if (md3) { md3.style.width = ''; md3.style.maxWidth = ''; }
+  }
+  function bpTopOpen(html, width) {
+    var overlay3 = document.getElementById('overlay3'), modal3 = document.getElementById('modal3');
+    if (!overlay3 || !modal3) return null;
+    modal3.style.width = width || 'min(680px,96vw)'; modal3.style.maxWidth = '880px';
+    modal3.innerHTML = html;
+    overlay3.classList.add('show');
+    return modal3;
+  }
+  // окно выбора: два способа создания
+  function bpCreateChoice() {
+    var m3 = bpTopOpen('<div class="modal-h"><h3>➕ Создать период</h3><button class="x" data-action="close-modal3">×</button></div>' +
+      '<div class="modal-b"><div style="font-size:12.5px;color:var(--muted);margin-bottom:12px">Выберите, что создать. Список периодов останется на месте под этим окном.</div>' +
+      '<button type="button" id="bp-choice-year" style="display:block;width:100%;text-align:left;border:1px solid var(--line);border-radius:12px;background:var(--card);padding:14px;margin-bottom:10px;cursor:pointer;font-family:inherit">' +
+      '<b style="font-size:14px;color:var(--ink)">📅 Создать целый год периодами</b><div style="font-size:12.5px;color:var(--muted);margin-top:4px">Год делится на периоды выбранной длины (1, 2, 3, 4, 6 месяцев или весь год), месяцы можно включать и выключать.</div></button>' +
+      '<button type="button" id="bp-choice-one" style="display:block;width:100%;text-align:left;border:1px solid var(--line);border-radius:12px;background:var(--card);padding:14px;cursor:pointer;font-family:inherit">' +
+      '<b style="font-size:14px;color:var(--ink)">🗓 Новый период работы бригады</b><div style="font-size:12.5px;color:var(--muted);margin-top:4px">Один период: день начала и количество месяцев, дата окончания считается сама.</div></button>' +
+      '</div><div class="modal-f"><button class="btn" data-action="close-modal3">Отмена</button></div>', 'min(560px,94vw)');
+    if (!m3) return;
+    document.getElementById('bp-choice-year').addEventListener('click', bpGenFormRender);
+    document.getElementById('bp-choice-one').addEventListener('click', function () { bpNewFormRender(null); });
+  }
+  // окно «Создать целый год периодами»
+  function bpGenFormRender() {
+    if (!S.bpGen) S.bpGen = { year: new Date().getFullYear(), len: 3, months: [true, true, true, true, true, true, true, true, true, true, true, true] };
+    var g = S.bpGen;
+    var gen = bpGenBuild();
+    var MON_S = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+    var m3 = bpTopOpen('<div class="modal-h"><h3>📅 Создать целый год периодами</h3><button class="x" data-action="close-modal3">×</button></div>' +
+      '<div class="modal-b">' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px">' +
+      '<span style="display:inline-flex;align-items:center;gap:7px"><button type="button" class="btn sm" id="bpgy-prev" title="Год назад">‹</button><b style="font-size:14px;color:var(--ink);min-width:60px;text-align:center">' + g.year + ' год</b><button type="button" class="btn sm" id="bpgy-next" title="Год вперёд">›</button></span>' +
+      '<label style="font-size:12.5px;color:var(--muted);font-weight:700">Периоды по: <select id="bpgy-len" style="padding:4px 7px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:12.5px;font-weight:700;background:var(--card)">' +
+      [1, 2, 3, 4, 6, 12].map(function (L) { return '<option value="' + L + '"' + (+g.len === L ? ' selected' : '') + '>' + (L === 12 ? 'весь год' : L + ' мес.') + '</option>'; }).join('') + '</select></label></div>' +
+      '<div style="font-size:12px;color:var(--muted);margin-bottom:7px">Месяцы года (нажимайте, чтобы включить или выключить; выключенный месяц разрывает период):</div>' +
+      '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px">' +
+      MON_S.map(function (mn, i) {
+        var on = !!g.months[i];
+        return '<button type="button" data-bpgy-m="' + i + '" style="padding:5px 10px;border-radius:999px;border:1px solid ' + (on ? '#2563eb' : 'var(--line)') + ';background:' + (on ? '#2563eb' : 'var(--card)') + ';color:' + (on ? '#fff' : 'var(--muted)') + ';font-family:inherit;font-size:12px;font-weight:800;cursor:pointer">' + mn + '</button>';
+      }).join('') + '</div>' +
+      '<div style="font-size:12.5px;color:var(--muted)">' + (gen.length
+        ? 'Будет создано периодов: <b style="color:var(--ink)">' + gen.length + '</b> — ' + gen.map(function (p) { return esc(bperiodLabel(p)); }).join(' · ')
+        : 'Ни одного месяца не выбрано — создавать нечего.') + '</div>' +
+      '<div style="font-size:12px;color:var(--muted);margin-top:6px">Уже существующие такие же периоды пропускаются.</div>' +
+      '</div><div class="modal-f"><button class="btn" data-action="close-modal3">Отмена</button>' +
+      '<button type="button" class="btn primary" id="bpgy-create"' + (gen.length ? '' : ' disabled') + '>📅 Создать периоды года (' + gen.length + ')</button></div>', 'min(680px,96vw)');
+    if (!m3) return;
+    document.getElementById('bpgy-prev').addEventListener('click', function () { S.bpGen.year--; bpGenFormRender(); });
+    document.getElementById('bpgy-next').addEventListener('click', function () { S.bpGen.year++; bpGenFormRender(); });
+    document.getElementById('bpgy-len').addEventListener('change', function () { S.bpGen.len = parseInt(this.value, 10) || 3; bpGenFormRender(); });
+    m3.querySelectorAll('[data-bpgy-m]').forEach(function (chip) {
+      chip.addEventListener('click', function () { var i = parseInt(chip.getAttribute('data-bpgy-m'), 10); S.bpGen.months[i] = !S.bpGen.months[i]; bpGenFormRender(); });
+    });
+    document.getElementById('bpgy-create').addEventListener('click', function () {
+      var gen2 = bpGenBuild();
+      var nl = bperiodsLoad().slice(), added = 0, skipped = 0;
+      gen2.forEach(function (p) {
         if (nl.some(function (x) { return x.start === p.start && +x.months === +p.months; })) { skipped++; return; }
         nl.push(p); added++;
       });
       if (!added) { toast('warn', 'Все такие периоды уже есть — создавать нечего'); return; }
       bperiodsSave(nl, function (ok) {
         toast(ok ? 'ok' : 'warn', (ok ? '✓ ' : '') + 'Создано периодов: ' + added + (skipped ? ' · пропущено (уже есть): ' + skipped : ''));
-        bpRender(); try { renderSchedules(); } catch (eR) {}
+        bpCloseTop(); bpRender(); try { renderSchedules(); } catch (eR) {}
       });
     });
   }
-
+  // окно «Новый период работы бригады» (и изменение существующего)
+  function bpNewFormRender(editId) {
+    var list = bperiodsLoad();
+    var ed = editId ? list.filter(function (p) { return p.id === editId; })[0] : null;
+    var defStart = ed ? ed.start : (new Date().toISOString().slice(0, 8) + '01');
+    var mopts = '';
+    for (var mi = 1; mi <= 12; mi++) mopts += '<option value="' + mi + '"' + (ed && +ed.months === mi ? ' selected' : '') + '>' + mi + ' мес.</option>';
+    var m3 = bpTopOpen('<div class="modal-h"><h3>' + (ed ? '✏ Изменить период' : '🗓 Новый период работы бригады') + '</h3><button class="x" data-action="close-modal3">×</button></div>' +
+      '<div class="modal-b">' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">' +
+      '<div class="fld" style="margin:0"><label>День начала периода</label><input type="date" id="bp2-start" value="' + esc(defStart) + '"></div>' +
+      '<div class="fld" style="margin:0"><label>Количество месяцев</label><select id="bp2-months">' + mopts + '</select></div>' +
+      '<div class="fld" style="margin:0"><label>Дата окончания (сама)</label><input type="text" id="bp2-end" disabled value=""></div></div>' +
+      '<div id="bp2-preview" style="font-size:12.5px;color:var(--muted);margin-top:10px"></div>' +
+      '</div><div class="modal-f"><button class="btn" data-action="close-modal3">Отмена</button>' +
+      '<button type="button" class="btn primary" id="bp2-save">' + (ed ? '💾 Сохранить изменения' : '➕ Создать период') + '</button></div>', 'min(640px,96vw)');
+    if (!m3) return;
+    var stEl = document.getElementById('bp2-start'), moEl = document.getElementById('bp2-months');
+    function bp2Preview() {
+      var endEl = document.getElementById('bp2-end'), pv = document.getElementById('bp2-preview');
+      if (!stEl || !moEl || !/^\d{4}-\d{2}-\d{2}$/.test(stEl.value)) return;
+      var p = { start: stEl.value, months: parseInt(moEl.value, 10) || 1 };
+      if (endEl) endEl.value = fmtDmyIso(bperiodEndIso(p));
+      if (pv) pv.innerHTML = 'Период: <b style="color:var(--ink)">' + esc(bperiodLabel(p)) + '</b> · норма производственного календаря за эти месяцы: <b style="color:var(--ink)">' + fmtH3(bperiodNorm(p)) + ' ч</b>. Карточка периода появится в списке внизу.';
+    }
+    stEl.addEventListener('change', bp2Preview);
+    moEl.addEventListener('change', bp2Preview);
+    bp2Preview();
+    document.getElementById('bp2-save').addEventListener('click', function () {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(stEl.value)) { toast('err', 'Выберите день начала периода'); return; }
+      var nl = bperiodsLoad().slice();
+      if (ed) nl = nl.map(function (p) { return p.id === ed.id ? { id: p.id, start: stEl.value, months: parseInt(moEl.value, 10) || 1 } : p; });
+      else nl.push({ id: 'bp' + Date.now().toString(36), start: stEl.value, months: parseInt(moEl.value, 10) || 1 });
+      bperiodsSave(nl, function (ok) {
+        toast(ok ? 'ok' : 'warn', ok ? '✓ Период сохранён' : 'Сохранено на этом устройстве (сервер недоступен)');
+        bpCloseTop(); bpRender(); try { renderSchedules(); } catch (eR) {}
+      });
+    });
+  }
+  function bpRender() {
+    var modal2 = document.getElementById('modal2'); if (!modal2 || !S.bpOpen) return;
+    var can = bperiodCanEdit();
+    var all = bperiodsLoad();
+    var f = S.bpFilter || { q: '', year: '', warn: '', len: '' };
+    var years = [];
+    all.forEach(function (p) { var y = String(new Date(String(p.start) + 'T00:00:00').getFullYear()); if (years.indexOf(y) < 0) years.push(y); });
+    years.sort();
+    var h = '<div class="modal-h"><h3>🗓 Периоды работы бригад</h3><button class="x" data-action="close-modal2">×</button></div><div class="modal-b">';
+    h += '<div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-bottom:11px">' +
+      (can ? '<button type="button" class="btn primary" id="bp-create-open">➕ Создать</button>' : '<span style="font-size:12.5px;font-weight:700;color:#1d4ed8;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:7px 11px">👁 Только просмотр: периоды создают начальник участка и старший мастер</span>') +
+      '<span style="flex:1"></span><span id="bp-count" style="font-size:12px;color:var(--muted);font-weight:700"></span></div>';
+    // 22.09-401: поиск и фильтры по списку периодов
+    h += '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">' +
+      '<input type="text" id="bp-q" placeholder="🔍 Поиск: год, месяц, даты…" value="' + esc(f.q || '') + '" style="flex:1 1 200px;min-width:180px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:12.5px;background:var(--card);color:var(--ink)">' +
+      '<select id="bp-f-year" style="padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:12.5px;font-weight:700;background:var(--card)"><option value="">Все годы</option>' +
+      years.map(function (y) { return '<option value="' + y + '"' + (String(f.year) === y ? ' selected' : '') + '>' + y + ' год</option>'; }).join('') + '</select>' +
+      '<select id="bp-f-warn" style="padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:12.5px;font-weight:700;background:var(--card)">' +
+      '<option value="">Все периоды</option><option value="over"' + (f.warn === 'over' ? ' selected' : '') + '>⚠ Только с перебором</option><option value="ok"' + (f.warn === 'ok' ? ' selected' : '') + '>Без перебора</option></select>' +
+      '<select id="bp-f-len" style="padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:12.5px;font-weight:700;background:var(--card)">' +
+      '<option value="">Любая длительность</option><option value="1"' + (f.len === '1' ? ' selected' : '') + '>1 месяц</option><option value="2-3"' + (f.len === '2-3' ? ' selected' : '') + '>2–3 месяца</option><option value="4-6"' + (f.len === '4-6' ? ' selected' : '') + '>4–6 месяцев</option><option value="7-12"' + (f.len === '7-12' ? ' selected' : '') + '>7–12 месяцев</option></select>' +
+      '<button type="button" class="btn sm" id="bp-f-reset">Сбросить</button></div>';
+    h += '<div id="bp-list"></div>';
+    h += '</div><div class="modal-f"><button class="btn primary" data-action="close-modal2">Готово</button></div>';
+    modal2.innerHTML = h;
+    bpListRender();
+    var co = document.getElementById('bp-create-open');
+    if (co) co.addEventListener('click', bpCreateChoice);
+    var qEl = document.getElementById('bp-q');
+    if (qEl) qEl.addEventListener('input', function () { S.bpFilter.q = qEl.value; bpListRender(); });
+    [['bp-f-year', 'year'], ['bp-f-warn', 'warn'], ['bp-f-len', 'len']].forEach(function (pair) {
+      var el = document.getElementById(pair[0]);
+      if (el) el.addEventListener('change', function () { S.bpFilter[pair[1]] = el.value; bpListRender(); });
+    });
+    var rs = document.getElementById('bp-f-reset');
+    if (rs) rs.addEventListener('click', function () { S.bpFilter = { q: '', year: '', warn: '', len: '' }; bpRender(); });
+  }
   /* ---------- ВИДЫ ТЕЛЕМЕТРИИ (22.09-111) ----------
      Общий список раздела telemetry на сервере (LS-кэш 'smartplan_telemetry').
      Выбирается в атрибутах объектов ГРП/ШРП/ПГРП — «Тип телеметрии». */
