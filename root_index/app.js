@@ -943,7 +943,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-398';
+  var SP_BUILD = '22.09-399';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -9449,17 +9449,6 @@
     h += '<div style="font-size:12.5px;color:var(--muted);margin-bottom:12px">Период общий для всех бригад. Периодов может быть несколько — они хранятся и доступны для просмотра и изменения. ' +
       'Часы каждого работника за период сравниваются с нормой производственного календаря за те же месяцы — при переборе на карточке работника в «Графиках смен» появляется красный ⚠. Дни вне периодов на графике помечены серым.</div>';
     if (can) {
-      var mopts = '';
-      for (var mi = 1; mi <= 12; mi++) mopts += '<option value="' + mi + '"' + (ed && +ed.months === mi ? ' selected' : '') + '>' + mi + ' мес.</option>';
-      h += '<div style="border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:16px;background:var(--panel-2)">' +
-        '<div style="font-size:13px;font-weight:800;color:var(--ink);margin-bottom:9px">' + (ed ? '✏ Изменить период' : '➕ Новый период работы бригады') + '</div>' +
-        '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">' +
-        '<div class="fld" style="margin:0"><label>День начала периода</label><input type="date" id="bp-start" value="' + esc(defStart) + '"></div>' +
-        '<div class="fld" style="margin:0"><label>Количество месяцев</label><select id="bp-months">' + mopts + '</select></div>' +
-        '<div class="fld" style="margin:0"><label>Дата окончания (сама)</label><input type="text" id="bp-end" disabled value=""></div>' +
-        '<button type="button" class="btn primary" id="bp-save">' + (ed ? '💾 Сохранить изменения' : '➕ Создать период') + '</button>' +
-        (ed ? '<button type="button" class="btn" id="bp-cancel">Отмена</button>' : '') +
-        '</div><div id="bp-preview" style="font-size:12.5px;color:var(--muted);margin-top:9px"></div></div>';
       // 22.09-398: целый год периодами — год, длина периода и выбор месяцев
       var g = S.bpGen || { year: new Date().getFullYear(), len: 3, months: [] };
       var gen = bpGenBuild();
@@ -9481,6 +9470,17 @@
           : 'Ни одного месяца не выбрано — создавать нечего.') + '</div>' +
         '<button type="button" class="btn primary" id="bpgy-create"' + (gen.length ? '' : ' disabled') + '>📅 Создать периоды года (' + gen.length + ')</button>' +
         '<span style="font-size:12px;color:var(--muted);margin-left:9px">уже существующие такие же периоды пропускаются</span></div>';
+      var mopts = '';
+      for (var mi = 1; mi <= 12; mi++) mopts += '<option value="' + mi + '"' + (ed && +ed.months === mi ? ' selected' : '') + '>' + mi + ' мес.</option>';
+      h += '<div style="border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:16px;background:var(--panel-2)">' +
+        '<div style="font-size:13px;font-weight:800;color:var(--ink);margin-bottom:9px">' + (ed ? '✏ Изменить период' : '➕ Новый период работы бригады') + '</div>' +
+        '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">' +
+        '<div class="fld" style="margin:0"><label>День начала периода</label><input type="date" id="bp-start" value="' + esc(defStart) + '"></div>' +
+        '<div class="fld" style="margin:0"><label>Количество месяцев</label><select id="bp-months">' + mopts + '</select></div>' +
+        '<div class="fld" style="margin:0"><label>Дата окончания (сама)</label><input type="text" id="bp-end" disabled value=""></div>' +
+        '<button type="button" class="btn primary" id="bp-save">' + (ed ? '💾 Сохранить изменения' : '➕ Создать период') + '</button>' +
+        (ed ? '<button type="button" class="btn" id="bp-cancel">Отмена</button>' : '') +
+        '</div><div id="bp-preview" style="font-size:12.5px;color:var(--muted);margin-top:9px"></div></div>';
     } else {
       h += '<div style="font-size:12.5px;font-weight:700;color:#1d4ed8;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:9px 12px;margin-bottom:14px">👁 Только просмотр: периоды создают и меняют начальник участка и старший мастер.</div>';
     }
@@ -9496,24 +9496,13 @@
       var badge = pOvers.length
         ? '<span data-tip="В этом периоде перебор часов у ' + pOvers.length + ' чел.: ' + esc(pOvers.join(', ')) + '. Нажмите на карточку периода — откроются все предупреждения по месяцам." style="flex:0 0 auto;width:21px;height:21px;border-radius:50%;background:#dc2626;color:#fff;font-size:12.5px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;cursor:help;box-shadow:0 2px 7px rgba(220,38,38,.5)">⚠</span>'
         : '';
-      h += '<div data-bp-open="' + esc(p.id) + '" title="Нажмите, чтобы открыть период: итоги и все предупреждения по месяцам" style="position:relative;border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:14px;background:var(--card);cursor:pointer">' +
-        '<div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:9px"><b style="font-size:13.5px;color:var(--ink)">Период №' + (pi + 1) + ': ' + esc(bperiodLabel(p)) + '</b>' + badge +
+      /* 22.09-399: карточка периода — короткая: только сам период, норма,
+         значок-уведомление, «Изменить» и «Удалить». Таблицы по работникам
+         и месяцам — в окне периода, которое открывается кликом по карточке. */
+      h += '<div data-bp-open="' + esc(p.id) + '" title="Нажмите, чтобы открыть период: итоги и все предупреждения по месяцам" style="position:relative;border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;background:var(--card);cursor:pointer">' +
+        '<div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap"><b style="font-size:13.5px;color:var(--ink)">Период №' + (pi + 1) + ': ' + esc(bperiodLabel(p)) + '</b>' + badge +
         '<span style="font-size:12px;color:var(--muted);font-weight:700">норма производственного календаря за эти месяцы: ' + fmtH3(norm) + ' ч</span><span style="flex:1"></span>' +
         (can ? '<button type="button" class="btn sm" data-bp-edit="' + esc(p.id) + '">✏ Изменить</button><button type="button" class="btn sm" data-bp-del="' + esc(p.id) + '" style="color:var(--red)">Удалить</button>' : '') + '</div>';
-      rows.forEach(function (row) {
-        var people = row.kind === 'brigade' ? [row.master].concat(row.members) : row.members;
-        if (!people.length) return;
-        h += '<div style="font-size:11.5px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin:8px 0 5px">' + (row.kind === 'brigade' ? '👷 Бригада мастера ' + esc(row.master.full_name) : 'Слесари без бригады') + '</div>';
-        h += '<table class="dt" style="margin:0"><thead><tr><th>Работник</th><th>Рабочих дней в периоде</th><th>Часов в периоде</th><th>Норма, ч</th><th></th></tr></thead><tbody>';
-        people.forEach(function (u) {
-          var st = bperiodStats(u, p);
-          var over = norm && st.hrs > norm + 0.001;
-          h += '<tr><td style="font-weight:700;color:var(--ink)">' + esc(u.full_name) + (row.kind === 'brigade' && u.id === row.master.id ? ' · мастер' : '') + '</td>' +
-            '<td>' + st.days + '</td><td style="font-weight:800;color:' + (over ? '#dc2626' : '#1d4ed8') + '">' + fmtH3(st.hrs) + '</td><td>' + fmtH3(norm) + '</td>' +
-            '<td>' + (over ? '<span style="color:#dc2626;font-weight:800">⚠ перебор ' + fmtH3(Math.round((st.hrs - norm) * 100) / 100) + ' ч</span>' : '<span style="color:#16a34a;font-weight:700">в норме</span>') + '</td></tr>';
-        });
-        h += '</tbody></table>';
-      });
       h += '</div>';
     });
     h += '</div><div class="modal-f"><button class="btn primary" data-action="close-modal2">Готово</button></div>';
@@ -9525,7 +9514,7 @@
       if (!stEl || !moEl || !/^\d{4}-\d{2}-\d{2}$/.test(stEl.value)) return;
       var p = { start: stEl.value, months: parseInt(moEl.value, 10) || 1 };
       if (endEl) endEl.value = fmtDmyIso(bperiodEndIso(p));
-      if (pv) pv.innerHTML = 'Период: <b style="color:var(--ink)">' + esc(bperiodLabel(p)) + '</b> · норма производственного календаря за эти месяцы: <b style="color:var(--ink)">' + fmtH3(bperiodNorm(p)) + ' ч</b>. Рабочие дни и часы каждой бригады появятся в карточке периода после создания.';
+      if (pv) pv.innerHTML = 'Период: <b style="color:var(--ink)">' + esc(bperiodLabel(p)) + '</b> · норма производственного календаря за эти месяцы: <b style="color:var(--ink)">' + fmtH3(bperiodNorm(p)) + ' ч</b>. Рабочие дни и часы каждой бригады откроются по нажатию на карточку периода внизу.';
     }
     if (stEl) stEl.addEventListener('change', bpPreview);
     if (moEl) moEl.addEventListener('change', bpPreview);
