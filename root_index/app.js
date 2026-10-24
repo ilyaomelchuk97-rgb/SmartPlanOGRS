@@ -943,7 +943,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-402';
+  var SP_BUILD = '22.09-403';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -8876,7 +8876,7 @@
         html += '<label style="font-size:12px;color:var(--muted);font-weight:700">График: <select data-wkbrig="sched" data-uid="' + esc(m.id) + '"' + _bdis + ' style="padding:3px 6px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:12px;background:var(--card);font-weight:700"><option value="5/2"' + (_wdm.sched !== '2/2' ? ' selected' : '') + '>5/2</option><option value="2/2"' + (_wdm.sched === '2/2' ? ' selected' : '') + '>2/2</option></select></label>';
         // Цикл — показываем только при 2/2 (для 5/2 цикл не имеет смысла)
         if (_wdm.sched === '2/2') {
-          html += '<label style="font-size:12px;color:var(--muted);font-weight:700" title="Первый рабочий день цикла (2 раб / 2 вых)">Цикл с: <input type="date" data-wkbrig="cycle" data-uid="' + esc(m.id) + '" value="' + esc(_wdm.cycle || '2026-01-05') + '"' + _bdis + ' style="padding:3px 6px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:12px;background:var(--card);font-weight:700"></label>';
+          html += '<label style="font-size:12px;color:var(--muted);font-weight:700" title="Дата, с которой начинается работа бригады (первый рабочий день, 2 раб / 2 вых)">Начало работы с: <input type="date" data-wkbrig="cycle" data-uid="' + esc(m.id) + '" value="' + esc(_wdm.cycle || '2026-01-05') + '"' + _bdis + ' style="padding:3px 6px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:12px;background:var(--card);font-weight:700"></label>';
         }
         html += '</span>';
       }
@@ -8934,7 +8934,7 @@
           SP_WORKERS.setWorker(mid, patch);
           brig.forEach(function (s) { SP_WORKERS.setWorker(s.id, patch); });
         }
-        var label = (f === 'hours' ? 'Время' : f === 'sched' ? 'График' : 'Цикл');
+        var label = (f === 'hours' ? 'Время' : f === 'sched' ? 'График' : 'Начало работы');
         toast('ok', '✓ ' + label + ' заменено всей бригаде — ' + (brig.length + 1) + ' чел.');
         renderWorkers();
       });
