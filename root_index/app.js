@@ -943,7 +943,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-405';
+  var SP_BUILD = '22.09-406';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -33699,7 +33699,7 @@
     }
     var shown = list.filter(function (t) { return tabF(t) && qF(t); });
     var targets = asgTargets();
-    var tabs = [['all', 'Все активные'], ['mine', '📥 Мне'], ['from', '📤 От меня'], ['check', '👀 На проверку' + (cnt.waitMe ? ' (' + cnt.waitMe + ')' : '')], ['done', '✅ Завершённые']];
+    var tabs = [['all', 'Все активные'], ['mine', '📥 Мне'], ['from', '📤 От меня'], ['check', '✔ На проверку' + (cnt.waitMe ? ' (' + cnt.waitMe + ')' : '')], ['done', '✅ Завершённые']];
     var h = '<div class="card"><div class="card-h"><h2>📋 Поручения</h2>' +
       '<span class="sub">задачи руководства работникам: поставить, выполнить, подтвердить</span><div class="spacer"></div>' +
       (targets.length ? '<button type="button" class="btn primary" data-action="asg-new">➕ Новое поручение</button>' : '<span style="font-size:12px;color:var(--muted)">Вам недоступно ставить поручения</span>') +
@@ -33708,7 +33708,7 @@
     h += '<div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:13px">' +
       '<span style="font-size:12.5px;font-weight:800;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:999px;padding:6px 13px">📥 Мне выполнять: ' + cnt.toMe + '</span>' +
       '<span style="font-size:12.5px;font-weight:800;background:' + (cnt.overdue ? '#fee2e2;color:#b91c1c;border:1px solid #fca5a5' : '#f1f5f9;color:#64748b;border:1px solid var(--line)') + ';border-radius:999px;padding:6px 13px">⚠ Просрочено: ' + cnt.overdue + '</span>' +
-      '<span style="font-size:12.5px;font-weight:800;background:#f5f3ff;color:#6d28d9;border:1px solid #ddd6fe;border-radius:999px;padding:6px 13px">👀 Ждут моей проверки: ' + cnt.waitMe + '</span>' +
+      '<span style="font-size:12.5px;font-weight:800;background:#f5f3ff;color:#6d28d9;border:1px solid #ddd6fe;border-radius:999px;padding:6px 13px">✔ Ждут моей проверки: ' + cnt.waitMe + '</span>' +
       '<span style="font-size:12.5px;font-weight:800;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:999px;padding:6px 13px">📤 Мои активные: ' + cnt.activeFrom + '</span></div>';
     // вкладки и поиск
     h += '<div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:13px">' +
@@ -33720,7 +33720,7 @@
       h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:10px">' + shown.map(asgCardHtml).join('') + '</div>';
     } else {
       // доска по статусам
-      var cols = [['new', '📥 Новые'], ['work', '🔧 В работе'], ['wait', '👀 На проверке'], ['returned', '↩ Возвращены']];
+      var cols = [['new', '📥 Новые'], ['work', '🔧 В работе'], ['wait', '✔ На проверке'], ['returned', '↩ Возвращены']];
       h += '<div style="display:flex;gap:11px;overflow-x:auto;padding-bottom:6px;align-items:flex-start">';
       cols.forEach(function (c) {
         var items = shown.filter(function (t) { return t.status === c[0]; });
@@ -33751,7 +33751,7 @@
     var targets = asgTargets();
     if (!targets.length) { toast('err', 'Некому ставить поручения: нет доступных работников'); return; }
     var objs = [];
-    try { objs = (window.OBJECTS_DB && OBJECTS_DB.getObjects) ? OBJECTS_DB.getObjects() : []; } catch (e) {}
+    try { objs = (window.SP_OBJECTS && SP_OBJECTS.getObjects) ? SP_OBJECTS.getObjects() : []; } catch (e) {}
     objs = objs.filter(function (o) { return o && o.id; }).sort(function (a, b) { return asgObjLabel(a).localeCompare(asgObjLabel(b), 'ru'); });
     var due = new Date(Date.now() + 3 * 86400000);
     var dueIso = due.getFullYear() + '-' + String(due.getMonth() + 1).padStart(2, '0') + '-' + String(due.getDate()).padStart(2, '0');
@@ -33766,14 +33766,63 @@
     modal.innerHTML = '<div class="modal-h"><h3>➕ Новое поручение</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">' +
       '<div class="fld"><label>Кому (исполнитель)</label><select id="asg-to">' + toOpts + '</select></div>' +
       '<div class="fld"><label>Что нужно сделать (заголовок)</label><input id="asg-title" placeholder="например: Проверить давление на ГРП №12"></div>' +
-      '<div class="fld"><label>Подробности <span style="font-weight:400;color:#64748b">(необязательно)</span></label><textarea id="asg-text" rows="3" placeholder="Что именно, где, на что обратить внимание…"></textarea></div>' +
+      '<div class="fld"><label>Подробности <span style="font-weight:400;color:#64748b">(необязательно)</span></label><textarea id="asg-text" rows="4" placeholder="Что именно, где, на что обратить внимание…" style="resize:none;overflow:hidden;width:100%;box-sizing:border-box"></textarea></div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:11px">' +
       '<div class="fld" style="margin:0"><label>Приоритет</label><select id="asg-prio"><option value="normal">Обычная</option><option value="important">Важная</option><option value="urgent">Срочная</option></select></div>' +
       '<div class="fld" style="margin:0"><label>Срок — выполнить до</label><input type="date" id="asg-due" value="' + dueIso + '"></div></div>' +
-      '<div class="fld"><label>Объект <span style="font-weight:400;color:#64748b">(если задача по объекту; можно без объекта)</span></label><select id="asg-obj"><option value="">— без объекта —</option>' +
-      objs.map(function (o) { return '<option value="' + esc(o.id) + '">' + esc(asgObjLabel(o)) + '</option>'; }).join('') + '</select></div>' +
+      '<div class="fld"><label>Объект — выбор из справочника <span style="font-weight:400;color:#64748b">(если задача по объекту; можно без объекта)</span></label>' +
+      '<input id="asg-obj-q" placeholder="🔍 Искать объект: тип, номер, адрес…" autocomplete="off">' +
+      '<div id="asg-obj-list" style="display:none;max-height:190px;overflow-y:auto;border:1px solid var(--line);border-radius:9px;margin-top:5px;background:var(--card)"></div>' +
+      '<div id="asg-obj-picked" style="display:none;margin-top:7px"></div></div>' +
       '</div><div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="asg-create">📨 Поставить задачу</button></div>';
     overlay.classList.add('show');
+    /* 22.09-406: «Подробности» — той же ширины, что заголовок, в высоту
+       больше и само растягивается по мере ввода текста */
+    var txtEl = document.getElementById('asg-text');
+    if (txtEl) {
+      var grow = function () { txtEl.style.height = 'auto'; txtEl.style.height = Math.min(txtEl.scrollHeight + 2, 320) + 'px'; };
+      txtEl.addEventListener('input', grow);
+      setTimeout(grow, 30);
+    }
+    /* 22.09-406: объект выбирается ТОЛЬКО из справочника: в строке —
+       поиск (тип, номер, адрес), значение встаёт кликом по найденному */
+    S.asgNewObj = null;
+    var qEl = document.getElementById('asg-obj-q'), listEl = document.getElementById('asg-obj-list'), pickEl = document.getElementById('asg-obj-picked');
+    function asgObjRenderPick() {
+      if (!pickEl) return;
+      if (S.asgNewObj) {
+        pickEl.style.display = '';
+        pickEl.innerHTML = '<span style="display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;color:#1d4ed8;background:#eff6ff;border:1px solid #bfdbfe;border-radius:999px;padding:5px 8px 5px 12px">📍 ' + esc(S.asgNewObj.label) +
+          '<button type="button" id="asg-obj-clear" title="Убрать объект (задача без объекта)" style="border:none;background:#dbeafe;color:#1d4ed8;border-radius:50%;width:19px;height:19px;cursor:pointer;font-weight:800;line-height:1">×</button></span>';
+        var cl = document.getElementById('asg-obj-clear');
+        if (cl) cl.addEventListener('click', function () { S.asgNewObj = null; asgObjRenderPick(); if (qEl) { qEl.value = ''; qEl.focus(); } });
+      } else { pickEl.style.display = 'none'; pickEl.innerHTML = ''; }
+    }
+    function asgObjShowList() {
+      if (!listEl) return;
+      var q = String(qEl.value || '').trim().toLowerCase();
+      var found = objs.filter(function (o) { return !q || asgObjLabel(o).toLowerCase().indexOf(q) >= 0; }).slice(0, 9);
+      if (!found.length) {
+        listEl.innerHTML = '<div style="padding:9px 11px;font-size:12.5px;color:var(--muted)">В справочнике такого объекта нет</div>';
+      } else {
+        listEl.innerHTML = found.map(function (o) {
+          return '<button type="button" data-asgobj="' + esc(o.id) + '" style="display:block;width:100%;text-align:left;padding:8px 11px;border:none;border-bottom:1px solid var(--line);background:transparent;font-family:inherit;font-size:13px;color:var(--ink);cursor:pointer">📍 ' + esc(asgObjLabel(o)) + '</button>';
+        }).join('');
+        listEl.querySelectorAll('[data-asgobj]').forEach(function (b) {
+          b.addEventListener('mousedown', function (e) {
+            e.preventDefault();
+            var o = null; objs.forEach(function (x) { if (String(x.id) === b.getAttribute('data-asgobj')) o = x; });
+            if (o) { S.asgNewObj = { id: o.id, label: asgObjLabel(o) }; qEl.value = ''; listEl.style.display = 'none'; asgObjRenderPick(); }
+          });
+        });
+      }
+      listEl.style.display = '';
+    }
+    if (qEl && listEl) {
+      qEl.addEventListener('focus', asgObjShowList);
+      qEl.addEventListener('input', asgObjShowList);
+      qEl.addEventListener('blur', function () { setTimeout(function () { listEl.style.display = 'none'; }, 150); });
+    }
   }
   function asgCreateSave() {
     var toEl = document.getElementById('asg-to');
@@ -33783,9 +33832,8 @@
     var title = String(titleEl.value || '').trim();
     if (!to) { toast('err', 'Выберите исполнителя'); return; }
     if (!title) { toast('err', 'Напишите, что нужно сделать'); titleEl.focus(); return; }
-    var objEl = document.getElementById('asg-obj');
-    var obj = null;
-    try { if (objEl && objEl.value && window.OBJECTS_DB && OBJECTS_DB.getObject) obj = OBJECTS_DB.getObject(objEl.value); } catch (e) {}
+    var obj = null; // 22.09-406: объект — только выбранный из справочника в форме выше
+    try { if (S.asgNewObj && S.asgNewObj.id && window.SP_OBJECTS && SP_OBJECTS.getObject) obj = SP_OBJECTS.getObject(S.asgNewObj.id); } catch (e) {}
     var rec = {
       id: 'asg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
       kind: 'assign',
@@ -33796,8 +33844,8 @@
       to_area: asgAreaOf(to),
       prio: (document.getElementById('asg-prio') || {}).value || 'normal',
       due: (document.getElementById('asg-due') || {}).value || '',
-      obj_id: obj ? obj.id : '',
-      obj_label: obj ? asgObjLabel(obj) : '',
+      obj_id: obj ? obj.id : (S.asgNewObj ? S.asgNewObj.id : ''),
+      obj_label: obj ? asgObjLabel(obj) : (S.asgNewObj ? S.asgNewObj.label : ''),
       status: 'new',
       comments: [],
       hist: [],
