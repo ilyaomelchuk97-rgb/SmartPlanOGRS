@@ -943,7 +943,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-399';
+  var SP_BUILD = '22.09-400';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -9397,6 +9397,27 @@
       h += '<div style="border:1px solid #fca5a5;background:#fff5f5;border-radius:12px;padding:10px 12px;margin-bottom:14px"><div style="font-size:12.5px;font-weight:800;color:#b91c1c;margin-bottom:6px">⚠ Перебор за весь период:</div>' +
         overs.map(function (o) { return '<div style="font-size:12.5px;color:var(--ink)"><b>' + esc(o.u.full_name) + '</b> — ' + fmtH3(o.hrs) + ' ч (' + o.days + ' раб. дн.) при норме ' + fmtH3(norm) + ' ч · <span style="color:#dc2626;font-weight:800">перебор ' + fmtH3(o.over) + ' ч</span></div>'; }).join('') + '</div>';
     }
+    /* 22.09-400: ИТОГО ЗА ПЕРИОД — для периода в 2 и более месяцев часы
+       работника суммируются за ВСЕ месяцы периода и сравниваются с
+       ОБЩЕЙ нормой (суммой норм этих месяцев). Ниже — разбивка по месяцам. */
+    h += '<div style="border:1px solid var(--line);border-radius:12px;padding:11px 12px;margin-bottom:14px;background:var(--card)">' +
+      '<div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:7px"><b style="font-size:13px;color:var(--ink)">Итого за период</b>' +
+      '<span style="font-size:12px;color:var(--muted);font-weight:700">часы — сумма за все месяцы периода · норма — общая сумма норм этих месяцев: ' + fmtH3(norm) + ' ч</span></div>';
+    rows.forEach(function (row) {
+      var ppl = row.kind === 'brigade' ? [row.master].concat(row.members) : row.members;
+      if (!ppl.length) return;
+      h += '<div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin:7px 0 4px">' + (row.kind === 'brigade' ? '👷 Бригада мастера ' + esc(row.master.full_name) : 'Слесари без бригады') + '</div>';
+      h += '<table class="dt" style="margin:0"><thead><tr><th>Работник</th><th>Раб. дней за период</th><th>Часов за период (сумма)</th><th>Норма общая, ч</th><th></th></tr></thead><tbody>';
+      ppl.forEach(function (u) {
+        var st = bperiodStats(u, p);
+        var over = norm && st.hrs > norm + 0.001;
+        h += '<tr' + (over ? ' style="background:#fff5f5"' : '') + '><td style="font-weight:700;color:var(--ink)">' + esc(u.full_name) + (row.kind === 'brigade' && u.id === row.master.id ? ' · мастер' : '') + '</td><td>' + st.days + '</td>' +
+          '<td style="font-weight:800;color:' + (over ? '#dc2626' : '#1d4ed8') + '">' + fmtH3(st.hrs) + '</td><td>' + fmtH3(norm) + '</td>' +
+          '<td>' + (over ? '<span style="color:#dc2626;font-weight:800">⚠ перебор ' + fmtH3(Math.round((st.hrs - norm) * 100) / 100) + ' ч</span>' : '<span style="color:#16a34a;font-weight:700">в норме</span>') + '</td></tr>';
+      });
+      h += '</tbody></table>';
+    });
+    h += '</div>';
     // предупреждения по месяцам периода
     var d0 = new Date(String(p.start) + 'T00:00:00');
     var cur = new Date(d0.getFullYear(), d0.getMonth(), 1);
@@ -9493,16 +9514,15 @@
       rows.forEach(function (row) { (row.kind === 'brigade' ? [row.master].concat(row.members) : row.members).forEach(function (u) { pplAll.push(u); }); });
       var pOvers = [];
       pplAll.forEach(function (u) { var st = bperiodStats(u, p); if (norm && st.hrs > norm + 0.001) pOvers.push(u.full_name + ' (+' + fmtH3(Math.round((st.hrs - norm) * 100) / 100) + ' ч)'); });
-      var badge = pOvers.length
-        ? '<span data-tip="В этом периоде перебор часов у ' + pOvers.length + ' чел.: ' + esc(pOvers.join(', ')) + '. Нажмите на карточку периода — откроются все предупреждения по месяцам." style="flex:0 0 auto;width:21px;height:21px;border-radius:50%;background:#dc2626;color:#fff;font-size:12.5px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;cursor:help;box-shadow:0 2px 7px rgba(220,38,38,.5)">⚠</span>'
-        : '';
-      /* 22.09-399: карточка периода — короткая: только сам период, норма,
-         значок-уведомление, «Изменить» и «Удалить». Таблицы по работникам
-         и месяцам — в окне периода, которое открывается кликом по карточке. */
-      h += '<div data-bp-open="' + esc(p.id) + '" title="Нажмите, чтобы открыть период: итоги и все предупреждения по месяцам" style="position:relative;border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;background:var(--card);cursor:pointer">' +
-        '<div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap"><b style="font-size:13.5px;color:var(--ink)">Период №' + (pi + 1) + ': ' + esc(bperiodLabel(p)) + '</b>' + badge +
+      /* 22.09-399/400: карточка периода: сверху сам период, под ним норма,
+         значок-уведомление — в правом верхнем углу, «Изменить» и «Удалить» —
+         в правом нижнем углу. Таблицы — в окне периода по клику на карточку. */
+      h += '<div data-bp-open="' + esc(p.id) + '" title="Нажмите, чтобы открыть период: итоги и все предупреждения по месяцам" style="position:relative;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:var(--card);cursor:pointer">' +
+        (pOvers.length ? '<span data-tip="В этом периоде перебор часов у ' + pOvers.length + ' чел.: ' + esc(pOvers.join(', ')) + '. Нажмите на карточку периода — откроются все предупреждения по месяцам." style="position:absolute;top:9px;right:11px;width:21px;height:21px;border-radius:50%;background:#dc2626;color:#fff;font-size:12.5px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;cursor:help;box-shadow:0 2px 7px rgba(220,38,38,.5);z-index:2">⚠</span>' : '') +
+        '<div style="padding-right:32px"><b style="font-size:13.5px;color:var(--ink)">Период №' + (pi + 1) + ': ' + esc(bperiodLabel(p)) + '</b></div>' +
+        '<div style="display:flex;align-items:flex-end;gap:9px;flex-wrap:wrap;margin-top:8px">' +
         '<span style="font-size:12px;color:var(--muted);font-weight:700">норма производственного календаря за эти месяцы: ' + fmtH3(norm) + ' ч</span><span style="flex:1"></span>' +
-        (can ? '<button type="button" class="btn sm" data-bp-edit="' + esc(p.id) + '">✏ Изменить</button><button type="button" class="btn sm" data-bp-del="' + esc(p.id) + '" style="color:var(--red)">Удалить</button>' : '') + '</div>';
+        (can ? '<span style="display:inline-flex;gap:6px"><button type="button" class="btn sm" data-bp-edit="' + esc(p.id) + '">✏ Изменить</button><button type="button" class="btn sm" data-bp-del="' + esc(p.id) + '" style="color:var(--red)">Удалить</button></span>' : '') + '</div>';
       h += '</div>';
     });
     h += '</div><div class="modal-f"><button class="btn primary" data-action="close-modal2">Готово</button></div>';
