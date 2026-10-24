@@ -943,7 +943,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-403';
+  var SP_BUILD = '22.09-404';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -9428,7 +9428,14 @@
       h += '</tbody></table>';
     });
     h += '</div>';
-    // предупреждения по месяцам периода
+    /* 22.09-404: для периода в 2 и более месяцев помесячные таблицы —
+       только разбивка для справки: часы с производственным календарём
+       сравниваются НЕ по каждому месяцу, а суммой за все месяцы периода
+       против суммы норм этих месяцев (см. «Итого за период» выше и
+       «Перебор за весь период»). Помесячных «переборов» не показываем. */
+    var multi = (+p.months || 0) > 1;
+    if (multi) h += '<div style="font-size:12.5px;color:var(--muted);margin:2px 0 10px">По месяцам — разбивка для справки: сравнение и предупреждения считаются только по сумме часов за весь период против суммы норм этих месяцев.</div>';
+    // разбивка по месяцам периода
     var d0 = new Date(String(p.start) + 'T00:00:00');
     var cur = new Date(d0.getFullYear(), d0.getMonth(), 1);
     var last = new Date(String(endIso) + 'T00:00:00');
@@ -9440,11 +9447,13 @@
       var mTo = (y === last.getFullYear() && mm === last.getMonth()) ? endIso : (y + '-' + String(mm + 1).padStart(2, '0') + '-' + String(dim).padStart(2, '0'));
       var mNorm = prodcalNormFor(y, mm, 'd52');
       var mOvers = 0;
-      people.forEach(function (u) { var st = bperiodStatsRange(u, mFrom, mTo); if (mNorm && st.hrs > mNorm + 0.001) mOvers++; });
+      if (!multi) people.forEach(function (u) { var st = bperiodStatsRange(u, mFrom, mTo); if (mNorm && st.hrs > mNorm + 0.001) mOvers++; });
       h += '<div style="border:1px solid var(--line);border-radius:12px;padding:11px 12px;margin-bottom:12px;background:var(--card)">' +
         '<div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:7px"><b style="font-size:13px;color:var(--ink)">' + MON_NOM[mm] + ' ' + y + '</b>' +
         '<span style="font-size:12px;color:var(--muted);font-weight:700">' + esc(fmtDmyIso(mFrom)) + ' — ' + esc(fmtDmyIso(mTo)) + ' · норма месяца: ' + fmtH3(mNorm) + ' ч</span>' +
-        (mOvers ? '<span style="font-size:11.5px;font-weight:800;background:#fee2e2;color:#b91c1c;border-radius:999px;padding:3px 9px">⚠ перебор у ' + mOvers + ' чел.</span>' : '<span style="font-size:11.5px;font-weight:800;background:#dcfce7;color:#15803d;border-radius:999px;padding:3px 9px">✓ в норме</span>') + '</div>';
+        (multi
+          ? '<span style="font-size:11.5px;font-weight:700;background:var(--panel-2);color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:3px 9px">для справки — сравнение по сумме за период</span>'
+          : (mOvers ? '<span style="font-size:11.5px;font-weight:800;background:#fee2e2;color:#b91c1c;border-radius:999px;padding:3px 9px">⚠ перебор у ' + mOvers + ' чел.</span>' : '<span style="font-size:11.5px;font-weight:800;background:#dcfce7;color:#15803d;border-radius:999px;padding:3px 9px">✓ в норме</span>')) + '</div>';
       rows.forEach(function (row) {
         var ppl = row.kind === 'brigade' ? [row.master].concat(row.members) : row.members;
         if (!ppl.length) return;
@@ -9452,10 +9461,10 @@
         h += '<table class="dt" style="margin:0"><thead><tr><th>Работник</th><th>Раб. дней</th><th>Часов</th><th>Норма, ч</th><th></th></tr></thead><tbody>';
         ppl.forEach(function (u) {
           var st = bperiodStatsRange(u, mFrom, mTo);
-          var over = mNorm && st.hrs > mNorm + 0.001;
+          var over = !multi && mNorm && st.hrs > mNorm + 0.001;
           h += '<tr' + (over ? ' style="background:#fff5f5"' : '') + '><td style="font-weight:700;color:var(--ink)">' + esc(u.full_name) + '</td><td>' + st.days + '</td>' +
             '<td style="font-weight:800;color:' + (over ? '#dc2626' : '#1d4ed8') + '">' + fmtH3(st.hrs) + '</td><td>' + fmtH3(mNorm) + '</td>' +
-            '<td>' + (over ? '<span style="color:#dc2626;font-weight:800">⚠ перебор ' + fmtH3(Math.round((st.hrs - mNorm) * 100) / 100) + ' ч</span>' : '<span style="color:#16a34a;font-weight:700">в норме</span>') + '</td></tr>';
+            '<td>' + (multi ? '<span style="color:var(--muted)">—</span>' : (over ? '<span style="color:#dc2626;font-weight:800">⚠ перебор ' + fmtH3(Math.round((st.hrs - mNorm) * 100) / 100) + ' ч</span>' : '<span style="color:#16a34a;font-weight:700">в норме</span>')) + '</td></tr>';
         });
         h += '</tbody></table>';
       });
