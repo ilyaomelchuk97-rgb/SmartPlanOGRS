@@ -943,7 +943,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-396';
+  var SP_BUILD = '22.09-397';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -8905,7 +8905,7 @@
     }
     if (!users.length) html += '<div class="empty" style="padding:30px">Нет работников</div>';
     html += '</div></div>';
-    if (S.workersModal) { html = '<div class="modal-h"><h3>⚙ Настройки бригад</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">' + html + '</div>'; } // 22.09-220
+    if (S.workersModal) { html = '<div class="modal-h"><h3>⚙ Настройки бригад</h3><span style="flex:1"></span><button type="button" class="btn sm" data-action="sch-periods-open" title="Периоды работы бригад: общий период для всех бригад (день начала + количество месяцев), рабочие дни и часы по периоду и сравнение с производственным календарём">🗓 Период</button><button class="x" data-action="close-modal">×</button></div><div class="modal-b">' + html + '</div>'; } // 22.09-220, кнопка «Период» — 22.09-397
     v.innerHTML = html;
     wireWkDnD(v);
     // Быстрые «Время»/«График»/«Цикл» в заголовке бригады — замена сразу всей бригаде
@@ -9245,6 +9245,193 @@
       var hrs = wkMonthHoursTotal(u, wm.y, wm.m);
       return (hrs > norm + 0.001) ? { hrs: hrs, norm: norm, over: Math.round((hrs - norm) * 100) / 100, y: wm.y, m: wm.m, mode: mode } : null;
     } catch (e) { return null; }
+  }
+
+  /* ---------- ПЕРИОДЫ РАБОТЫ БРИГАД (22.09-397) ----------
+     Кнопка «Период» в окне «Настройки бригад». Период — общий для всех
+     бригад; периодов может быть несколько, они хранятся списком на
+     сервере (settings/brigade_periods) для просмотра и изменения.
+     Создают и правят начальник участка и старший мастер (и администратор).
+     Мастер выбирает день начала и количество месяцев — конец периода
+     ставится сам (начало + N месяцев − 1 день). Для каждого периода
+     считаются рабочие дни и часы каждого работника; сумма сравнивается
+     с нормой производственного календаря за те же месяцы ЦЕЛИКОМ
+     (от месяца начала). Перебор — красный ⚠ на карточке работника
+     в «Графиках смен» (этот подсчёт ЗАМЕНИЛ прежний помесячный).
+     Дни вне всех периодов на графике помечены серым. */
+  function bperiodsLoad() {
+    try {
+      var lsKey = (window.SP_SYNC_POLL && SP_SYNC_POLL.LS_KEYS && SP_SYNC_POLL.LS_KEYS.settings) || 'smartplan_settings';
+      var arr = JSON.parse(localStorage.getItem(lsKey) || '[]');
+      if (Array.isArray(arr)) {
+        var rec = arr.filter(function (x) { return x && x.id === 'brigade_periods'; })[0];
+        if (rec && Array.isArray(rec.periods)) return rec.periods.filter(function (p) { return p && p.start && +p.months > 0; }).sort(function (a, b) { return String(a.start).localeCompare(String(b.start)); });
+      }
+    } catch (e) {}
+    return [];
+  }
+  function bperiodCanEdit() { return S.role === 'admin' || S.role === 'nach' || S.role === 'smaster'; }
+  function bperiodEndIso(p) {
+    var d = new Date(String(p.start) + 'T00:00:00');
+    d.setMonth(d.getMonth() + (+p.months || 0));
+    d.setDate(d.getDate() - 1);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  function bperiodNorm(p) {
+    // норма — за N полных месяцев от месяца начала периода (выбор пользователя)
+    var d = new Date(String(p.start) + 'T00:00:00'), sum = 0;
+    for (var i = 0; i < (+p.months || 0); i++) {
+      var dt = new Date(d.getFullYear(), d.getMonth() + i, 1);
+      sum += prodcalNormFor(dt.getFullYear(), dt.getMonth(), 'd52');
+    }
+    return Math.round(sum * 100) / 100;
+  }
+  function bperiodStats(u, p) {
+    var days = 0, hrs = 0;
+    var d = new Date(String(p.start) + 'T00:00:00');
+    var end = new Date(bperiodEndIso(p) + 'T00:00:00');
+    while (d <= end) {
+      var ds = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      if (wkDayState(u.id, ds) === 'work') { days++; hrs += schDayHours(u, ds); }
+      d.setDate(d.getDate() + 1);
+    }
+    return { days: days, hrs: Math.round(hrs * 100) / 100 };
+  }
+  function bperiodOutside(ds) {
+    var list = bperiodsLoad();
+    if (!list.length) return false; // периодов нет — ничего не закрашиваем
+    return !list.some(function (p) { return ds >= p.start && ds <= bperiodEndIso(p); });
+  }
+  function bperiodOver(u) {
+    // перебор по ЛЮБОМУ из периодов; возвращается самый большой перебор
+    try {
+      if (!u) return null;
+      var best = null;
+      bperiodsLoad().forEach(function (p) {
+        var norm = bperiodNorm(p); if (!norm) return;
+        var st = bperiodStats(u, p);
+        if (st.hrs > norm + 0.001) {
+          var ov = { p: p, hrs: st.hrs, days: st.days, norm: norm, over: Math.round((st.hrs - norm) * 100) / 100 };
+          if (!best || ov.over > best.over) best = ov;
+        }
+      });
+      return best;
+    } catch (e) { return null; }
+  }
+  function bperiodLabel(p) {
+    var f = function (iso) { try { return fmtDmyIso(iso); } catch (e) { return iso; } };
+    return f(p.start) + ' — ' + f(bperiodEndIso(p)) + ' (' + (+p.months) + ' мес.)';
+  }
+  function bperiodsSave(list, done) {
+    var rec = { id: 'brigade_periods', periods: list, updated_at: Date.now() };
+    function fin(ok) {
+      if (ok) { try { if (window.SP_SYNC_POLL && SP_SYNC_POLL.applyRemote) SP_SYNC_POLL.applyRemote('settings', [rec]); } catch (e) {} }
+      try { logAction('Периоды работы бригад', 'сохранены: ' + list.length); } catch (eL) {}
+      if (done) done(ok);
+    }
+    if (window.SP_API && SP_API.syncPush) SP_API.syncPush('settings', rec).then(function (r) { fin(!!(r && r.ok)); })['catch'](function () { fin(false); });
+    else fin(false);
+  }
+  function openBrigadePeriodsModal() {
+    S.bpOpen = true;
+    S.bpEditId = null;
+    var overlay2 = document.getElementById('overlay2'), modal2 = document.getElementById('modal2');
+    if (!overlay2 || !modal2) return;
+    modal2.style.width = 'min(880px,96vw)'; modal2.style.maxWidth = '880px';
+    overlay2.classList.add('show');
+    bpRender();
+  }
+  function bpRender() {
+    var modal2 = document.getElementById('modal2'); if (!modal2 || !S.bpOpen) return;
+    var can = bperiodCanEdit();
+    var list = bperiodsLoad();
+    var users = wkVisibleUsers();
+    var masters = users.filter(function (u) { return u.role === 'master'; });
+    var slesars = users.filter(function (u) { return u.role === 'slesar'; });
+    var rows = buildBrigadeRows(masters, slesars, 'all');
+    var ed = S.bpEditId ? list.filter(function (p) { return p.id === S.bpEditId; })[0] : null;
+    var todayIso = new Date().toISOString().slice(0, 10);
+    var defStart = ed ? ed.start : (todayIso.slice(0, 8) + '01');
+    var h = '<div class="modal-h"><h3>🗓 Периоды работы бригад</h3><button class="x" data-action="close-modal2">×</button></div><div class="modal-b">';
+    h += '<div style="font-size:12.5px;color:var(--muted);margin-bottom:12px">Период общий для всех бригад. Периодов может быть несколько — они хранятся и доступны для просмотра и изменения. ' +
+      'Часы каждого работника за период сравниваются с нормой производственного календаря за те же месяцы — при переборе на карточке работника в «Графиках смен» появляется красный ⚠. Дни вне периодов на графике помечены серым.</div>';
+    if (can) {
+      var mopts = '';
+      for (var mi = 1; mi <= 12; mi++) mopts += '<option value="' + mi + '"' + (ed && +ed.months === mi ? ' selected' : '') + '>' + mi + ' мес.</option>';
+      h += '<div style="border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:16px;background:var(--panel-2)">' +
+        '<div style="font-size:13px;font-weight:800;color:var(--ink);margin-bottom:9px">' + (ed ? '✏ Изменить период' : '➕ Новый период работы бригады') + '</div>' +
+        '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">' +
+        '<div class="fld" style="margin:0"><label>День начала периода</label><input type="date" id="bp-start" value="' + esc(defStart) + '"></div>' +
+        '<div class="fld" style="margin:0"><label>Количество месяцев</label><select id="bp-months">' + mopts + '</select></div>' +
+        '<div class="fld" style="margin:0"><label>Дата окончания (сама)</label><input type="text" id="bp-end" disabled value=""></div>' +
+        '<button type="button" class="btn primary" id="bp-save">' + (ed ? '💾 Сохранить изменения' : '➕ Создать период') + '</button>' +
+        (ed ? '<button type="button" class="btn" id="bp-cancel">Отмена</button>' : '') +
+        '</div><div id="bp-preview" style="font-size:12.5px;color:var(--muted);margin-top:9px"></div></div>';
+    } else {
+      h += '<div style="font-size:12.5px;font-weight:700;color:#1d4ed8;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:9px 12px;margin-bottom:14px">👁 Только просмотр: периоды создают и меняют начальник участка и старший мастер.</div>';
+    }
+    if (!list.length) h += '<div class="empty" style="padding:22px">Периодов пока нет' + (can ? ' — создайте первый формой выше' : '') + '</div>';
+    list.forEach(function (p, pi) {
+      var norm = bperiodNorm(p);
+      h += '<div style="border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:14px;background:var(--card)">' +
+        '<div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:9px"><b style="font-size:13.5px;color:var(--ink)">Период №' + (pi + 1) + ': ' + esc(bperiodLabel(p)) + '</b>' +
+        '<span style="font-size:12px;color:var(--muted);font-weight:700">норма производственного календаря за эти месяцы: ' + fmtH3(norm) + ' ч</span><span style="flex:1"></span>' +
+        (can ? '<button type="button" class="btn sm" data-bp-edit="' + esc(p.id) + '">✏ Изменить</button><button type="button" class="btn sm" data-bp-del="' + esc(p.id) + '" style="color:var(--red)">Удалить</button>' : '') + '</div>';
+      rows.forEach(function (row) {
+        var people = row.kind === 'brigade' ? [row.master].concat(row.members) : row.members;
+        if (!people.length) return;
+        h += '<div style="font-size:11.5px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin:8px 0 5px">' + (row.kind === 'brigade' ? '👷 Бригада мастера ' + esc(row.master.full_name) : 'Слесари без бригады') + '</div>';
+        h += '<table class="dt" style="margin:0"><thead><tr><th>Работник</th><th>Рабочих дней в периоде</th><th>Часов в периоде</th><th>Норма, ч</th><th></th></tr></thead><tbody>';
+        people.forEach(function (u) {
+          var st = bperiodStats(u, p);
+          var over = norm && st.hrs > norm + 0.001;
+          h += '<tr><td style="font-weight:700;color:var(--ink)">' + esc(u.full_name) + (row.kind === 'brigade' && u.id === row.master.id ? ' · мастер' : '') + '</td>' +
+            '<td>' + st.days + '</td><td style="font-weight:800;color:' + (over ? '#dc2626' : '#1d4ed8') + '">' + fmtH3(st.hrs) + '</td><td>' + fmtH3(norm) + '</td>' +
+            '<td>' + (over ? '<span style="color:#dc2626;font-weight:800">⚠ перебор ' + fmtH3(Math.round((st.hrs - norm) * 100) / 100) + ' ч</span>' : '<span style="color:#16a34a;font-weight:700">в норме</span>') + '</td></tr>';
+        });
+        h += '</tbody></table>';
+      });
+      h += '</div>';
+    });
+    h += '</div><div class="modal-f"><button class="btn primary" data-action="close-modal2">Готово</button></div>';
+    modal2.innerHTML = h;
+    // форма: конец периода и предпросмотр считаются сами при выборе дня/месяцев
+    var stEl = document.getElementById('bp-start'), moEl = document.getElementById('bp-months');
+    function bpPreview() {
+      var endEl = document.getElementById('bp-end'), pv = document.getElementById('bp-preview');
+      if (!stEl || !moEl || !/^\d{4}-\d{2}-\d{2}$/.test(stEl.value)) return;
+      var p = { start: stEl.value, months: parseInt(moEl.value, 10) || 1 };
+      if (endEl) endEl.value = fmtDmyIso(bperiodEndIso(p));
+      if (pv) pv.innerHTML = 'Период: <b style="color:var(--ink)">' + esc(bperiodLabel(p)) + '</b> · норма производственного календаря за эти месяцы: <b style="color:var(--ink)">' + fmtH3(bperiodNorm(p)) + ' ч</b>. Рабочие дни и часы каждой бригады появятся в карточке периода после создания.';
+    }
+    if (stEl) stEl.addEventListener('change', bpPreview);
+    if (moEl) moEl.addEventListener('change', bpPreview);
+    bpPreview();
+    var sv = document.getElementById('bp-save');
+    if (sv) sv.addEventListener('click', function () {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(stEl.value)) { toast('err', 'Выберите день начала периода'); return; }
+      var nl = bperiodsLoad().slice();
+      if (S.bpEditId) {
+        nl = nl.map(function (p) { return p.id === S.bpEditId ? { id: p.id, start: stEl.value, months: parseInt(moEl.value, 10) || 1 } : p; });
+      } else {
+        nl.push({ id: 'bp' + Date.now().toString(36), start: stEl.value, months: parseInt(moEl.value, 10) || 1 });
+      }
+      S.bpEditId = null;
+      bperiodsSave(nl, function (ok) { toast(ok ? 'ok' : 'warn', ok ? '✓ Период сохранён' : 'Сохранено на этом устройстве (сервер недоступен)'); bpRender(); try { renderSchedules(); } catch (eR) {} });
+    });
+    var cc = document.getElementById('bp-cancel');
+    if (cc) cc.addEventListener('click', function () { S.bpEditId = null; bpRender(); });
+    modal2.querySelectorAll('[data-bp-edit]').forEach(function (b) {
+      b.addEventListener('click', function () { S.bpEditId = b.getAttribute('data-bp-edit'); bpRender(); });
+    });
+    modal2.querySelectorAll('[data-bp-del]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var id = b.getAttribute('data-bp-del');
+        var nl = bperiodsLoad().filter(function (p) { return p.id !== id; });
+        if (S.bpEditId === id) S.bpEditId = null;
+        bperiodsSave(nl, function (ok) { toast(ok ? 'ok' : 'warn', ok ? '✓ Период удалён' : 'Удалено на этом устройстве (сервер недоступен)'); bpRender(); try { renderSchedules(); } catch (eR) {} });
+      });
+    });
   }
 
   /* ---------- ВИДЫ ТЕЛЕМЕТРИИ (22.09-111) ----------
@@ -9596,6 +9783,7 @@
     html2 += '<div style="margin-top:10px;display:flex;gap:14px;align-items:center;font-size:12px;color:var(--muted);flex-wrap:wrap;font-weight:700">' +
       '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#dcfce7;border:1px solid #16a34a"></span>рабочий по графику</span>' +
       '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#f1f5f9;border:1px solid #cbd5e1"></span>выходной по графику</span>' +
+      (bperiodsLoad().length ? '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#e2e8f0;border:1px solid #cbd5e1"></span>вне периода работы бригад</span>' : '') +
       '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#fee2e2;border:1px solid #dc2626"></span>больничный / отсутствие</span>' +
       '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#ffedd5;border:1px solid #f97316"></span>отпуск</span>' +
       '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#e0e7ff;border:1px solid #6366f1"></span>командировка</span>' +
@@ -9691,6 +9879,11 @@
     if (_ov && _ov.s) _sh.push('inset 0 -2px 0 0 rgba(37,99,235,.85)');
     var ring = _sh.length ? ';box-shadow:' + _sh.join(',') : '';
     if (_ov && _ov.s) title += ' · ✏ изменён вручную';
+    // 22.09-397: дни вне всех периодов работы бригад — серые (график строится
+    // как раньше, просто пометка; часы и перебор считаются только по периоду)
+    try {
+      if (bperiodOutside(ds)) { bg = '#d7dde6'; bd = '#9aa7b8'; title += ' · вне периода работы бригад'; } // оттенок не из списка перекраски тёмной темы — серый виден в обеих темах
+    } catch (eBp) {}
     var act = state === 'abs' ? 'wk-open-day' : 'wk-quick-abs';
     // 22.09-211: правка графика — только в окне «✏ Изменить график»; ячейка — про отсутствие
     // Полная окантовка 4-х сторон (border:1px solid). При border-spacing:0 и border-collapse:separate
@@ -9912,17 +10105,15 @@
         if (st2 === 'work') { pW++; pH += schDayHours(u, ds2); } else if (st2 === 'abs') pA++; else pO++;
       }
     }
-    // 22.09-376: перебор часов против производственного календаря — красный значок
-    // в ПРАВОМ ВЕРХНЕМ углу прямоугольника работника (месяц — против нормы месяца,
-    // год — против суммы норм по месяцам)
+    // 22.09-376/397: перебор часов — красный значок в ПРАВОМ ВЕРХНЕМ углу
+    // прямоугольника работника. С 397 считается НЕ за месяц/год, а за
+    // ПЕРИОД РАБОТЫ БРИГАДЫ против нормы производственного календаря
+    // за те же месяцы (прежний помесячный подсчёт заменён этим).
     var _ovIco = '';
     try {
-      var _mode = wkSchedMode(u), _norm = 0;
-      if (period.kind === 'year') { for (var _pm = 0; _pm < 12; _pm++) _norm += prodcalNormFor(period.y, _pm, _mode); }
-      else _norm = prodcalNormFor(period.y, period.m, _mode);
-      if (_norm && pH > _norm + 0.001) {
-        var _per = (period.kind === 'year') ? ('за ' + period.y + ' год') : ('за ' + MON_NOM[period.m] + ' ' + period.y);
-        _ovIco = '<span data-tip="У работника перебор часов ' + _per + ': по графику смен — ' + fmtH3(pH) + ' ч, а норма производственного календаря — ' + fmtH3(_norm) + ' ч. Перебор: ' + fmtH3(Math.round((pH - _norm) * 100) / 100) + ' ч." style="position:absolute;top:6px;right:6px;width:21px;height:21px;border-radius:50%;background:#dc2626;color:#fff;font-size:12.5px;font-weight:800;display:flex;align-items:center;justify-content:center;cursor:help;box-shadow:0 2px 7px rgba(220,38,38,.5);z-index:2">⚠</span>'; // 22.09-377: подсказка — фирменная (data-tip), не медленная браузерная
+      var _po = bperiodOver(u);
+      if (_po) {
+        _ovIco = '<span data-tip="У работника перебор часов за период работы бригады ' + esc(bperiodLabel(_po.p)) + ': по графику смен — ' + fmtH3(_po.hrs) + ' ч (' + _po.days + ' раб. дн.), а норма производственного календаря за эти месяцы — ' + fmtH3(_po.norm) + ' ч. Перебор: ' + fmtH3(_po.over) + ' ч." style="position:absolute;top:6px;right:6px;width:21px;height:21px;border-radius:50%;background:#dc2626;color:#fff;font-size:12.5px;font-weight:800;display:flex;align-items:center;justify-content:center;cursor:help;box-shadow:0 2px 7px rgba(220,38,38,.5);z-index:2">⚠</span>'; // 22.09-377: подсказка — фирменная (data-tip), не медленная браузерная
       }
     } catch (eO) {}
     var prof = wkProfLabel(u) || '';
@@ -20472,6 +20663,7 @@
     else if (a === 'kpi-overloads') { kpiOverloads(); }
     else if (a === 'kpi-month') { kpiMonth(); }
     else if (a === 'wk-settings-open') { openWorkersSettingsModal(); } // 22.09-220
+    else if (a === 'sch-periods-open') { openBrigadePeriodsModal(); } // 22.09-397: периоды работы бригад — окно поверх «Настроек бригад»
     else if (a === 'kpi-permits') { kpiPermits(); }
     else if (a === 'kpi-redzone') { kpiRedzone(); } // 22.09-171
     else if (a === 'new-task') { openTaskModal('new'); }
@@ -20521,7 +20713,7 @@
     else if (a === 'wo-save-close') { woSaveWriteoff(); closeTaskObjectPickers(); overlay.classList.remove('show'); modal.style.maxWidth = ''; modal.style.width = ''; S.wkModalUid = null; S.wmJointSel = null; } // 22.09-186: сохранить и закрыть карточку
     else if (a === 'wo-work-pick') { woPickWork(parseInt(el.dataset.idx, 10) || 0); } // 22.09-185: выбор вида работ для списания
     else if (a === 'close-modal') { closeTaskObjectPickers(); overlay.classList.remove('show'); modal.style.maxWidth = ''; modal.style.width = ''; modal.classList.remove('modal-fit'); /* 22.09-379 */ if (S.wkModalUid && S.screen === 'workers') renderWorkers(); S.wkModalUid = null; S.wmJointSel = null; /* 22.09-162 */ S.schEd = null; S.schEdAll = null; S.schEdDay = null; S.schEdMode = null; /* 22.09-211/213 */ S.workersModal = false; S.factModal = false; /* 22.09-220 */ }
-    else if (a === 'close-modal2') { var ov2 = document.getElementById('overlay2'); if (ov2) ov2.classList.remove('show'); var md2 = document.getElementById('modal2'); if (md2) { md2.style.width = ''; md2.style.maxWidth = ''; } /* 22.09-235: ширина окна — снова по умолчанию */ if (S.wkModalUid && S.workersModal) { renderWorkers(); } S.wkModalUid = null; /* 22.09-220 */ } // 22.09-162
+    else if (a === 'close-modal2') { var ov2 = document.getElementById('overlay2'); if (ov2) ov2.classList.remove('show'); var md2 = document.getElementById('modal2'); if (md2) { md2.style.width = ''; md2.style.maxWidth = ''; } /* 22.09-235: ширина окна — снова по умолчанию */ if (S.bpOpen) { S.bpOpen = false; S.bpEditId = null; try { renderSchedules(); } catch (eBpC) {} } /* 22.09-397: закрыли периоды — перерисовать графики (серые дни, значки) */ if (S.wkModalUid && S.workersModal) { renderWorkers(); } S.wkModalUid = null; /* 22.09-220 */ } // 22.09-162
     else if (a === 'close-modal3') { var ov3 = document.getElementById('overlay3'); if (ov3) ov3.classList.remove('show'); var md3 = document.getElementById('modal3'); if (md3) { md3.style.width = ''; md3.style.maxWidth = ''; } /* 22.09-238: ширина окна — снова по умолчанию */ S.wkDay = null; } // 22.09-220
     else if (a === 'wm-joint-pick') { openWmJointPickModal(); } // 22.09-162
     else if (a === 'save-joint-pick') { saveWmJointPick(); } // 22.09-162
