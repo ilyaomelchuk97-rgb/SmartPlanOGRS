@@ -943,7 +943,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-407';
+  var SP_BUILD = '22.09-408';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -33711,10 +33711,10 @@
       counters +
       (targets.length ? '<button type="button" class="btn primary" data-action="asg-new">➕ Новое поручение</button>' : '<span style="font-size:12px;color:var(--muted)">Вам недоступно ставить поручения</span>') +
       '</div><div class="card-b">';
-    // вкладки (как в «Журналах») и поиск
+    // вкладки (как в «Журналах» по форме; цвета — как просили: активная белая, остальные серые) и поиск
     h += '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">' +
-      '<div class="jr-tabs" style="padding:0;margin:0;border-bottom:none">' +
-      tabs.map(function (tb) { return '<button type="button" class="jr-tab' + (tab === tb[0] ? ' active' : '') + '" data-asgtab="' + tb[0] + '">' + tb[1] + '</button>'; }).join('') + '</div>' +
+      '<div class="pc-tabs" style="padding:0;margin:0;border-bottom:none">' +
+      tabs.map(function (tb) { return '<button type="button" class="pc-tab' + (tab === tb[0] ? ' active' : '') + '" data-asgtab="' + tb[0] + '">' + tb[1] + '</button>'; }).join('') + '</div>' +
       '<span style="flex:1"></span><input type="text" id="asg-q" placeholder="🔍 Поиск по задачам, людям, объектам…" value="' + esc(S.asgQ || '') + '" style="min-width:230px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:12.5px;background:var(--card);color:var(--ink)"></div>' +
       '<div style="border-top:2px solid var(--line);margin-bottom:13px"></div>';
     if (!shown.length) {
