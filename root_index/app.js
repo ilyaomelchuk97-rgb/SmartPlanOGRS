@@ -943,7 +943,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-401';
+  var SP_BUILD = '22.09-402';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -9305,6 +9305,15 @@
     if (!list.length) return false; // периодов нет — ничего не закрашиваем
     return !list.some(function (p) { return ds >= p.start && ds <= bperiodEndIso(p); });
   }
+  // 22.09-402: попадает ли месяц хоть одним днём в какой-либо период
+  function bperiodMonthIn(y, mm) {
+    var dim = new Date(y, mm + 1, 0).getDate();
+    for (var d = 1; d <= dim; d++) {
+      var ds = y + '-' + String(mm + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+      if (!bperiodOutside(ds)) return true;
+    }
+    return false;
+  }
   function bperiodOver(u) {
     // перебор по ЛЮБОМУ из периодов; возвращается самый большой перебор
     try {
@@ -10222,6 +10231,11 @@
       if (approx > nameColW) nameColW = approx;
     });
     if (nameColW > 360) nameColW = 360;
+    // 22.09-402: в графике за год показываем только данные, на которые стоит
+    // период: месяц вне периодов — серый столбец с прочерком
+    var _bpAnyY = bperiodsLoad().length > 0;
+    var _mIn = [];
+    for (var _mi = 0; _mi < 12; _mi++) _mIn.push(bperiodMonthIn(y, _mi));
     var monthW = 78; // ширина ячейки месяца
     var html = '<div style="overflow:auto;border:1px solid var(--line);border-radius:12px;background:var(--card)">';
     // 22.09-378: годовая таблица — на ВСЮ ширину страницы, как месячная (была width:auto и обрывалась)
@@ -10230,7 +10244,8 @@
     html += '<thead><tr style="background:var(--panel-2)">';
     html += '<th rowspan="2" style="position:sticky;left:0;background:var(--panel-2);z-index:2;padding:8px 10px;text-align:left;border-bottom:1px solid var(--line);border-right:1px solid var(--line);font-size:11px;color:var(--muted);font-weight:700;width:' + nameColW + 'px">Сотрудник</th>';
     for (var mm = 0; mm < 12; mm++) {
-      html += '<th colspan="3" style="padding:4px 8px;font-size:11px;color:var(--ink);border-bottom:1px solid var(--line);border-right:1px solid var(--line);text-align:center;font-weight:800;min-width:' + monthW + 'px">' + MON_NOM[mm] + '</th>';
+      var _mOut = _bpAnyY && !_mIn[mm];
+      html += '<th colspan="3" ' + (_mOut ? 'title="На этот месяц период не стоит — данных нет"' : '') + ' style="padding:4px 8px;font-size:11px;color:' + (_mOut ? '#8a94a6' : 'var(--ink)') + ';border-bottom:1px solid var(--line);border-right:1px solid var(--line);text-align:center;font-weight:800;min-width:' + monthW + 'px' + (_mOut ? ';background:#d7dde6' : '') + '">' + MON_NOM[mm] + '</th>';
     }
     // 22.09-217: справа — колонка с количеством рабочих часов за выбранный год
     html += '<th rowspan="2" title="Сумма рабочих часов за год" style="width:96px;padding:4px 8px;font-size:10px;color:#1d4ed8;border-bottom:1px solid var(--line);text-align:center;font-weight:800;white-space:nowrap;background:var(--panel-2)">⏱ часы<br>за год</th>';
@@ -10249,10 +10264,15 @@
         esc(u.full_name) + (x.isM ? ' <span style="color:var(--muted);font-weight:700;font-size:10px">(мастер)</span>' : '') + '</td>';
       var yH = 0; // 22.09-217: рабочие часы за год
       for (var mm3 = 0; mm3 < 12; mm3++) {
+        if (_bpAnyY && !_mIn[mm3]) {
+          html += '<td colspan="3" data-uid="' + esc(u.id) + '" data-month="' + (mm3 + 1) + '" data-bpout="1" title="На этот месяц период не стоит — данных нет" style="padding:3px 4px;font-weight:800;color:#8a94a6;text-align:center;border-left:1px solid var(--line);border-right:1px solid var(--line);border-bottom:1px solid var(--line);background:#d7dde6">—</td>';
+          continue;
+        }
         var dim = new Date(y, mm3 + 1, 0).getDate();
         var mw = 0, mo = 0, ma = 0;
         for (var dd = 1; dd <= dim; dd++) {
           var ds = y + '-' + String(mm3 + 1).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
+          if (bperiodOutside(ds)) continue; // частично накрытый месяц — только дни периода
           var st = wkDayState(u.id, ds);
           if (st === 'work') { mw++; yH += schDayHours(u, ds); } else if (st === 'abs') ma++; else mo++;
         }
@@ -10313,7 +10333,7 @@
     }
     html += '<select data-action="sch-year" style="padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:12px;font-weight:700;background:var(--card)">' + yearOpts + '</select>';
     html += '</span>';
-    html += '<span class="sub" style="font-size:12px">' + y + ' год — ' + masters.length + ' бригад · ' + slesars.length + ' слесарей</span>';
+    html += '<span class="sub" style="font-size:12px">' + y + ' год — ' + masters.length + ' бригад · ' + slesars.length + ' слесарей' + (bperiodsLoad().length ? ' · данные только по периодам работы бригад' : '') + '</span>';
     html += '<span style="margin-left:auto;display:flex;gap:6px">';
     html += '<button type="button" class="btn sm" data-action="sch-year-print" title="Печать годового графика" style="background:#475569;color:#fff;border-color:#475569">🖨 Печать</button>';
     html += '<button type="button" class="btn sm" data-action="sch-year-excel" title="Скачать в Excel" style="background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border-color:#15803d">📥 Excel</button>';
@@ -10323,6 +10343,7 @@
     html += '<div style="display:flex;gap:14px;align-items:center;font-size:12px;color:var(--muted);margin-bottom:10px;flex-wrap:wrap;font-weight:700">' +
       '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background-color:#dcfce7;border:1px solid #16a34a"></span>рабочий по графику</span>' +
       '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background-color:#f1f5f9;border:1px solid #cbd5e1"></span>выходной</span>' +
+      (bperiodsLoad().length ? '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background:#d7dde6;border:1px solid #cbd5e1"></span>нет периода — данных нет</span>' : '') +
       '<span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:14px;border-radius:3px;background-color:#fee2e2;border:1px solid #dc2626"></span>отсутствие</span>' +
       '</div>';
     // Таблица
@@ -10347,6 +10368,7 @@
         var dim = new Date(yy, mm + 1, 0).getDate();
         for (var d = 1; d <= dim; d++) {
           var ds = yy + '-' + String(mm + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+          if (bperiodOutside(ds)) continue; // 22.09-402: за год считаются только дни, на которые стоит период
           var st = wkDayState(u.id, ds);
           if (st === 'work') { pW++; pH += schDayHours(u, ds); } else if (st === 'abs') pA++; else pO++;
         }
