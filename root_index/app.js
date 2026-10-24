@@ -943,7 +943,7 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-406';
+  var SP_BUILD = '22.09-407';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
@@ -33700,20 +33700,23 @@
     var shown = list.filter(function (t) { return tabF(t) && qF(t); });
     var targets = asgTargets();
     var tabs = [['all', 'Все активные'], ['mine', '📥 Мне'], ['from', '📤 От меня'], ['check', '✔ На проверку' + (cnt.waitMe ? ' (' + cnt.waitMe + ')' : '')], ['done', '✅ Завершённые']];
-    var h = '<div class="card"><div class="card-h"><h2>📋 Поручения</h2>' +
-      '<span class="sub">задачи руководства работникам: поставить, выполнить, подтвердить</span><div class="spacer"></div>' +
-      (targets.length ? '<button type="button" class="btn primary" data-action="asg-new">➕ Новое поручение</button>' : '<span style="font-size:12px;color:var(--muted)">Вам недоступно ставить поручения</span>') +
-      '</div><div class="card-b">';
-    // дашборд-сводка
-    h += '<div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:13px">' +
+    /* 22.09-407: в шапке вместо фразы-подписи — счётчики по центру;
+       кнопки-фильтры оформлены вкладками как в «Журналах» (активная серая) */
+    var counters = '<div style="flex:1;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;min-width:280px">' +
       '<span style="font-size:12.5px;font-weight:800;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:999px;padding:6px 13px">📥 Мне выполнять: ' + cnt.toMe + '</span>' +
       '<span style="font-size:12.5px;font-weight:800;background:' + (cnt.overdue ? '#fee2e2;color:#b91c1c;border:1px solid #fca5a5' : '#f1f5f9;color:#64748b;border:1px solid var(--line)') + ';border-radius:999px;padding:6px 13px">⚠ Просрочено: ' + cnt.overdue + '</span>' +
       '<span style="font-size:12.5px;font-weight:800;background:#f5f3ff;color:#6d28d9;border:1px solid #ddd6fe;border-radius:999px;padding:6px 13px">✔ Ждут моей проверки: ' + cnt.waitMe + '</span>' +
       '<span style="font-size:12.5px;font-weight:800;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:999px;padding:6px 13px">📤 Мои активные: ' + cnt.activeFrom + '</span></div>';
-    // вкладки и поиск
-    h += '<div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:13px">' +
-      tabs.map(function (tb) { return '<button type="button" data-asgtab="' + tb[0] + '" style="padding:6px 13px;border-radius:999px;border:1px solid ' + (tab === tb[0] ? '#2563eb' : 'var(--line)') + ';background:' + (tab === tb[0] ? '#2563eb' : 'var(--card)') + ';color:' + (tab === tb[0] ? '#fff' : 'var(--ink)') + ';font-family:inherit;font-size:12.5px;font-weight:800;cursor:pointer">' + tb[1] + '</button>'; }).join('') +
-      '<span style="flex:1"></span><input type="text" id="asg-q" placeholder="🔍 Поиск по задачам, людям, объектам…" value="' + esc(S.asgQ || '') + '" style="min-width:230px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:12.5px;background:var(--card);color:var(--ink)"></div>';
+    var h = '<div class="card"><div class="card-h"><h2>📋 Поручения</h2>' +
+      counters +
+      (targets.length ? '<button type="button" class="btn primary" data-action="asg-new">➕ Новое поручение</button>' : '<span style="font-size:12px;color:var(--muted)">Вам недоступно ставить поручения</span>') +
+      '</div><div class="card-b">';
+    // вкладки (как в «Журналах») и поиск
+    h += '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">' +
+      '<div class="jr-tabs" style="padding:0;margin:0;border-bottom:none">' +
+      tabs.map(function (tb) { return '<button type="button" class="jr-tab' + (tab === tb[0] ? ' active' : '') + '" data-asgtab="' + tb[0] + '">' + tb[1] + '</button>'; }).join('') + '</div>' +
+      '<span style="flex:1"></span><input type="text" id="asg-q" placeholder="🔍 Поиск по задачам, людям, объектам…" value="' + esc(S.asgQ || '') + '" style="min-width:230px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:12.5px;background:var(--card);color:var(--ink)"></div>' +
+      '<div style="border-top:2px solid var(--line);margin-bottom:13px"></div>';
     if (!shown.length) {
       h += '<div class="empty" style="padding:28px">' + (list.length ? 'По этому виду ничего нет' : 'Поручений пока нет' + (targets.length ? ' — поставьте первое кнопкой «➕ Новое поручение»' : '')) + '</div>';
     } else if (tab === 'done') {
