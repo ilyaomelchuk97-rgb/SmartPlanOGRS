@@ -132,7 +132,7 @@
 
   // Роль «Слесарь»: доступ только к трём картам (просмотр)
   function isSlesar() { return S.role === 'slesar'; }
-  var SLESAR_SCREENS = { map: 1, livemap: 1, objmap: 1 };
+  var SLESAR_SCREENS = { map: 1, livemap: 1, objmap: 1, assign: 1 }; // 22.09-405: слесарю доступны и «Поручения» (ему ставят задачи)
   // Список участков — из справочника (areas_db.js); fallback — каталог работ
   function areasList() {
     try {
@@ -943,13 +943,14 @@
 
   // 22.09-219: номер текущей сборки — показывается в шапке страницы и метке на экране входа.
   // Описания изменений больше НЕ пишутся в шапку — они в журнале (SP_CHANGELOG, data.js).
-  var SP_BUILD = '22.09-404';
+  var SP_BUILD = '22.09-405';
   try { window.SP_BUILD = SP_BUILD; } catch (eWB) {} // сборка видна логу ошибок (error_log.js)
   // Скрытая метка авторства (видна только в консоли разработчика, F12):
   // сайт SmartPlan создан Омельчуком Ильёй Анатольевичем, оператором ПЭВМ УП «МИНГАЗ»; все права защищены (© 2026)
   try { console.log('%cSmartPlan © 2026 Омельчук Илья Анатольевич · оператор ПЭВМ УП «МИНГАЗ» · все права защищены', 'color:#64748b;font-size:12px'); } catch (eC) {}
   var TITLES = {
     dashboard: 'Панель мониторинга',
+    assign: 'Поручения',
     calendar: 'Планирование / Календарь',
     graphs: 'Планирование / График работ',
     map: 'Карта маршрутов',
@@ -20730,6 +20731,8 @@
       // 22.09-264: объявления — показать новые; страница управления — обновить список (ознакомившиеся)
       try { if (window.SP_ANN && SP_ANN.afterSync) SP_ANN.afterSync(); } catch (eAn2) {}
       try { if (S.screen === 'adminctl') annRenderList(); } catch (eAn3) {}
+      try { if (S.screen === 'assign') renderAssign(); } catch (eAsg) {} // 22.09-405: поручения пришли с сервера — обновить доску
+      try { if (window.SP_ASG_BADGE) SP_ASG_BADGE(); } catch (eAsg2) {} // 22.09-405: счётчик поручений в меню
       console.log('🔄 Данные обновлены мягко (без перерисовки)');
     };
     var view = document.getElementById('view');
@@ -20770,6 +20773,7 @@
       }
     }
     if (S.screen === 'dashboard') { if (!uiSkeletonMaybe()) { renderDashboard(); dashboardDecorate(); } } // 22.09-268: + настройка панели
+    else if (S.screen === 'assign') renderAssign(); // 22.09-405: «Поручения»
     else if (S.screen === 'calendar') renderCalendar();
     else if (S.screen === 'map') renderMap();
     else if (S.screen === 'testmap') renderTestMap();
@@ -20948,6 +20952,11 @@
     else if (a === 'kpi-overloads') { kpiOverloads(); }
     else if (a === 'kpi-month') { kpiMonth(); }
     else if (a === 'wk-settings-open') { openWorkersSettingsModal(); } // 22.09-220
+    else if (a === 'asg-new') { openAssignNew(); } // 22.09-405: поручения
+    else if (a === 'asg-create') { asgCreateSave(); }
+    else if (a === 'asg-open') { openAssignModal(el.dataset.id); }
+    else if (a === 'asg-act') { asgAction(el.dataset.id, el.dataset.act); }
+    else if (a === 'asg-comment') { asgCommentAdd(el.dataset.id); }
     else if (a === 'sch-periods-open') { openBrigadePeriodsModal(); } // 22.09-397: периоды работы бригад — окно поверх «Настроек бригад»
     else if (a === 'kpi-permits') { kpiPermits(); }
     else if (a === 'kpi-redzone') { kpiRedzone(); } // 22.09-171
@@ -29813,7 +29822,7 @@
     try { var a = JSON.parse(localStorage.getItem(annLsKey()) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; }
   }
   function annAnnouncements() {
-    return annList().filter(function (m) { return m && m.id && m.kind !== 'ack' && m.kind !== 'feedback' && m.kind !== 'objchg' && m.kind !== 'planchg' && m.kind !== 'mapreq'; }); // 22.09-318/332/334/362: отзывы, изменения и запросы карты — отдельные виды записей
+    return annList().filter(function (m) { return m && m.id && m.kind !== 'ack' && m.kind !== 'feedback' && m.kind !== 'objchg' && m.kind !== 'planchg' && m.kind !== 'mapreq' && m.kind !== 'assign'; }); // 22.09-318/332/334/362/405: отзывы, изменения, запросы карты и поручения — отдельные виды записей
   }
 
   /* ===== 22.09-362: ДОСТУП К КАРТЕ МЕСТОПОЛОЖЕНИЯ ДРУГИХ УЧАСТКОВ =====
@@ -31759,6 +31768,33 @@
       '</div></div>';
   }
 
+  /* 22.09-405: Поручения, требующие моего действия: мне — новые и
+     возвращённые; от меня — выполненные, ждущие моей проверки. */
+  function bellAssigns() {
+    var out = [];
+    try {
+      if (!S.user || !S.user.id) return out;
+      var list = (window.SP_ASG && SP_ASG.list) ? (SP_ASG.list() || []) : [];
+      list.forEach(function (t) {
+        if (!t || !t.id) return;
+        if (String(t.to_id) === String(S.user.id) && (t.status === 'new' || t.status === 'returned')) out.push(t);
+        else if (String(t.from_id) === String(S.user.id) && t.status === 'wait') out.push(t);
+      });
+      out.sort(function (a, b) { return String(a.due || '9999').localeCompare(String(b.due || '9999')); });
+    } catch (e) {}
+    return out;
+  }
+  function bellAssignItemHtml(t) {
+    var mine = String(t.to_id) === String(S.user.id);
+    var over = false;
+    try { over = !!(window.SP_ASG && SP_ASG.list && t.due && t.status !== 'closed' && String(t.due) < new Date().toISOString().slice(0, 10)); } catch (e) {}
+    return '<div class="bl-item" data-bell-asg="' + esc(t.id) + '" title="Нажмите — открыть поручение" style="cursor:pointer">' +
+      '<div class="bl-top"><span class="bl-prio" style="background:' + (mine ? '#dbeafe' : '#ede9fe') + ';color:' + (mine ? '#1d4ed8' : '#6d28d9') + '">' + (mine ? 'поручение мне' : 'на проверку') + '</span>' +
+      '<span class="bl-from">' + esc(mine ? (t.from_name || '') : (t.to_name || '')) + '</span>' +
+      '<span class="bl-when">' + (t.due ? 'до ' + esc(t.due) : '') + '</span></div>' +
+      '<div class="bl-text"><b>' + esc(t.title || '') + '</b>' + (over ? ' <span style="color:#dc2626;font-weight:800">— просрочено</span>' : '') + '</div></div>';
+  }
+
   /* Задачи: просрочено / на сегодня (по роли) */
   function bellMyTasks() {
     var my = (S.user && S.user.id) ? String(S.user.id) : '';
@@ -31790,7 +31826,8 @@
   /* Красный кружок на кнопке */
   function bellBadgeSync() {
     try {
-      var n = bellUnread().length + bellObjChanges().length + bellPlanChanges().length; // 22.09-332/334: + изменения объектов и плана
+      var n = bellUnread().length + bellObjChanges().length + bellPlanChanges().length + bellAssigns().length; // 22.09-332/334/405: + изменения объектов и плана, + поручения
+      try { if (window.SP_ASG_BADGE) SP_ASG_BADGE(); } catch (eA) {} // 22.09-405: счётчик у пункта «Поручения» в меню
       var b = document.getElementById('sp-bell-badge');
       var btn = document.getElementById('sp-bell');
       if (b) {
@@ -31892,6 +31929,12 @@
     if (unread.length) h += unread.slice(0, 20).map(bellItemHtml).join('');
     else h += '<div class="bl-empty">Новых объявлений нет</div>';
     if (unread.length > 20) h += '<div class="bl-empty">…и ещё ' + (unread.length - 20) + '</div>';
+    var asg = bellAssigns();
+    if (asg.length) {
+      h += '<div class="bl-sec">Поручения</div>';
+      h += asg.slice(0, 10).map(bellAssignItemHtml).join('');
+      if (asg.length > 10) h += '<div class="bl-empty">…и ещё ' + (asg.length - 10) + '</div>';
+    }
     var planchg = bellPlanChanges();
     if (planchg.length) {
       h += '<div class="bl-sec">Изменения моего плана</div>';
@@ -31982,6 +32025,14 @@
         if (mode === 'new') setTimeout(function () {
           try { var nb = document.querySelector('[data-action="graphs-new"]'); if (nb) nb.click(); } catch (eN2) {}
         }, 500);
+        return;
+      }
+      var asgEl = t.closest('[data-bell-asg]');
+      if (asgEl) {
+        var asgId = asgEl.getAttribute('data-bell-asg');
+        bellClose();
+        try { setScreen('assign'); } catch (eA2) {}
+        setTimeout(function () { try { if (window.SP_ASG) openAssignModal(asgId); } catch (eA3) {} }, 350);
         return;
       }
       var tk = t.closest('[data-bell-tasks]');
@@ -33483,4 +33534,355 @@
   window.SPNavPulse = navPulse;
   window.SPAnim3 = { onScreen: onScreen, quiet: quiet };
 })();
+  /* ── часть 34 · app/34_assign.js — «Поручения»: задачи руководства работникам (22.09-405) ── */
+  /* ============================================================
+     22.09-405: страница «Поручения» (Оперативная работа).
+     Руководство ставит задачи работникам: начальник службы и его
+     заместители (профессии «Начальник СЭОГС»/«Заместитель…») —
+     всем; начальник участка и старший мастер — своему участку;
+     мастер — своей бригаде и коллегам участка. Правило (выбор
+     пользователя): ставить можно ВНИЗ по иерархии и коллегам
+     СВОЕГО уровня внутри участка/службы.
+     Цикл (выбор пользователя): Новая → «Принять в работу» →
+     «Выполнено» → постановщик «Подтвердить и закрыть» или
+     «Вернуть на доработку». Видимость: свои (я постановщик или
+     исполнитель) + руководители видят задачи подчинённых.
+     В карточке: приоритет, срок, объект (если задача по объекту),
+     комментарии и история. Хранение — раздел messages на сервере,
+     записи kind:'assign' (как запросы карты): новый воркер не нужен.
+     Уведомления: колокольчик (раздел «Поручения» + счётчик) и
+     красный счётчик у пункта меню.
+     ============================================================ */
+  var ASG_ST = {
+    'new':      { label: 'Новая',            bg: '#dbeafe', col: '#1d4ed8', bd: '#93c5fd' },
+    'work':     { label: 'В работе',         bg: '#fef3c7', col: '#b45309', bd: '#fcd34d' },
+    'wait':     { label: 'На проверке',      bg: '#ede9fe', col: '#6d28d9', bd: '#c4b5fd' },
+    'returned': { label: 'Возвращена',       bg: '#fee2e2', col: '#b91c1c', bd: '#fca5a5' },
+    'closed':   { label: 'Закрыта',          bg: '#dcfce7', col: '#15803d', bd: '#86efac' },
+    'cancelled':{ label: 'Отменена',         bg: '#f1f5f9', col: '#64748b', bd: '#cbd5e1' }
+  };
+  var ASG_PRIO = {
+    'normal':  { label: 'Обычная',  bg: '#f1f5f9', col: '#64748b' },
+    'important': { label: 'Важная', bg: '#fef3c7', col: '#b45309' },
+    'urgent':  { label: 'Срочная',  bg: '#fee2e2', col: '#b91c1c' }
+  };
+  function asgRank(u) {
+    if (!u) return 0;
+    if (u.role === 'admin') return 100;
+    var prof = String((u.prof || '') + ' ' + ((ROLE_INFO[u.role] || {}).label || '')).toLowerCase();
+    if (/заместитель/.test(prof) && /(сэогс|служб)/.test(prof)) return 85;
+    if (/начальник/.test(prof) && /(сэогс|служб)/.test(prof)) return 90;
+    if (u.role === 'nach') return 70;
+    if (u.role === 'smaster') return 60;
+    if (u.role === 'engineer') return 55;
+    if (u.role === 'viewer') return 50;
+    if (u.role === 'master') return 40;
+    if (u.role === 'slesar') return 30;
+    return 20;
+  }
+  function asgAreaOf(u) {
+    try { if (typeof userEffArea === 'function') return String(userEffArea(u) || '').trim(); } catch (e) {}
+    return String((u && u.area) || '').trim();
+  }
+  function asgCanAssignTo(target) {
+    if (!S.user || !target || target.id === S.user.id || target.active === false) return false;
+    var myR = asgRank(S.user), tR = asgRank(target);
+    if (S.role === 'admin' || myR >= 85) return tR < myR || S.role === 'admin'; // служба и администратор — всем ниже
+    var myA = asgAreaOf(S.user), tA = asgAreaOf(target);
+    if (!myA || myA === 'Все участки') return tR <= myR;
+    if (tA !== myA) return false;
+    return tR <= myR; // вниз по иерархии + коллеги своего уровня в своём участке
+  }
+  function asgTargets() {
+    return (DB.getUsers() || []).filter(function (u) { return u && u.active !== false && asgCanAssignTo(u); })
+      .sort(function (a, b) { return (asgRank(b) - asgRank(a)) || String(a.full_name || '').localeCompare(String(b.full_name || ''), 'ru'); });
+  }
+  function asgAll() {
+    return annList().filter(function (m) { return m && m.id && m.kind === 'assign'; })
+      .sort(function (a, b) { return (b.created || 0) - (a.created || 0); });
+  }
+  function asgCanSee(t) {
+    if (!S.user || !t) return false;
+    if (S.role === 'admin') return true;
+    if (t.from_id === S.user.id || t.to_id === S.user.id) return true;
+    var myR = asgRank(S.user);
+    if (myR >= 85) return true; // начальник службы и заместители видят всё
+    var exec = DB.getUser(t.to_id);
+    if (!exec) return false;
+    // руководитель видит задачи своих подчинённых (исполнитель ниже по рангу, участок совпадает)
+    return asgRank(exec) < myR && asgAreaOf(exec) === asgAreaOf(S.user);
+  }
+  function asgVisible() { return asgAll().filter(asgCanSee); }
+  function asgTodayIso() { var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  function asgOverdue(t) { return t && t.due && t.status !== 'closed' && t.status !== 'cancelled' && String(t.due) < asgTodayIso(); }
+  function asgDueTxt(t) {
+    if (!t.due) return '';
+    var f = ''; try { f = fmtDmyIso(t.due); } catch (e) { f = t.due; }
+    if (asgOverdue(t)) return '⚠ срок ' + f + ' — просрочено';
+    if (t.due === asgTodayIso()) return 'срок сегодня, ' + f;
+    return 'срок до ' + f;
+  }
+  function asgActionCount() {
+    if (!S.user) return 0;
+    var me = S.user.id, n = 0;
+    asgAll().forEach(function (t) {
+      if (t.to_id === me && (t.status === 'new' || t.status === 'returned')) n++;
+      else if (t.from_id === me && t.status === 'wait') n++;
+    });
+    return n;
+  }
+  function asgBadgeSync() {
+    try {
+      var b = document.getElementById('asg-badge'); if (!b) return;
+      var n = asgActionCount();
+      if (n > 0) { b.textContent = n > 99 ? '99+' : String(n); b.style.display = ''; }
+      else b.style.display = 'none';
+    } catch (e) {}
+  }
+  window.SP_ASG_BADGE = asgBadgeSync;
+  function asgSave(rec, msg) {
+    rec.updated = Date.now();
+    function done(ok) {
+      if (ok) { try { SP_SYNC_POLL.applyRemote('messages', [rec]); } catch (eA) {} }
+      if (msg) toast(ok ? 'ok' : 'warn', ok ? msg : 'Сохранено на этом устройстве (сервер недоступен — уйдёт при появлении связи)');
+      try { if (window.bellSync) bellSync(); } catch (eB) {}
+      asgBadgeSync();
+      if (S.screen === 'assign' && !document.getElementById('asg-title')) renderAssign();
+    }
+    if (window.SP_API && SP_API.syncPush) SP_API.syncPush('messages', rec).then(function (r) { done(!!(r && r.ok)); })['catch'](function () { done(false); });
+    else done(false);
+  }
+  function asgPushHist(t, text) {
+    if (!t.hist) t.hist = [];
+    t.hist.push({ uid: S.user ? S.user.id : '', name: S.user ? (S.user.full_name || '') : '', text: text, ts: Date.now() });
+    if (t.hist.length > 60) t.hist = t.hist.slice(-60);
+  }
+  function asgChip(st) { var m = ASG_ST[st] || ASG_ST['new']; return '<span style="font-size:10.5px;font-weight:800;background:' + m.bg + ';color:' + m.col + ';border:1px solid ' + m.bd + ';border-radius:999px;padding:2px 8px;white-space:nowrap">' + m.label + '</span>'; }
+  function asgPrioChip(p) { var m = ASG_PRIO[p] || ASG_PRIO.normal; return '<span style="font-size:10.5px;font-weight:800;background:' + m.bg + ';color:' + m.col + ';border-radius:999px;padding:2px 8px;white-space:nowrap">' + m.label + '</span>'; }
+  function asgCardHtml(t) {
+    var over = asgOverdue(t);
+    var cm = (t.comments || []).length;
+    return '<div data-asg-open="' + esc(t.id) + '" style="border:1px solid ' + (over ? '#fca5a5' : 'var(--line)') + ';border-left:4px solid ' + (over ? '#dc2626' : (ASG_ST[t.status] || ASG_ST['new']).bd) + ';border-radius:11px;padding:10px 11px;background:var(--card);cursor:pointer;box-shadow:0 1px 3px rgba(15,35,70,.05)">' +
+      '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px">' + asgChip(t.status) + asgPrioChip(t.prio) +
+      '<span style="flex:1"></span><span style="font-size:11px;font-weight:700;color:' + (over ? '#dc2626' : 'var(--muted)') + '">' + esc(asgDueTxt(t)) + '</span></div>' +
+      '<div style="font-size:13px;font-weight:800;color:var(--ink);line-height:1.35">' + esc(t.title || 'Без названия') + '</div>' +
+      (t.text ? '<div style="font-size:12px;color:var(--muted);margin-top:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">' + esc(t.text) + '</div>' : '') +
+      (t.obj_label ? '<div style="font-size:11.5px;color:#1d4ed8;font-weight:700;margin-top:5px">📍 ' + esc(t.obj_label) + '</div>' : '') +
+      '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px;font-size:11px;color:var(--muted);font-weight:600">' +
+      '<span>от: <b style="color:var(--ink)">' + esc(t.from_name || '') + '</b></span><span>→</span><span>кому: <b style="color:var(--ink)">' + esc(t.to_name || '') + '</b></span>' +
+      '<span style="flex:1"></span>' + (cm ? '<span title="Комментарии">💬 ' + cm + '</span>' : '') + '</div></div>';
+  }
+  function renderAssign() {
+    var v = document.getElementById('view'); if (!v) return;
+    asgBadgeSync();
+    var list = asgVisible();
+    var me = S.user ? S.user.id : '';
+    var tab = S.asgTab || 'all';
+    var q = String(S.asgQ || '').trim().toLowerCase();
+    var cnt = { toMe: 0, overdue: 0, waitMe: 0, activeFrom: 0 };
+    list.forEach(function (t) {
+      if (t.to_id === me && t.status !== 'closed' && t.status !== 'cancelled') { cnt.toMe++; if (asgOverdue(t)) cnt.overdue++; }
+      if (t.from_id === me && t.status === 'wait') cnt.waitMe++;
+      if (t.from_id === me && t.status !== 'closed' && t.status !== 'cancelled') cnt.activeFrom++;
+    });
+    function tabF(t) {
+      if (tab === 'mine') return t.to_id === me && t.status !== 'closed' && t.status !== 'cancelled';
+      if (tab === 'from') return t.from_id === me && t.status !== 'closed' && t.status !== 'cancelled';
+      if (tab === 'check') return t.from_id === me && t.status === 'wait';
+      if (tab === 'done') return t.status === 'closed' || t.status === 'cancelled';
+      return t.status !== 'closed' && t.status !== 'cancelled';
+    }
+    function qF(t) {
+      if (!q) return true;
+      var s = ((t.title || '') + ' ' + (t.text || '') + ' ' + (t.from_name || '') + ' ' + (t.to_name || '') + ' ' + (t.obj_label || '')).toLowerCase();
+      return s.indexOf(q) >= 0;
+    }
+    var shown = list.filter(function (t) { return tabF(t) && qF(t); });
+    var targets = asgTargets();
+    var tabs = [['all', 'Все активные'], ['mine', '📥 Мне'], ['from', '📤 От меня'], ['check', '👀 На проверку' + (cnt.waitMe ? ' (' + cnt.waitMe + ')' : '')], ['done', '✅ Завершённые']];
+    var h = '<div class="card"><div class="card-h"><h2>📋 Поручения</h2>' +
+      '<span class="sub">задачи руководства работникам: поставить, выполнить, подтвердить</span><div class="spacer"></div>' +
+      (targets.length ? '<button type="button" class="btn primary" data-action="asg-new">➕ Новое поручение</button>' : '<span style="font-size:12px;color:var(--muted)">Вам недоступно ставить поручения</span>') +
+      '</div><div class="card-b">';
+    // дашборд-сводка
+    h += '<div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:13px">' +
+      '<span style="font-size:12.5px;font-weight:800;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:999px;padding:6px 13px">📥 Мне выполнять: ' + cnt.toMe + '</span>' +
+      '<span style="font-size:12.5px;font-weight:800;background:' + (cnt.overdue ? '#fee2e2;color:#b91c1c;border:1px solid #fca5a5' : '#f1f5f9;color:#64748b;border:1px solid var(--line)') + ';border-radius:999px;padding:6px 13px">⚠ Просрочено: ' + cnt.overdue + '</span>' +
+      '<span style="font-size:12.5px;font-weight:800;background:#f5f3ff;color:#6d28d9;border:1px solid #ddd6fe;border-radius:999px;padding:6px 13px">👀 Ждут моей проверки: ' + cnt.waitMe + '</span>' +
+      '<span style="font-size:12.5px;font-weight:800;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:999px;padding:6px 13px">📤 Мои активные: ' + cnt.activeFrom + '</span></div>';
+    // вкладки и поиск
+    h += '<div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:13px">' +
+      tabs.map(function (tb) { return '<button type="button" data-asgtab="' + tb[0] + '" style="padding:6px 13px;border-radius:999px;border:1px solid ' + (tab === tb[0] ? '#2563eb' : 'var(--line)') + ';background:' + (tab === tb[0] ? '#2563eb' : 'var(--card)') + ';color:' + (tab === tb[0] ? '#fff' : 'var(--ink)') + ';font-family:inherit;font-size:12.5px;font-weight:800;cursor:pointer">' + tb[1] + '</button>'; }).join('') +
+      '<span style="flex:1"></span><input type="text" id="asg-q" placeholder="🔍 Поиск по задачам, людям, объектам…" value="' + esc(S.asgQ || '') + '" style="min-width:230px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:12.5px;background:var(--card);color:var(--ink)"></div>';
+    if (!shown.length) {
+      h += '<div class="empty" style="padding:28px">' + (list.length ? 'По этому виду ничего нет' : 'Поручений пока нет' + (targets.length ? ' — поставьте первое кнопкой «➕ Новое поручение»' : '')) + '</div>';
+    } else if (tab === 'done') {
+      h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:10px">' + shown.map(asgCardHtml).join('') + '</div>';
+    } else {
+      // доска по статусам
+      var cols = [['new', '📥 Новые'], ['work', '🔧 В работе'], ['wait', '👀 На проверке'], ['returned', '↩ Возвращены']];
+      h += '<div style="display:flex;gap:11px;overflow-x:auto;padding-bottom:6px;align-items:flex-start">';
+      cols.forEach(function (c) {
+        var items = shown.filter(function (t) { return t.status === c[0]; });
+        items.sort(function (a, b) { return String(a.due || '9999').localeCompare(String(b.due || '9999')); });
+        h += '<div style="flex:1 0 250px;min-width:250px;max-width:340px;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:9px">' +
+          '<div style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin:2px 2px 9px">' + c[1] + ' · ' + items.length + '</div>' +
+          (items.length ? '<div style="display:flex;flex-direction:column;gap:9px">' + items.map(asgCardHtml).join('') + '</div>' : '<div style="font-size:12px;color:var(--muted);padding:8px 4px">— пусто —</div>') + '</div>';
+      });
+      h += '</div>';
+    }
+    h += '</div></div>';
+    v.innerHTML = h;
+    v.querySelectorAll('[data-asgtab]').forEach(function (b) {
+      b.addEventListener('click', function () { S.asgTab = b.getAttribute('data-asgtab'); renderAssign(); });
+    });
+    var qEl = document.getElementById('asg-q');
+    if (qEl) qEl.addEventListener('input', function () { S.asgQ = qEl.value; renderAssign(); var nq = document.getElementById('asg-q'); if (nq) { nq.focus(); nq.setSelectionRange(nq.value.length, nq.value.length); } });
+    v.querySelectorAll('[data-asg-open]').forEach(function (c) {
+      c.addEventListener('click', function () { openAssignModal(c.getAttribute('data-asg-open')); });
+    });
+  }
+  function asgObjLabel(o) {
+    if (!o) return '';
+    var num = ''; try { num = objNumOf(o); } catch (e) {}
+    return ((o.type || 'Объект') + (num ? ' №' + num : '') + (o.addr ? ', ' + o.addr : '')).trim();
+  }
+  function openAssignNew() {
+    var targets = asgTargets();
+    if (!targets.length) { toast('err', 'Некому ставить поручения: нет доступных работников'); return; }
+    var objs = [];
+    try { objs = (window.OBJECTS_DB && OBJECTS_DB.getObjects) ? OBJECTS_DB.getObjects() : []; } catch (e) {}
+    objs = objs.filter(function (o) { return o && o.id; }).sort(function (a, b) { return asgObjLabel(a).localeCompare(asgObjLabel(b), 'ru'); });
+    var due = new Date(Date.now() + 3 * 86400000);
+    var dueIso = due.getFullYear() + '-' + String(due.getMonth() + 1).padStart(2, '0') + '-' + String(due.getDate()).padStart(2, '0');
+    var byArea = {};
+    targets.forEach(function (u) { var a = asgAreaOf(u) || 'Без участка'; if (!byArea[a]) byArea[a] = []; byArea[a].push(u); });
+    var toOpts = '';
+    Object.keys(byArea).sort().forEach(function (a) {
+      toOpts += '<optgroup label="Участок: ' + esc(a) + '">' + byArea[a].map(function (u) {
+        return '<option value="' + esc(u.id) + '">' + esc(u.full_name) + ' · ' + esc(u.prof || (ROLE_INFO[u.role] || {}).label || u.role) + '</option>';
+      }).join('') + '</optgroup>';
+    });
+    modal.innerHTML = '<div class="modal-h"><h3>➕ Новое поручение</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">' +
+      '<div class="fld"><label>Кому (исполнитель)</label><select id="asg-to">' + toOpts + '</select></div>' +
+      '<div class="fld"><label>Что нужно сделать (заголовок)</label><input id="asg-title" placeholder="например: Проверить давление на ГРП №12"></div>' +
+      '<div class="fld"><label>Подробности <span style="font-weight:400;color:#64748b">(необязательно)</span></label><textarea id="asg-text" rows="3" placeholder="Что именно, где, на что обратить внимание…"></textarea></div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:11px">' +
+      '<div class="fld" style="margin:0"><label>Приоритет</label><select id="asg-prio"><option value="normal">Обычная</option><option value="important">Важная</option><option value="urgent">Срочная</option></select></div>' +
+      '<div class="fld" style="margin:0"><label>Срок — выполнить до</label><input type="date" id="asg-due" value="' + dueIso + '"></div></div>' +
+      '<div class="fld"><label>Объект <span style="font-weight:400;color:#64748b">(если задача по объекту; можно без объекта)</span></label><select id="asg-obj"><option value="">— без объекта —</option>' +
+      objs.map(function (o) { return '<option value="' + esc(o.id) + '">' + esc(asgObjLabel(o)) + '</option>'; }).join('') + '</select></div>' +
+      '</div><div class="modal-f"><button class="btn" data-action="close-modal">Отмена</button><button class="btn primary" data-action="asg-create">📨 Поставить задачу</button></div>';
+    overlay.classList.add('show');
+  }
+  function asgCreateSave() {
+    var toEl = document.getElementById('asg-to');
+    var titleEl = document.getElementById('asg-title');
+    if (!toEl || !titleEl) return;
+    var to = DB.getUser(toEl.value);
+    var title = String(titleEl.value || '').trim();
+    if (!to) { toast('err', 'Выберите исполнителя'); return; }
+    if (!title) { toast('err', 'Напишите, что нужно сделать'); titleEl.focus(); return; }
+    var objEl = document.getElementById('asg-obj');
+    var obj = null;
+    try { if (objEl && objEl.value && window.OBJECTS_DB && OBJECTS_DB.getObject) obj = OBJECTS_DB.getObject(objEl.value); } catch (e) {}
+    var rec = {
+      id: 'asg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+      kind: 'assign',
+      title: title,
+      text: String((document.getElementById('asg-text') || {}).value || '').trim(),
+      from_id: S.user.id, from_name: S.user.full_name || '',
+      to_id: to.id, to_name: to.full_name || '',
+      to_area: asgAreaOf(to),
+      prio: (document.getElementById('asg-prio') || {}).value || 'normal',
+      due: (document.getElementById('asg-due') || {}).value || '',
+      obj_id: obj ? obj.id : '',
+      obj_label: obj ? asgObjLabel(obj) : '',
+      status: 'new',
+      comments: [],
+      hist: [],
+      created: Date.now()
+    };
+    asgPushHist(rec, 'Поручение поставлено');
+    overlay.classList.remove('show');
+    asgSave(rec, '✓ Поручение поставлено: ' + (to.full_name || ''));
+    try { logAction('Поручения', 'поставлено для ' + (to.full_name || '')); } catch (eL) {}
+    if (S.screen === 'assign') renderAssign();
+  }
+  function openAssignModal(id) {
+    var t = null;
+    asgAll().forEach(function (x) { if (x.id === id) t = x; });
+    if (!t) { toast('err', 'Поручение не найдено'); return; }
+    var me = S.user ? S.user.id : '';
+    var isExec = t.to_id === me, isAuth = t.from_id === me || S.role === 'admin';
+    var over = asgOverdue(t);
+    var btns = '';
+    if (isExec && (t.status === 'new' || t.status === 'returned')) btns += '<button type="button" class="btn primary" data-action="asg-act" data-act="accept" data-id="' + esc(t.id) + '">▶ Принять в работу</button>';
+    if (isExec && t.status === 'work') btns += '<button type="button" class="btn primary" data-action="asg-act" data-act="done" data-id="' + esc(t.id) + '">✓ Отметить выполненной</button>';
+    if (isAuth && t.status === 'wait') btns += '<button type="button" class="btn primary" data-action="asg-act" data-act="confirm" data-id="' + esc(t.id) + '">✅ Подтвердить и закрыть</button>' +
+      '<button type="button" class="btn" data-action="asg-act" data-act="return" data-id="' + esc(t.id) + '" style="color:var(--red);border-color:var(--red)">↩ Вернуть на доработку</button>';
+    if (isAuth && t.status !== 'closed' && t.status !== 'cancelled') btns += '<button type="button" class="btn" data-action="asg-act" data-act="cancel" data-id="' + esc(t.id) + '">Отменить поручение</button>';
+    var fmtTs = function (ts) { try { return new Date(ts).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } };
+    var h = '<div class="modal-h"><h3>📋 Поручение</h3><button class="x" data-action="close-modal">×</button></div><div class="modal-b">' +
+      '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:9px">' + asgChip(t.status) + asgPrioChip(t.prio) +
+      '<span style="font-size:12px;font-weight:700;color:' + (over ? '#dc2626' : 'var(--muted)') + '">' + esc(asgDueTxt(t)) + '</span></div>' +
+      '<div style="font-size:16px;font-weight:800;color:var(--ink);line-height:1.4">' + esc(t.title || '') + '</div>' +
+      (t.text ? '<div style="font-size:13.5px;color:var(--ink);line-height:1.55;margin-top:8px;white-space:pre-wrap">' + esc(t.text) + '</div>' : '') +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;margin-top:13px;font-size:12.5px">' +
+      '<div><span style="color:var(--muted);font-weight:600">Поставил:</span> <b style="color:var(--ink)">' + esc(t.from_name || '') + '</b></div>' +
+      '<div><span style="color:var(--muted);font-weight:600">Исполнитель:</span> <b style="color:var(--ink)">' + esc(t.to_name || '') + '</b>' + (t.to_area ? ' <span style="color:var(--muted)">(' + esc(t.to_area) + ')</span>' : '') + '</div>' +
+      '<div><span style="color:var(--muted);font-weight:600">Поставлено:</span> ' + fmtTs(t.created) + '</div>' +
+      '<div><span style="color:var(--muted);font-weight:600">Срок:</span> <b style="color:' + (over ? '#dc2626' : 'var(--ink)') + '">' + (t.due ? esc(fmtDmyIso(t.due)) : 'не указан') + '</b></div>' +
+      (t.obj_label ? '<div style="grid-column:1/-1"><span style="color:var(--muted);font-weight:600">Объект:</span> <b style="color:#1d4ed8">📍 ' + esc(t.obj_label) + '</b></div>' : '') +
+      '</div>';
+    if ((t.hist || []).length) {
+      h += '<div style="margin-top:15px"><div style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:7px">История</div>' +
+        t.hist.slice().reverse().map(function (x) { return '<div style="font-size:12px;color:var(--muted);padding:3px 0">· ' + fmtTs(x.ts) + ' — <b style="color:var(--ink)">' + esc(x.name || '') + '</b>: ' + esc(x.text || '') + '</div>'; }).join('') + '</div>';
+    }
+    h += '<div style="margin-top:15px"><div style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:7px">Комментарии' + ((t.comments || []).length ? ' (' + t.comments.length + ')' : '') + '</div>';
+    if ((t.comments || []).length) {
+      h += t.comments.map(function (c) {
+        return '<div style="border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:7px;background:var(--panel-2)">' +
+          '<div style="font-size:11.5px;color:var(--muted);font-weight:700">' + esc(c.name || '') + ' · ' + fmtTs(c.ts) + '</div>' +
+          '<div style="font-size:13px;color:var(--ink);margin-top:2px;white-space:pre-wrap">' + esc(c.text || '') + '</div></div>';
+      }).join('');
+    } else h += '<div style="font-size:12.5px;color:var(--muted)">Комментариев пока нет</div>';
+    h += '<div style="display:flex;gap:8px;margin-top:9px;align-items:flex-end"><textarea id="asg-cmt" rows="2" placeholder="Написать комментарий…" style="flex:1;padding:8px 10px;border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:13px;background:var(--card);color:var(--ink)"></textarea>' +
+      '<button type="button" class="btn" data-action="asg-comment" data-id="' + esc(t.id) + '">Отправить</button></div>';
+    h += '</div><div class="modal-f"><button class="btn" data-action="close-modal">Закрыть</button>' + btns + '</div>';
+    modal.innerHTML = h;
+    overlay.classList.add('show');
+  }
+  function asgAction(id, act) {
+    var t = null;
+    asgAll().forEach(function (x) { if (x.id === id) t = x; });
+    if (!t || !S.user) return;
+    var me = S.user.id;
+    var rec = JSON.parse(JSON.stringify(t));
+    if (act === 'accept' && rec.to_id === me) { rec.status = 'work'; asgPushHist(rec, 'Принято в работу'); }
+    else if (act === 'done' && rec.to_id === me) { rec.status = 'wait'; asgPushHist(rec, 'Отмечено выполненной — ждёт проверки'); }
+    else if (act === 'confirm' && (rec.from_id === me || S.role === 'admin')) { rec.status = 'closed'; asgPushHist(rec, 'Подтверждено и закрыто'); }
+    else if (act === 'return' && (rec.from_id === me || S.role === 'admin')) { rec.status = 'returned'; asgPushHist(rec, 'Возвращено на доработку'); }
+    else if (act === 'cancel' && (rec.from_id === me || S.role === 'admin')) { rec.status = 'cancelled'; asgPushHist(rec, 'Поручение отменено'); }
+    else { toast('err', 'Это действие вам недоступно'); return; }
+    asgSave(rec, '✓ ' + (ASG_ST[rec.status] ? ASG_ST[rec.status].label : 'Сохранено'));
+    // окно переоткрываем с задержкой: сохранение применяет запись локально
+    // по ответу сервера, мгновенный перечит показал бы старый статус
+    setTimeout(function () { try { openAssignModal(id); } catch (e) {} }, 450);
+    if (S.screen === 'assign') renderAssign();
+  }
+  function asgCommentAdd(id) {
+    var inp = document.getElementById('asg-cmt');
+    var txt = inp ? String(inp.value || '').trim() : '';
+    if (!txt) { toast('warn', 'Напишите комментарий'); return; }
+    var t = null;
+    asgAll().forEach(function (x) { if (x.id === id) t = x; });
+    if (!t) return;
+    var rec = JSON.parse(JSON.stringify(t));
+    if (!rec.comments) rec.comments = [];
+    rec.comments.push({ uid: S.user.id, name: S.user.full_name || '', text: txt, ts: Date.now() });
+      asgSave(rec, null);
+    setTimeout(function () { try { openAssignModal(id); } catch (e) {} }, 450);
+  }
+  window.SP_ASG = { list: asgAll, visible: asgVisible, badge: asgBadgeSync, count: asgActionCount, render: renderAssign };
 })();

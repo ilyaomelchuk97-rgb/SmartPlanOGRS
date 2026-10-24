@@ -104,7 +104,7 @@
         // Вернуться на главный сайт: выход из системы (doLogout уводит на главный сайт).
         document.title = 'SmartPlan ТЕСТ — тестовая страница';
         var mk = document.getElementById('build-marker');
-        if (mk) mk.textContent = 'Тестовая страница · сборка 22.09-404 · участок «ТЕСТ»';
+        if (mk) mk.textContent = 'Тестовая страница · сборка 22.09-405 · участок «ТЕСТ»';
       } catch (eB) {}
     });
   } catch (e) {}
@@ -2043,7 +2043,7 @@ try {
           <div style="margin-top:6px;font-size:12px;color:#64748b;">* Нажмите на кнопку для автозаполнения логина и пароля</div>
         </div>
       </form>
-        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-404 · сравнение по периоду — только суммами за все месяцы</div>
+        <div id="build-marker" style="margin-top:12px;text-align:center;font-size:12px;color:#94a3b8">Сборка 22.09-405 · новая страница «Поручения» — задачи руководства работникам</div>
         <div style="margin-top:6px;text-align:center"><a href="#" id="li-cookie-link" class="cookie-link" title="Посмотреть или изменить разрешение">🍪 Cookie и хранилище браузера</a></div>
     </div>
   </div>
@@ -2068,6 +2068,7 @@ try {
     <nav class="nav" id="nav">
       <div class="grp">Оперативная работа</div>
       <a data-screen="dashboard" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>Панель мониторинга <span class="badge" id="rz-badge">0</span></a>
+      <a data-screen="assign" title="Поручения: задачи руководства работникам — поставить, выполнить, подтвердить"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="4" width="14" height="18" rx="2"/><path d="M9 4a3 3 0 016 0M9 12l2 2 4-4"/></svg>Поручения <span class="badge" id="asg-badge" style="display:none">0</span></a>
       <div class="nav-acc" id="nav-plan">
         <a data-screen="calendar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg>Планирование / Календарь</a>
         <div class="nav-sub">
@@ -2329,17 +2330,17 @@ try {
      Сайт остаётся на Render, а API (сервер + данные) — на воркере Cloudflare.
      Чтобы вернуться к базе Render — удалить следующую строку. -->
 <script>window.SP_CONFIG_OVERRIDE = 'https://smartplanogrsdb.ilya-omelchuk97.workers.dev/api';</script>
-<script src="root_index/config.js?v=22.09-404"></script>
-<script src="root_index/data.js?v=22.09-404"></script>
-<script src="root_index/users_db.js?v=22.09-404"></script>
-<script src="root_index/grp_norms_seed.js?v=22.09-404"></script>
-<script src="root_index/areas_db.js?v=22.09-404"></script>
-<script src="root_index/professions_db.js?v=22.09-404"></script>
-<script src="root_index/work_db.js?v=22.09-404"></script>
-<script src="root_index/objects_db.js?v=22.09-404"></script>
-<script src="root_index/workers_db.js?v=22.09-404"></script>
-<script src="root_index/tasks_db.js?v=22.09-404"></script>
-<script src="root_index/db.js?v=22.09-404"></script>
+<script src="root_index/config.js?v=22.09-405"></script>
+<script src="root_index/data.js?v=22.09-405"></script>
+<script src="root_index/users_db.js?v=22.09-405"></script>
+<script src="root_index/grp_norms_seed.js?v=22.09-405"></script>
+<script src="root_index/areas_db.js?v=22.09-405"></script>
+<script src="root_index/professions_db.js?v=22.09-405"></script>
+<script src="root_index/work_db.js?v=22.09-405"></script>
+<script src="root_index/objects_db.js?v=22.09-405"></script>
+<script src="root_index/workers_db.js?v=22.09-405"></script>
+<script src="root_index/tasks_db.js?v=22.09-405"></script>
+<script src="root_index/db.js?v=22.09-405"></script>
 <!-- Попап-календарь -->
 <div id="date-popup">
   <div class="dp-head">
@@ -2357,12 +2358,12 @@ try {
   </div>
 </div>
 
-<script src="root_index/object_attrs.js?v=22.09-404"></script>
-      <script src="root_index/error_log.js?v=22.09-404"></script>
-      <script src="root_index/api_client.js?v=22.09-404"></script>
-      <script src="root_index/sync_polling.js?v=22.09-404"></script>
-      <script src="root_index/zip_util.js?v=22.09-404"></script>
-      <script src="root_index/app.js?v=22.09-404"></script>
+<script src="root_index/object_attrs.js?v=22.09-405"></script>
+      <script src="root_index/error_log.js?v=22.09-405"></script>
+      <script src="root_index/api_client.js?v=22.09-405"></script>
+      <script src="root_index/sync_polling.js?v=22.09-405"></script>
+      <script src="root_index/zip_util.js?v=22.09-405"></script>
+      <script src="root_index/app.js?v=22.09-405"></script>
   <!-- PWA: офлайн-режим + иконка на домашнем экране (кэш — service worker sw.js) -->
   <script>
   (function () {
